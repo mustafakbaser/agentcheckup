@@ -1,0 +1,17 @@
+# Supply-chain policy. pnpm fails on unknown keys here, so typos cannot silently disable a policy.
+# https://pnpm.io/supply-chain-security
+
+# Only install versions that have been public for at least 7 days.
+minimumReleaseAge: 10080
+# Refuse a version whose provenance/trust level is lower than an earlier version of the same package.
+trustPolicy: no-downgrade
+# Transitive dependencies must resolve from the registry, never from git URLs or tarballs.
+blockExoticSubdeps: true
+# Dependency lifecycle scripts never run. Nothing in this project needs them.
+strictDepBuilds: true
+
+# Reviewed exceptions to trustPolicy. Each entry needs a reason and a review date.
+trustPolicyExclude:
+  # Published 2024-12 by the Node.js types maintainers, before undici-types adopted npm provenance.
+  # Required by @types/node@22 (our engines floor). Reviewed 2026-10-14.
+  - undici-types@6.21.0

@@ -1,0 +1,84 @@
+{
+  "name": "agentcheck",
+  "version": "0.0.0",
+  "description": "Lint AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules and MCP configs against how coding agents actually load them.",
+  "keywords": [
+    "agents-md",
+    "claude-md",
+    "skill-md",
+    "agent-skills",
+    "cursor-rules",
+    "copilot-instructions",
+    "mcp",
+    "coding-agents",
+    "linter",
+    "sarif"
+  ],
+  "homepage": "https://github.com/mustafakbaser/agentcheck#readme",
+  "bugs": "https://github.com/mustafakbaser/agentcheck/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mustafakbaser/agentcheck.git"
+  },
+  "license": "MIT",
+  "author": "Mustafa Kürşad BAŞER (https://github.com/mustafakbaser)",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "agentcheck": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@arethetypeswrong/core": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^22.20.5",
+    "@types/picomatch": "^4.0.3",
+    "@vitest/coverage-v8": "^5.0.3",
+    "eslint": "^10.12.0",
+    "eslint-plugin-regexp": "^3.3.1",
+    "fast-check": "^4.10.2",
+    "ignore": "^7.0.12",
+    "jsonc-parser": "^3.3.1",
+    "mdast-util-from-markdown": "^2.1.0",
+    "picomatch": "^4.0.7",
+    "prettier": "^3.9.9",
+    "publint": "^0.3.25",
+    "tsdown": "^0.23.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  }
+}
