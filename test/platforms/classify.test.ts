@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest';
+import { classify, isCandidateBasename, READERS } from '../../src/platforms/classify.js';
+import { ARTIFACT_KINDS } from '../../src/core/types.js';
+
+describe('classify', () => {
+  it.each([
+    ['AGENTS.md', 'agents-md'],
+    ['packages/api/AGENTS.md', 'agents-md'],
+    ['AGENTS.override.md', 'agents-override-md'],
+    ['CLAUDE.md', 'claude-md'],
+    ['.claude/CLAUDE.md', 'claude-md'],
+    ['CLAUDE.local.md', 'claude-local-md'],
+    ['.claude/rules/testing.md', 'claude-rule'],
+    ['.claude/rules/frontend/react.md', 'claude-rule'],
+    ['.claude/agents/reviewer.md', 'claude-agent'],
+    ['.claude/commands/deploy.md', 'claude-command'],
+    ['.claude/settings.json', 'claude-settings'],
+    ['.claude/settings.local.json', 'claude-settings'],
+    ['.claude-plugin/plugin.json', 'claude-plugin-manifest'],
+    ['.mcp.json', 'mcp-json'],
+    ['.claude/skills/deploy/SKILL.md', 'skill'],
+    ['.agents/skills/pdf/SKILL.md', 'skill'],
+    ['skills/pdf/SKILL.md', 'skill'],
+    ['.codex/hooks.json', 'codex-hooks'],
+    ['.cursor/rules/style.mdc', 'cursor-rule'],
+    ['.cursor/rules/nested/style.mdc', 'cursor-rule'],
+    ['.cursor/rules/style.md', 'cursor-rule-md'],
+    ['.cursorrules', 'cursor-legacy-rules'],
+    ['.cursor/hooks.json', 'cursor-hooks'],
+    ['.cursor/mcp.json', 'cursor-mcp'],
+    ['.github/copilot-instructions.md', 'copilot-instructions'],
+    ['.github/instructions/ts.instructions.md', 'copilot-path-instructions'],
+    ['docs/ts.instructions.md', 'copilot-path-instructions'],
+    ['GEMINI.md', 'gemini-md'],
+    ['.gemini/settings.json', 'gemini-settings'],
+    ['.windsurf/rules/style.md', 'windsurf-rule'],
+    ['.devin/rules/style.md', 'windsurf-rule'],
+    ['.windsurfrules', 'windsurf-legacy-rules'],
+    ['.clinerules/style.md', 'cline-rule'],
+    ['.cline/rules/style.md', 'cline-rule'],
+  ] as const)('classifies %s as %s', (path, kind) => {
+    expect(classify(path)).toEqual({ kind });
+  });
+
+  it.each([
+    'README.md',
+    'docs/guide.md',
+    'package.json',
+    'src/agents.ts',
+    'AGENTS.md.bak',
+    'NOTAGENTS.md',
+    '.cursor/rules',
+  ])('ignores %s', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+
+  it.each([
+    ['Agents.md', 'agents-md', 'AGENTS.md'],
+    ['docs/Claude.md', 'claude-md', 'docs/CLAUDE.md'],
+    ['skills/x/skill.md', 'skill', 'skills/x/SKILL.md'],
+    ['Gemini.md', 'gemini-md', 'GEMINI.md'],
+  ] as const)('flags case mismatch for %s', (path, kind, expected) => {
+    expect(classify(path)).toEqual({ kind, caseMismatch: { expected } });
+  });
+
+  it('declares readers for every artifact kind', () => {
+    for (const kind of ARTIFACT_KINDS) expect(READERS[kind]).toBeDefined();
+    expect(READERS['cursor-rule-md']).toEqual(['windsurf']);
+  });
+
+  it('pre-filters candidate base names cheaply', () => {
+    expect(isCandidateBasename('AGENTS.md')).toBe(true);
+    expect(isCandidateBasename('rule.mdc')).toBe(true);
+    expect(isCandidateBasename('.cursorrules')).toBe(true);
+    expect(isCandidateBasename('.windsurfrules')).toBe(true);
+    expect(isCandidateBasename('index.ts')).toBe(false);
+  });
+});
+
+describe('classify: directory roles win over file names', () => {
+  it.each([
+    ['.claude/rules/CLAUDE.md', 'claude-rule'],
+    ['.claude/agents/CLAUDE.md', 'claude-agent'],
+    ['.claude/commands/CLAUDE.md', 'claude-command'],
+    ['.claude/CLAUDE.md', 'claude-md'],
+  ] as const)('classifies %s as %s', (path, kind) => {
+    expect(classify(path)?.kind).toBe(kind);
+  });
+});
+
+describe('classify: case variants only where they were plausibly meant', () => {
+  it.each([
+    ['docs/realtime/gemini.md'],
+    ['docs/src/ai/agents.md'],
+    ['docs/generated/sqlite-schema/skill.md'],
+    ['public/acceptance/skill.md'],
+  ])('ignores the documentation page %s', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+
+  it.each([
+    ['agents.md', 'agents-md'],
+    ['gemini.md', 'gemini-md'],
+    ['.claude/skills/deploy/skill.md', 'skill'],
+    ['packages/api/Agents.md', 'agents-md'],
+  ] as const)('still flags %s', (path, kind) => {
+    expect(classify(path)?.kind).toBe(kind);
+    expect(classify(path)?.caseMismatch).toBeDefined();
+  });
+});
