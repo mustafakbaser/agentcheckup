@@ -1,0 +1,649 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "agentcheck",
+          "version": "1.4.0",
+          "semanticVersion": "1.4.0",
+          "informationUri": "https://github.com/mustafakbaser/agentcheck",
+          "rules": [
+            {
+              "id": "budget/file-too-large",
+              "name": "BudgetFileTooLarge",
+              "shortDescription": {
+                "text": "Instruction file exceeds the size budget"
+              },
+              "fullDescription": {
+                "text": "Large files crowd out the conversation. Codex truncates AGENTS.md at 32 KiB."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md",
+              "help": {
+                "text": "Large files crowd out the conversation. Codex truncates AGENTS.md at 32 KiB.\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md",
+                "markdown": "**Instruction file exceeds the size budget**\n\nLarge files crowd out the conversation. **Codex** truncates `AGENTS.md` at 32 KiB.\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "budget",
+                  "claude-code",
+                  "codex"
+                ]
+              }
+            },
+            {
+              "id": "clarity/missing-overview",
+              "name": "ClarityMissingOverview",
+              "shortDescription": {
+                "text": "File has no project overview"
+              },
+              "fullDescription": {
+                "text": "Why clarity/missing-overview matters. See the docs (https://example.com/clarity/missing-overview)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md",
+              "help": {
+                "text": "Why clarity/missing-overview matters. See the docs (https://example.com/clarity/missing-overview).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md",
+                "markdown": "**File has no project overview**\n\nWhy `clarity/missing-overview` matters. See [the docs](https://example.com/clarity/missing-overview).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md)"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "clarity",
+                  "claude-code",
+                  "codex"
+                ]
+              }
+            },
+            {
+              "id": "cursor/conflicting-activation",
+              "name": "CursorConflictingActivation",
+              "shortDescription": {
+                "text": "Rule sets both alwaysApply and globs"
+              },
+              "fullDescription": {
+                "text": "Why cursor/conflicting-activation matters. See the docs (https://example.com/cursor/conflicting-activation)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md",
+              "help": {
+                "text": "Why cursor/conflicting-activation matters. See the docs (https://example.com/cursor/conflicting-activation).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md",
+                "markdown": "**Rule sets both alwaysApply and globs**\n\nWhy `cursor/conflicting-activation` matters. See [the docs](https://example.com/cursor/conflicting-activation).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "loading",
+                  "cursor"
+                ]
+              }
+            },
+            {
+              "id": "directive/unused",
+              "name": "DirectiveUnused",
+              "shortDescription": {
+                "text": "Suppression directive does not suppress anything"
+              },
+              "fullDescription": {
+                "text": "Why directive/unused matters. See the docs (https://example.com/directive/unused)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md",
+              "help": {
+                "text": "Why directive/unused matters. See the docs (https://example.com/directive/unused).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md",
+                "markdown": "**Suppression directive does not suppress anything**\n\nWhy `directive/unused` matters. See [the docs](https://example.com/directive/unused).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "correctness",
+                  "claude-code",
+                  "codex"
+                ]
+              }
+            },
+            {
+              "id": "instructions/broken-import",
+              "name": "InstructionsBrokenImport",
+              "shortDescription": {
+                "text": "Imported file does not exist"
+              },
+              "fullDescription": {
+                "text": "Claude Code silently skips @path imports that do not resolve, so the instructions in them never load. See memory imports (https://docs.anthropic.com/en/docs/claude-code/memory#imports)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md",
+              "help": {
+                "text": "Claude Code silently skips @path imports that do not resolve, so the instructions in them never load. See memory imports (https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md",
+                "markdown": "**Imported file does not exist**\n\nClaude Code silently skips `@path` imports that do not resolve, so the instructions in them never load. See [memory imports](https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "correctness",
+                  "claude-code"
+                ]
+              }
+            },
+            {
+              "id": "portability/claude-only-import",
+              "name": "PortabilityClaudeOnlyImport",
+              "shortDescription": {
+                "text": "@import syntax is specific to Claude Code"
+              },
+              "fullDescription": {
+                "text": "Why portability/claude-only-import matters. See the docs (https://example.com/portability/claude-only-import)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md",
+              "help": {
+                "text": "Why portability/claude-only-import matters. See the docs (https://example.com/portability/claude-only-import).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md",
+                "markdown": "**@import syntax is specific to Claude Code**\n\nWhy `portability/claude-only-import` matters. See [the docs](https://example.com/portability/claude-only-import).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md)"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "portability",
+                  "claude-code",
+                  "codex"
+                ]
+              }
+            },
+            {
+              "id": "risk/hidden-unicode",
+              "name": "RiskHiddenUnicode",
+              "shortDescription": {
+                "text": "Instructions contain invisible Unicode"
+              },
+              "fullDescription": {
+                "text": "Why risk/hidden-unicode matters. See the docs (https://example.com/risk/hidden-unicode)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md",
+              "help": {
+                "text": "Why risk/hidden-unicode matters. See the docs (https://example.com/risk/hidden-unicode).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md",
+                "markdown": "**Instructions contain invisible Unicode**\n\nWhy `risk/hidden-unicode` matters. See [the docs](https://example.com/risk/hidden-unicode).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "risk",
+                  "security",
+                  "claude-code",
+                  "codex",
+                  "cursor",
+                  "copilot",
+                  "gemini",
+                  "windsurf",
+                  "cline"
+                ],
+                "security-severity": "8.0"
+              }
+            },
+            {
+              "id": "risk/remote-script",
+              "name": "RiskRemoteScript",
+              "shortDescription": {
+                "text": "Instructions pipe a remote script into a shell"
+              },
+              "fullDescription": {
+                "text": "Why risk/remote-script matters. See the docs (https://example.com/risk/remote-script)."
+              },
+              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md",
+              "help": {
+                "text": "Why risk/remote-script matters. See the docs (https://example.com/risk/remote-script).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md",
+                "markdown": "**Instructions pipe a remote script into a shell**\n\nWhy `risk/remote-script` matters. See [the docs](https://example.com/risk/remote-script).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "risk",
+                  "security",
+                  "claude-code",
+                  "codex"
+                ],
+                "security-severity": "5.0"
+              }
+            }
+          ]
+        }
+      },
+      "automationDetails": {
+        "id": "agentcheck/"
+      },
+      "originalUriBaseIds": {
+        "%SRCROOT%": {
+          "description": {
+            "text": "The directory agentcheck scanned."
+          }
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": false,
+          "toolExecutionNotifications": [
+            {
+              "level": "error",
+              "message": {
+                "text": "Rule mcp/unknown-server-field failed: Cannot read properties of undefined (reading 'type')"
+              },
+              "associatedRule": {
+                "id": "mcp/unknown-server-field"
+              }
+            },
+            {
+              "level": "warning",
+              "message": {
+                "text": "4 files not checked (too large: 1, binary: 1, file limit reached: 2)."
+              },
+              "locations": [
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "big/AGENTS.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                },
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "assets/CLAUDE.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                },
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "vendor/a/AGENTS.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                },
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "vendor/b/AGENTS.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "level": "warning",
+              "message": {
+                "text": "2 symlinks not followed (points outside the scan root: 1, broken: 1)."
+              },
+              "locations": [
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "GEMINI.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                },
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": ".github/copilot-instructions.md",
+                      "uriBaseId": "%SRCROOT%"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "toolConfigurationNotifications": [
+            {
+              "level": "warning",
+              "message": {
+                "text": "Unknown rule \"instructions/typo-rule\" in configuration."
+              }
+            }
+          ]
+        }
+      ],
+      "columnKind": "utf16CodeUnits",
+      "results": [
+        {
+          "ruleId": "cursor/conflicting-activation",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "`alwaysApply: true` overrides `globs`, so the rule loads in every chat."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".cursor/rules/style.mdc",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 2,
+                  "startColumn": 1,
+                  "endLine": 2,
+                  "endColumn": 18
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "1a2b3c4d5e6f70:1"
+          }
+        },
+        {
+          "ruleId": "clarity/missing-overview",
+          "ruleIndex": 1,
+          "level": "note",
+          "message": {
+            "text": "Start with a one-paragraph project overview."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "AGENTS.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "2b3c4d5e6f7081:1"
+          }
+        },
+        {
+          "ruleId": "risk/hidden-unicode",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Line contains 3 invisible Unicode tag characters."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "AGENTS.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 3,
+                  "endLine": 12,
+                  "endColumn": 9
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "3c4d5e6f708192:1"
+          }
+        },
+        {
+          "ruleId": "risk/remote-script",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "Pipes a remote script into a shell: curl https://example.com/install.sh | sh"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "AGENTS.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 30,
+                  "startColumn": 1,
+                  "endLine": 30,
+                  "endColumn": 46
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "4d5e6f708192a3:1"
+          },
+          "suppressions": [
+            {
+              "kind": "inSource",
+              "justification": "Documented install step, reviewed 2026-10"
+            }
+          ]
+        },
+        {
+          "ruleId": "budget/file-too-large",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "File is 52,310 characters; Claude Code works best under 40,000."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "CLAUDE.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "5e6f708192a3b4:1"
+          }
+        },
+        {
+          "ruleId": "instructions/broken-import",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Imported file docs/missing.md does not exist."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "CLAUDE.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 3,
+                  "startColumn": 5,
+                  "endLine": 3,
+                  "endColumn": 22
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "message": {
+                "text": "Closest existing directory"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "6f708192a3b4c5:1"
+          }
+        },
+        {
+          "ruleId": "portability/claude-only-import",
+          "ruleIndex": 5,
+          "level": "note",
+          "message": {
+            "text": "@-imports are only read by Claude Code; Codex sees the literal text."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "CLAUDE.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 140,
+                  "startColumn": 1,
+                  "endLine": 140,
+                  "endColumn": 30
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "AGENTS.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "Codex reads this file instead"
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/a.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 4,
+                  "startColumn": 1,
+                  "endLine": 4,
+                  "endColumn": 12
+                }
+              },
+              "message": {
+                "text": "Imported here"
+              }
+            },
+            {
+              "id": 3,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/b.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 5,
+                  "startColumn": 1,
+                  "endLine": 5,
+                  "endColumn": 12
+                }
+              },
+              "message": {
+                "text": "Imported here"
+              }
+            },
+            {
+              "id": 4,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/c.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 6,
+                  "startColumn": 1,
+                  "endLine": 6,
+                  "endColumn": 12
+                }
+              },
+              "message": {
+                "text": "Imported here"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "708192a3b4c5d6:1"
+          }
+        },
+        {
+          "ruleId": "directive/unused",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "No risk/remote-script finding to suppress here."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "skills/deploy/SKILL.md",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 2,
+                  "startColumn": 1,
+                  "endLine": 2,
+                  "endColumn": 60
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "agentcheck/v1": "8192a3b4c5d6e7:1"
+          },
+          "suppressions": [
+            {
+              "kind": "external",
+              "justification": "Generated file"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "score": 49,
+        "grade": "F",
+        "capped": true,
+        "ruleset": "2026.10",
+        "scoreFormula": 1
+      }
+    }
+  ]
+}

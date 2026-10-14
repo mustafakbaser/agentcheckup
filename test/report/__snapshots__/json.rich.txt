@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "agentcheck",
+    "version": "1.4.0"
+  },
+  "ruleset": "2026.10",
+  "targets": [
+    "claude-code",
+    "cline",
+    "codex",
+    "copilot",
+    "cursor",
+    "gemini",
+    "windsurf"
+  ],
+  "artifacts": [
+    {
+      "path": ".cursor/rules/style.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "kind": "claude-md",
+      "readers": [
+        "claude-code"
+      ]
+    },
+    {
+      "path": "skills/deploy/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "codex"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "ruleId": "cursor/conflicting-activation",
+      "severity": "warn",
+      "category": "loading",
+      "message": "`alwaysApply: true` overrides `globs`, so the rule loads in every chat.",
+      "path": ".cursor/rules/style.mdc",
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "line": 2,
+          "column": 18
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cursor"
+      ],
+      "fingerprint": "1a2b3c4d5e6f70:1",
+      "fix": {
+        "description": "Remove `globs`",
+        "safety": "safe",
+        "edits": [
+          {
+            "offset": 4,
+            "length": 14,
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "ruleId": "clarity/missing-overview",
+      "severity": "info",
+      "category": "clarity",
+      "message": "Start with a one-paragraph project overview.",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "2b3c4d5e6f7081:1"
+    },
+    {
+      "ruleId": "risk/hidden-unicode",
+      "severity": "error",
+      "category": "risk",
+      "message": "Line contains 3 invisible Unicode tag characters.",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 3
+        },
+        "end": {
+          "line": 12,
+          "column": 9
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "fingerprint": "3c4d5e6f708192:1"
+    },
+    {
+      "ruleId": "risk/remote-script",
+      "severity": "warn",
+      "category": "risk",
+      "message": "Pipes a remote script into a shell: curl https://example.com/install.sh | sh",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 30,
+          "column": 1
+        },
+        "end": {
+          "line": 30,
+          "column": 46
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "4d5e6f708192a3:1",
+      "suppressed": {
+        "kind": "inline",
+        "reason": "Documented install step, reviewed 2026-10"
+      }
+    },
+    {
+      "ruleId": "budget/file-too-large",
+      "severity": "warn",
+      "category": "budget",
+      "message": "File is 52,310 characters; Claude Code works best under 40,000.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "5e6f708192a3b4:1"
+    },
+    {
+      "ruleId": "instructions/broken-import",
+      "severity": "error",
+      "category": "correctness",
+      "message": "Imported file docs/missing.md does not exist.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 5
+        },
+        "end": {
+          "line": 3,
+          "column": 22
+        }
+      },
+      "related": [
+        {
+          "path": "docs/",
+          "message": "Closest existing directory"
+        }
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "6f708192a3b4c5:1"
+    },
+    {
+      "ruleId": "portability/claude-only-import",
+      "severity": "info",
+      "category": "portability",
+      "message": "@-imports are only read by Claude Code; Codex sees the literal text.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 140,
+          "column": 30
+        }
+      },
+      "related": [
+        {
+          "path": "AGENTS.md",
+          "message": "Codex reads this file instead",
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 1
+            }
+          }
+        },
+        {
+          "path": "docs/a.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 1
+            },
+            "end": {
+              "line": 4,
+              "column": 12
+            }
+          }
+        },
+        {
+          "path": "docs/b.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 1
+            },
+            "end": {
+              "line": 5,
+              "column": 12
+            }
+          }
+        },
+        {
+          "path": "docs/c.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 6,
+              "column": 1
+            },
+            "end": {
+              "line": 6,
+              "column": 12
+            }
+          }
+        }
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "708192a3b4c5d6:1"
+    },
+    {
+      "ruleId": "directive/unused",
+      "severity": "warn",
+      "category": "correctness",
+      "message": "No risk/remote-script finding to suppress here.",
+      "path": "skills/deploy/SKILL.md",
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "line": 2,
+          "column": 60
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "8192a3b4c5d6e7:1",
+      "suppressed": {
+        "kind": "config",
+        "reason": "Generated file"
+      }
+    }
+  ],
+  "score": {
+    "formula": 1,
+    "score": 49,
+    "grade": "F",
+    "capped": true,
+    "categories": {
+      "loading": {
+        "errors": 0,
+        "warnings": 1,
+        "infos": 0
+      },
+      "budget": {
+        "errors": 0,
+        "warnings": 1,
+        "infos": 0
+      },
+      "portability": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 1
+      },
+      "correctness": {
+        "errors": 1,
+        "warnings": 0,
+        "infos": 0
+      },
+      "risk": {
+        "errors": 1,
+        "warnings": 0,
+        "infos": 0
+      },
+      "clarity": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 1
+      }
+    },
+    "artifacts": [
+      {
+        "path": ".cursor/rules/style.mdc",
+        "score": 100
+      },
+      {
+        "path": "AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "CLAUDE.md",
+        "score": 100
+      },
+      {
+        "path": "skills/deploy/SKILL.md",
+        "score": 100
+      }
+    ]
+  },
+  "summary": {
+    "errors": 2,
+    "warnings": 2,
+    "infos": 2,
+    "suppressed": 2
+  },
+  "rules": [
+    {
+      "id": "budget/file-too-large",
+      "title": "Instruction file exceeds the size budget",
+      "rationale": "Large files crowd out the conversation. **Codex** truncates `AGENTS.md` at 32 KiB.",
+      "category": "budget",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "clarity/missing-overview",
+      "title": "File has no project overview",
+      "rationale": "Why `clarity/missing-overview` matters. See [the docs](https://example.com/clarity/missing-overview).",
+      "category": "clarity",
+      "severity": "info",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "cursor/conflicting-activation",
+      "title": "Rule sets both alwaysApply and globs",
+      "rationale": "Why `cursor/conflicting-activation` matters. See [the docs](https://example.com/cursor/conflicting-activation).",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "cursor-rule"
+      ],
+      "platforms": [
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10",
+      "fixable": "safe"
+    },
+    {
+      "id": "directive/unused",
+      "title": "Suppression directive does not suppress anything",
+      "rationale": "Why `directive/unused` matters. See [the docs](https://example.com/directive/unused).",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instructions/broken-import",
+      "title": "Imported file does not exist",
+      "rationale": "Claude Code silently skips `@path` imports that do not resolve, so the instructions in them never load. See [memory imports](https://docs.anthropic.com/en/docs/claude-code/memory#imports).",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "portability/claude-only-import",
+      "title": "@import syntax is specific to Claude Code",
+      "rationale": "Why `portability/claude-only-import` matters. See [the docs](https://example.com/portability/claude-only-import).",
+      "category": "portability",
+      "severity": "info",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/hidden-unicode",
+      "title": "Instructions contain invisible Unicode",
+      "rationale": "Why `risk/hidden-unicode` matters. See [the docs](https://example.com/risk/hidden-unicode).",
+      "category": "risk",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/remote-script",
+      "title": "Instructions pipe a remote script into a shell",
+      "rationale": "Why `risk/remote-script` matters. See [the docs](https://example.com/risk/remote-script).",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    }
+  ],
+  "skipped": [
+    {
+      "path": "big/AGENTS.md",
+      "reason": "too-large",
+      "size": 2400000
+    },
+    {
+      "path": "assets/CLAUDE.md",
+      "reason": "binary"
+    },
+    {
+      "path": "vendor/a/AGENTS.md",
+      "reason": "file-limit"
+    },
+    {
+      "path": "vendor/b/AGENTS.md",
+      "reason": "file-limit"
+    }
+  ],
+  "unresolvedSymlinks": [
+    {
+      "path": "GEMINI.md",
+      "target": "../../shared/GEMINI.md",
+      "problem": "outside-root"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "target": "missing.md",
+      "problem": "broken"
+    }
+  ],
+  "ruleFailures": [
+    {
+      "ruleId": "mcp/unknown-server-field",
+      "message": "Cannot read properties of undefined (reading 'type')"
+    }
+  ],
+  "configWarnings": [
+    "Unknown rule \"instructions/typo-rule\" in configuration."
+  ]
+}

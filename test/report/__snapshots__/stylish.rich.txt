@@ -1,0 +1,28 @@
+.cursor/rules/style.mdc
+  2:1  warning  `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  cursor/conflicting-activation
+
+AGENTS.md
+   1:1  info   Start with a one-paragraph project overview.       clarity/missing-overview
+  12:3  error  Line contains 3 invisible Unicode tag characters.  risk/hidden-unicode
+
+CLAUDE.md
+    1:1  warning  File is 52,310 characters; Claude Code works best under 40,000.       budget/file-too-large
+    3:5  error    Imported file docs/missing.md does not exist.                         instructions/broken-import
+                  ↳ docs/: Closest existing directory
+  140:1  info     @-imports are only read by Claude Code; Codex sees the literal text.  portability/claude-only-import
+                  ↳ AGENTS.md:1:1: Codex reads this file instead
+                  ↳ docs/a.md:4:1: Imported here
+                  ↳ docs/b.md:5:1: Imported here
+                  ↳ … and 1 more related location
+
+! 4 files not checked (too large: 1, binary: 1, file limit reached: 2): big/AGENTS.md, assets/CLAUDE.md, vendor/a/AGENTS.md, … and 1 more
+! 2 symlinks not followed (points outside the scan root: 1, broken: 1): GEMINI.md → ../../shared/GEMINI.md, .github/copilot-instructions.md → missing.md
+! Unknown rule "instructions/typo-rule" in configuration.
+
+✖ 1 rule failed to run. Results are incomplete.
+    mcp/unknown-server-field: Cannot read properties of undefined (reading 'type')
+  This is a bug in agentcheck. Please report it: https://github.com/mustafakbaser/agentcheck/issues
+
+✖ 6 problems (2 errors, 2 warnings, 2 infos) · 2 suppressed
+  loading 1 warning · budget 1 warning · portability 1 info · correctness 1 error · risk 1 error · clarity 1 info
+Agent config score 49/100 (F) · capped by a risk finding · ruleset 2026.10

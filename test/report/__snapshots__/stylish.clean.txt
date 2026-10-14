@@ -1,0 +1,2 @@
+✔ No problems found (2 files checked)
+Agent config score 100/100 (A) · ruleset 2026.10
