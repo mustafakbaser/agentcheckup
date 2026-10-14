@@ -7,6 +7,9 @@ export default defineConfig({
     // Tests must not depend on the developer's locale or timezone.
     env: { TZ: 'UTC', LANG: 'C', LC_ALL: 'C', NO_COLOR: '1' },
     restoreMocks: true,
+    // Performance tests assert their own budgets (up to 15 s for hostile inputs). The default
+    // 5 s timeout would cut them short on slow CI runners before their budget applies.
+    testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

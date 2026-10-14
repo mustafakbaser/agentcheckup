@@ -15,3 +15,9 @@ trustPolicyExclude:
   # Published 2024-12 by the Node.js types maintainers, before undici-types adopted npm provenance.
   # Required by @types/node@22 (our engines floor). Reviewed 2026-10-14.
   - undici-types@6.21.0
+
+# Explicit decisions for packages that ship install scripts.
+allowBuilds:
+  # Its postinstall only verifies the platform binary, which is already delivered through
+  # optionalDependencies (@esbuild/<platform>). Used by tsx for development scripts only.
+  esbuild: false
