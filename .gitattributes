@@ -1,0 +1,13 @@
+# Normalize text files to LF in the repository
+* text=auto eol=lf
+
+# Fixtures are byte-exact inputs: never normalize line endings or encodings
+test/fixtures/** -text
+
+*.png binary
+*.gif binary
+*.jpg binary
+*.webp binary
+
+# Generated / vendored
+pnpm-lock.yaml linguist-generated=true -diff merge=binary
