@@ -48,14 +48,19 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsx scripts/third-party-notices.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "docs:generate": "tsx scripts/generate-docs.ts",
+    "docs:check": "tsx scripts/generate-docs.ts --check",
+    "smoke": "tsx scripts/smoke.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm docs:check && pnpm coverage && pnpm build && pnpm check:package && pnpm smoke",
+    "check:package": "publint --strict --pack npm && attw --pack . --profile esm-only"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
@@ -65,6 +70,7 @@
     "@types/node": "^22.20.5",
     "@types/picomatch": "^4.0.3",
     "@vitest/coverage-v8": "^5.0.3",
+    "ajv": "^8.20.0",
     "eslint": "^10.12.0",
     "eslint-plugin-regexp": "^3.3.1",
     "fast-check": "^4.10.2",
@@ -75,10 +81,10 @@
     "prettier": "^3.9.9",
     "publint": "^0.3.25",
     "tsdown": "^0.23.0",
+    "tsx": "^4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3",
-    "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "yaml": "^2.9.1"
   }
 }

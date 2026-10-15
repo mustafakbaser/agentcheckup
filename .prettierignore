@@ -5,3 +5,5 @@ CHANGELOG.md
 test/fixtures/
 CODE_OF_CONDUCT.md
 docs/research/
+# Vendored third-party schema: keep byte-exact
+test/schemas/sarif-2.1.0.json

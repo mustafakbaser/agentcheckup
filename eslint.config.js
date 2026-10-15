@@ -78,6 +78,11 @@ export default defineConfig(
           selector: 'CallExpression[callee.property.name=/^toLocale(Lower|Upper)Case$/]',
           message: 'Locale-dependent casing breaks in tr-TR (I/ı). Use toLowerCase/toUpperCase.',
         },
+        {
+          selector: "NewExpression[callee.name='RegExp'], CallExpression[callee.name='RegExp']",
+          message:
+            'Dynamic regular expressions bypass the backtracking checks. Use a regex literal or string operations.',
+        },
       ],
     },
   },
