@@ -1,0 +1,402 @@
+[
+  {
+    "repo": "addyosmani/agent-skills",
+    "sha": "aeac41d4d005999432bb7312f7ff06383a91d59d",
+    "why": "Skill collection packaged as a Claude Code plugin: 50 SKILL.md, commands, a .claude rule"
+  },
+  {
+    "repo": "affaan-m/ECC",
+    "sha": "b92f181b3b748d1abbc2afd94af6aa7d8c8fca29",
+    "why": "Very large harness collection: 1000+ skills, nested AGENTS.md and CLAUDE.md, .cursor/rules/*.md, Cursor hooks, plugin manifest"
+  },
+  {
+    "repo": "alirezarezvani/claude-skills",
+    "sha": "19392f7a08264ed00486a251f5b2098321771f94",
+    "why": "Largest skill collection here (about 2000 SKILL.md, 100+ plugin manifests) with 1500+ symlinks"
+  },
+  {
+    "repo": "anthropics/claude-agent-sdk-python",
+    "sha": "df6940a351b5e53dbab7f4b665402a50a5f18c98",
+    "why": "Anthropic SDK repository with .claude agents, commands, settings and a plugin example"
+  },
+  {
+    "repo": "anthropics/claude-code",
+    "sha": "94506ff0d3bd9185f1752da36e968775021fb48f",
+    "why": "Claude Code's own repository: CLAUDE.md, commands and 16 bundled plugin manifests"
+  },
+  {
+    "repo": "anthropics/claude-cookbooks",
+    "sha": "b2b0aa1ff7d8980b005b225d3802969c87bedad5",
+    "why": "Cookbook with .claude agents, commands, settings and skill examples"
+  },
+  {
+    "repo": "anthropics/claude-plugins-official",
+    "sha": "c2bdb427efe8673f190ae862c273cfa368d2390f",
+    "why": "Official plugin directory: 40 plugin manifests, 14 .mcp.json files, skills"
+  },
+  {
+    "repo": "anthropics/skills",
+    "sha": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+    "why": "Anthropic's reference Agent Skills (20 SKILL.md)"
+  },
+  {
+    "repo": "apache/airflow",
+    "sha": "df5cf9ecb567ea5752224d8376201c2c3046b64a",
+    "why": "Large Python monorepo with 14 nested AGENTS.md (providers), CLAUDE.md, skills and symlinks"
+  },
+  {
+    "repo": "apache/superset",
+    "sha": "b411454508c49ba4780047582ab61ccababa856c",
+    "why": "Mixed setup: AGENTS.md, CLAUDE.md, GEMINI.md, Copilot instructions, a Cursor rule, Claude settings"
+  },
+  {
+    "repo": "astral-sh/ruff",
+    "sha": "355b42a7719d8a555e3ee50c89848b42d8a11eb5",
+    "why": "Rust project with AGENTS.md, CLAUDE.md, Claude settings and a plugin manifest"
+  },
+  {
+    "repo": "astral-sh/uv",
+    "sha": "fec910700fef257e02a3addc26c221c0a59d65c9",
+    "why": "AGENTS.md plus Codex hooks (.codex/hooks.json)"
+  },
+  {
+    "repo": "bmad-code-org/BMAD-METHOD",
+    "sha": "8f0d50e1817fdd8fcf05a20c524218222d13cd8d",
+    "why": "Agent methodology framework shipping 37 skills"
+  },
+  {
+    "repo": "browser-use/browser-use",
+    "sha": "c75e8476e26d18b7617643bc2ae082fae8eae431",
+    "why": "Popular agent library with AGENTS.md, CLAUDE.md and skills"
+  },
+  {
+    "repo": "calcom/cal.diy",
+    "sha": "54343aa685ae8f33159d2f485ec4a57bad5c574a",
+    "why": "Monorepo with 45 .claude/rules files and 45 .cursor/rules/*.md files, nested AGENTS.md"
+  },
+  {
+    "repo": "cline/cline",
+    "sha": "789f79e46d3ba579717e8dc8be35fe28af935b06",
+    "why": "Cline's own repository: 17 .clinerules files, AGENTS.md, skills, Claude settings"
+  },
+  {
+    "repo": "cloudflare/security-audit-skill",
+    "sha": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+    "why": "Single-skill repository"
+  },
+  {
+    "repo": "davila7/claude-code-templates",
+    "sha": "f497abcc0f2d9a6f15549598323fd1322cc8feda",
+    "why": "Component marketplace: 900+ skills plus agents, commands, plugin manifests and MCP configs"
+  },
+  {
+    "repo": "denoland/deno",
+    "sha": "a18ce33715e30cd2b0d99c7e322ef11a65490e4d",
+    "why": "CLAUDE.md and Copilot instructions in a large Rust and TypeScript repository"
+  },
+  {
+    "repo": "disler/claude-code-hooks-mastery",
+    "sha": "052ad1cbd5aeb1ec4a1def22012d1293c6225625",
+    "why": "Hook-heavy .claude/settings.json with 19 agents and 21 commands"
+  },
+  {
+    "repo": "Doist/todoist-mcp",
+    "sha": "a5b60137cfd129763924092196e679342bf6ec90",
+    "why": "Small repository using many formats: .cursorrules, .cursor/rules, .cursor/mcp.json, .mcp.json, plugin manifest"
+  },
+  {
+    "repo": "dotnet/runtime",
+    "sha": "691418a89493b63a87f3a19862ec573b2cc3eb96",
+    "why": "Very large repository with Copilot instructions and 25 path-specific .instructions.md files"
+  },
+  {
+    "repo": "elastic/kibana",
+    "sha": "b94b3ed379dbcaec6109cea043c27556c23555f5",
+    "why": "Huge monorepo (159k entries; GitHub truncates its recursive tree) with nested AGENTS.md, Cursor hooks and 137 skills"
+  },
+  {
+    "repo": "electron/electron",
+    "sha": "667340e75a173c94938ca9ea4fee911027a7d6a4",
+    "why": "Several CLAUDE.md files, Claude settings and Copilot instructions"
+  },
+  {
+    "repo": "Expensify/App",
+    "sha": "28d07c562a7665783205dceeeeab4ab42262e3cf",
+    "why": "Large app with Claude agents, commands, settings and .mcp.json"
+  },
+  {
+    "repo": "eyaltoledano/claude-task-master",
+    "sha": "c0c98d367c55296bfe69e65680625b6db437af02",
+    "why": "25 Cursor .mdc rules, .cursor/mcp.json, .mcp.json, .windsurfrules, GEMINI.md"
+  },
+  {
+    "repo": "getsentry/sentry",
+    "sha": "0f5889d6ae7cf955a7989d83408011b36b787388",
+    "why": "Large monorepo with nested AGENTS.md and CLAUDE.md, .mcp.json, .cursor/mcp.json and 58 skills"
+  },
+  {
+    "repo": "ggml-org/llama.cpp",
+    "sha": "23deec025587a58469bdf0120313ff88a1ddcc7b",
+    "why": "AGENTS.md, CLAUDE.md and .gemini/settings.json"
+  },
+  {
+    "repo": "github/awesome-copilot",
+    "sha": "f25421d3f1b8b3bb217f78a7c0567cf7ec117cd8",
+    "why": "Copilot customization collection: 195 *.instructions.md files and 447 skills"
+  },
+  {
+    "repo": "google-gemini/gemini-cli",
+    "sha": "0b67eec9b53b2fab63555d16cc14390586a31947",
+    "why": "Gemini CLI's own repository: nested GEMINI.md, .gemini/settings.json, skills"
+  },
+  {
+    "repo": "google/adk-python",
+    "sha": "29bb0532c48abad0314cecea5a30b3cdaf6d7898",
+    "why": "AGENTS.md, .gemini/settings.json and 21 skills"
+  },
+  {
+    "repo": "home-assistant/core",
+    "sha": "3539583be6ab63a83dee88bf1dc81b77f0d69b74",
+    "why": "Very large Python repository with AGENTS.md, CLAUDE.md, Copilot instructions, a Claude agent and skills"
+  },
+  {
+    "repo": "Homebrew/brew",
+    "sha": "f63eb293bebf995a821121c5e2e4b52ac2ff8cd4",
+    "why": "AGENTS.md plus Codex and Cursor hooks; 166 symlinks"
+  },
+  {
+    "repo": "huggingface/skills",
+    "sha": "c3ff942be3e07116b475253f0a8fc4f54682c1a8",
+    "why": "Skill collection with a plugin manifest and .mcp.json"
+  },
+  {
+    "repo": "huggingface/transformers",
+    "sha": "637b76e40bac9398965086863a818f2dd1e7bfd1",
+    "why": "AGENTS.md, CLAUDE.md and Copilot instructions in a very large Python repository"
+  },
+  {
+    "repo": "K-Dense-AI/scientific-agent-skills",
+    "sha": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+    "why": "Scientific skill collection (177 SKILL.md)"
+  },
+  {
+    "repo": "Khan/wonder-blocks",
+    "sha": "450b0d919786918d42f3a9469c3b67f89926f698",
+    "why": "Small repository covering many formats: Codex and Cursor hooks, .cursor/mcp.json, .mcp.json, path instructions"
+  },
+  {
+    "repo": "langchain-ai/langchain",
+    "sha": "84ba23c414eca6bf6f6ebd1394a3006378113540",
+    "why": "AGENTS.md and .mcp.json in a well-known Python monorepo"
+  },
+  {
+    "repo": "langgenius/dify",
+    "sha": "3936e1ed0aa4f7a97c0046f05eb33030f4fd762e",
+    "why": "Monorepo with 10 nested AGENTS.md files and skills"
+  },
+  {
+    "repo": "LMCache/LMCache",
+    "sha": "65320eaa8ebc5e5039ace88d8bb39a88f6859a63",
+    "why": "Nested AGENTS.override.md (Codex) next to AGENTS.md and CLAUDE.md"
+  },
+  {
+    "repo": "lobehub/lobehub",
+    "sha": "87689ed5fd1153ededfb0edbeb76ee582b0acb1d",
+    "why": "272 skills plus AGENTS.md, CLAUDE.md and GEMINI.md"
+  },
+  {
+    "repo": "mastra-ai/mastra",
+    "sha": "eb71f8c3abbe9aa40375f898fce60f555ef9ebf3",
+    "why": "Monorepo with 27 nested AGENTS.md files, Claude commands, .cursor/mcp.json and many symlinks"
+  },
+  {
+    "repo": "mattpocock/skills",
+    "sha": "49dd158d1076134a641b33efb035946536778336",
+    "why": "Popular personal skill collection packaged as a plugin"
+  },
+  {
+    "repo": "microsoft/aspire",
+    "sha": "6bcd0302e2fb4a6dea2b1c3eedb8ab1caa4bb75c",
+    "why": "12 path-specific Copilot instructions, .mcp.json and skills"
+  },
+  {
+    "repo": "microsoft/PowerToys",
+    "sha": "3c2271c0abc242256f745616866f6caea144a9ad",
+    "why": "Claude agents, commands and rules plus Copilot instructions and 11 path instructions"
+  },
+  {
+    "repo": "microsoft/vscode",
+    "sha": "95ba2e3c0536fb14ddf55ff496ea7e0de91e8edd",
+    "why": "VS Code's own repository: 29 *.instructions.md files, nested AGENTS.md, .mcp.json, 79 skills"
+  },
+  {
+    "repo": "modelcontextprotocol/inspector",
+    "sha": "074b8108f340590268f2900741403755e923a11c",
+    "why": "MCP Inspector: AGENTS.md, CLAUDE.md, .mcp.json and skills"
+  },
+  {
+    "repo": "modelcontextprotocol/servers",
+    "sha": "bbb701e7ac1e57f3edd1c2836b94c5457eaf7b9c",
+    "why": "Reference MCP servers: AGENTS.md, .mcp.json and skills"
+  },
+  {
+    "repo": "msitarzewski/agency-agents",
+    "sha": "bd956db032d907387e6b9ddebff3e18f1de8c679",
+    "why": "Agent prompt collection kept in category folders no agent loads directly; expected to yield no artifacts (negative control)"
+  },
+  {
+    "repo": "n8n-io/n8n",
+    "sha": "50c4ced2241430e13fa7042e976ed33f07bf5009",
+    "why": "Monorepo with 24 nested AGENTS.md and 11 CLAUDE.md files"
+  },
+  {
+    "repo": "obra/superpowers",
+    "sha": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
+    "why": "Widely used skill library: SKILL.md files, plugin manifest, GEMINI.md"
+  },
+  {
+    "repo": "openai/codex",
+    "sha": "ae110493973d5b72f60d42efe2fae91d51ca9c0e",
+    "why": "Codex CLI's own repository: nested AGENTS.md and skills"
+  },
+  {
+    "repo": "openai/skills",
+    "sha": "49f948faa9258a0c61caceaf225e179651397431",
+    "why": "OpenAI's skill catalog (44 SKILL.md)"
+  },
+  {
+    "repo": "oven-sh/bun",
+    "sha": "f841e36709f13dbe37a86c067400172f0c9f7bd2",
+    "why": "11 nested CLAUDE.md files, AGENTS.md, Claude commands and settings"
+  },
+  {
+    "repo": "payloadcms/payload",
+    "sha": "0f60028d33fd041e06b0fda059f394d73310f513",
+    "why": "Claude commands and settings, .mcp.json, .cursor/mcp.json and skills"
+  },
+  {
+    "repo": "PostHog/posthog",
+    "sha": "5cded58e6aae4abab34668aa39f08b8613f38328",
+    "why": "Very large monorepo: 62 nested AGENTS.md and 62 CLAUDE.md files, .claude rules and agents, .cursorrules, 391 skills"
+  },
+  {
+    "repo": "PrefectHQ/fastmcp",
+    "sha": "e2fcc412001ff7414095c5dc282f94c70299a612",
+    "why": "AGENTS.md, CLAUDE.md, Cursor rules, Copilot instructions and skills"
+  },
+  {
+    "repo": "pydantic/pydantic-ai",
+    "sha": "b82f0f258f4d6aa3d53355583735584f47068c2d",
+    "why": "20 nested AGENTS.md and 15 CLAUDE.md files, GEMINI.md, symlinks"
+  },
+  {
+    "repo": "quran/quran.com-frontend-next",
+    "sha": "aff1a035b09b66f28047b3216edcae4c5c949a49",
+    "why": "Windsurf rules, Copilot path instructions, Cursor rules and 414 symlinks"
+  },
+  {
+    "repo": "react/react",
+    "sha": "0c9913ae87283f96e868a8f1c20a3389827632d0",
+    "why": "React's own repository: .claude agents, rules, settings and skills"
+  },
+  {
+    "repo": "ruvnet/ruflo",
+    "sha": "1882006a02487590c8c66a7eec8d7504f6af33c3",
+    "why": "Claude Flow: about 300 agents, 400 commands and 400 skills, CLAUDE.local.md"
+  },
+  {
+    "repo": "shanraisshan/claude-code-best-practice",
+    "sha": "294e0268f15642a7c8ca2ea75bc52999c167f1d2",
+    "why": "Reference .claude setup: agents, commands, rules, settings, .mcp.json, Codex hooks"
+  },
+  {
+    "repo": "shanraisshan/codex-cli-best-practice",
+    "sha": "b79f473a188632867354fc793894dfd368a18e48",
+    "why": "Reference Codex setup with .codex/hooks.json"
+  },
+  {
+    "repo": "Significant-Gravitas/AutoGPT",
+    "sha": "ce4f5929264705bb77260cfccb4b69271823cebc",
+    "why": "11 nested AGENTS.md and 12 CLAUDE.md files, Copilot instructions, GEMINI.md"
+  },
+  {
+    "repo": "storybookjs/storybook",
+    "sha": "8d01e0376cd807b281940e3f9ab323c46b2063f3",
+    "why": ".cursorrules, Cursor rules, .cursor/mcp.json, .mcp.json, plugin manifest and skills"
+  },
+  {
+    "repo": "supabase/supabase",
+    "sha": "cfdc81e1feaf0fbc0bf6d0882b42f62eca92fd96",
+    "why": "Monorepo with nested AGENTS.md and CLAUDE.md, .mcp.json, Copilot instructions, 45 skills"
+  },
+  {
+    "repo": "SuperClaude-Org/SuperClaude_Framework",
+    "sha": "fe68862c8ed9e2afb8120c2d9e27d0c3a7ce73a2",
+    "why": "Claude Code framework: AGENTS.md files, plugin manifest, .mcp.json, skills"
+  },
+  {
+    "repo": "thedotmack/claude-mem",
+    "sha": "fef3402e674bebbf72a23aeb735e91c92cd34afd",
+    "why": "Claude Code plugin with Windsurf rules, Copilot instructions, .mcp.json and skills"
+  },
+  {
+    "repo": "tldraw/tldraw",
+    "sha": "694791e0acebc0f9df4a16a5880b72d128f8a621",
+    "why": "AGENTS.md, CLAUDE.md, Claude settings and 96 skills"
+  },
+  {
+    "repo": "trailofbits/skills",
+    "sha": "4a48f7fa49c991be70cf2cbcecd9bad20cb2c544",
+    "why": "Security skill collection: 85 skills, 47 plugin manifests"
+  },
+  {
+    "repo": "trpc/trpc",
+    "sha": "10e2ef98f7842b94eb3026e4f9bcfe62cc39b088",
+    "why": "7 Cursor .mdc rules and 24 skills"
+  },
+  {
+    "repo": "twentyhq/twenty",
+    "sha": "a317016273acea50e9bc86f6fb922c56e464e040",
+    "why": "Monorepo with nested AGENTS.md and CLAUDE.md files and .mcp.json"
+  },
+  {
+    "repo": "vercel-labs/agent-skills",
+    "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+    "why": "Vercel's agent skills with nested AGENTS.md"
+  },
+  {
+    "repo": "vercel-labs/skills",
+    "sha": "13e4063a1cf913f5606d57d42ab83a86f5001e04",
+    "why": "The skills CLI repository: AGENTS.md and example skills"
+  },
+  {
+    "repo": "vercel/ai",
+    "sha": "40a4ce1c661c82db41e4d27abb7fd13e587a3e24",
+    "why": "AI SDK monorepo: AGENTS.md, Codex and Cursor hooks, Claude settings, skills"
+  },
+  {
+    "repo": "vercel/next.js",
+    "sha": "919395d0fe5c523807ca9adbc188fc544b30edd8",
+    "why": "Very large monorepo with nested AGENTS.md, CLAUDE.md, skills and symlinks"
+  },
+  {
+    "repo": "vitest-dev/vitest",
+    "sha": "28dc1edfb6ba5a181fe208576989063795aeadb3",
+    "why": "AGENTS.md, a Claude agent and Copilot instructions"
+  },
+  {
+    "repo": "wandb/vibes",
+    "sha": "2a66efacb0f8784f026c76a8740b47580cb62598",
+    "why": "Tiny repository with GEMINI.md, .gemini/settings.json, .cursorrules and a Claude command"
+  },
+  {
+    "repo": "wshobson/agents",
+    "sha": "46891e7e60da0e52baf1050b7b6391b64e84c6d9",
+    "why": "Plugin marketplace: 92 plugin manifests, 184 skills, Cursor rules"
+  },
+  {
+    "repo": "zed-industries/zed",
+    "sha": "0943bcb76cd57b06f35bb8ef7885368e24205527",
+    "why": "AGENTS.md, CLAUDE.md and GEMINI.md are symlinks to .rules; 271 symlinks in total"
+  }
+]
