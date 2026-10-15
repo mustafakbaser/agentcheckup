@@ -40,6 +40,17 @@ not automated.
 8. **Protect tags** with a ruleset for `v*`, and enable immutable releases.
 9. **Enable** private vulnerability reporting, secret scanning with push protection, and
    Dependabot alerts.
+10. **Let release-please open its pull request.** In Settings, Actions, General, enable "Allow
+    GitHub Actions to create and approve pull requests". New repositories have it off, and the
+    Release workflow fails with "GitHub Actions is not permitted to create or approve pull
+    requests" until it is on. The default workflow token stays read-only; only the Release
+    workflow's release-please job asks for `contents: write` and `pull-requests: write`. From
+    the command line:
+
+    ```sh
+    gh api -X PUT repos/mustafakbaser/agentcheck/actions/permissions/workflow \
+      -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+    ```
 
 ## Dependency updates
 
