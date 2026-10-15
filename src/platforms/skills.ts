@@ -1,7 +1,9 @@
 /**
  * Which platforms discover a SKILL.md at its location: skills directories, plugins and
- * marketplaces. Pure functions over paths and `snapshot.paths`.
+ * marketplaces, and what Claude Code shows of a skill in its skill listing. Pure functions over
+ * paths, `snapshot.paths` and parsed frontmatter.
  */
+import { codePointLength } from '../core/measure.js';
 import { dirnamePosix } from '../core/paths.js';
 import type { Artifact, PlatformId, Snapshot } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
@@ -287,4 +289,113 @@ export function audience(scope: SkillScope, artifact: Artifact): ReadonlySet<Pla
  */
 export function bodyOffset(result: FrontmatterResult): number {
   return result.kind === 'valid' || result.kind === 'invalid' ? result.bodyOffset : 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Claude Code skill listing
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Claude Code cuts the combined `description` and `when_to_use` text of each skill in its skill
+ * listing at this many characters (`skillListingMaxDescChars`, code.claude.com/docs/en/skills).
+ */
+export const CLAUDE_LISTING_MAX_CHARS = 1536;
+
+/** Text of a scalar the way the listing shows it: numbers and booleans as written. */
+export function scalarText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return undefined;
+}
+
+/**
+ * The description Claude Code uses when the frontmatter has none: the first non-empty line of
+ * the body (code.claude.com/docs/en/skills, frontmatter reference).
+ */
+export function firstBodyLine(body: string): string | undefined {
+  for (const line of body.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed !== '') return trimmed;
+  }
+  return undefined;
+}
+
+/** The first `max` code points of `text`. */
+export function cutCodePoints(text: string, max: number): string {
+  let count = 0;
+  let index = 0;
+  for (const char of text) {
+    if (count === max) return text.slice(0, index);
+    count++;
+    index += char.length;
+  }
+  return text;
+}
+
+/** What Claude Code lists for one skill, before the model picks it. */
+export interface ClaudeSkillListing {
+  /** `name` from the frontmatter, else the skill's directory name. */
+  readonly name: string;
+  /**
+   * Where the description comes from:
+   * - `frontmatter`: the `description` field.
+   * - `body`: no `description` field, so the first non-empty line of the body.
+   * - `none`: the frontmatter is not valid YAML, so Claude Code reads no fields.
+   */
+  readonly source: 'frontmatter' | 'body' | 'none';
+  /** `description` followed by `when_to_use`, before the cut. */
+  readonly text: string;
+  /** Code points of `text`, counted without any separator Claude Code may add. */
+  readonly length: number;
+  /** `text` cut at {@link CLAUDE_LISTING_MAX_CHARS} code points. */
+  readonly shown: string;
+  /** Offset of the body in the decoded text: what Claude Code loads when the skill is used. */
+  readonly bodyOffset: number;
+}
+
+/**
+ * The listing entry of a SKILL.md as Claude Code builds it (code.claude.com/docs/en/skills):
+ * frontmatter is read only when `---` is the first line; `name` defaults to the directory name
+ * and `description` to the first non-empty body line; YAML that does not parse leaves the skill
+ * with no fields. A block without a closing delimiter, or in another format, is read as body.
+ * The description is counted the way skill/description-too-long counts it.
+ */
+export function claudeSkillListing(
+  path: string,
+  text: string,
+  frontmatter: FrontmatterResult,
+): ClaudeSkillListing {
+  const directory = dirnamePosix(path);
+  let name = directory.slice(directory.lastIndexOf('/') + 1);
+  let source: ClaudeSkillListing['source'] = 'body';
+  let description = '';
+  let whenToUse: string | undefined;
+  let bodyOffset = 0;
+  if (frontmatter.kind === 'valid') {
+    const { data } = frontmatter;
+    bodyOffset = frontmatter.bodyOffset;
+    const declared = data.values['name'];
+    if (typeof declared === 'string' && declared.trim() !== '') name = declared.trim();
+    if (data.keys.includes('description')) {
+      source = 'frontmatter';
+      description = scalarText(data.values['description']) ?? '';
+    } else {
+      description = firstBodyLine(text.slice(bodyOffset)) ?? '';
+    }
+    whenToUse = scalarText(data.values['when_to_use']);
+  } else if (frontmatter.kind === 'invalid') {
+    bodyOffset = frontmatter.bodyOffset;
+    source = 'none';
+  } else {
+    description = firstBodyLine(text) ?? '';
+  }
+  const combined = description + (whenToUse ?? '');
+  return {
+    name,
+    source,
+    text: combined,
+    length: codePointLength(combined),
+    shown: cutCodePoints(combined, CLAUDE_LISTING_MAX_CHARS),
+    bodyOffset,
+  };
 }

@@ -1,5 +1,4 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
 import type { ImportDialect, ImportReference } from '../../parse/types.js';
 import { defineRule } from '../define.js';
@@ -15,6 +14,7 @@ import {
   isUndocumentedRoot,
   MAX_HOPS,
   targetedDialects,
+  tooDeepImports,
 } from './import-graph.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
@@ -128,39 +128,22 @@ export const importDepthRule = defineRule({
       const maxHops = MAX_HOPS[dialect];
       const platforms = [DIALECT_PLATFORM[dialect]];
       const roots = importRoots(graph, dialect);
-      // Documented roots first, so a finding they share with a project rule keeps its severity.
-      const ordered = [...roots].sort(
-        (a, b) => Number(isUndocumentedRoot(a)) - Number(isUndocumentedRoot(b)),
-      );
 
-      for (const root of ordered) {
+      for (const { root, file, reference, target } of tooDeepImports(graph, roots, dialect)) {
+        if (!once(file, reference)) continue;
         const undocumented = isUndocumentedRoot(root);
-        const reach = graph.reach([root], dialect, maxHops);
-        if (reach.incomplete) continue;
-        for (const [file, hop] of reach.hops) {
-          if (hop !== maxHops) continue;
-          const doc = graph.markdown(file);
-          for (const { reference, target } of graph.edges(file, dialect)) {
-            if (target === undefined) continue;
-            if (dialect === 'claude' && inHtmlComment(doc, reference)) continue;
-            const loadedAt = reach.targets.get(target);
-            if (loadedAt !== undefined && loadedAt <= maxHops) continue;
-            if (pathStatus(context.snapshot, target) !== 'exists') continue;
-            if (!once(file, reference)) continue;
-            const message = `This import is ${formatInteger(maxHops + 1)} hops from ${quotePath(root.path)}. ${DIALECT_AGENT[dialect]} follows imports at most ${formatInteger(maxHops)} hops deep, so ${quotePath(target)} is not loaded.`;
-            context.report({
-              artifact: file,
-              span: reference.span,
-              platforms,
-              ...(undocumented
-                ? {
-                    severity: 'info' as const,
-                    message: `${message} Claude Code's documentation does not say it expands imports in project rules.`,
-                  }
-                : { message }),
-            });
-          }
-        }
+        const message = `This import is ${formatInteger(maxHops + 1)} hops from ${quotePath(root.path)}. ${DIALECT_AGENT[dialect]} follows imports at most ${formatInteger(maxHops)} hops deep, so ${quotePath(target)} is not loaded.`;
+        context.report({
+          artifact: file,
+          span: reference.span,
+          platforms,
+          ...(undocumented
+            ? {
+                severity: 'info' as const,
+                message: `${message} Claude Code's documentation does not say it expands imports in project rules.`,
+              }
+            : { message }),
+        });
       }
 
       // Only cycles closed by an import the agent processes, in a file within its hop limit.

@@ -1,5 +1,5 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix, pathStatus } from '../../core/paths.js';
+import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ReportDescriptor } from '../../core/types.js';
 import type { ImportDialect } from '../../parse/types.js';
 import { defineRule } from '../define.js';
@@ -7,45 +7,18 @@ import { SOURCES } from '../sources.js';
 import { quotePath } from '../shared/format.js';
 import { FindingLimiter, nearestGitRoot } from './helpers.js';
 import {
+  claudeImportOutsideRoot,
   DIALECT_PLATFORM,
   filesWithFollowedImports,
   type ImportEdge,
   ImportGraph,
   inHtmlComment,
+  scanRootIsRepository,
   targetedDialects,
 } from './import-graph.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
-/**
- * First segments of absolute paths that are clearly file-system locations. Claude Code also
- * parses `@/components/Button` (a TypeScript path alias in prose) as an absolute import; such
- * mentions are not reported for Claude Code.
- */
-const SYSTEM_DIRECTORIES: ReadonlySet<string> = new Set([
-  'Users',
-  'home',
-  'etc',
-  'opt',
-  'var',
-  'tmp',
-  'usr',
-  'root',
-  'mnt',
-  'media',
-  'Volumes',
-  'private',
-  'srv',
-  'Library',
-  'nix',
-]);
-
-const WINDOWS_DRIVE = /^[a-z]:[\\/]/i;
-
-export function isFileSystemPath(path: string): boolean {
-  if (WINDOWS_DRIVE.test(path)) return true;
-  const first = path.split('/').find((segment) => segment !== '');
-  return first !== undefined && SYSTEM_DIRECTORIES.has(first);
-}
+export { isFileSystemPath } from '../../platforms/load/imports.js';
 
 function within(path: string, root: string): boolean {
   return root === '' || path === root || path.startsWith(`${root}/`);
@@ -61,19 +34,19 @@ function describe(
   const { reference, target } = edge;
   const written = `@${reference.raw}`;
   if (dialect === 'claude') {
-    switch (reference.kind) {
+    switch (claudeImportOutsideRoot(edge, repository)) {
+      case undefined:
+        return undefined;
       case 'home':
         return {
           severity: 'info',
           message: `Import ${quotePath(written)} loads a file from each user's home directory, so teammates and CI runners without that file get nothing from it. Claude Code also asks for approval before it loads files outside the working directory.`,
         };
       case 'absolute':
-        if (!isFileSystemPath(reference.path)) return undefined;
         return {
           message: `Import ${quotePath(written)} uses an absolute path, which exists only on machines with the same directory layout. Claude Code also asks for approval before it loads files outside the working directory.`,
         };
       case 'relative':
-        if (target !== undefined || !repository) return undefined;
         return {
           message: `Import ${quotePath(written)} resolves outside the repository, so other clones and CI runners do not have that file. Claude Code also asks for approval before it loads files outside the working directory.`,
         };
@@ -122,7 +95,7 @@ export const importOutsideRootRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     const graph = new ImportGraph(context);
-    const repository = pathStatus(context.snapshot, '.git') === 'exists';
+    const repository = scanRootIsRepository(context.snapshot);
     const limiter = new FindingLimiter();
     for (const dialect of targetedDialects(context)) {
       for (const { artifact, documented } of filesWithFollowedImports(graph, dialect)) {

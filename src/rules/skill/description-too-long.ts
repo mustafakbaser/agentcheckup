@@ -1,5 +1,6 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
+import { CLAUDE_LISTING_MAX_CHARS, scalarText } from '../../platforms/skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger } from '../shared/format.js';
@@ -16,14 +17,7 @@ import { SKILL_SOURCES } from './sources.js';
 /** Agent Skills spec and Claude API limit for `description`, enforced on upload. */
 const MAX_DESCRIPTION = 1024;
 /** Claude Code cuts the combined description and when_to_use text in the skill listing. */
-const LISTING_CAP = 1536;
-
-/** Text of a scalar the way the listing shows it: numbers and booleans as written. */
-function scalarText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim();
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return undefined;
-}
+const LISTING_CAP = CLAUDE_LISTING_MAX_CHARS;
 
 export const descriptionTooLongRule = defineRule({
   meta: {

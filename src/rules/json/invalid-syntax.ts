@@ -10,6 +10,7 @@ import { JSON_SOURCES } from './sources.js';
 
 // Shared with the load plans, which skip a config file that does not parse.
 export { issueKind } from '../../parse/json-access.js';
+export type { IssueKind } from '../../parse/json-access.js';
 
 /** The parser's sentence as a clause: `Expected a comma.` -> `expected a comma`. */
 function describeIssue(issue: ParseIssue): string {

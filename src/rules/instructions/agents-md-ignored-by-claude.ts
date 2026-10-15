@@ -1,41 +1,11 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { skillDirectoryOf } from '../../platforms/location.js';
 import { dirnamePosix } from '../../core/paths.js';
-import type { Artifact } from '../../core/types.js';
+import { agentsMdShadowedByClaude } from '../../platforms/load/agents-md-shadow.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quotePath } from '../shared/format.js';
-import { basename, inPayloadFolder, joinPath, relativePath, selfAndAncestors } from './helpers.js';
-import { agentsMdDirectory, claudeFilesOnPath, ImportGraph, MAX_HOPS } from './import-graph.js';
-
-/** The same file on disk, or a copy whose text differs at most in line endings and trailing space. */
-function sameInstructions(a: Artifact, b: Artifact): boolean {
-  if (a.realPath === b.realPath) return true;
-  const normalize = (artifact: Artifact): string =>
-    artifact.decoded.text.replaceAll('\r\n', '\n').trimEnd();
-  return normalize(a) === normalize(b);
-}
-
-/** The directory that owns a rule's `.claude` folder: `pkg` for `pkg/.claude/rules/x.md`. */
-function ruleOwner(path: string): string | undefined {
-  if (path.startsWith('.claude/rules/')) return '';
-  const index = path.indexOf('/.claude/rules/');
-  return index === -1 ? undefined : path.slice(0, index);
-}
-
-/** `.claude/rules/` files grouped by the directory that owns the `.claude` folder. */
-function rulesByOwner(graph: ImportGraph): Map<string, Artifact[]> {
-  const owners = new Map<string, Artifact[]>();
-  for (const artifact of new Set(graph.index.values())) {
-    if (artifact.kind !== 'claude-rule') continue;
-    const owner = ruleOwner(artifact.path);
-    if (owner === undefined) continue;
-    const list = owners.get(owner) ?? [];
-    list.push(artifact);
-    owners.set(owner, list);
-  }
-  return owners;
-}
+import { joinPath, relativePath } from './helpers.js';
+import { ImportGraph } from './import-graph.js';
 
 export const agentsMdIgnoredByClaudeRule = defineRule({
   meta: {
@@ -56,35 +26,10 @@ export const agentsMdIgnoredByClaudeRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     const graph = new ImportGraph(context);
-    const rules = rulesByOwner(graph);
-    for (const artifact of context.artifacts) {
-      // Case variants are reported by instr/filename-case. An AGENTS.md inside a configuration
-      // folder (.agents/, .codex/, .github/ ...) is not a directory's instructions; Claude Code
-      // never reads .agents/ at all.
-      if (basename(artifact.path) !== 'AGENTS.md') continue;
-      const directory = agentsMdDirectory(artifact.path);
-      if (directory.split('/').some((segment) => segment.startsWith('.'))) continue;
-      // An AGENTS.md inside a skill is the skill's reference material, and one in a template or
-      // example folder is copied into other projects; neither is this directory's rules.
-      if (skillDirectoryOf(context.snapshot, artifact.path) !== undefined) continue;
-      if (inPayloadFolder(artifact.path)) continue;
-
-      const claudeFiles = claudeFilesOnPath(graph, directory);
-      const importers: Artifact[] = [];
-      for (const file of claudeFiles)
-        if (file.artifact !== undefined) importers.push(file.artifact);
-      const nearest = claudeFiles.find((file) => file.artifact !== undefined);
-      if (nearest === undefined) continue;
-      // A CLAUDE file that is this file (a symlink) or an identical copy: Claude Code already
-      // reads the same instructions.
-      if (importers.some((claude) => sameInstructions(claude, artifact))) continue;
-
-      // Rules in .claude/rules load with the CLAUDE.md files on the path and can import AGENTS.md.
-      for (const ancestor of selfAndAncestors(directory))
-        importers.push(...(rules.get(ancestor) ?? []));
-      const reach = graph.reach(importers, 'claude', MAX_HOPS.claude);
-      if (reach.hops.has(artifact) || reach.incomplete) continue;
-
+    for (const { artifact, directory, nearest } of agentsMdShadowedByClaude(
+      graph,
+      context.artifacts,
+    )) {
       const nearestDirectory = dirnamePosix(nearest.path);
       const sameDirectory =
         nearestDirectory === directory || nearestDirectory === joinPath(directory, '.claude');

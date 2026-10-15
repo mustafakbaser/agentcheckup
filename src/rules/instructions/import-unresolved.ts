@@ -1,5 +1,4 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix, joinRelative, pathStatus } from '../../core/paths.js';
 import type { Artifact, Span } from '../../core/types.js';
 import type { ImportDialect } from '../../parse/types.js';
 import { defineRule } from '../define.js';
@@ -11,9 +10,8 @@ import {
   filesWithFollowedImports,
   ImportGraph,
   inHtmlComment,
-  looksLikeFilePath,
   targetedDialects,
-  withoutTrailingPunctuation,
+  unresolvedImport,
 } from './import-graph.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
@@ -77,27 +75,11 @@ export const importUnresolvedRule = defineRule({
     for (const dialect of targetedDialects(context)) {
       for (const { artifact, documented } of filesWithFollowedImports(graph, dialect)) {
         const doc = graph.markdown(artifact);
-        const directory = dirnamePosix(artifact.path);
-        for (const { reference, target } of graph.edges(artifact, dialect)) {
-          if (reference.kind !== 'relative' || target === undefined) continue;
+        for (const edge of graph.edges(artifact, dialect)) {
+          const { reference } = edge;
           if (dialect === 'claude' && inHtmlComment(doc, reference)) continue;
-          const trimmed = withoutTrailingPunctuation(reference.path);
-          if (dialect === 'claude' && !looksLikeFilePath(trimmed)) continue;
-          if (pathStatus(snapshot, target) !== 'missing') continue;
-
-          let path = reference.path;
-          let withoutPunctuation: string | undefined;
-          if (trimmed !== reference.path && trimmed !== '') {
-            const trimmedTarget = joinRelative(directory, trimmed);
-            if (trimmedTarget !== undefined && pathStatus(snapshot, trimmedTarget) !== 'missing') {
-              // Whether Claude Code keeps trailing punctuation in an import path is not
-              // documented; Gemini CLI's parser keeps it (it reads up to the next whitespace).
-              if (dialect === 'claude') continue;
-              withoutPunctuation = trimmed;
-            } else if (dialect === 'claude') {
-              path = trimmed;
-            }
-          }
+          const unresolved = unresolvedImport(snapshot, artifact, edge, dialect);
+          if (unresolved === undefined) continue;
 
           const key = `${artifact.path}\u0000${String(reference.span.offset)}`;
           const existing = found.get(key);
@@ -108,10 +90,12 @@ export const importUnresolvedRule = defineRule({
           found.set(key, {
             artifact,
             span: reference.span,
-            path,
+            path: unresolved.path,
             dialects: new Set([dialect]),
             ruleOnly: dialect === 'claude' && !documented,
-            ...(withoutPunctuation === undefined ? {} : { withoutPunctuation }),
+            ...(unresolved.withoutPunctuation === undefined
+              ? {}
+              : { withoutPunctuation: unresolved.withoutPunctuation }),
           });
         }
       }

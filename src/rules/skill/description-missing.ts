@@ -1,5 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { descriptionState } from '../../platforms/codex-skills.js';
+import { firstBodyLine } from '../../platforms/skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -24,17 +25,7 @@ import {
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
 
-/**
- * The description Claude Code uses when the frontmatter has none: the first non-empty line of
- * the body (code.claude.com/docs/en/skills, frontmatter reference).
- */
-export function firstBodyLine(body: string): string | undefined {
-  for (const line of body.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed !== '') return trimmed;
-  }
-  return undefined;
-}
+export { firstBodyLine } from '../../platforms/skills.js';
 
 export const descriptionMissingRule = defineRule({
   meta: {
