@@ -72,11 +72,41 @@ Rules:
 - JSON files cannot hold comments. Use `overrides` for them.
 - `--untrusted` ignores all inline directives and the repository's configuration file.
 
+## Baselines and the gate
+
+`--baseline <report.json>` compares a scan with the JSON report of an earlier one, usually the
+base branch of a pull request:
+
+```sh
+agentcheckup --context --format json --output base.json --fail-on none   # on the base
+agentcheckup --baseline base.json --gate security                         # on the change
+```
+
+- Findings match by fingerprint and are marked `new` or `unchanged`. `--fail-on` counts new
+  findings only; the score still covers every finding.
+- `--gate` names the security-relevant changes that fail the run: `mcp`, `mcp-unpinned`,
+  `permissions`, `hooks`, `env`, `unicode`, `security` for all of them, or `none`. Removals
+  never trip it. `--gate` without `--baseline` is a usage error.
+- `--context` on the base scan adds the load plans, so the comparison also shows the change in
+  session-start context per agent.
+- The baseline is read as untrusted input: at most 64 MiB, a regular file (not a symlink), and
+  only a report with a supported `schemaVersion`. Anything else exits with code 2. A baseline
+  written with another ruleset is accepted with a warning: findings from rules it did not run
+  count as new.
+
+## Paths in GitHub Actions
+
+Report paths are relative to the current directory. When `GITHUB_WORKSPACE` is set and the
+scanned directory is inside it, the `github` and `sarif` formats use paths relative to the
+workspace instead, because GitHub resolves annotation and SARIF paths against the repository
+root. Running the CLI from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore annotates
+`.mcp.json`, not `../../work/repo/repo/.mcp.json`.
+
 ## Exit codes
 
-| Code | Meaning                                                                                  |
-| ---- | ---------------------------------------------------------------------------------------- |
-| 0    | No findings at or above `--fail-on` (default `error`), and the score meets `--min-score` |
-| 1    | Findings at or above `--fail-on`, or the score is below `--min-score`                    |
-| 2    | Invalid arguments or configuration                                                       |
-| 3    | Internal error                                                                           |
+| Code | Meaning                                                                                                                                               |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.   |
+| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, or security-relevant changes caught by `--gate`      |
+| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline that cannot be read or used; an unusable `--output` |
+| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                               |

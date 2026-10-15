@@ -1,30 +1,57 @@
 import { parseArgs } from 'node:util';
+import { parseGateClasses } from '../core/baseline.js';
+import type { GateClass } from '../core/baseline-types.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from '../core/types.js';
+import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 
 export const OUTPUT_FORMATS = ['stylish', 'json', 'sarif', 'github', 'markdown', 'badge'] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+export const CONTEXT_FORMATS = ['text', 'json', 'markdown'] as const;
+export type ContextFormat = (typeof CONTEXT_FORMATS)[number];
 export type FailOn = Severity | 'none';
 
 export type Command =
-  | { readonly kind: 'help' }
+  | { readonly kind: 'help'; readonly topic?: 'context' }
   | { readonly kind: 'version' }
   | { readonly kind: 'rules'; readonly format: 'text' | 'json' }
   | { readonly kind: 'explain'; readonly ruleId: string }
-  | { readonly kind: 'scan'; readonly options: ScanCommandOptions };
+  | { readonly kind: 'scan'; readonly options: ScanCommandOptions }
+  | { readonly kind: 'context'; readonly options: ContextCommandOptions };
 
-export interface ScanCommandOptions {
+/** Options both the scan and the context command take. */
+export interface SharedCommandOptions {
   readonly path: string;
-  readonly format: OutputFormat;
   readonly output: string | undefined;
-  readonly targets: readonly PlatformId[] | undefined;
-  readonly failOn: FailOn;
-  readonly minScore: number | undefined;
   readonly config: string | undefined;
   readonly useConfig: boolean;
   readonly untrusted: boolean;
   readonly gitignore: boolean;
-  readonly showSuppressed: boolean;
   readonly color: boolean | undefined;
+  /** `--baseline`: a JSON report to compare with. */
+  readonly baseline: string | undefined;
+  /** `--gate`: classes that turn changes since the baseline into exit 1. Needs `baseline`. */
+  readonly gate: readonly GateClass[];
+  /** `--context-window`: the model's context window in tokens. */
+  readonly contextWindow: number | undefined;
+}
+
+export interface ScanCommandOptions extends SharedCommandOptions {
+  readonly format: OutputFormat;
+  readonly targets: readonly PlatformId[] | undefined;
+  readonly failOn: FailOn;
+  readonly minScore: number | undefined;
+  readonly showSuppressed: boolean;
+  /** `--context`: add load plans and the matrix to the report. */
+  readonly context: boolean;
+}
+
+export interface ContextCommandOptions extends SharedCommandOptions {
+  readonly format: ContextFormat;
+  /** `--agent`; undefined means every modeled agent among the targets. */
+  readonly agents: readonly ContextAgent[] | undefined;
+  /** Root-relative POSIX directory, normalized; `''` is the scanned directory. */
+  readonly cwd: string;
+  readonly matrix: boolean;
 }
 
 export class UsageError extends Error {
@@ -38,14 +65,43 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], flag: str
   throw new UsageError(`${flag} must be one of: ${allowed.join(', ')}. Got "${value}".`);
 }
 
-function parseTargets(value: string | undefined): PlatformId[] | undefined {
-  if (value === undefined) return undefined;
-  const ids = value
+function list(value: string): string[] {
+  return value
     .split(',')
     .map((id) => id.trim())
     .filter((id) => id.length > 0);
+}
+
+function parseTargets(value: string | undefined): PlatformId[] | undefined {
+  if (value === undefined) return undefined;
+  const ids = list(value);
   if (ids.length === 0) throw new UsageError('--targets needs at least one platform.');
   return ids.map((id) => oneOf(id, PLATFORM_IDS, '--targets'));
+}
+
+function isContextAgent(id: string): id is ContextAgent {
+  return (CONTEXT_AGENTS as readonly string[]).includes(id);
+}
+
+function parseAgents(value: string | undefined): ContextAgent[] | undefined {
+  if (value === undefined) return undefined;
+  const ids = list(value);
+  if (ids.length === 0) throw new UsageError('--agent needs at least one agent.');
+  const modeled = CONTEXT_AGENTS.join(', ');
+  const agents = new Set<ContextAgent>();
+  for (const id of ids) {
+    if (isContextAgent(id)) {
+      agents.add(id);
+    } else if ((PLATFORM_IDS as readonly string[]).includes(id)) {
+      throw new UsageError(
+        `agentcheckup does not model what ${id} loads yet. --agent takes: ${modeled}.`,
+      );
+    } else {
+      throw new UsageError(`Unknown agent "${id}". --agent takes: ${modeled}.`);
+    }
+  }
+  // In the order agentcheckup lists agents, so output does not depend on the flag's order.
+  return CONTEXT_AGENTS.filter((agent) => agents.has(agent));
 }
 
 function parseMinScore(value: string | undefined): number | undefined {
@@ -55,6 +111,145 @@ function parseMinScore(value: string | undefined): number | undefined {
     throw new UsageError(`--min-score must be an integer from 0 to 100. Got "${value}".`);
   }
   return score;
+}
+
+function parseContextWindow(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const tokens = /^\d{1,15}$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(tokens) || tokens <= 0) {
+    throw new UsageError(
+      `--context-window must be a positive whole number of tokens, such as 200000. Got "${value}".`,
+    );
+  }
+  return tokens;
+}
+
+function parseGate(value: string | undefined, baseline: string | undefined): readonly GateClass[] {
+  if (value === undefined) return [];
+  if (baseline === undefined) {
+    throw new UsageError(
+      '--gate needs --baseline: the gate looks at what changed since the baseline report.',
+    );
+  }
+  const parsed = parseGateClasses(value);
+  if (!parsed.ok) throw new UsageError(`--gate: ${parsed.message}`);
+  return parsed.classes;
+}
+
+/**
+ * `--cwd` as a normalized root-relative POSIX path. Rejects absolute paths and `..`, so the
+ * working directory can only name a directory inside the scanned one. Whether it exists is
+ * checked after the walk.
+ */
+export function parseWorkingDirectory(value: string | undefined): string {
+  if (value === undefined) return '';
+  if (value.includes('\0')) throw new UsageError('--cwd must not contain a NUL character.');
+  if (value.startsWith('/') || value.startsWith('\\') || /^[a-z]:/i.test(value)) {
+    throw new UsageError(
+      `--cwd must be a directory relative to the scanned path, not an absolute path. Got "${value}".`,
+    );
+  }
+  // Both separators: a Windows user may type either.
+  const parts = value.split(/[/\\]/);
+  if (parts.includes('..')) {
+    throw new UsageError(
+      `--cwd must name a directory inside the scanned path; ".." is not allowed. Got "${value}".`,
+    );
+  }
+  return parts.filter((part) => part !== '' && part !== '.').join('/');
+}
+
+type Values = Record<string, string | boolean | undefined>;
+
+/** Flags that only one command takes, with the command that does. */
+const SCAN_ONLY = ['targets', 'fail-on', 'min-score', 'show-suppressed', 'context'] as const;
+const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
+
+function rejectFlags(values: Values, flags: readonly string[], message: string): void {
+  for (const flag of flags) {
+    if (values[flag] !== undefined) throw new UsageError(`--${flag} ${message}`);
+  }
+}
+
+function sharedOptions(values: Values, path: string | undefined): SharedCommandOptions {
+  if (values['config'] !== undefined && values['no-config'] === true) {
+    throw new UsageError('--config and --no-config cannot be combined.');
+  }
+  if (values['color'] === true && values['no-color'] === true) {
+    throw new UsageError('--color and --no-color cannot be combined.');
+  }
+  const baseline = values['baseline'] as string | undefined;
+  return {
+    path: path ?? '.',
+    output: values['output'] as string | undefined,
+    config: values['config'] as string | undefined,
+    // --untrusted implies the repository's own configuration is ignored.
+    useConfig: values['no-config'] !== true && values['untrusted'] !== true,
+    untrusted: values['untrusted'] === true,
+    gitignore: values['no-gitignore'] !== true,
+    color: values['color'] === true ? true : values['no-color'] === true ? false : undefined,
+    baseline,
+    gate: parseGate(values['gate'] as string | undefined, baseline),
+    contextWindow: parseContextWindow(values['context-window'] as string | undefined),
+  };
+}
+
+function contextCommand(values: Values, rest: readonly string[]): Command {
+  if (values['help'] === true) return { kind: 'help', topic: 'context' };
+  if (values['version'] === true) return { kind: 'version' };
+  if (rest.length > 1) {
+    throw new UsageError(`"context" takes at most one path, got ${rest.length}.`);
+  }
+  rejectFlags(values, SCAN_ONLY, 'does not apply to the context command.');
+  const cwd = parseWorkingDirectory(values['cwd'] as string | undefined);
+  const matrix = values['matrix'] === true;
+  if (matrix && cwd !== '') {
+    throw new UsageError(
+      '--matrix covers the whole repository, so it cannot be combined with --cwd.',
+    );
+  }
+  return {
+    kind: 'context',
+    options: {
+      ...sharedOptions(values, rest[0]),
+      format: oneOf(
+        (values['format'] as string | undefined) ?? 'text',
+        CONTEXT_FORMATS,
+        '--format',
+      ),
+      agents: parseAgents(values['agent'] as string | undefined),
+      cwd,
+      matrix,
+    },
+  };
+}
+
+function scanCommand(values: Values, positionals: readonly string[]): Command {
+  if (positionals.length > 1) {
+    throw new UsageError(`Expected at most one path, got ${positionals.length}.`);
+  }
+  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  const shared = sharedOptions(values, positionals[0]);
+  const context = values['context'] === true;
+  if (shared.contextWindow !== undefined && !context) {
+    throw new UsageError('--context-window needs --context, or use the context command.');
+  }
+  return {
+    kind: 'scan',
+    options: {
+      ...shared,
+      format: oneOf(
+        (values['format'] as string | undefined) ?? 'stylish',
+        OUTPUT_FORMATS,
+        '--format',
+      ),
+      targets: parseTargets(values['targets'] as string | undefined),
+      failOn: oneOf((values['fail-on'] as string | undefined) ?? 'error', FAIL_ON, '--fail-on'),
+      minScore: parseMinScore(values['min-score'] as string | undefined),
+      showSuppressed: values['show-suppressed'] === true,
+      context,
+    },
+  };
 }
 
 export function parseCommand(argv: readonly string[]): Command {
@@ -78,13 +273,21 @@ export function parseCommand(argv: readonly string[]): Command {
       color: { type: 'boolean' },
       'no-color': { type: 'boolean' },
       json: { type: 'boolean' },
+      context: { type: 'boolean' },
+      baseline: { type: 'string' },
+      gate: { type: 'string' },
+      agent: { type: 'string' },
+      cwd: { type: 'string' },
+      matrix: { type: 'boolean' },
+      'context-window': { type: 'string' },
     },
   });
 
+  const [first, ...rest] = positionals;
+  if (first === 'context') return contextCommand(values, rest);
   if (values.help) return { kind: 'help' };
   if (values.version) return { kind: 'version' };
 
-  const [first, ...rest] = positionals;
   if (first === 'rules') {
     if (rest.length > 0) throw new UsageError('"rules" takes no arguments.');
     return { kind: 'rules', format: values.json ? 'json' : 'text' };
@@ -96,33 +299,5 @@ export function parseCommand(argv: readonly string[]): Command {
     }
     return { kind: 'explain', ruleId };
   }
-
-  if (positionals.length > 1) {
-    throw new UsageError(`Expected at most one path, got ${positionals.length}.`);
-  }
-  if (values.config !== undefined && values['no-config']) {
-    throw new UsageError('--config and --no-config cannot be combined.');
-  }
-  if (values.color && values['no-color']) {
-    throw new UsageError('--color and --no-color cannot be combined.');
-  }
-
-  return {
-    kind: 'scan',
-    options: {
-      path: first ?? '.',
-      format: oneOf(values.format ?? 'stylish', OUTPUT_FORMATS, '--format'),
-      output: values.output,
-      targets: parseTargets(values.targets),
-      failOn: oneOf(values['fail-on'] ?? 'error', FAIL_ON, '--fail-on'),
-      minScore: parseMinScore(values['min-score']),
-      config: values.config,
-      // --untrusted implies the repository's own configuration is ignored.
-      useConfig: !(values['no-config'] ?? false) && !(values.untrusted ?? false),
-      untrusted: values.untrusted ?? false,
-      gitignore: !(values['no-gitignore'] ?? false),
-      showSuppressed: values['show-suppressed'] ?? false,
-      color: values.color ? true : values['no-color'] ? false : undefined,
-    },
-  };
+  return scanCommand(values, positionals);
 }

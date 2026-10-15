@@ -1,21 +1,52 @@
-import { writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
+import { compareWithBaseline } from '../core/baseline.js';
+import { type BaselineReport, validateBaseline } from '../core/baseline-input.js';
+import type { GateClass } from '../core/baseline-types.js';
 import { ConfigError, resolveConfig, type ResolvedConfig } from '../core/config.js';
-import { scanSnapshot, type ScanResult } from '../core/engine.js';
+import {
+  type ContextOptions,
+  type ScanOptions,
+  scanSnapshot,
+  type ScanResult,
+  scanWithContext,
+} from '../core/engine.js';
 import { rebaseResult } from '../core/rebase.js';
 import { CONFIG_FILE_NAME, ruleDocsUrl } from '../core/meta.js';
-import { SEVERITIES, type RuleMeta } from '../core/types.js';
+import {
+  PLATFORM_IDS,
+  type PlatformId,
+  type RuleMeta,
+  SEVERITIES,
+  type Snapshot,
+} from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { readConfigFile } from '../io/config-file.js';
+import { OutputError, writeOutputFile } from '../io/output.js';
+import { relativeInsideRoot } from '../io/paths.js';
+import { InputFileError, readJsonInput } from '../io/read-file.js';
 import { walk, WalkError } from '../io/walk.js';
+import { contextAgentsOf } from '../platforms/load/index.js';
+import { CONTEXT_AGENTS } from '../platforms/load/types.js';
 import { badgeMarkdown } from '../report/badge.js';
+import { formatBaselineMarkdown } from '../report/baseline-markdown.js';
+import { formatBaselineText } from '../report/baseline-text.js';
+import { formatContextMarkdown } from '../report/context-markdown.js';
+import { formatContextText } from '../report/context-text.js';
 import { format } from '../report/index.js';
+import { formatJson } from '../report/json.js';
 import { forTerminal } from '../report/sanitize.js';
 import { plainStyle, type Style } from '../report/stylish.js';
 import { DIRECTIVE_RULES } from '../core/directive-rules.js';
 import { builtinRules } from '../rules/index.js';
-import { parseCommand, UsageError, type FailOn, type ScanCommandOptions } from './args.js';
-import { HELP } from './help.js';
+import {
+  type ContextCommandOptions,
+  type FailOn,
+  parseCommand,
+  type ScanCommandOptions,
+  type SharedCommandOptions,
+  UsageError,
+} from './args.js';
+import { CONTEXT_HELP, HELP } from './help.js';
 import { ansiStyle, shouldUseColor } from './style.js';
 
 export interface Io {
@@ -26,6 +57,12 @@ export interface Io {
   readonly isTTY: boolean;
 }
 
+/**
+ * - 0: clean. `context` without `--gate` always exits 0 unless something fails.
+ * - 1: (new) findings at or above `--fail-on`, a score below `--min-score`, or a tripped gate.
+ * - 2: invalid arguments, configuration, `--cwd`, `--agent` or baseline; an unwritable output.
+ * - 3: internal error, including a rule or loader that crashed.
+ */
 export const EXIT = { ok: 0, findings: 1, usage: 2, internal: 3 } as const;
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
 
@@ -35,7 +72,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     const command = parseCommand(argv);
     switch (command.kind) {
       case 'help':
-        io.stdout(HELP);
+        io.stdout(command.topic === 'context' ? CONTEXT_HELP : HELP);
         return EXIT.ok;
       case 'version':
         io.stdout(`${VERSION}\n`);
@@ -47,13 +84,25 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return explain(command.ruleId, io);
       case 'scan':
         return await scan(command.options, io);
+      case 'context':
+        return await context(command.options, io);
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
-      io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "agentcheckup --help" for usage.\n`);
+      // The first argument that is not a flag names the command, as in parseCommand.
+      const help =
+        argv.find((arg) => !arg.startsWith('-')) === 'context'
+          ? 'agentcheckup context --help'
+          : 'agentcheckup --help';
+      io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);
       return EXIT.usage;
     }
-    if (error instanceof ConfigError || error instanceof WalkError) {
+    if (
+      error instanceof ConfigError ||
+      error instanceof WalkError ||
+      error instanceof InputFileError ||
+      error instanceof OutputError
+    ) {
       io.stderr(`${forTerminal(errorMessage(error))}\n`);
       return EXIT.usage;
     }
@@ -79,7 +128,7 @@ function isParseArgsError(error: unknown): boolean {
 }
 
 async function loadConfig(
-  options: ScanCommandOptions,
+  options: SharedCommandOptions,
   root: string,
   cwd: string,
 ): Promise<ResolvedConfig | undefined> {
@@ -101,50 +150,237 @@ async function loadConfig(
   return resolveConfig(raw, fileName);
 }
 
-async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
-  const root = resolve(io.cwd, options.path);
-  const config = await loadConfig(options, root, io.cwd);
-  const snapshot = await walk(root, { respectGitignore: options.gitignore });
-  const scanned = scanSnapshot(snapshot, {
-    rules: builtinRules,
-    ...(config ? { config } : {}),
-    ...(options.targets ? { targets: options.targets } : {}),
-    trustDirectives: !options.untrusted,
-  });
-  // Report paths relative to the working directory, which in CI is the repository root:
-  // SARIF and annotations resolve paths against it.
-  const result = rebaseResult(scanned, relative(io.cwd, root).split(sep).join('/'));
+/**
+ * Reads and checks the `--baseline` report. Read before the scan, so a bad baseline fails fast.
+ * Throws InputFileError (exit 2) for a file that cannot be read, is not JSON, or is not a report
+ * this version can compare with.
+ */
+async function loadBaseline(
+  file: string | undefined,
+  cwd: string,
+): Promise<BaselineReport | undefined> {
+  if (file === undefined) return undefined;
+  const value = await readJsonInput(resolve(cwd, file), { label: 'Baseline file' });
+  const checked = validateBaseline(value);
+  if (!checked.ok) {
+    throw new InputFileError(`Cannot use ${file} as a baseline. ${checked.message}`);
+  }
+  return checked.baseline;
+}
 
+/**
+ * Marks each finding new or unchanged and adds the comparison. Runs on the scan before rebasing,
+ * so the comparison's paths are rebased together with the rest of the result.
+ */
+function withBaseline(
+  scanned: ScanResult,
+  baseline: BaselineReport | undefined,
+  gate: readonly GateClass[],
+): ScanResult {
+  if (baseline === undefined) return scanned;
+  const comparison = compareWithBaseline(scanned, baseline, { gate });
+  return { ...scanned, findings: comparison.findings, baseline: comparison.diff };
+}
+
+/** The format puts the comparison's ruleset notice in the report itself. */
+const SHOWS_RULESET_NOTICE: ReadonlySet<string> = new Set([
+  'stylish',
+  'markdown',
+  'github',
+  'text',
+]);
+
+function warn(result: ScanResult, format: string, io: Io): void {
+  for (const warning of result.configWarnings) io.stderr(`Warning: ${forTerminal(warning)}\n`);
+  const diff = result.baseline;
+  if (diff !== undefined && !diff.against.sameRuleset && !SHOWS_RULESET_NOTICE.has(format)) {
+    io.stderr(
+      `Warning: The baseline was written with ruleset ${forTerminal(diff.against.ruleset)}, ` +
+        `this is ruleset ${forTerminal(result.ruleset)}. Findings from rules it did not run ` +
+        'count as new.\n',
+    );
+  }
+}
+
+/**
+ * The prefix for report paths, which are relative to the scanned directory until rebased.
+ *
+ * GitHub resolves annotation and SARIF paths against the repository root. In GitHub Actions
+ * ($GITHUB_WORKSPACE set) and with the scanned directory inside the workspace, those two formats
+ * use paths relative to the workspace, so a scan run from $RUNNER_TEMP on "$GITHUB_WORKSPACE"
+ * maps to the right files. Everything else, and those formats outside Actions, use paths
+ * relative to the working directory, as terminal users expect.
+ */
+function pathPrefix(root: string, io: Io, format: string): string {
+  if (format === 'github' || format === 'sarif') {
+    const workspace = io.env['GITHUB_WORKSPACE'];
+    if (workspace !== undefined && workspace !== '') {
+      const inside = relativeInsideRoot(resolve(io.cwd, workspace), root);
+      if (inside !== undefined) return inside;
+    }
+  }
+  return relative(io.cwd, root).split(sep).join('/');
+}
+
+function styleFor(options: SharedCommandOptions, io: Io): Style {
   const color =
     options.output === undefined &&
     shouldUseColor({ flag: options.color, env: io.env, isTTY: io.isTTY });
-  const style: Style = color ? ansiStyle : plainStyle;
+  return color ? ansiStyle : plainStyle;
+}
+
+async function emit(report: string, options: SharedCommandOptions, io: Io): Promise<void> {
+  if (options.output === undefined) io.stdout(report);
+  else await writeOutputFile(resolve(io.cwd, options.output), report);
+}
+
+function scanOptionsFor(
+  options: SharedCommandOptions,
+  config: ResolvedConfig | undefined,
+  targets: readonly PlatformId[] | undefined,
+): ScanOptions {
+  return {
+    rules: builtinRules,
+    ...(config ? { config } : {}),
+    ...(targets ? { targets } : {}),
+    trustDirectives: !options.untrusted,
+  };
+}
+
+async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
+  const root = resolve(io.cwd, options.path);
+  const baseline = await loadBaseline(options.baseline, io.cwd);
+  const config = await loadConfig(options, root, io.cwd);
+  const snapshot = await walk(root, { respectGitignore: options.gitignore });
+  const scanOptions = scanOptionsFor(options, config, options.targets);
+  const scanned = options.context
+    ? scanWithContext(snapshot, {
+        ...scanOptions,
+        matrix: true,
+        ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+      })
+    : scanSnapshot(snapshot, scanOptions);
+  const result = rebaseResult(
+    withBaseline(scanned, baseline, options.gate),
+    pathPrefix(root, io, options.format),
+  );
+
   const report =
     options.format === 'badge'
       ? `${badgeMarkdown(result)}\n`
-      : format(result, options.format, { style, showSuppressed: options.showSuppressed });
-
-  for (const warning of result.configWarnings) io.stderr(`Warning: ${forTerminal(warning)}\n`);
-
-  if (options.output === undefined) {
-    io.stdout(report);
-  } else {
-    await writeFile(resolve(io.cwd, options.output), report, 'utf8');
-  }
-
+      : format(result, options.format, {
+          style: styleFor(options, io),
+          showSuppressed: options.showSuppressed,
+        });
+  warn(result, options.format, io);
+  await emit(report, options, io);
   return exitCodeFor(result, options.failOn, options.minScore);
 }
 
+/**
+ * Throws a UsageError unless `cwd` is a directory the walk listed: it exists, is a directory,
+ * and neither it nor a directory above it was left unlisted (excluded, gitignored, too deep,
+ * unreadable, a symlink out of the root). A plan for a directory agentcheckup did not look into
+ * would claim things it cannot know.
+ */
+function checkListedDirectory(snapshot: Snapshot, cwd: string, path: string): void {
+  if (cwd === '') return;
+  const parts = cwd.split('/');
+  for (let length = 1; length <= parts.length; length++) {
+    const directory = `${parts.slice(0, length).join('/')}/`;
+    if (snapshot.opaqueDirectories.has(directory)) {
+      throw new UsageError(
+        `--cwd ${cwd}: agentcheckup did not list ${directory} (it is excluded, gitignored, ` +
+          'too deep, unreadable or a link out of the scanned directory), so it cannot plan a ' +
+          'session there.',
+      );
+    }
+  }
+  if (snapshot.paths.has(`${cwd}/`)) return;
+  if (snapshot.paths.has(cwd)) throw new UsageError(`--cwd ${cwd} is a file, not a directory.`);
+  throw new UsageError(`--cwd ${cwd}: no such directory in ${path}.`);
+}
+
+async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode> {
+  const root = resolve(io.cwd, options.path);
+  const baseline = await loadBaseline(options.baseline, io.cwd);
+  const config = await loadConfig(options, root, io.cwd);
+  const snapshot = await walk(root, { respectGitignore: options.gitignore });
+  checkListedDirectory(snapshot, options.cwd, options.path);
+
+  const configured = config?.targets ?? PLATFORM_IDS;
+  const agents = options.agents ?? contextAgentsOf(configured);
+  if (agents.length === 0) {
+    throw new UsageError(
+      `None of the targets (${configured.join(', ')}) has a load model. ` +
+        `agentcheckup context models ${CONTEXT_AGENTS.join(', ')}; choose with --agent.`,
+    );
+  }
+  // An agent named with --agent is planned even if the configuration does not target it, so
+  // its rules run too: the plan reports a skip only where its rule reports a finding.
+  const targets =
+    options.agents === undefined ? undefined : [...new Set([...configured, ...agents])];
+  const contextOptions: ContextOptions = {
+    agents,
+    cwd: options.cwd,
+    matrix: options.matrix,
+    ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+  };
+  const scanned = scanWithContext(snapshot, {
+    ...scanOptionsFor(options, config, targets),
+    ...contextOptions,
+  });
+  const result = rebaseResult(
+    withBaseline(scanned, baseline, options.gate),
+    pathPrefix(root, io, options.format),
+  );
+
+  let report: string;
+  switch (options.format) {
+    case 'text': {
+      const style = styleFor(options, io);
+      report = joinSections(
+        formatContextText(result, { style }),
+        formatBaselineText(result, { style }),
+      );
+      break;
+    }
+    case 'markdown':
+      report = joinSections(formatContextMarkdown(result), formatBaselineMarkdown(result));
+      break;
+    case 'json':
+      report = formatJson(result);
+      break;
+  }
+  warn(result, options.format, io);
+  await emit(report, options, io);
+  return contextExitCode(result);
+}
+
+/** Sections that each end with a newline, separated by one blank line. */
+function joinSections(...sections: readonly string[]): string {
+  return sections.filter((section) => section !== '').join('\n');
+}
+
+/**
+ * Exit code of a scan. With a baseline, `failOn` counts new findings only; the score still
+ * covers every finding, and a tripped gate fails too.
+ */
 export function exitCodeFor(
   result: ScanResult,
   failOn: FailOn,
   minScore: number | undefined,
 ): ExitCode {
   if (result.ruleFailures.length > 0) return EXIT.internal;
+  if (gateTripped(result)) return EXIT.findings;
   if (failOn !== 'none') {
     const threshold = SEVERITIES.indexOf(failOn);
+    const compared = result.baseline !== undefined;
     const failing = result.findings.some(
-      (finding) => !finding.suppressed && SEVERITIES.indexOf(finding.severity) >= threshold,
+      (finding) =>
+        !finding.suppressed &&
+        (!compared || finding.baseline === 'new') &&
+        SEVERITIES.indexOf(finding.severity) >= threshold,
     );
     if (failing) return EXIT.findings;
   }
@@ -152,6 +388,16 @@ export function exitCodeFor(
     return EXIT.findings;
   }
   return EXIT.ok;
+}
+
+/** Exit code of `agentcheckup context`: findings never fail it, a tripped gate does. */
+export function contextExitCode(result: ScanResult): ExitCode {
+  if (result.ruleFailures.length > 0) return EXIT.internal;
+  return gateTripped(result) ? EXIT.findings : EXIT.ok;
+}
+
+function gateTripped(result: ScanResult): boolean {
+  return (result.baseline?.gate.hits.length ?? 0) > 0;
 }
 
 function allRuleMeta(): RuleMeta[] {

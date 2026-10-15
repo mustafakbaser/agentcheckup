@@ -32,6 +32,9 @@ const UNIT_NAMES: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   'context-fraction': undefined,
 };
 
+/** Escapes repository text for an output format, cut to `max` code points. */
+export type Clean = (value: string, max: number) => string;
+
 interface Location {
   readonly file: string;
   readonly name?: string;
@@ -144,7 +147,11 @@ function limitUnits(result: ScanResult): Map<string, LimitUsage['unit']> {
   return units;
 }
 
-function limitChanges(delta: PlanDelta, units: Map<string, LimitUsage['unit']>): string[] {
+function limitChanges(
+  delta: PlanDelta,
+  units: Map<string, LimitUsage['unit']>,
+  clean: Clean,
+): string[] {
   const changes: string[] = [];
   for (const limit of delta.limits) {
     const { before, after } = limit;
@@ -161,28 +168,43 @@ function limitChanges(delta: PlanDelta, units: Map<string, LimitUsage['unit']>):
     const from = before === null ? '' : `${formatInteger(before)} → `;
     const amount = `${from}${formatInteger(after)}${unit === undefined ? '' : ` ${unit}`}`;
     changes.push(
-      `${escaped(limit.key, MAX_TEXT_LENGTH)} ${amount}, ${over ? 'now over' : 'back under'} ${bound}`,
+      `${clean(limit.key, MAX_TEXT_LENGTH)} ${amount}, ${over ? 'now over' : 'back under'} ${bound}`,
     );
   }
   return changes;
 }
 
-function contextLine(result: ScanResult, diff: BaselineDiff): string | undefined {
+/**
+ * The change in session-start context, one part per plan present in both reports (at most
+ * MAX_DELTAS): tokens before and after, and limits crossed, plus how many plans were left out.
+ * Undefined when no plan is in both. `clean` escapes repository text for the output format, so
+ * the terminal renderer (baseline-text.ts) shares this.
+ */
+export function contextDeltas(
+  result: ScanResult,
+  diff: BaselineDiff,
+  clean: Clean,
+): { readonly parts: readonly string[]; readonly hidden: number } | undefined {
   if (diff.context.length === 0) return undefined;
   const units = limitUnits(result);
   const parts = diff.context.slice(0, MAX_DELTAS).map((delta) => {
-    const where = delta.cwd === '' ? '' : ` (${escaped(delta.cwd, MAX_PATH_LENGTH)})`;
+    const where = delta.cwd === '' ? '' : ` (${clean(delta.cwd, MAX_PATH_LENGTH)})`;
     const name = `${AGENT_NAMES[delta.agent]}${where}`;
     const { before, after } = delta.startupTokens;
     const tokens =
       before === after
         ? `${name} unchanged`
         : `${name} ≈${formatInteger(before)} → ≈${formatInteger(after)} tokens (${signed(after - before)})`;
-    return [tokens, ...limitChanges(delta, units)].join(', ');
+    return [tokens, ...limitChanges(delta, units, clean)].join(', ');
   });
-  const hidden = diff.context.length - MAX_DELTAS;
-  const more = hidden > 0 ? ` · and ${plural(hidden, 'more plan')}` : '';
-  return `Session-start context: ${parts.join(' · ')}${more}`;
+  return { parts, hidden: Math.max(0, diff.context.length - MAX_DELTAS) };
+}
+
+function contextLine(result: ScanResult, diff: BaselineDiff): string | undefined {
+  const deltas = contextDeltas(result, diff, escaped);
+  if (deltas === undefined) return undefined;
+  const more = deltas.hidden > 0 ? ` · and ${plural(deltas.hidden, 'more plan')}` : '';
+  return `Session-start context: ${deltas.parts.join(' · ')}${more}`;
 }
 
 /**
@@ -200,4 +222,16 @@ export function baselineSummary(result: ScanResult, maxCharacters: number): stri
     paragraphs([findingsLine(result, diff), ...(context === undefined ? [] : [context])]),
   );
   return blocks.flatMap((block, index) => (index === 0 ? block : ['', ...block]));
+}
+
+/** Character budget for the table of changes in {@link formatBaselineMarkdown}. */
+const MAX_STANDALONE_CHARACTERS = 50_000;
+
+/**
+ * The baseline section on its own, for output without a findings table, such as
+ * `agentcheckup context --format markdown`. Ends with a newline; empty without a baseline.
+ */
+export function formatBaselineMarkdown(result: ScanResult): string {
+  const lines = baselineSummary(result, MAX_STANDALONE_CHARACTERS);
+  return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
 }

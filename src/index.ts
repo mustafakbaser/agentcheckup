@@ -43,16 +43,41 @@ export async function scan(root: string, options: ScanDirectoryOptions = {}): Pr
   return scanWithContext(snapshot, { ...scanOptions, ...(context === true ? {} : context) });
 }
 
+export {
+  type BaselineComparison,
+  type BaselineOptions,
+  compareWithBaseline,
+  type CurrentScan,
+  GATE_CLASSES,
+  type GateParseResult,
+  newRuleIds,
+  parseGateClasses,
+} from './core/baseline.js';
+export {
+  type BaselineFinding,
+  type BaselineLimitUsage,
+  type BaselineLoadEntry,
+  type BaselinePlan,
+  type BaselineReport,
+  type BaselineSkippedLoad,
+  type BaselineValidation,
+  SUPPORTED_SCHEMA_VERSIONS,
+  validateBaseline,
+} from './core/baseline-input.js';
 export type * from './core/baseline-types.js';
 export { ConfigError, resolveConfig, type ResolvedConfig, type UserConfig } from './core/config.js';
 export {
+  type AnalyzeOptions,
+  type ArtifactSummary,
   type ContextOptions,
   type ContextScanResult,
+  type RunRulesOptions,
   scanSnapshot,
   type ScanOptions,
   type ScanResult,
   scanWithContext,
 } from './core/engine.js';
+export { rebaseResult, stripPathBase } from './core/rebase.js';
 export { RULESET_VERSION, TOOL_NAME } from './core/meta.js';
 export type { ScoreReport } from './core/score.js';
 export type * from './core/types.js';

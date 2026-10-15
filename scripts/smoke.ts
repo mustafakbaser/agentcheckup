@@ -101,6 +101,39 @@ try {
   });
   if (clean.status !== 2) fail(`scanning a missing directory exited ${clean.status}, expected 2`);
 
+  // What each agent loads, the matrix, and a baseline round trip with the gate. Run from inside
+  // the fixture, so report paths are root-relative.
+  const repo = join(root, 'test', 'fixtures', 'context');
+  const runCli = (args: readonly string[], expected: number): string => {
+    const result = spawnSync(process.execPath, [cli, ...args], { cwd: repo, encoding: 'utf8' });
+    if (result.status !== expected) {
+      fail(`${args.join(' ')} exited ${result.status}, expected ${expected}: ${result.stderr}`);
+    }
+    return result.stdout;
+  };
+  if (!runCli(['context', repo], 0).includes('Claude Code context')) {
+    fail('context printed no Claude Code plan');
+  }
+  if (!/^AGENTS\.md +startup +startup +startup$/m.test(runCli(['context', repo, '--matrix'], 0))) {
+    fail('context --matrix printed no matrix row for AGENTS.md');
+  }
+  const baseline = join(work, 'baseline.json');
+  runCli([repo, '--context', '--format', 'json', '--output', baseline, '--fail-on', 'none'], 0);
+  const compared = JSON.parse(
+    runCli(
+      [repo, '--context', '--baseline', baseline, '--gate', 'security', '--format', 'json'],
+      0,
+    ),
+  ) as { baseline?: { findings: { new: number }; gate: { hits: unknown[] } } };
+  if (compared.baseline?.findings.new !== 0 || compared.baseline.gate.hits.length !== 0) {
+    fail('a scan compared with its own baseline reported changes');
+  }
+  runCli(
+    ['context', repo, '--baseline', baseline, '--gate', 'security', '--cwd', 'packages/api'],
+    0,
+  );
+  runCli([repo, '--gate', 'security'], 2);
+
   process.stdout.write(
     `smoke: ok (${files.length} files, ${report.findings.length} findings, score ${report.score.score})\n`,
   );

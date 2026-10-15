@@ -75,10 +75,19 @@ npx agentcheckup                      # scan the current directory
 npx agentcheckup path/to/repo         # scan another directory
 npx agentcheckup --targets claude-code,codex   # only check the agents you use
 npx agentcheckup explain instr/codex-size-budget
+npx agentcheckup context              # what Claude Code, Codex and Cursor load
+npx agentcheckup context --cwd packages/api --agent claude-code
+npx agentcheckup context --matrix     # which agent reads which file
 ```
 
-Exit codes: `0` no findings at or above `--fail-on` (default `error`), `1` findings or a score
-below `--min-score`, `2` invalid arguments or configuration, `3` internal error.
+To review a change, scan the base with `--context --format json --output base.json`, then the
+change with `--baseline base.json --gate security`: findings are marked new or unchanged, and
+new or changed MCP servers, hooks, permissions and env overrides fail the run.
+
+Exit codes: `0` no findings at or above `--fail-on` (default `error`), `1` findings (only new
+ones with `--baseline`), a score below `--min-score`, or a tripped `--gate`, `2` invalid
+arguments, configuration or baseline, `3` internal error. `agentcheckup context` exits `0`
+unless `--gate` trips or something fails.
 
 ### In GitHub Actions
 
@@ -108,14 +117,20 @@ jobs:
 For GitHub code scanning, write SARIF instead and upload it:
 
 ```yaml
-- run: npx --yes agentcheckup@0 "$GITHUB_WORKSPACE" --untrusted --format sarif --output "$GITHUB_WORKSPACE/agentcheckup.sarif" --fail-on none
+- run: npx --yes agentcheckup@0 "$GITHUB_WORKSPACE" --untrusted --format sarif --output "$RUNNER_TEMP/agentcheckup.sarif" --fail-on none
   working-directory: ${{ runner.temp }}
 - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
   with:
-    sarif_file: agentcheckup.sarif
+    sarif_file: ${{ runner.temp }}/agentcheckup.sarif
 ```
 
-The upload step needs `security-events: write`.
+The upload step needs `security-events: write`. The report goes to `$RUNNER_TEMP`, outside the
+checkout; `--output` refuses to write through a symlink in any case.
+
+When `GITHUB_WORKSPACE` is set and the scanned directory is inside it, the `github` and `sarif`
+formats give paths relative to the workspace, so annotations and alerts land on the right files
+even though the command runs from `$RUNNER_TEMP`. Other formats, and runs outside GitHub Actions,
+use paths relative to the current directory.
 
 ### In a Git hook
 

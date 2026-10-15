@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '../../src/core/engine.js';
+import { gateRows } from '../../src/report/gate.js';
 import { formatGithub } from '../../src/report/github.js';
 import { forTerminal } from '../../src/report/sanitize.js';
+import { withContext } from '../helpers/context.js';
 import { cleanResult, emptyResult, richResult } from './fixtures.js';
 import { hostileResult } from './hostile.js';
 import { parseWorkflowCommand, unsafeCodePoints } from './safety.js';
@@ -79,6 +81,50 @@ describe('formatGithub', () => {
     );
     expect(lines(formatGithub(hostileResult)).at(-1)).toBe(
       '::error title=agentcheckup internal error::Rule risk/crashy failed to run, so results are incomplete: boom%0A::error::fake<U+001B>[2J',
+    );
+  });
+});
+
+describe('formatGithub with a baseline', () => {
+  const result = withContext(richResult);
+  const output = lines(formatGithub(result));
+
+  it('annotates new findings only, then each change that trips the gate', () => {
+    const fresh = result.findings.filter(
+      (finding) => !finding.suppressed && finding.baseline === 'new',
+    );
+    const rows = gateRows(result.baseline!);
+    expect(fresh.length).toBeGreaterThan(0);
+    expect(output).toHaveLength(fresh.length + rows.length + result.ruleFailures.length);
+    for (const line of output) {
+      expect(line).toMatch(COMMAND_LINE);
+      expect(unsafeCodePoints(line, { tab: true })).toEqual([]);
+    }
+    const gate = output.filter((line) => line.includes('title=Needs review'));
+    expect(gate).toHaveLength(rows.length);
+    // On the declaring file and line when the inventory has the item.
+    expect(gate[0]).toBe(
+      '::error file=.cursor/mcp.json,line=2,title=Needs review%3A New MCP server%2C not pinned::stdio, npx -y @acme/browser-mcp, not pinned',
+    );
+  });
+
+  it('puts a gate hit whose item it cannot find on no file', () => {
+    const lost = formatGithub({ ...result, inventory: { ...result.inventory, permissions: [] } });
+    expect(lost).toContain(
+      '::error title=Needs review%3A Permission widened::permissions.allow adds Bash(curl:*)',
+    );
+  });
+
+  it('warns about a baseline from another ruleset', () => {
+    const older = formatGithub({
+      ...result,
+      baseline: {
+        ...result.baseline!,
+        against: { version: '0.0.0', ruleset: '2026.09\n::stop-commands::x', sameRuleset: false },
+      },
+    });
+    expect(lines(older)).toContain(
+      '::warning title=agentcheckup baseline::The baseline was written with ruleset 2026.09%0A::stop-commands::x, so findings from rules it did not run count as new.',
     );
   });
 });

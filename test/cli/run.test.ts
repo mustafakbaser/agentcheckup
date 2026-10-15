@@ -43,6 +43,15 @@ describe('run', () => {
     const help = capture();
     expect(await run(['--help'], help)).toBe(EXIT.ok);
     expect(help.out.join('')).toContain('Usage: agentcheckup [path] [options]');
+    expect(help.out.join('')).toContain('agentcheckup context [path] [options]');
+    for (const flag of [
+      '--context ',
+      '--baseline <file>',
+      '--gate <classes>',
+      'GITHUB_WORKSPACE',
+    ]) {
+      expect(help.out.join('')).toContain(flag);
+    }
 
     const version = capture();
     expect(await run(['--version'], version)).toBe(EXIT.ok);
