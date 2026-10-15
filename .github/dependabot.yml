@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Matches minimumReleaseAge in pnpm-workspace.yaml. Without it, Dependabot proposes versions
+    # that pnpm then refuses to install.
+    cooldown:
+      default-days: 7
+    groups:
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+    commit-message:
+      prefix: build
+    open-pull-requests-limit: 5
