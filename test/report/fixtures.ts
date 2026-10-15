@@ -161,6 +161,7 @@ export function makeResult(input: ResultInput = {}): ScanResult {
     unresolvedSymlinks: input.unresolvedSymlinks ?? [],
     ruleFailures: input.ruleFailures ?? [],
     configWarnings: input.configWarnings ?? [],
+    inventory: { mcpServers: [], hooks: [], permissions: [], env: [], incomplete: [] },
   };
 }
 

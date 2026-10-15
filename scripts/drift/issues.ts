@@ -91,7 +91,7 @@ function runLine(context: IssueContext): string[] {
 const WHAT_TO_DO_CHANGED = (url: string): string[] => [
   '## What to do',
   '',
-  '1. Re-read the source and compare it with what each rule above says: its message, rationale and tests.',
+  '1. Re-read the source and compare it with what each rule above says: its message, rationale and tests. For "context loaders", compare it with the load plans in `src/platforms/load` and the inventory in `src/inventory` that cite it from `src/platforms/sources.ts`.',
   "2. If the behavior changed, update the rule and its tests, then run `pnpm docs:generate`. If it did not, bump the `checked` date of this source in the rule's metadata.",
   `3. In the same pull request, run \`pnpm drift:update --only ${isSafeUrl(url) ? url : '<url>'}\` and commit \`scripts/drift/baseline.json\`.`,
   '4. Reference this issue in the pull request so that merging it closes the issue.',
@@ -109,7 +109,7 @@ export function changedIssueBody(source: ChangedSource, context: IssueContext = 
       : hashCode(source.previous);
   return [
     `${changedMarkerPrefix(source.url)}${HEX.test(source.current) ? source.current : 'invalid'} -->`,
-    'A source cited by agentcheckup rules changed since its hash was recorded in `scripts/drift/baseline.json`.',
+    'A source cited by agentcheckup rules or context loaders changed since its hash was recorded in `scripts/drift/baseline.json`.',
     '',
     `- Source: ${link(source.url, source.url)}`,
     ...(blob === undefined ? [] : [`- Commit history: ${link('commits', gitHubHistoryUrl(blob))}`]),
@@ -117,7 +117,7 @@ export function changedIssueBody(source: ChangedSource, context: IssueContext = 
     `- Current hash: ${hashCode(source.current)}`,
     ...runLine(context),
     '',
-    '## Affected rules',
+    '## Used by',
     '',
     ...source.rules.map((id) => `- ${ruleLink(id)}`),
     '',

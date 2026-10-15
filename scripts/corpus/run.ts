@@ -14,14 +14,20 @@
  *   npx tsx scripts/corpus/run.ts --check-golden      compare the scan with corpus/golden.json
  *                                                     and print the differences (writes nothing;
  *                                                     combines with --only)
+ *   npx tsx scripts/corpus/run.ts --consistency       plan every repository as `--matrix` does and
+ *                                                     check the plans against the findings
+ *                                                     (consistency.ts); prints mismatches grouped
+ *                                                     by rule (writes nothing; combines with
+ *                                                     --only and --check-golden)
  *
  * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
  * suppress findings.
  *
- * Exit status: 0 ok, 1 a rule crashed on at least one repository (listed on stderr) or
- * --check-golden found a difference, 2 the cache is incomplete (run fetch.ts first) or
- * --check-golden has no corpus/golden.json to compare with.
+ * Exit status: 0 ok, 1 a rule crashed on at least one repository (listed on stderr),
+ * --check-golden found a difference, or --consistency found a mismatch or a loader crash, 2 the
+ * cache is incomplete (run fetch.ts first) or --check-golden has no corpus/golden.json to compare
+ * with.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -30,13 +36,14 @@ import { parseArgs } from 'node:util';
 import * as prettier from 'prettier';
 
 import { compareStrings } from '../../src/core/compare.js';
-import { scanSnapshot, type ScanResult } from '../../src/core/engine.js';
+import { type RuleResult, scanSnapshot } from '../../src/core/engine.js';
 import { RULESET_VERSION, TOOL_NAME } from '../../src/core/meta.js';
 import type { ArtifactKind, Finding, RuleMeta, Severity } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { forJsonOutput, forMarkdown, forTerminal } from '../../src/report/sanitize.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
+import { type RepoConsistency, renderConsistency, repoConsistency } from './consistency.js';
 import {
   compareGolden,
   findingCount,
@@ -55,12 +62,16 @@ const { values } = parseArgs({
     only: { type: 'string', multiple: true, default: [] },
     'write-golden': { type: 'boolean', default: false },
     'check-golden': { type: 'boolean', default: false },
+    consistency: { type: 'boolean', default: false },
   },
   strict: true,
 });
 
 if (values['write-golden'] && values['check-golden']) {
   throw new Error('--write-golden and --check-golden cannot be combined');
+}
+if (values['write-golden'] && values.consistency) {
+  throw new Error('--write-golden and --consistency cannot be combined');
 }
 if (values['write-golden'] && values.only.length > 0) {
   throw new Error('--write-golden records the whole corpus and cannot be combined with --only');
@@ -100,7 +111,7 @@ interface RepoSummary {
 
 interface Scanned {
   readonly entry: RepoEntry;
-  readonly result: ScanResult;
+  readonly result: RuleResult;
   readonly summary: RepoSummary;
 }
 
@@ -112,7 +123,7 @@ function countBy<T>(items: readonly T[], key: (item: T) => string): Record<strin
   return Object.fromEntries([...counts].sort(([a], [b]) => compareStrings(a, b)));
 }
 
-function summarize(entry: RepoEntry, result: ScanResult, incompleteListing: boolean): RepoSummary {
+function summarize(entry: RepoEntry, result: RuleResult, incompleteListing: boolean): RepoSummary {
   const active = result.findings.filter((finding) => !finding.suppressed);
   const findings = zero();
   const rules = new Map<string, RuleCounts & { pathSet: Set<string> }>();
@@ -758,6 +769,7 @@ if (values['check-golden'] && savedGolden === undefined) {
 }
 
 const scanned: Scanned[] = [];
+const consistency: RepoConsistency[] = [];
 const incomplete: string[] = [];
 for (const entry of selected) {
   const loaded = await loadSnapshot(entry);
@@ -765,7 +777,15 @@ for (const entry of selected) {
     incomplete.push(`${repoLabel(entry)}: ${loaded.problem}`);
     continue;
   }
-  const result = scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
+  let result: RuleResult;
+  if (values.consistency) {
+    // The same rules on the same analysis the plans are built from.
+    const checked = repoConsistency(repoLabel(entry), loaded.snapshot);
+    consistency.push(checked);
+    result = checked.result;
+  } else {
+    result = scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
+  }
   scanned.push({ entry, result, summary: summarize(entry, result, loaded.truncated) });
 }
 
@@ -778,6 +798,12 @@ if (incomplete.length > 0) {
 
 const crashes = groupCrashes(scanned);
 
+if (values.consistency) {
+  const rendered = renderConsistency(consistency);
+  process.stdout.write(rendered.text);
+  if (rendered.problems > 0) process.exitCode = 1;
+}
+
 if (values['write-golden']) {
   const golden = makeGolden(scanned.map(({ entry, result }) => goldenRepo(entry, result)));
   await writeFile(GOLDEN_FILE, serializeGolden(golden));
@@ -786,7 +812,10 @@ if (values['write-golden']) {
       `${String(findingCount(golden))} findings.\n`,
   );
 } else if (savedGolden !== undefined) {
-  process.exitCode = checkGolden(savedGolden, scanned, only.size > 0 ? only : undefined);
+  const status = checkGolden(savedGolden, scanned, only.size > 0 ? only : undefined);
+  if (status !== 0) process.exitCode = status;
+} else if (values.consistency) {
+  // Printed above.
 } else if (only.size > 0) {
   for (const { entry, result, summary } of scanned) {
     process.stdout.write(

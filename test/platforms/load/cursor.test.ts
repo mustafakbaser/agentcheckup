@@ -2,9 +2,10 @@ import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { compareStrings } from '../../../src/core/compare.js';
-import { analyze, type Analysis, runRules, type ScanResult } from '../../../src/core/engine.js';
+import { analyze, type Analysis, type RuleResult, runRules } from '../../../src/core/engine.js';
 import { PLATFORM_IDS, type Snapshot } from '../../../src/core/types.js';
 import { walk } from '../../../src/io/walk.js';
+import { buildInventory } from '../../../src/inventory/build.js';
 import { cursorActivation } from '../../../src/platforms/cursor-rules.js';
 import { loadCursor } from '../../../src/platforms/load/cursor.js';
 import type { LoadEntry, LoadPlan } from '../../../src/platforms/load/types.js';
@@ -15,7 +16,7 @@ const SCAN = { rules: builtinRules, targets: PLATFORM_IDS, trustDirectives: fals
 
 interface Built {
   readonly plan: LoadPlan;
-  readonly result: ScanResult;
+  readonly result: RuleResult;
   readonly analysis: Analysis;
 }
 
@@ -112,7 +113,7 @@ describe('loadCursor: .cursor/rules', () => {
     expectSkipsReported(built);
   });
 
-  it('marks undocumented frontmatter forms unverified', () => {
+  it('marks undocumented frontmatter forms unverified, and invalid YAML as unknown', () => {
     const { plan } = build({
       '.cursor/rules/list.mdc': FRONTMATTER('globs:\n  - src/**\n  - " "'),
       '.cursor/rules/quoted.mdc': FRONTMATTER('alwaysApply: "true"'),
@@ -123,8 +124,8 @@ describe('loadCursor: .cursor/rules', () => {
     expect(summary(plan)).toEqual([
       'rule:.cursor/rules/list.mdc on-path unverified',
       'rule:.cursor/rules/quoted.mdc manual unverified',
-      'rule:.cursor/rules/unclosed.mdc manual unverified',
-      'rule:.cursor/rules/unquoted.mdc manual unverified',
+      'rule:.cursor/rules/unclosed.mdc unknown unverified',
+      'rule:.cursor/rules/unquoted.mdc unknown unverified',
     ]);
     expect(entry(plan, 'rule:.cursor/rules/list.mdc')?.patterns).toEqual(['src/**']);
   });
@@ -379,16 +380,34 @@ describe('loadCursor: MCP servers and hooks', () => {
       // Nested settings are not read by Cursor.
       'apps/x/.claude/settings.json': JSON.stringify({ hooks: { Stop: [{ hooks: [guard] }] } }),
     });
-    const hooks = built.plan.entries.map((e) => [e.path, e.name?.replace(/:[0-9a-z]+/, ':#')]);
-    expect(hooks).toEqual([
-      ['.claude/settings.json', 'PreToolUse:#'],
-      ['.claude/settings.local.json', 'UserPromptSubmit:#'],
-      ['.cursor/hooks.json', 'beforeShellExecution:#'],
-      ['.cursor/hooks.json', 'beforeShellExecution:#:2'],
+    const hooks = built.plan.entries.map((e) => [
+      e.path,
+      e.name,
+      e.id.replace(/:[0-9a-f]{8}/, ':#'),
     ]);
+    expect(hooks).toEqual([
+      ['.claude/settings.json', 'PreToolUse', 'hook:.claude/settings.json#PreToolUse:#'],
+      [
+        '.claude/settings.local.json',
+        'UserPromptSubmit',
+        'hook:.claude/settings.local.json#UserPromptSubmit:#',
+      ],
+      [
+        '.cursor/hooks.json',
+        'beforeShellExecution',
+        'hook:.cursor/hooks.json#beforeShellExecution:#',
+      ],
+      [
+        '.cursor/hooks.json',
+        'beforeShellExecution',
+        'hook:.cursor/hooks.json#beforeShellExecution:#:2',
+      ],
+    ]);
+    const inventory = buildInventory(built.analysis);
     for (const hook of built.plan.entries) {
       expect(hook.trigger).toBe('on-approval');
-      expect(hook.inventoryId).toBe(`hook:${hook.path}#${hook.name ?? ''}`);
+      expect(hook.inventoryId).toBe(hook.id);
+      expect(inventory.hooks.map((item) => item.id)).toContain(hook.inventoryId);
     }
     expect(built.plan.skipped.map((s) => [s.path, s.code, s.ruleId, s.certainty])).toEqual([
       ['.claude/settings.json', 'not-read', undefined, 'documented'],
@@ -491,8 +510,8 @@ describe('loadCursor: context fixture', () => {
       'rule:.cursor/rules/api-design.mdc model-selected documented',
       'skill:.cursor/skills/review/SKILL.md model-selected documented',
       'rule:.cursor/rules/manual.mdc manual documented',
-      'hook:.claude/settings.json#PreToolUse:02f794733d584e on-approval documented',
-      'hook:.cursor/hooks.json#beforeShellExecution:13beeb447fbfea on-approval documented',
+      'hook:.claude/settings.json#PreToolUse:733d584e on-approval documented',
+      'hook:.cursor/hooks.json#beforeShellExecution:447fbfea on-approval documented',
       'mcp-server:.cursor/mcp.json#linear on-approval unverified',
       'mcp-server:.cursor/mcp.json#postgres on-approval unverified',
     ]);
@@ -501,6 +520,9 @@ describe('loadCursor: context fixture', () => {
     ]);
     expect(plan.outOfScope).toEqual([
       { path: '.cursor/rules/README.md', because: 'documentation' },
+      // Cursor reads CLAUDE.md at the workspace root only.
+      { path: 'packages/api/CLAUDE.md', because: 'below-start-dir' },
+      { path: 'packages/web/CLAUDE.md', because: 'below-start-dir' },
     ]);
     expect(plan.incomplete).toEqual([]);
     expect(plan.totals.startup.tokens).toBe(Math.ceil(plan.totals.startup.chars / 4));

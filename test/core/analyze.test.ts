@@ -14,7 +14,9 @@ import {
   runRules,
   type ScanOptions,
   scanSnapshot,
+  scanWithContext,
 } from '../../src/core/engine.js';
+import { buildInventory } from '../../src/inventory/build.js';
 import { type AnyRule, PLATFORM_IDS, type Snapshot } from '../../src/core/types.js';
 import { walk } from '../../src/io/walk.js';
 import type { MarkdownDocument } from '../../src/parse/types.js';
@@ -22,10 +24,23 @@ import { defineRule } from '../../src/rules/define.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { type FileMap, type LintOptions, scanOptionsFrom, snapshotFrom } from '../helpers/lint.js';
 
+/**
+ * `runRules(analyze())` gives what `scanSnapshot` gives without the inventory, and
+ * `scanWithContext`, which runs the loaders after the rules, gives what `scanSnapshot` gives plus
+ * the context: planning never changes a finding or the inventory.
+ */
 function expectSameScan(snapshot: Snapshot, options: ScanOptions): void {
   const split = runRules(analyze(snapshot, options), options);
   expect(split.ruleFailures).toEqual([]);
-  expect(split).toStrictEqual(scanSnapshot(snapshot, options));
+  const scanned = scanSnapshot(snapshot, options);
+  const { inventory, ...rules } = scanned;
+  expect(split).toStrictEqual(rules);
+  expect(inventory).toStrictEqual(buildInventory(analyze(snapshot, options)));
+  for (const matrix of [false, true]) {
+    const { context, ...rest } = scanWithContext(snapshot, { ...options, matrix });
+    expect(rest).toStrictEqual(scanned);
+    expect(context.plans.length).toBeGreaterThanOrEqual(context.agents.length);
+  }
 }
 
 /** Reports every Markdown artifact the budget cut short, in rule order (path order). */

@@ -8,9 +8,8 @@
  * - `.cursor/rules/**\/*.mdc`: the mode comes from the frontmatter (`cursorActivation`, shared
  *   with cursor/rule-never-applied). `.md` files there are ignored (cursor/md-file-ignored); a
  *   README is documentation. Nested `.cursor/rules` folders below the root are unverified, and
- *   so is frontmatter that does not parse: Cursor does not document how it reads it, so the mode
- *   is unknown. Such a rule is listed as `manual`, the one trigger that includes any rule, and
- *   marked unverified.
+ *   so is frontmatter that does not parse: Cursor does not document how it reads it, so the rule
+ *   is listed with the `unknown` trigger and marked unverified.
  * - Skills: SKILL.md at any depth below `.agents/skills`, `.cursor/skills`, `.claude/skills` and
  *   `.codex/skills`. Skills in nested `.cursor/skills` and `.agents/skills` folders apply only to
  *   files in that directory; nested `.claude` and `.codex` folders are unverified. `paths` (or
@@ -33,11 +32,9 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { hash53 } from '../../core/fingerprint.js';
 import { codePointLength, lineCount, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ArtifactKind } from '../../core/types.js';
-import { own } from '../../parse/json-access.js';
 import type { JsonDocument } from '../../parse/types.js';
 import { classify, isCandidateBasename } from '../classify.js';
 import {
@@ -47,15 +44,15 @@ import {
   globList,
   isRulesReadme,
 } from '../cursor-rules.js';
+import { issueKind } from '../../parse/json-access.js';
 import {
   CURSOR_EVENT_FOR_CLAUDE,
   CURSOR_UNSUPPORTED_CLAUDE_EVENTS,
   HOOK_EVENTS,
   hookEvents,
-  type HookHandler,
   hookHandlers,
 } from '../hooks.js';
-import { issueKind } from '../../parse/json-access.js';
+import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
 import { mcpServers } from '../mcp.js';
 import { basename } from '../paths.js';
@@ -75,6 +72,7 @@ import type {
   SkippedLoad,
   SourceKey,
 } from './types.js';
+import { TRIGGER_RANK } from './types.js';
 import type { LoadView } from './view.js';
 
 export interface CursorLoadOptions {
@@ -119,20 +117,12 @@ const HIDDEN: readonly HiddenScope[] = [
   },
 ];
 
-const TRIGGER_RANK: Readonly<Record<LoadTrigger, number>> = {
-  startup: 0,
-  'on-path': 1,
-  'model-selected': 2,
-  manual: 3,
-  'on-approval': 4,
-};
-
 const TRIGGER_FOR_MODE: Readonly<Record<CursorRuleMode, LoadTrigger>> = {
   always: 'startup',
   globs: 'on-path',
   description: 'model-selected',
   manual: 'manual',
-  unknown: 'manual',
+  unknown: 'unknown',
 };
 
 /** Skills roots, as `<agent dir>/skills`. Cursor documents nesting for the first two only. */
@@ -215,13 +205,14 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     code: SkippedLoad['code'],
     certainty: Certainty,
     evidence: readonly SourceKey[],
-    extra: { readonly name?: string; readonly ruleId?: string } = {},
+    extra: { readonly id?: string; readonly name?: string; readonly ruleId?: string } = {},
   ): void => {
+    const { id, ...rest } = extra;
     skipped.push({
-      id: `${role}:${path}${extra.name === undefined ? '' : `#${extra.name}`}`,
+      id: id ?? `${role}:${path}${extra.name === undefined ? '' : `#${extra.name}`}`,
       role,
       path,
-      ...extra,
+      ...rest,
       code,
       certainty,
       evidence,
@@ -255,7 +246,11 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     caseMismatch: boolean,
   ): void => {
     const directory = dirnamePosix(local(path));
-    if (kind !== 'agents-md' && directory !== '') return;
+    if (kind !== 'agents-md' && directory !== '') {
+      // CLAUDE.md and .cursorrules count only at the workspace root: opened there, Cursor reads it.
+      outOfScope.push({ path, because: 'below-start-dir' });
+      return;
+    }
     const evidence = kind === 'agents-md' ? ['cursorRules'] : ['cursorRulesHelp'];
     if (caseMismatch) {
       // Found on case-insensitive file systems only; Cursor documents neither case.
@@ -409,7 +404,9 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
       unparsable('mcp-server', path, doc, ['cursorMcp']);
       return;
     }
-    for (const server of mcpServers(artifact, doc)) {
+    const servers = mcpServers(artifact, doc);
+    const inventoryIds = mcpInventoryIds(artifact.path, servers);
+    servers.forEach((server, index) => {
       entries.push({
         id: `mcp-server:${path}#${server.name}`,
         role: 'mcp-server',
@@ -417,40 +414,30 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
         path,
         realPath: artifact.realPath,
         name: server.name,
-        inventoryId: `mcp:${artifact.path}#${server.name}`,
+        inventoryId: inventoryIds[index] ?? '',
         certainty: 'unverified',
         evidence: ['cursorMcp'],
       });
-    }
+    });
   };
 
-  /** Occurrences of each `<path>#<event>:<digest>`, for repeated identical hooks. */
-  const occurrences = new Map<string, number>();
-  /** `<event>:<hash53 of the command>`, then `:<n>` from the second identical hook on. */
-  const hookName = (path: string, handler: HookHandler): string => {
-    const command = own(handler.handler, 'command');
-    const base = `${handler.event}:${hash53(typeof command === 'string' ? command : '')}`;
-    const key = `${path}#${base}`;
-    const count = (occurrences.get(key) ?? 0) + 1;
-    occurrences.set(key, count);
-    return count === 1 ? base : `${base}:${count}`;
-  };
-
+  /** A hook entry: its id is the inventory id at the path the agent reaches. */
   const hookEntry = (
+    ids: { readonly id: string; readonly inventoryId: string },
     path: string,
     artifact: Artifact,
-    name: string,
+    event: string,
     certainty: Certainty,
     evidence: readonly SourceKey[],
   ): void => {
     entries.push({
-      id: `hook:${path}#${name}`,
+      id: ids.id,
       role: 'hook',
       trigger: 'on-approval',
       path,
       realPath: artifact.realPath,
-      name,
-      inventoryId: `hook:${artifact.path}#${name}`,
+      name: event,
+      inventoryId: ids.inventoryId,
       certainty,
       evidence,
     });
@@ -471,9 +458,14 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
         ruleId: 'hooks/unknown-event',
       });
     }
-    for (const handler of hookHandlers(doc, 'cursor')) {
-      hookEntry(path, artifact, hookName(path, handler), 'documented', ['cursorHooks']);
-    }
+    const handlers = hookHandlers(doc, 'cursor', { includeUnknown: true });
+    const ids = hookInventoryIds(path, handlers);
+    const inventoryIds = hookInventoryIds(artifact.path, handlers);
+    handlers.forEach((handler, index) => {
+      if (!handler.known) return;
+      const pair = { id: ids[index] ?? '', inventoryId: inventoryIds[index] ?? '' };
+      hookEntry(pair, path, artifact, handler.event, 'documented', ['cursorHooks']);
+    });
   };
 
   const claudeHooks = (path: string, artifact: Artifact): void => {
@@ -485,19 +477,26 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
       return;
     }
     const evidence = ['cursorThirdPartyHooks', 'cursorHooks'];
-    for (const handler of hookHandlers(doc, 'claude-code')) {
-      const name = hookName(path, handler);
+    const handlers = hookHandlers(doc, 'claude-code', { includeUnknown: true });
+    const ids = hookInventoryIds(path, handlers);
+    const inventoryIds = hookInventoryIds(artifact.path, handlers);
+    handlers.forEach((handler, index) => {
+      // Claude Code does not run hooks of events it does not know (hooks/unknown-event).
+      if (!handler.known) return;
+      const id = ids[index] ?? '';
       if (Object.hasOwn(CURSOR_EVENT_FOR_CLAUDE, handler.event)) {
-        hookEntry(path, artifact, name, 'documented', evidence);
+        const pair = { id, inventoryId: inventoryIds[index] ?? '' };
+        hookEntry(pair, path, artifact, handler.event, 'documented', evidence);
       } else {
         // Notification and PermissionRequest are documented as unsupported; other events have
         // no documented mapping.
         const unsupported = CURSOR_UNSUPPORTED_CLAUDE_EVENTS.has(handler.event);
         skip('hook', path, 'not-read', unsupported ? 'documented' : 'unverified', evidence, {
-          name,
+          id,
+          name: handler.event,
         });
       }
-    }
+    });
   };
 
   // ------------------------------------------------------------------------------------------

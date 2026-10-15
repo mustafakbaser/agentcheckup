@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_CONFIG, resolveConfig, type ResolvedConfig } from '../../../src/core/config.js';
-import { type Analysis, analyze, runRules, type ScanResult } from '../../../src/core/engine.js';
+import { type Analysis, analyze, type RuleResult, runRules } from '../../../src/core/engine.js';
 import { hash53 } from '../../../src/core/fingerprint.js';
 import { PLATFORM_IDS, type Snapshot } from '../../../src/core/types.js';
 import { walk } from '../../../src/io/walk.js';
@@ -21,7 +21,7 @@ interface PlanOptions {
 
 interface Scan {
   readonly plan: LoadPlan;
-  readonly result: ScanResult;
+  readonly result: RuleResult;
   readonly analysis: Analysis;
 }
 
@@ -543,7 +543,8 @@ describe('loadCodex: hooks and config.toml', () => {
       },
     };
     const { plan } = scan({ '.codex/hooks.json': JSON.stringify(hooks) });
-    const digest = hash53(command);
+    // The inventory's id format (src/platforms/inventory-ids.ts): the last 8 hex digits.
+    const digest = hash53(command).slice(-8);
     expect(
       plan.entries.map(({ id, trigger, name, inventoryId, certainty }) => [
         id,
@@ -568,10 +569,10 @@ describe('loadCodex: hooks and config.toml', () => {
         'documented',
       ],
       [
-        `hook:.codex/hooks.json#Stop:${hash53('echo done')}`,
+        `hook:.codex/hooks.json#Stop:${hash53('echo done').slice(-8)}`,
         'on-approval',
         'Stop',
-        `hook:.codex/hooks.json#Stop:${hash53('echo done')}`,
+        `hook:.codex/hooks.json#Stop:${hash53('echo done').slice(-8)}`,
         'documented',
       ],
     ]);
@@ -603,6 +604,25 @@ describe('loadCodex: hooks and config.toml', () => {
       ['Stop', 'unknown-event'],
     ]);
     expectFindingsForSkips(misplaced);
+  });
+
+  it('skips an unknown or misplaced event without handlers as a whole', () => {
+    const scanned = scan({
+      '.codex/hooks.json': JSON.stringify({
+        hooks: { beforeShellExecution: [{ command: './g.sh' }], Stop: [] },
+        SessionStart: [],
+      }),
+    });
+    expect(scanned.plan.skipped.map((skip) => [skip.id, skip.code])).toEqual([
+      ['hook:.codex/hooks.json#SessionStart', 'unknown-event'],
+      ['hook:.codex/hooks.json#beforeShellExecution', 'unknown-event'],
+    ]);
+    expectFindingsForSkips(scanned);
+  });
+
+  it('leaves case variants below the working directory to a deeper start', () => {
+    const { plan } = scan({ 'AGENTS.md': 'Root.\n', 'pkg/Agents.md': 'Variant.\n' });
+    expect(plan.outOfScope).toEqual([{ path: 'pkg/Agents.md', because: 'below-start-dir' }]);
   });
 
   it('skips a hooks file that is not valid JSON', () => {

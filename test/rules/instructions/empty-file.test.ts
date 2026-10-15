@@ -56,6 +56,13 @@ describe('instr/empty-file', () => {
     expect(findings(result, RULE).map((finding) => finding.message)).toEqual([
       'This CLAUDE.md contains only HTML comments, which Claude Code strips before loading, so Claude Code gets no instructions from it.',
     ]);
+    // Only Claude Code is documented to strip comments: the finding is for Claude Code alone.
+    expect(result.findings.map((finding) => finding.platforms)).toEqual([['claude-code']]);
+    const withoutClaude = lint(
+      { 'CLAUDE.md': '<!-- TODO -->\n' },
+      { rules, targets: ['cursor', 'copilot'] },
+    );
+    expect(findings(withoutClaude, RULE)).toEqual([]);
   });
 
   describe('does not report', () => {

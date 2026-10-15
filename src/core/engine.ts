@@ -1,3 +1,4 @@
+import { buildInventory } from '../inventory/build.js';
 import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonWithComments } from '../parse/json.js';
@@ -5,7 +6,16 @@ import { parseMarkdown } from '../parse/markdown.js';
 import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
 import { classify, READERS } from '../platforms/classify.js';
 import { MARKDOWN_KINDS } from '../platforms/kinds.js';
-import type { ContextReport } from '../platforms/load/types.js';
+import {
+  buildContextReport,
+  checkContextWindow,
+  checkWorkingDirectory,
+  contextAgentsOf,
+  loadPlans,
+  orderedAgents,
+} from '../platforms/load/index.js';
+import { buildMatrix, matrixPlans } from '../platforms/load/matrix.js';
+import type { ContextAgent, ContextReport } from '../platforms/load/types.js';
 import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import { EMPTY_CONFIG, type ResolvedConfig } from './config.js';
@@ -74,6 +84,27 @@ export interface RunRulesOptions {
 
 export interface ScanOptions extends AnalyzeOptions, RunRulesOptions {}
 
+/** Options {@link scanWithContext} reads on top of {@link ScanOptions}. */
+export interface ContextOptions {
+  /**
+   * Agents to plan for, each with a load model (CONTEXT_AGENTS). Default: every modeled agent
+   * among the scan's targets.
+   */
+  readonly agents?: readonly ContextAgent[];
+  /**
+   * Working directory of the session, relative to the scan root, normalized, without `..`.
+   * Default `''`, the root. Must be the root with {@link matrix}.
+   */
+  readonly cwd?: string;
+  /**
+   * Plan every agent at the root, plus Codex in each directory with an AGENTS.md or
+   * AGENTS.override.md, and add the file-by-agent matrix. Default false.
+   */
+  readonly matrix?: boolean;
+  /** The model's context window in tokens, for limits that depend on it. A positive integer. */
+  readonly contextWindow?: number;
+}
+
 /**
  * One scan's view of a snapshot: its classified, decoded artifacts and lazy parsers cached per
  * artifact. Built by {@link analyze}; {@link runRules} runs the rules over it, and code that needs
@@ -133,16 +164,24 @@ export interface ScanResult {
    * directory. `--baseline` removes it before comparing two reports.
    */
   readonly pathBase?: string;
-  /**
-   * Security inventory. Optional only until the inventory builder (src/inventory, work unit U6)
-   * lands; after that every scan includes it.
-   */
-  readonly inventory?: Inventory;
+  /** Security inventory: every MCP server, hook, permission and env override. Every scan has it. */
+  readonly inventory: Inventory;
   /** Load plans, from `agentcheckup context` or a scan with `--context`. */
   readonly context?: ContextReport;
   /** Comparison with the `--baseline` report, when one was given. */
   readonly baseline?: BaselineDiff;
 }
+
+/** A scan with load plans: what {@link scanWithContext} returns. */
+export interface ContextScanResult extends ScanResult {
+  readonly context: ContextReport;
+}
+
+/**
+ * What {@link runRules} returns: the findings and everything about them. {@link scanSnapshot} adds
+ * the inventory, {@link scanWithContext} the inventory and the load plans.
+ */
+export type RuleResult = Omit<ScanResult, 'inventory' | 'context' | 'baseline' | 'pathBase'>;
 
 interface PendingFinding {
   readonly meta: RuleMeta;
@@ -265,7 +304,7 @@ export function analyze(snapshot: Snapshot, options: AnalyzeOptions = {}): Analy
 }
 
 /** Runs every applicable rule over an analysis. Pure: no I/O, deterministic output. */
-export function runRules(analysis: Analysis, options: RunRulesOptions): ScanResult {
+export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResult {
   const { snapshot, config, targets, targetList, artifacts, frontmatter, markdown, json } =
     analysis;
   const trustDirectives = options.trustDirectives ?? true;
@@ -492,9 +531,59 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): ScanResu
   };
 }
 
-/** Runs every applicable rule over a snapshot. Pure: no I/O, deterministic output. */
+/**
+ * Runs every applicable rule over a snapshot, then lists its security inventory. Pure: no I/O,
+ * deterministic output.
+ */
 export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResult {
-  return runRules(analyze(snapshot, options), options);
+  const analysis = analyze(snapshot, options);
+  const result = runRules(analysis, options);
+  return { ...result, inventory: buildInventory(analysis) };
+}
+
+/**
+ * {@link scanSnapshot} plus what each agent loads: the rules run first, then the inventory is
+ * built, then the loaders plan each agent on the same analysis. The loaders read the parses the
+ * rules made, so the scan's Markdown budget is spent in the same order and the findings are those
+ * of {@link scanSnapshot}. Pure: no I/O, deterministic output.
+ *
+ * Throws, before running any rule, for an agent without a load model, a working directory that
+ * is not normalized or climbs above the root, a context window that is not a positive integer,
+ * or a matrix requested for a working directory other than the root.
+ */
+export function scanWithContext(
+  snapshot: Snapshot,
+  options: ScanOptions & ContextOptions,
+): ContextScanResult {
+  const cwd = options.cwd ?? '';
+  checkWorkingDirectory(cwd);
+  checkContextWindow(options.contextWindow);
+  if (options.matrix === true && cwd !== '') {
+    throw new Error('The matrix covers the whole repository: plan it from the root.');
+  }
+  if (options.agents !== undefined) orderedAgents(options.agents);
+
+  const analysis = analyze(snapshot, options);
+  const result = runRules(analysis, options);
+  const inventory = buildInventory(analysis);
+  const agents = options.agents ?? contextAgentsOf(analysis.targetList);
+  const shared = {
+    agents,
+    config: analysis.config,
+    ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+  };
+  const context =
+    options.matrix === true
+      ? (() => {
+          const plans = matrixPlans(analysis, shared);
+          return buildContextReport({
+            agents,
+            plans,
+            matrix: buildMatrix(analysis, plans, agents),
+          });
+        })()
+      : buildContextReport({ agents, plans: loadPlans(analysis, { ...shared, cwd }) });
+  return { ...result, inventory, context };
 }
 
 /** Number of lines that start before `offset` (binary search over sorted line starts). */

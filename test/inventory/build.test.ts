@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { analyze } from '../../src/core/engine.js';
 import { hash53 } from '../../src/core/fingerprint.js';
 import type { Snapshot } from '../../src/core/types.js';
-import { buildInventory, canonicalJson } from '../../src/inventory/build.js';
+import { buildInventory } from '../../src/inventory/build.js';
 import type { Inventory } from '../../src/inventory/types.js';
 import { walk } from '../../src/io/walk.js';
+import { canonicalJson } from '../../src/platforms/inventory-ids.js';
 import { findSecret } from '../../src/rules/mcp/secrets.js';
 import { type FileMap, type SnapshotExtras, snapshotFrom } from '../helpers/lint.js';
 

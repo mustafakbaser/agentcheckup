@@ -6,8 +6,9 @@ import {
   type AnalyzeOptions,
   analyze,
   runRules,
-  type ScanResult,
+  type RuleResult,
 } from '../../../src/core/engine.js';
+import { hash53 } from '../../../src/core/fingerprint.js';
 import type { Snapshot } from '../../../src/core/types.js';
 import { walk } from '../../../src/io/walk.js';
 import { CLAUDE_MAX_FILE_BYTES, loadClaudeCode } from '../../../src/platforms/load/claude-code.js';
@@ -32,7 +33,7 @@ interface PlanOptions extends SnapshotExtras {
 
 interface Planned {
   readonly plan: LoadPlan;
-  readonly result: ScanResult;
+  readonly result: RuleResult;
   readonly analysis: Analysis;
 }
 
@@ -40,7 +41,7 @@ interface Planned {
  * The local version of the consistency check: every skip that names a rule has an unsuppressed
  * finding of that rule, on that path, for Claude Code.
  */
-function expectConsistent(plan: LoadPlan, result: ScanResult): void {
+function expectConsistent(plan: LoadPlan, result: RuleResult): void {
   expect(result.ruleFailures).toEqual([]);
   for (const skip of plan.skipped) {
     if (skip.ruleId === undefined) continue;
@@ -116,6 +117,19 @@ function limit(result: LoadPlan, key: string) {
 }
 
 describe('loadClaudeCode: instruction files', () => {
+  it('skips instruction files whose names match only when case is ignored', () => {
+    const result = plan({
+      'claude.md': 'Lower.\n',
+      'pkg/Agents.md': 'Mixed.\n',
+      'AGENTS.md': 'A.\n',
+    });
+    expect(skips(result)).toEqual([
+      'instructions:claude.md case-mismatch instr/filename-case',
+      'instructions:pkg/Agents.md case-mismatch instr/filename-case',
+    ]);
+    expect(summary(result.entries)).toEqual(['1 startup instructions AGENTS.md']);
+  });
+
   it('loads CLAUDE files from the root down to the working directory, local after CLAUDE.md', () => {
     const result = plan(
       {
@@ -726,12 +740,12 @@ describe('loadClaudeCode: MCP servers and hooks', () => {
       [
         'PreToolUse',
         'on-approval',
-        expect.stringMatching(/^hook:\.claude\/settings\.json#PreToolUse:[0-9a-f]{14}$/),
+        `hook:.claude/settings.json#PreToolUse:${hash53('./guard.sh').slice(-8)}`,
       ],
       [
         'PreToolUse',
         'on-approval',
-        expect.stringMatching(/^hook:\.claude\/settings\.json#PreToolUse:[0-9a-f]{14}:2$/),
+        `hook:.claude/settings.json#PreToolUse:${hash53('./guard.sh').slice(-8)}:2`,
       ],
       ['Stop', 'on-approval', expect.stringMatching(/^hook:\.claude\/settings\.local\.json#Stop:/)],
     ]);
@@ -946,7 +960,7 @@ describe('loadClaudeCode: determinism and hostile input', () => {
       JSON.stringify(loadClaudeCode(analysis, { cwd: '', config: analysis.config })),
     );
     expect(twice[1]).toBe(twice[0]);
-    expect(a.entries.map((e) => e.id.replace(/:[0-9a-f]{14}$/, ''))).toEqual([
+    expect(a.entries.map((e) => e.id.replace(/:[0-9a-f]{8}$/, ''))).toEqual([
       'instructions:CLAUDE.md',
       'import:docs/a.instructions.md',
       'import:docs/b.instructions.md',

@@ -55,6 +55,7 @@ import type {
   Size,
   SkippedLoad,
 } from '../platforms/load/types.js';
+import { TRIGGER_RANK } from '../platforms/load/types.js';
 import { forJsonOutput } from './sanitize.js';
 
 function position(value: Position): Position {
@@ -179,13 +180,7 @@ const platformRank = ranks(
 );
 
 /** Assembly order of triggers: what is in the prompt first, then what can join later. */
-const triggerRank = ranks<LoadTrigger>({
-  startup: 0,
-  'on-path': 1,
-  'model-selected': 2,
-  manual: 3,
-  'on-approval': 4,
-});
+const triggerRank = ranks<LoadTrigger>(TRIGGER_RANK);
 
 const roleRank = ranks<LoadRole>({
   instructions: 0,
@@ -602,7 +597,7 @@ export function toJsonReport(result: ScanResult): ScanResult {
     })),
     configWarnings: [...result.configWarnings],
     ...(result.pathBase === undefined ? {} : { pathBase: result.pathBase }),
-    ...(result.inventory === undefined ? {} : { inventory: toJsonInventory(result.inventory) }),
+    inventory: toJsonInventory(result.inventory),
     ...(result.context === undefined ? {} : { context: toJsonContext(result.context) }),
     ...(result.baseline === undefined ? {} : { baseline: toJsonBaseline(result.baseline) }),
   };

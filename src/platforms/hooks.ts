@@ -1,7 +1,6 @@
 /**
  * Which hook events each platform fires, and where hook handlers sit in its configuration file.
  */
-import { hash53 } from '../core/fingerprint.js';
 import type { Artifact, ArtifactKind } from '../core/types.js';
 import {
   isObject,
@@ -294,25 +293,6 @@ export function codexMisplacedEvents(doc: ParsedJson): HookEvent[] {
   return Object.keys(root)
     .filter((key) => !CODEX_TOP_LEVEL.has(key) && known.includes(key))
     .map((name) => ({ name, path: [name], entries: root[name] }));
-}
-
-/**
- * Security-inventory id of each handler, in the same order: `hook:<file>#<event>:<digest>`, where
- * the digest is hash53 of the handler's `command` string (of '' when it has none). A handler that
- * repeats the event and command of an earlier one in the file gets `:<n>` appended, n from 2.
- */
-export function hookInventoryIds(
-  file: string,
-  handlers: readonly Pick<HookHandler, 'event' | 'handler'>[],
-): string[] {
-  const seen = new Map<string, number>();
-  return handlers.map(({ event, handler }) => {
-    const command = own(handler, 'command');
-    const base = `hook:${file}#${event}:${hash53(typeof command === 'string' ? command : '')}`;
-    const occurrence = (seen.get(base) ?? 0) + 1;
-    seen.set(base, occurrence);
-    return occurrence === 1 ? base : `${base}:${String(occurrence)}`;
-  });
 }
 
 // ---------------------------------------------------------------------------------------------

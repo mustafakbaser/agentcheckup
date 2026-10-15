@@ -40,7 +40,6 @@ interface Location {
 /** Where each inventory item is declared, by id, with the name a reviewer looks for. */
 function locations(result: ScanResult): Map<string, Location> {
   const map = new Map<string, Location>();
-  if (result.inventory === undefined) return map;
   const inventory = toJsonInventory(result.inventory);
   for (const item of inventory.mcpServers) map.set(item.id, { file: item.file, name: item.name });
   for (const item of inventory.hooks) map.set(item.id, { file: item.file, name: item.event });

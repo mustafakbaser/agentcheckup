@@ -39,13 +39,8 @@ import {
   invalidCause,
   nameNotText,
 } from '../codex-skills.js';
-import {
-  CODEX_EVENTS,
-  codexMisplacedEvents,
-  eventHandlers,
-  hookEvents,
-  hookInventoryIds,
-} from '../hooks.js';
+import { CODEX_EVENTS, codexMisplacedEvents, eventHandlers, hookEvents } from '../hooks.js';
+import { hookInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
 import { basename, inPayloadFolder, joinPath } from '../paths.js';
 import { skillLocation } from '../skills.js';
@@ -66,13 +61,13 @@ import type {
   LimitUsage,
   LoadEntry,
   LoadPlan,
-  LoadTrigger,
   OutOfScope,
   Size,
   SkipCode,
   SkippedLoad,
   SourceKey,
 } from './types.js';
+import { TRIGGER_RANK } from './types.js';
 import type { LoadView } from './view.js';
 
 export interface CodexLoadOptions {
@@ -126,14 +121,6 @@ const CERTAINTY_RANK: Readonly<Record<Certainty, number>> = {
   documented: 2,
   'source-code': 1,
   unverified: 0,
-};
-
-const TRIGGER_RANK: Readonly<Record<LoadTrigger, number>> = {
-  startup: 0,
-  'on-path': 1,
-  'model-selected': 2,
-  manual: 3,
-  'on-approval': 4,
 };
 
 /** The less certain of two certainties. */
@@ -662,15 +649,34 @@ function addHooks(view: LoadView, parts: PlanParts, directories: readonly string
         evidence: ['codexHooks'],
       });
     });
+    // hooks/unknown-event reports event names, so an unknown or misplaced event without a
+    // handler Codex could read is skipped as a whole.
+    const withHandlers = new Set(handlers.map((handler) => handler.event));
+    const unknown = [...events.filter((event) => !known.includes(event.name)), ...misplaced];
+    for (const event of unknown) {
+      if (withHandlers.has(event.name)) continue;
+      parts.skip({
+        id: `hook:${path}#${event.name}`,
+        role: 'hook',
+        path,
+        name: event.name,
+        code: 'unknown-event',
+        ruleId: RULES.unknownEvent,
+        certainty: weakest(certainty, 'source-code'),
+        evidence: ['codexHookConfig', 'codexHooks'],
+      });
+    }
   }
 }
 
 /** Files below the working directory that Codex would read only from a deeper start. */
 function addBelowStart(view: LoadView, parts: PlanParts, cwd: string): void {
   for (const [path, artifact] of view.index) {
-    const name = basename(path);
+    // Case variants too: Codex at that directory skips them (instr/filename-case).
+    const name = basename(path).toLowerCase();
     const below =
-      (CODEX_FILE_NAMES.includes(name) && isBelow(dirnamePosix(path), cwd)) ||
+      (CODEX_FILE_NAMES.some((file) => file.toLowerCase() === name) &&
+        isBelow(dirnamePosix(path), cwd)) ||
       (artifact.kind === 'codex-hooks' &&
         path.endsWith('.codex/hooks.json') &&
         isBelow(ownerOf(path), cwd));

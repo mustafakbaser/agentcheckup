@@ -2523,5 +2523,36 @@
   "skipped": [],
   "unresolvedSymlinks": [],
   "ruleFailures": [],
-  "configWarnings": []
+  "configWarnings": [],
+  "inventory": {
+    "mcpServers": [
+      {
+        "id": "mcp:.mcp.json#docs",
+        "file": ".mcp.json",
+        "line": 3,
+        "platforms": [
+          "claude-code",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "05faebb29e94d9",
+        "name": "docs",
+        "transport": "unknown",
+        "url": {
+          "origin": "https://example.com",
+          "tls": true,
+          "loopback": false
+        },
+        "envKeys": [],
+        "headerKeys": [],
+        "status": {
+          "claude-code": "skipped"
+        }
+      }
+    ],
+    "hooks": [],
+    "permissions": [],
+    "env": [],
+    "incomplete": []
+  }
 }

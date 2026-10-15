@@ -109,9 +109,9 @@ describe('load-plan contract', () => {
 });
 
 describe('report additions', () => {
-  it('keeps every new ScanResult field optional', () => {
+  it('keeps the new ScanResult fields optional, except the inventory every scan has', () => {
     expectTypeOf<ScanResult['pathBase']>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<ScanResult['inventory']>().toEqualTypeOf<Inventory | undefined>();
+    expectTypeOf<ScanResult['inventory']>().toEqualTypeOf<Inventory>();
     expectTypeOf<ScanResult['context']>().toEqualTypeOf<ContextReport | undefined>();
     expectTypeOf<ScanResult['baseline']>().toEqualTypeOf<BaselineDiff | undefined>();
     expectTypeOf<Finding['baseline']>().toEqualTypeOf<'new' | 'unchanged' | undefined>();

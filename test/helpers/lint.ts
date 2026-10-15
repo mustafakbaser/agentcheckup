@@ -1,5 +1,5 @@
 import { resolveConfig } from '../../src/core/config.js';
-import { analyze, runRules, type ScanOptions, type ScanResult } from '../../src/core/engine.js';
+import { analyze, type RuleResult, runRules, type ScanOptions } from '../../src/core/engine.js';
 import type { AnyRule, Finding, PlatformId, Snapshot, SourceFile } from '../../src/core/types.js';
 
 export type FileMap = Readonly<Record<string, string | Uint8Array>>;
@@ -75,14 +75,14 @@ export function scanOptionsFrom(options: LintOptions): ScanOptions {
  * composes and that load plans reuse, so every rule test exercises it. test/core/analyze.test.ts
  * checks that both paths give the same result.
  */
-export function lint(files: FileMap, options: LintOptions): ScanResult {
+export function lint(files: FileMap, options: LintOptions): RuleResult {
   const scanOptions = scanOptionsFrom(options);
   return runRules(analyze(snapshotFrom(files, options), scanOptions), scanOptions);
 }
 
 /** Active (unsuppressed) findings, optionally for one rule, in a compact comparable shape. */
 export function findings(
-  result: ScanResult,
+  result: RuleResult,
   ruleId?: string,
 ): Pick<Finding, 'ruleId' | 'severity' | 'path' | 'message' | 'range'>[] {
   if (result.ruleFailures.length > 0) {

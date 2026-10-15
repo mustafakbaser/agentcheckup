@@ -58,7 +58,7 @@ describe('rebaseResult', () => {
     expect(plans[1]?.incomplete).toEqual(['unparsed:repo/.codex/config.toml']);
     expect(rebased.context?.matrix?.rows[0]?.path).toBe('repo/.agents/skills/release-notes');
 
-    const inventory = rebased.inventory!;
+    const inventory = rebased.inventory;
     expect(inventory.mcpServers[2]).toMatchObject({
       id: 'mcp:repo/.mcp.json#github',
       file: 'repo/.mcp.json',
@@ -83,8 +83,8 @@ describe('rebaseResult', () => {
   it('keeps load entries linked to their inventory items', () => {
     const rebased = rebaseResult(full, 'repo');
     const ids = new Set([
-      ...rebased.inventory!.mcpServers.map((item) => item.id),
-      ...rebased.inventory!.hooks.map((item) => item.id),
+      ...rebased.inventory.mcpServers.map((item) => item.id),
+      ...rebased.inventory.hooks.map((item) => item.id),
     ]);
     const links = (rebased.context?.plans ?? []).flatMap((item) =>
       item.entries.flatMap((value) => (value.inventoryId === undefined ? [] : [value.inventoryId])),
@@ -106,8 +106,8 @@ describe('rebaseResult', () => {
     );
     expect(api?.patterns).toEqual(['src/api/**']);
     expect(rebased.context?.plans[0]?.hidden).toEqual(full.context?.plans[0]?.hidden);
-    expect(rebased.inventory?.hooks[0]?.script).toBe('scripts/hooks/guard.sh');
-    expect(rebased.inventory?.mcpServers[2]?.args).toEqual(full.inventory?.mcpServers[2]?.args);
+    expect(rebased.inventory.hooks[0]?.script).toBe('scripts/hooks/guard.sh');
+    expect(rebased.inventory.mcpServers[2]?.args).toEqual(full.inventory.mcpServers[2]?.args);
     expect(rebased.baseline?.gate.hits.find((hit) => hit.class === 'unicode')?.id).toBe(
       '3c4d5e6f708192:1',
     );

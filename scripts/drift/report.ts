@@ -23,7 +23,7 @@ function line(text: string): string {
 }
 
 function rulesLine(rules: readonly string[]): string {
-  return `    rules: ${line(rules.join(', '))}`;
+  return `    used by: ${line(rules.join(', '))}`;
 }
 
 export function formatText(report: DriftReport): string {
@@ -52,7 +52,9 @@ export function formatText(report: DriftReport): string {
   }
   out.push('', `Unchanged: ${report.unchanged}`);
   if (report.uncited.length > 0) {
-    out.push(`No longer cited by any rule (--update removes them): ${report.uncited.length}`);
+    out.push(
+      `No longer cited by any rule or loader (--update removes them): ${report.uncited.length}`,
+    );
     for (const url of report.uncited) out.push(`  ${line(url)}`);
   }
   if (report.skipped.length > 0) {
@@ -61,7 +63,7 @@ export function formatText(report: DriftReport): string {
   if (report.changed.length > 0 || report.unreachable.length > 0) {
     out.push(
       '',
-      'Re-read each changed source and update the rule or its `checked` date. Then run',
+      'Re-read each changed source and update the rules, the loaders or the `checked` date. Then run',
       '`pnpm drift:update --only <url>` and commit scripts/drift/baseline.json in the same pull request.',
     );
   }

@@ -66,7 +66,7 @@ export interface DriftReport {
   readonly changed: readonly ChangedSource[];
   readonly unreachable: readonly UnreachableSource[];
   readonly unchanged: number;
-  /** In the baseline but no longer cited by any rule. `--update` removes them. */
+  /** In the baseline but no longer cited by any rule or loader. `--update` removes them. */
   readonly uncited: readonly string[];
   /** Cited URLs into this repository, which are not fetched. */
   readonly skipped: readonly CitedSource[];

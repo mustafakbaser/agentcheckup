@@ -37,6 +37,16 @@ import {
   hookHandlers,
   hookPlatformOf,
 } from '../platforms/hooks.js';
+import {
+  canonicalJson,
+  envInventoryId,
+  hookCommandLine,
+  hookInventoryIds,
+  hookTarget,
+  mcpInventoryIds,
+  numberRepeats,
+  permInventoryId,
+} from '../platforms/inventory-ids.js';
 import type { LoadView } from '../platforms/load/view.js';
 import { isBundledSkill, pluginRootOf } from '../platforms/location.js';
 import { isClaudeMcpConfig, type McpServer, mcpServers, urlWithoutType } from '../platforms/mcp.js';
@@ -77,7 +87,8 @@ const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
 /**
  * Builds the inventory. Every list is sorted by id, and every id is unique: a repeated id gets
  * an occurrence number (`:2`, `:3`) in document order, except permissions, where a repeated
- * value is the same grant and is listed once.
+ * value is the same grant and is listed once. Ids come from src/platforms/inventory-ids.ts, which
+ * the loaders use too.
  */
 export function buildInventory(view: LoadView): Inventory {
   const builder = new InventoryBuilder(view);
@@ -87,22 +98,8 @@ export function buildInventory(view: LoadView): Inventory {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Canonical form and digests
+// Digests
 // ---------------------------------------------------------------------------------------------
-
-/** JSON with object keys sorted by code point and `undefined` fields left out. */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
-  if (typeof value === 'object' && value !== null) {
-    const record = value as Readonly<Record<string, unknown>>;
-    const fields = Object.keys(record)
-      .filter((key) => record[key] !== undefined)
-      .sort(compareStrings)
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`);
-    return `{${fields.join(',')}}`;
-  }
-  return value === undefined ? 'null' : JSON.stringify(value);
-}
 
 function digestOf(fields: object): string {
   return hash53(canonicalJson(fields));
@@ -159,10 +156,6 @@ function maskTokens(text: string): string {
     out = `${out.slice(0, secret.start)}${REDACTED}${out.slice(secret.start + secret.length)}`;
   }
   return out;
-}
-
-function quoteArg(arg: string): string {
-  return arg === '' || /[\s"'\\]/.test(arg) ? JSON.stringify(arg) : arg;
 }
 
 /** A remote server's URL: origin only, whether it uses TLS, whether it stays on the machine. */
@@ -302,7 +295,9 @@ class InventoryBuilder {
 
   #addServers(artifact: Artifact, doc: ParsedJson): void {
     const platforms = sortedPlatforms(artifact.readers);
-    for (const server of mcpServers(artifact, doc)) {
+    const servers = mcpServers(artifact, doc);
+    const ids = mcpInventoryIds(artifact.path, servers);
+    servers.forEach((server, index) => {
       const { config, name } = server;
       const declaredType = stringOf(own(config, 'type'));
       const rawCommand = stringOf(own(config, 'command'));
@@ -331,7 +326,7 @@ class InventoryBuilder {
         status: this.#statusOf(artifact, server),
       };
       this.#servers.push({
-        id: `mcp:${artifact.path}#${name}`,
+        id: ids[index] ?? '',
         file: artifact.path,
         line: lineOf(artifact, keySpanOf(doc, server.path)),
         platforms,
@@ -362,7 +357,7 @@ class InventoryBuilder {
           platforms,
         });
       }
-    }
+    });
   }
 
   /**
@@ -429,18 +424,13 @@ class InventoryBuilder {
     const platforms = sortedPlatforms(artifact.readers);
     const root = projectRootOf(artifact);
     const syntax = hookCommandSyntax(this.#view.snapshot, platform, root);
-    for (const hook of hookHandlers(doc, platform, { includeUnknown: true })) {
+    const hooks = hookHandlers(doc, platform, { includeUnknown: true });
+    const ids = hookInventoryIds(artifact.path, hooks);
+    hooks.forEach((hook, index) => {
       const { handler, type } = hook;
       const rawCommand = stringOf(own(handler, 'command'));
-      const rawArgs = own(handler, 'args');
-      let command: string | undefined;
-      if (rawCommand !== undefined) {
-        command = redactCommand(rawCommand);
-        // Claude Code's exec form: `command` is the program and `args` its arguments.
-        if (Array.isArray(rawArgs)) {
-          command = [command, ...redactArgs(stringsOf(rawArgs)).map(quoteArg)].join(' ');
-        }
-      }
+      // Claude Code's exec form joins `command` and `args`.
+      const command = hookCommandLine(handler);
       const target = command === undefined ? hookTarget(handler) : undefined;
       const matcher = stringOf(own(hook.group, 'matcher'));
       const script = scriptOf(handler, hook.path, type, platform, root, syntax);
@@ -456,16 +446,15 @@ class InventoryBuilder {
           rawCommand !== undefined &&
           findRemoteExecution(rawCommand, 0, rawCommand.length) !== undefined,
       };
-      const what = command ?? canonicalJson(target ?? {});
       this.#hooks.push({
-        id: `hook:${artifact.path}#${hook.event}:${hash53(what).slice(-8)}`,
+        id: ids[index] ?? '',
         file: artifact.path,
         line: lineOf(artifact, spanOf(doc, [...hook.path, 'command']) ?? keySpanOf(doc, hook.path)),
         platforms,
         ...fields,
         digestFields: { ...fields, ...(target === undefined ? {} : { target }) },
       });
-    }
+    });
   }
 
   // Claude Code settings ----------------------------------------------------------------------
@@ -605,7 +594,7 @@ class InventoryBuilder {
     const value = maskTokens(item.value);
     const fields = { key: item.key, value, broad: item.broad, effective: item.effective };
     this.#permissions.push({
-      id: `perm:${artifact.path}#${item.key}=${value}`,
+      id: permInventoryId(artifact.path, item.key, value),
       file: artifact.path,
       line: item.line,
       platforms: item.platforms,
@@ -635,7 +624,7 @@ class InventoryBuilder {
       cls === 'endpoint' ? endpointShown(value) : cls === 'tls' ? switchShown(value) : undefined;
     const fields = { key, class: cls, ...(shown === undefined ? {} : { shown }) };
     this.#env.push({
-      id: `env:${artifact.path}#${key}`,
+      id: envInventoryId(artifact.path, key),
       file: artifact.path,
       line: lineOf(artifact, keySpanOf(doc, path)),
       platforms: sortedPlatforms(artifact.readers),
@@ -676,21 +665,6 @@ function isRootOrHome(directory: string): boolean {
 }
 
 /**
- * What a hook without a command calls, as far as decision 10 lets a digest see it: an HTTP
- * hook's URL origin, an MCP tool hook's server and tool names. HookItem has no field for them,
- * so they are covered by the id and digest but not shown. A prompt or agent hook's prompt is
- * neither shown nor covered.
- */
-function hookTarget(handler: JsonObject): object | undefined {
-  const url = stringOf(own(handler, 'url'));
-  if (url !== undefined) return { url: urlOrigin(url.trim()).origin };
-  const server = stringOf(own(handler, 'server'));
-  const tool = stringOf(own(handler, 'tool'));
-  if (server !== undefined || tool !== undefined) return { server, tool };
-  return undefined;
-}
-
-/**
  * The repository script a command hook runs, resolved as hooks/script-missing resolves it. A
  * relative path counts only in Cursor, which runs project hooks from the project root; Claude
  * Code runs them in the session's working directory, so the file it means is not certain.
@@ -718,29 +692,24 @@ interface Identified {
 
 /**
  * Sorted items with unique ids and their digests. `suffix` numbers repeated ids in document
- * order; `dedupe` keeps the first item with an id.
+ * order ({@link numberRepeats}); `dedupe` keeps the first item with an id.
+ *
+ * MCP server and hook ids arrive numbered per file, as the loaders number them, so `suffix`
+ * changes one of them only when ids of two files collide, which takes a `#` in a path.
  */
 function finishItems<T extends Identified>(
   items: readonly T[],
   repeats: 'suffix' | 'dedupe',
 ): (Omit<T, 'digestFields'> & { readonly digest: string })[] {
-  const used = new Set<string>();
-  const counts = new Map<string, number>();
   const out: (Omit<T, 'digestFields'> & { readonly digest: string })[] = [];
-  for (const item of items) {
-    let id = item.id;
-    if (used.has(id)) {
-      if (repeats === 'dedupe') continue;
-      let count = counts.get(item.id) ?? 1;
-      do {
-        count++;
-        id = `${item.id}:${count}`;
-      } while (used.has(id));
-      counts.set(item.id, count);
-    }
+  const ids = repeats === 'suffix' ? numberRepeats(items.map((item) => item.id)) : undefined;
+  const used = new Set<string>();
+  items.forEach((item, index) => {
+    const id = ids === undefined ? item.id : (ids[index] ?? item.id);
+    if (used.has(id)) return;
     used.add(id);
     const { digestFields, ...rest } = item;
     out.push({ ...rest, id, digest: digestOf(digestFields) });
-  }
+  });
   return out.sort((a, b) => compareStrings(a.id, b.id));
 }

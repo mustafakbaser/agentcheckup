@@ -3479,5 +3479,316 @@
   "skipped": [],
   "unresolvedSymlinks": [],
   "ruleFailures": [],
-  "configWarnings": []
+  "configWarnings": [],
+  "inventory": {
+    "mcpServers": [
+      {
+        "id": "mcp:.cursor/mcp.json#linear",
+        "file": ".cursor/mcp.json",
+        "line": 3,
+        "platforms": [
+          "cursor",
+          "windsurf"
+        ],
+        "digest": "17b001729a6f12",
+        "name": "linear",
+        "transport": "unknown",
+        "url": {
+          "origin": "https://mcp.linear.app",
+          "tls": true,
+          "loopback": false
+        },
+        "envKeys": [],
+        "headerKeys": [],
+        "status": {
+          "cursor": "loads"
+        }
+      },
+      {
+        "id": "mcp:.cursor/mcp.json#postgres",
+        "file": ".cursor/mcp.json",
+        "line": 4,
+        "platforms": [
+          "cursor",
+          "windsurf"
+        ],
+        "digest": "11330540e20b22",
+        "name": "postgres",
+        "transport": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@example/postgres-mcp@1.2.0"
+        ],
+        "package": {
+          "launcher": "npx",
+          "ecosystem": "npm",
+          "name": "@example/postgres-mcp",
+          "version": "1.2.0",
+          "pin": "exact"
+        },
+        "envKeys": [
+          "DATABASE_URL"
+        ],
+        "headerKeys": [],
+        "status": {
+          "cursor": "loads"
+        }
+      },
+      {
+        "id": "mcp:.mcp.json#docs",
+        "file": ".mcp.json",
+        "line": 12,
+        "platforms": [
+          "claude-code",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "0e3d0c791f75ab",
+        "name": "docs",
+        "transport": "unknown",
+        "url": {
+          "origin": "https://docs.example.com",
+          "tls": true,
+          "loopback": false
+        },
+        "envKeys": [],
+        "headerKeys": [],
+        "status": {
+          "claude-code": "skipped"
+        }
+      },
+      {
+        "id": "mcp:.mcp.json#filesystem",
+        "file": ".mcp.json",
+        "line": 3,
+        "platforms": [
+          "claude-code",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "1f1e0407e53bec",
+        "name": "filesystem",
+        "transport": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "./docs"
+        ],
+        "package": {
+          "launcher": "npx",
+          "ecosystem": "npm",
+          "name": "@modelcontextprotocol/server-filesystem",
+          "pin": "none"
+        },
+        "envKeys": [],
+        "headerKeys": [],
+        "status": {
+          "claude-code": "needs-approval"
+        }
+      },
+      {
+        "id": "mcp:.mcp.json#github",
+        "file": ".mcp.json",
+        "line": 7,
+        "platforms": [
+          "claude-code",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "0ce6b113f10c1a",
+        "name": "github",
+        "transport": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-github@2025.4.8"
+        ],
+        "package": {
+          "launcher": "npx",
+          "ecosystem": "npm",
+          "name": "@modelcontextprotocol/server-github",
+          "version": "2025.4.8",
+          "pin": "exact"
+        },
+        "envKeys": [
+          "GITHUB_PERSONAL_ACCESS_TOKEN"
+        ],
+        "headerKeys": [],
+        "status": {
+          "claude-code": "needs-approval"
+        }
+      }
+    ],
+    "hooks": [
+      {
+        "id": "hook:.claude/settings.json#BeforeCommit:465cd5a9",
+        "file": ".claude/settings.json",
+        "line": 19,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "0188e921928a59",
+        "event": "BeforeCommit",
+        "known": false,
+        "type": "command",
+        "command": "pnpm lint",
+        "failsOpen": false,
+        "remoteScript": false
+      },
+      {
+        "id": "hook:.claude/settings.json#PreToolUse:733d584e",
+        "file": ".claude/settings.json",
+        "line": 15,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "19f4d1c5787071",
+        "event": "PreToolUse",
+        "known": true,
+        "matcher": "Bash",
+        "type": "command",
+        "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/guard.sh",
+        "script": "scripts/guard.sh",
+        "failsOpen": true,
+        "remoteScript": false
+      },
+      {
+        "id": "hook:.cursor/hooks.json#beforeShellExecution:447fbfea",
+        "file": ".cursor/hooks.json",
+        "line": 4,
+        "platforms": [
+          "cursor"
+        ],
+        "digest": "06d3827721263a",
+        "event": "beforeShellExecution",
+        "known": true,
+        "type": "command",
+        "command": "./scripts/guard.sh",
+        "script": "scripts/guard.sh",
+        "failsOpen": true,
+        "remoteScript": false
+      }
+    ],
+    "permissions": [
+      {
+        "id": "perm:.claude/settings.json#permissions.allow=Bash",
+        "file": ".claude/settings.json",
+        "line": 3,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "19e08f0dfd18ce",
+        "key": "permissions.allow",
+        "value": "Bash",
+        "broad": true,
+        "effective": true
+      },
+      {
+        "id": "perm:.claude/settings.json#permissions.allow=Bash(pnpm test:*)",
+        "file": ".claude/settings.json",
+        "line": 3,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "17c87ea8d3de20",
+        "key": "permissions.allow",
+        "value": "Bash(pnpm test:*)",
+        "broad": false,
+        "effective": true
+      },
+      {
+        "id": "perm:.claude/settings.json#permissions.allow=Read(./packages/**)",
+        "file": ".claude/settings.json",
+        "line": 3,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "069be934cabe86",
+        "key": "permissions.allow",
+        "value": "Read(./packages/**)",
+        "broad": false,
+        "effective": true
+      },
+      {
+        "id": "perm:.claude/settings.json#permissions.deny=Read(./.env)",
+        "file": ".claude/settings.json",
+        "line": 4,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "15a506b43c799e",
+        "key": "permissions.deny",
+        "value": "Read(./.env)",
+        "broad": false,
+        "effective": true
+      }
+    ],
+    "env": [
+      {
+        "id": "env:.claude/settings.json#ANTHROPIC_BASE_URL",
+        "file": ".claude/settings.json",
+        "line": 7,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "13305b26e7472a",
+        "key": "ANTHROPIC_BASE_URL",
+        "class": "endpoint",
+        "shown": "https://llm-gateway.example.com"
+      },
+      {
+        "id": "env:.claude/settings.json#DISABLE_TELEMETRY",
+        "file": ".claude/settings.json",
+        "line": 8,
+        "platforms": [
+          "claude-code",
+          "cursor",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "0a4885b61b0920",
+        "key": "DISABLE_TELEMETRY",
+        "class": "other"
+      },
+      {
+        "id": "env:.mcp.json#mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN",
+        "file": ".mcp.json",
+        "line": 10,
+        "platforms": [
+          "claude-code",
+          "copilot",
+          "windsurf"
+        ],
+        "digest": "18976cac861cc8",
+        "key": "mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN",
+        "class": "credential"
+      }
+    ],
+    "incomplete": [
+      ".codex/config.toml"
+    ]
+  }
 }

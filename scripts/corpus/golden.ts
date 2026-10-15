@@ -64,7 +64,7 @@ function compareGoldenRepos(a: GoldenRepo, b: GoldenRepo): number {
 }
 
 /** The canonical golden entry of one scanned repository. */
-export function goldenRepo(entry: RepoEntry, result: ScanResult): GoldenRepo {
+export function goldenRepo(entry: RepoEntry, result: Pick<ScanResult, 'findings'>): GoldenRepo {
   const findings = result.findings.map((finding): GoldenFinding => ({
     ruleId: finding.ruleId,
     path: finding.path,

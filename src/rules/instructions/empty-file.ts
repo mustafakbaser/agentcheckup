@@ -59,23 +59,39 @@ export const emptyFileRule = defineRule({
       ) {
         continue;
       }
-      const message = emptiness(context, artifact);
-      if (message !== undefined) context.report({ artifact, platforms, message });
+      const empty = emptiness(context, artifact);
+      if (empty === undefined) continue;
+      // Only Claude Code is documented to strip the comments; other readers get them.
+      const reported = empty.claudeOnly
+        ? platforms.filter((platform) => platform === 'claude-code')
+        : platforms;
+      if (reported.length > 0) {
+        context.report({ artifact, platforms: reported, message: empty.message });
+      }
     }
   },
 });
 
-function emptiness(context: ParseServices, artifact: Artifact): string | undefined {
+interface Emptiness {
+  readonly message: string;
+  /** Empty only after Claude Code strips block HTML comments. */
+  readonly claudeOnly: boolean;
+}
+
+function emptiness(context: ParseServices, artifact: Artifact): Emptiness | undefined {
   const { text } = artifact.decoded;
-  if (text.length === 0) return 'This file is empty, so agents get no instructions from it.';
+  const all = (message: string): Emptiness => ({ message, claudeOnly: false });
+  if (text.length === 0) return all('This file is empty, so agents get no instructions from it.');
   if (isBlank(text)) {
-    return 'This file contains only whitespace, so agents get no instructions from it.';
+    return all('This file contains only whitespace, so agents get no instructions from it.');
   }
 
   if (FRONTMATTER_KINDS.has(artifact.kind)) {
     const frontmatter = context.frontmatter(artifact);
     if (frontmatter.kind === 'valid' && isBlank(text.slice(frontmatter.bodyOffset))) {
-      return 'This rule has frontmatter but no body, so it adds no instructions when it loads.';
+      return all(
+        'This rule has frontmatter but no body, so it adds no instructions when it loads.',
+      );
     }
   }
 
@@ -90,7 +106,10 @@ function emptiness(context: ParseServices, artifact: Artifact): string | undefin
       }
       rest += text.slice(cursor);
       if (isBlank(rest)) {
-        return `This ${basename(artifact.path)} contains only HTML comments, which Claude Code strips before loading, so Claude Code gets no instructions from it.`;
+        return {
+          message: `This ${basename(artifact.path)} contains only HTML comments, which Claude Code strips before loading, so Claude Code gets no instructions from it.`,
+          claudeOnly: true,
+        };
       }
     }
   }

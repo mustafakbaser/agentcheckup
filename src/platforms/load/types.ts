@@ -39,8 +39,24 @@ export type LoadRole =
  * - `manual`: only when the user asks for it, with an `@`-mention or a `/command`.
  * - `on-approval`: after the user accepts a trust or approval prompt, as for `.mcp.json` servers
  *   and Codex hooks.
+ * - `unknown`: the agent reads the file, but when is not documented, such as a Cursor rule whose
+ *   frontmatter is not valid YAML. Always `unverified`.
  */
-export type LoadTrigger = 'startup' | 'on-path' | 'model-selected' | 'manual' | 'on-approval';
+export type LoadTrigger =
+  'startup' | 'on-path' | 'model-selected' | 'manual' | 'on-approval' | 'unknown';
+
+/**
+ * Triggers in assembly order: what is in the prompt first, then what can join later, then what
+ * cannot be told. Plans sort entries without a position by this rank.
+ */
+export const TRIGGER_RANK: Readonly<Record<LoadTrigger, number>> = {
+  startup: 0,
+  'on-path': 1,
+  'model-selected': 2,
+  manual: 3,
+  'on-approval': 4,
+  unknown: 5,
+};
 
 /**
  * How a claim about loading is backed.
@@ -157,7 +173,12 @@ export interface SkippedLoad {
   readonly path: string;
   readonly name?: string;
   readonly code: SkipCode;
-  /** The loading rule whose finding reports this skip. Absent only for `not-read`. */
+  /**
+   * The rule whose finding reports this skip: an unsuppressed finding of it on `path` lists the
+   * agent. Absent for `not-read`, and where no rule reports the skip, such as a CLAUDE.md over
+   * Claude Code's 4 MiB limit or an import in a template folder the rules leave alone.
+   * src/platforms/load/consistency.ts lists every case.
+   */
   readonly ruleId?: string;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
@@ -245,8 +266,10 @@ export interface LoadPlan {
 
 /**
  * One cell of the file-by-agent matrix.
- * - `startup`, `on-path`, `model-selected`, `manual`: loaded with that trigger.
- * - `start-dir`: Codex loads it when the session starts in that directory or below it.
+ * - `startup`, `on-path`, `model-selected`, `manual`: loaded with that trigger. MCP servers and
+ *   hooks the agent asks about first (`on-approval`) are `startup`: they start with the session.
+ * - `start-dir`: the agent loads it only when the session starts in that directory or below it,
+ *   as Codex does with a nested AGENTS.md.
  * - `listed`: a skill in the listing; its body loads when the model picks it.
  * - `partial`: loaded, but a limit cuts it.
  * - `skipped`: the agent skips it; the plan's `skipped` list says why.

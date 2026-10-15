@@ -25,7 +25,7 @@ import type { ResolvedConfig } from '../../core/config.js';
 import { codePointLength, estimateTokens, lineCount, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
-import { issueKind, own } from '../../parse/json-access.js';
+import { issueKind } from '../../parse/json-access.js';
 import type {
   FrontmatterResult,
   ImportReference,
@@ -34,7 +34,7 @@ import type {
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
-import { hookInventoryId, mcpInventoryId } from '../inventory-ids.js';
+import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
 import { inPayloadFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { CLAUDE_LISTING_MAX_CHARS, claudeSkillListing, skillLocation } from '../skills.js';
@@ -71,11 +71,11 @@ import type {
   LoadEntry,
   LoadPlan,
   LoadRole,
-  LoadTrigger,
   OutOfScope,
   Size,
   SkippedLoad,
 } from './types.js';
+import { TRIGGER_RANK } from './types.js';
 import type { LoadView } from './view.js';
 
 export interface ClaudeCodeLoadOptions {
@@ -101,6 +101,14 @@ const CHARS_PER_TOKEN = 4;
 
 const LINES_RULE = 'instr/claude-md-too-long';
 const SHADOW_RULE = 'instr/agents-md-ignored-by-claude';
+const CASE_RULE = 'instr/filename-case';
+
+/** Instruction files Claude Code finds by exact name. */
+const CASE_CHECKED_KINDS: ReadonlySet<Artifact['kind']> = new Set([
+  'agents-md',
+  'claude-md',
+  'claude-local-md',
+]);
 
 type Evidence = readonly (keyof typeof SOURCES)[];
 const MEMORY: Evidence = ['claudeMemory'];
@@ -108,14 +116,6 @@ const SKILLS: Evidence = ['claudeSkills'];
 const SUBAGENTS: Evidence = ['claudeSubagents'];
 const MCP: Evidence = ['claudeMcp'];
 const HOOKS: Evidence = ['claudeHooks', 'claudeSettings'];
-
-const TRIGGER_RANK: Readonly<Record<LoadTrigger, number>> = {
-  startup: 0,
-  'on-path': 1,
-  'model-selected': 2,
-  manual: 3,
-  'on-approval': 4,
-};
 
 /** Scopes outside the repository that add to what Claude Code loads. Listed, never read. */
 const HIDDEN: readonly HiddenScope[] = [
@@ -358,6 +358,7 @@ class ClaudeLoader {
   build(): LoadPlan {
     this.#instructions();
     this.#agentsMdSkips();
+    this.#caseMismatches();
     this.#skills();
     this.#commands();
     this.#subagents();
@@ -764,6 +765,25 @@ class ClaudeLoader {
     }
   }
 
+  /**
+   * Instruction files whose names match CLAUDE.md, CLAUDE.local.md or AGENTS.md only when case is
+   * ignored. Claude Code looks for the exact names, so on a case-sensitive file system it never
+   * finds them (instr/filename-case reports each one).
+   */
+  #caseMismatches(): void {
+    for (const artifact of this.#view.artifacts) {
+      if (artifact.caseMismatch === undefined || !CASE_CHECKED_KINDS.has(artifact.kind)) continue;
+      this.#skip({
+        role: 'instructions',
+        path: artifact.path,
+        code: 'case-mismatch',
+        ruleId: CASE_RULE,
+        certainty: 'documented',
+        evidence: MEMORY,
+      });
+    }
+  }
+
   // -------------------------------------------------------------------------------------------
   // Skills, commands and subagents
   // -------------------------------------------------------------------------------------------
@@ -931,7 +951,9 @@ class ClaudeLoader {
         this.#invalidJson(artifact, doc.errors, 'mcp-server', false, MCP);
         continue;
       }
-      for (const { name, config } of mcpServers(artifact, doc)) {
+      const servers = mcpServers(artifact, doc);
+      const inventoryIds = mcpInventoryIds(artifact.path, servers);
+      servers.forEach(({ name, config }, index) => {
         if (urlWithoutType(config)) {
           this.#skip({
             role: 'mcp-server',
@@ -942,7 +964,7 @@ class ClaudeLoader {
             certainty,
             evidence: MCP,
           });
-          continue;
+          return;
         }
         this.#add({
           id: `mcp-server:${path}#${name}`,
@@ -951,11 +973,11 @@ class ClaudeLoader {
           path,
           realPath: artifact.realPath,
           name,
-          inventoryId: mcpInventoryId(artifact.path, name),
+          inventoryId: inventoryIds[index] ?? '',
           certainty,
           evidence: MCP,
         });
-      }
+      });
     }
     for (const artifact of this.#view.artifacts) {
       if (artifact.kind !== 'mcp-json') continue;
@@ -995,25 +1017,24 @@ class ClaudeLoader {
             evidence: HOOKS,
           });
         }
-        const occurrences = new Map<string, number>();
-        for (const handler of hookHandlers(doc, 'claude-code')) {
-          const value = own(handler.handler, 'command');
-          const command = typeof value === 'string' ? value : '';
-          const key = `${handler.event}\u0000${command}`;
-          const occurrence = (occurrences.get(key) ?? 0) + 1;
-          occurrences.set(key, occurrence);
+        // Ids over every handler, as the inventory numbers them; unknown events are skipped above.
+        const handlers = hookHandlers(doc, 'claude-code', { includeUnknown: true });
+        const ids = hookInventoryIds(path, handlers);
+        const inventoryIds = hookInventoryIds(artifact.path, handlers);
+        handlers.forEach((handler, index) => {
+          if (!handler.known) return;
           this.#add({
-            id: hookInventoryId(path, handler.event, command, occurrence),
+            id: ids[index] ?? '',
             role: 'hook',
             trigger: 'on-approval',
             path,
             realPath: artifact.realPath,
             name: handler.event,
-            inventoryId: hookInventoryId(artifact.path, handler.event, command, occurrence),
+            inventoryId: inventoryIds[index] ?? '',
             certainty,
             evidence: HOOKS,
           });
-        }
+        });
       }
     }
     for (const artifact of this.#view.artifacts) {

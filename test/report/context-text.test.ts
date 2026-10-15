@@ -133,7 +133,10 @@ describe('formatContextText content', () => {
   });
 
   it('links MCP servers and hooks to the inventory, and falls back to the entry name', () => {
-    const { inventory: _omitted, ...bare }: ScanResult = result;
+    const bare: ScanResult = {
+      ...result,
+      inventory: { mcpServers: [], hooks: [], permissions: [], env: [], incomplete: [] },
+    };
     const output = formatContextText(bare);
     expect(output).toContain('  MCP, asks first:  github\n');
     expect(output).toContain('  Hooks:            PreToolUse\n');

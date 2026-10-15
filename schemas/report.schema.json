@@ -444,8 +444,8 @@
       ]
     },
     "loadTrigger": {
-      "description": "When the agent adds the entry to the model's context.",
-      "enum": ["startup", "on-path", "model-selected", "manual", "on-approval"]
+      "description": "When the agent adds the entry to the model's context. `unknown`: the agent reads the file, but when is not documented.",
+      "enum": ["startup", "on-path", "model-selected", "manual", "on-approval", "unknown"]
     },
     "certainty": {
       "description": "How a loading claim is backed. Text output marks `unverified` with \"?\".",

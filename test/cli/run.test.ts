@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXIT, exitCodeFor, run, type Io } from '../../src/cli/run.js';
+import { scanSnapshot } from '../../src/core/engine.js';
 import { VERSION } from '../../src/core/version.js';
-import { lint } from '../helpers/lint.js';
+import { snapshotFrom } from '../helpers/lint.js';
 import { builtinRules } from '../../src/rules/index.js';
 
 const SMOKE = fileURLToPath(new URL('../fixtures/smoke', import.meta.url));
@@ -148,7 +149,7 @@ describe('run', () => {
 });
 
 describe('exitCodeFor', () => {
-  const clean = lint({ 'AGENTS.md': '# ok\n' }, { rules: builtinRules });
+  const clean = scanSnapshot(snapshotFrom({ 'AGENTS.md': '# ok\n' }), { rules: builtinRules });
 
   it('is 0 for a clean result and 3 when a rule crashed', () => {
     expect(exitCodeFor(clean, 'error', undefined)).toBe(EXIT.ok);
@@ -162,7 +163,9 @@ describe('exitCodeFor', () => {
   });
 
   it('ignores a missing score for --min-score', () => {
-    const empty = lint({ 'README.md': '# hi\n' }, { rules: builtinRules });
+    const empty = scanSnapshot(snapshotFrom({ 'README.md': '# hi\n' }), {
+      rules: builtinRules,
+    });
     expect(exitCodeFor(empty, 'error', 90)).toBe(EXIT.ok);
   });
 });

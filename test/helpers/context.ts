@@ -779,21 +779,19 @@ export function shuffleReport(result: ScanResult, seed: number): ScanResult {
           }),
     };
   }
-  if (result.inventory !== undefined) {
-    const value = result.inventory;
-    out.inventory = {
-      incomplete: shuffle(value.incomplete, seed),
-      env: shuffle(value.env, seed + 1),
-      permissions: shuffle(value.permissions, seed + 2),
-      hooks: shuffle(value.hooks, seed + 3),
-      mcpServers: shuffle(value.mcpServers, seed + 4).map((item) => ({
-        ...item,
-        envKeys: shuffle(item.envKeys, seed),
-        headerKeys: shuffle(item.headerKeys, seed + 1),
-        status: shuffledKeys(item.status, seed),
-      })),
-    };
-  }
+  const inventory = result.inventory;
+  out.inventory = {
+    incomplete: shuffle(inventory.incomplete, seed),
+    env: shuffle(inventory.env, seed + 1),
+    permissions: shuffle(inventory.permissions, seed + 2),
+    hooks: shuffle(inventory.hooks, seed + 3),
+    mcpServers: shuffle(inventory.mcpServers, seed + 4).map((item) => ({
+      ...item,
+      envKeys: shuffle(item.envKeys, seed),
+      headerKeys: shuffle(item.headerKeys, seed + 1),
+      status: shuffledKeys(item.status, seed),
+    })),
+  };
   if (result.baseline !== undefined) {
     const value = result.baseline;
     out.baseline = {

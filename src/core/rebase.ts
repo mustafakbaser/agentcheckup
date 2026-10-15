@@ -175,7 +175,7 @@ function mapPaths(result: ScanResult, map: PathMap): ScanResult {
       ...entry,
       path: map(entry.path),
     })),
-    ...(result.inventory === undefined ? {} : { inventory: mapInventory(result.inventory, map) }),
+    inventory: mapInventory(result.inventory, map),
     ...(result.context === undefined ? {} : { context: mapContext(result.context, map) }),
     ...(result.baseline === undefined ? {} : { baseline: mapBaseline(result.baseline, map) }),
   };

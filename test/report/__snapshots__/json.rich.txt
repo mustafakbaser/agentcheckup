@@ -616,5 +616,12 @@
   ],
   "configWarnings": [
     "Unknown rule \"instructions/typo-rule\" in configuration."
-  ]
+  ],
+  "inventory": {
+    "mcpServers": [],
+    "hooks": [],
+    "permissions": [],
+    "env": [],
+    "incomplete": []
+  }
 }

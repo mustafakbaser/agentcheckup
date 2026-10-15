@@ -9,9 +9,10 @@ workflow notices when a cited source changes, so the rules that cite it get re-c
 `.github/workflows/source-drift.yml` runs every Wednesday at 06:23 UTC, and on demand from the
 Actions tab. It:
 
-1. runs `pnpm drift:check`. The script fetches every URL that a built-in rule cites, normalizes
-   the content, hashes it with SHA-256 and compares the hash with
-   `scripts/drift/baseline.json`;
+1. runs `pnpm drift:check`. The script fetches every URL that a built-in rule cites, and every
+   source in `src/platforms/sources.ts`, which load plans and the security inventory cite by key
+   (listed as used by "context loaders"). It normalizes the content, hashes it with SHA-256 and
+   compares the hash with `scripts/drift/baseline.json`;
 2. opens one issue per changed source, labeled `source-drift`, and one issue that lists the
    sources it could not fetch.
 
@@ -47,7 +48,9 @@ page includes the table of contents of the whole specification, and Google Cloud
 ## When an issue opens
 
 1. Re-read the source. For GitHub files, the issue links the file's commit history.
-2. Compare it with each rule the issue lists: its message, rationale, severity and tests.
+2. Compare it with each rule the issue lists: its message, rationale, severity and tests. For
+   "context loaders", compare it with the loaders in `src/platforms/load` and the inventory in
+   `src/inventory` that cite the source.
 3. If the behavior changed, update the rule and its tests, then run `pnpm docs:generate`. If it
    did not, bump the `checked` date of that source in the rule's metadata.
 4. In the same pull request, run `pnpm drift:update --only <url>` and commit

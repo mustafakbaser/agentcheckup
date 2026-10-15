@@ -250,6 +250,8 @@ function serviceGroup(entry: LoadEntry): string {
       return `${base}, when picked`;
     case 'manual':
       return `${base}, manual`;
+    case 'unknown':
+      return `${base}, when is not known`;
   }
 }
 
@@ -277,6 +279,8 @@ function whenText(entry: LoadEntry, agent: ContextAgent): string {
         : 'only when you ask for it';
     case 'on-approval':
       return 'after you approve it';
+    case 'unknown':
+      return 'when is not documented';
   }
 }
 
@@ -417,7 +421,7 @@ function sumSizes(sizes: readonly (Size | undefined)[]): Size {
 export function planViews(result: ScanResult): PlanView[] {
   if (result.context === undefined) return [];
   const context = toJsonContext(result.context);
-  const inventory = result.inventory === undefined ? undefined : toJsonInventory(result.inventory);
+  const inventory = toJsonInventory(result.inventory);
   return context.plans.map((plan) => planView(plan, inventory));
 }
 

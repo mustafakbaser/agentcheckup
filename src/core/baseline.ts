@@ -91,11 +91,16 @@ export function parseGateClasses(text: string): GateParseResult {
 // Comparison
 // ---------------------------------------------------------------------------------------------
 
-/** The parts of the current scan a comparison reads. */
+/**
+ * The parts of the current scan a comparison reads. Every scan has an inventory; without one, the
+ * comparison reads an empty inventory, as it does for a baseline made before inventories existed.
+ */
 export type CurrentScan = Pick<
   ScanResult,
-  'ruleset' | 'rules' | 'findings' | 'pathBase' | 'inventory' | 'context'
->;
+  'ruleset' | 'rules' | 'findings' | 'pathBase' | 'context'
+> & {
+  readonly inventory?: Inventory;
+};
 
 export interface BaselineOptions {
   /** Classes whose changes trip the gate, as from {@link parseGateClasses}. Default: none. */

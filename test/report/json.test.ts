@@ -435,6 +435,7 @@ describe('schemas/report.schema.json', () => {
       'model-selected',
       'manual',
       'on-approval',
+      'unknown',
     ] as const satisfies readonly LoadTrigger[];
     const CERTAINTIES = [
       'documented',

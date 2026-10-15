@@ -1,11 +1,12 @@
 /**
- * Checks the sources cited by agentcheckup's rules for changes.
+ * Checks the sources cited by agentcheckup's rules and context loaders for changes.
  *
  *   pnpm drift:check [--format text|json] [--report <file>] [--only <url>]...
  *   pnpm drift:update [--only <url>]...
  *
- * Fetches every URL in the built-in rules' `meta.sources`, normalizes and hashes the content,
- * and compares the hashes with scripts/drift/baseline.json. Exit code 0: nothing changed.
+ * Fetches every URL in the built-in rules' `meta.sources` and in src/platforms/sources.ts (the
+ * sources load plans and the inventory cite by key), normalizes and hashes the content, and
+ * compares the hashes with scripts/drift/baseline.json. Exit code 0: nothing changed.
  * 1: a source changed, is new, or could not be fetched. 2: usage error or unreadable baseline.
  *
  * `--update` writes the current hashes to the baseline instead. Use it after re-reading the
@@ -21,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { DIRECTIVE_RULES } from '../../src/core/directive-rules.js';
+import { SOURCES } from '../../src/platforms/sources.js';
 import { forTerminal } from '../../src/report/sanitize.js';
 import { builtinRules } from '../../src/rules/index.js';
 import {
@@ -110,7 +112,10 @@ async function main(args: readonly string[]): Promise<number> {
     return usageError('--update cannot be combined with --format or --report');
   }
 
-  const index = buildSourceIndex([...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES]);
+  const index = buildSourceIndex(
+    [...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES],
+    SOURCES,
+  );
   const { watched, own } = splitOwnSources(index);
   let selected: SourceIndex = watched;
   if (values.only.length > 0) {
@@ -119,7 +124,9 @@ async function main(args: readonly string[]): Promise<number> {
       const rules = watched.get(url);
       if (rules === undefined) {
         return usageError(
-          own.has(url) ? `${url} is in this repository and is not checked` : `no rule cites ${url}`,
+          own.has(url)
+            ? `${url} is in this repository and is not checked`
+            : `no rule or context loader cites ${url}`,
         );
       }
       subset.set(url, rules);
