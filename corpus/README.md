@@ -7,14 +7,14 @@ instructions, `.mcp.json` and hooks, including monorepos with nested `AGENTS.md`
 scans each one at a fixed commit with every built-in rule, so the false-positive rate of the rule
 set can be measured and compared across changes.
 
-| File                     | Committed | What it is                                                                     |
-| ------------------------ | --------- | ------------------------------------------------------------------------------ |
-| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`              |
-| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: artifacts by kind, findings by rule, score buckets       |
-| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity          |
-| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review       |
-| `golden.json`            | no        | Every finding per repository, for checking that a refactor changes none        |
-| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `golden.ts`, `pin.ts`, and the walk emulation they share |
+| File                     | Committed | What it is                                                                                                           |
+| ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------- |
+| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`                                                    |
+| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: what agents load, artifacts, findings by rule, scores                                          |
+| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity                                                |
+| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review                                             |
+| `golden.json`            | no        | Every finding per repository, for checking that a refactor changes none                                              |
+| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `golden.ts`, `pin.ts`, `consistency.ts`, `context-stats.ts`, and the walk emulation they share |
 
 Publication policy: following [ADR 0005](../docs/adr/0005-scoring.md), only aggregate statistics
 are committed (`SUMMARY.md`); per-repository results (`results.json`, `REPORT.md`, `golden.json`)
@@ -40,6 +40,16 @@ npx tsx scripts/corpus/fetch.ts && npx tsx scripts/corpus/run.ts
   repository (a crash on real input is a bug in the rule; the crashes are listed) and 2 when the
   cache is incomplete. `--only owner/name` prints that repository's findings instead and writes
   nothing.
+- Without options, `run.ts` also plans every repository as `agentcheckup context --matrix` does
+  and builds the inventory, for the "What agents load" section of `SUMMARY.md`
+  ([context-stats.ts](../scripts/corpus/context-stats.ts)). That section adds counts up across the
+  corpus and names no repository, path or server. A loader that throws makes `run.ts` exit 1, like
+  a rule crash.
+- `run.ts --consistency` plans every repository the same way and checks the plans against the
+  findings, as `test/platforms/load/consistency.test.ts` does on fixtures: every file a plan
+  skips because of a problem must have its finding, and every loading finding its skip. It prints
+  the mismatches grouped by rule, writes nothing, and exits 1 if there is any mismatch or a loader
+  crash. It combines with `--only` and `--check-golden`.
 - `run.ts --write-golden` scans the whole corpus and writes only `golden.json`: for each
   repository, every finding as rule id, path, range, severity, fingerprint and a hash of the
   message, sorted. `run.ts --check-golden` scans again, compares with `golden.json` and writes

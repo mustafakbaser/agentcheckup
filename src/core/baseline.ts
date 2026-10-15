@@ -565,8 +565,9 @@ const REMOTE_TRANSPORTS: ReadonlySet<string> = new Set(['http', 'sse', 'ws']);
 /**
  * True when the server's code is not pinned. A remote server without a package runs no local
  * code, so it has no pin; a local server without a package spec cannot be shown to be pinned.
+ * The `mcp-unpinned` gate class uses it, and so do the corpus statistics (scripts/corpus).
  */
-function isUnpinned(server: McpServerItem): boolean {
+export function isUnpinned(server: McpServerItem): boolean {
   if (server.package !== undefined) return !PINNED.has(server.package.pin);
   return server.url === undefined && !REMOTE_TRANSPORTS.has(server.transport);
 }

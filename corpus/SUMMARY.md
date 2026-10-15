@@ -17,6 +17,70 @@ Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 59 built-in rules) on
 | Repositories with findings  |   70 |
 | Rules that crashed          |    0 |
 
+## What agents load
+
+What Claude Code, Codex and Cursor load from each repository, as `agentcheckup context --matrix` plans it: every agent in the root directory, plus Codex in each directory with an `AGENTS.md`. Repository scope only: user and managed settings are not visible. Token counts are estimates (characters ÷ 4). See [docs/context.md](../docs/context.md).
+
+|                                                                        | Repositories |
+| ---------------------------------------------------------------------- | -----------: |
+| Some agent loads instructions at session start, root directory         |           71 |
+| The three agents load different instruction files                      |     41 of 71 |
+| One of the three loads no instructions at all                          |     13 of 41 |
+| Root `AGENTS.md`                                                       |           55 |
+| Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead |     11 of 55 |
+| Some agent skips an agent-config file or item                          |           30 |
+| Claude Code skips one                                                  |           24 |
+| Codex skips one                                                        |            5 |
+| Cursor skips one                                                       |            4 |
+| `AGENTS.md` chain over Codex's 32 KiB default, root directory          |            5 |
+| `AGENTS.md` chain over Codex's 32 KiB default, any working directory   |           14 |
+| Loader crashes                                                         |            0 |
+
+"The three agents load different instruction files" compares the instruction files, imports and rules each agent has in context at session start, by real path. Working directories are the root and each directory with an `AGENTS.md`, except inside skills, dot directories, and templates, examples or fixtures folders, as `instr/codex-size-budget` decides. A skip counts only when the agent does not read the same file through another path, such as an `AGENTS.md` and a `CLAUDE.md` symlinked to one file.
+
+### Session-start context, root directory
+
+In ≈tokens. "Instructions" are instruction files, imports and rules, after documented cuts such as Codex's byte limit; only repositories where the agent loads one are counted. "With the skills listing" adds skill names and descriptions as the repository writes them, before an agent shortens a long listing; only repositories where the agent loads anything at session start are counted. Percentiles use the nearest-rank method.
+
+|                                      | Repositories | Median | 90th percentile | Largest |
+| ------------------------------------ | -----------: | -----: | --------------: | ------: |
+| Claude Code: instructions            |           70 |  2,020 |           9,743 |  27,396 |
+| Claude Code: with the skills listing |           70 |  2,649 |           9,743 |  28,191 |
+| Codex: instructions                  |           58 |  2,200 |           7,323 |   8,189 |
+| Codex: with the skills listing       |           59 |  2,892 |           8,186 |  48,675 |
+| Cursor: instructions                 |           70 |  2,966 |          10,941 |  27,396 |
+| Cursor: with the skills listing      |           70 |  3,997 |          12,380 |  71,481 |
+
+### Why agents skip files
+
+Repositories where a modeled agent skips a file or item for this reason, in a plan for a working directory.
+
+| Code                    | Reason                                        | Repositories |
+| ----------------------- | --------------------------------------------- | -----------: |
+| `shadowed-by-claude-md` | AGENTS.md hidden by a CLAUDE.md (Claude Code) |           24 |
+| `over-byte-budget`      | over a byte limit                             |            5 |
+| `not-mdc`               | not an .mdc file (Cursor)                     |            3 |
+| `blank-file`            | blank file                                    |            1 |
+
+### MCP servers, hooks, permissions and env overrides
+
+From the security inventory, which lists every item whether or not an agent loads it today. A local server is unpinned when its package has no exact version or digest, or when its command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. Broad permissions allow any shell command or any file write or edit, including skill `allowed-tools`. `.codex/config.toml` is not parsed, so Codex servers and hooks declared there are not counted.
+
+|                                            | Repositories | Items |
+| ------------------------------------------ | -----------: | ----: |
+| MCP servers                                |           26 |   113 |
+| Local MCP servers (started from a command) |           19 |    85 |
+| Unpinned local MCP servers                 |           16 |    73 |
+| Remote MCP servers (URL)                   |           17 |    28 |
+| Hooks                                      |           27 |   214 |
+| Hooks that fail open                       |           12 |    36 |
+| Broad permissions                          |           23 |   739 |
+| Env overrides: endpoint                    |            0 |     0 |
+| Env overrides: credential                  |            2 |    21 |
+| Env overrides: tls                         |            0 |     0 |
+| Env overrides: code-exec                   |            3 |     5 |
+| `.codex/config.toml`, not analyzed         |            6 |     - |
+
 ## Artifacts by kind
 
 | Kind                        | Artifacts | Repositories |

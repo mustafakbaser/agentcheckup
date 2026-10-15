@@ -22,9 +22,11 @@
  *
  * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
- * suppress findings.
+ * suppress findings. Without options, each repository is also planned as `agentcheckup context
+ * --matrix` plans it, for the aggregate "What agents load" section of SUMMARY.md
+ * (context-stats.ts).
  *
- * Exit status: 0 ok, 1 a rule crashed on at least one repository (listed on stderr),
+ * Exit status: 0 ok, 1 a rule or loader crashed on at least one repository (listed on stderr),
  * --check-golden found a difference, or --consistency found a mismatch or a loader crash, 2 the
  * cache is incomplete (run fetch.ts first) or --check-golden has no corpus/golden.json to compare
  * with.
@@ -44,6 +46,7 @@ import { forJsonOutput, forMarkdown, forTerminal } from '../../src/report/saniti
 import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
 import { type RepoConsistency, renderConsistency, repoConsistency } from './consistency.js';
+import { type RepoContextFacts, renderContextSection, scanForSummary } from './context-stats.js';
 import {
   compareGolden,
   findingCount,
@@ -596,6 +599,7 @@ function renderSummary(
   repos: readonly RepoEntry[],
   scanned: readonly Scanned[],
   crashes: readonly Crash[],
+  context: readonly RepoContextFacts[],
 ): string {
   const stats = ruleStats(scanned);
   const reposWith = (stat: RuleStats, severity?: Severity): string =>
@@ -625,6 +629,10 @@ function renderSummary(
     '## Overview',
     '',
     overviewTable(scanned, crashes),
+    '',
+    '## What agents load',
+    '',
+    renderContextSection(context),
     '',
     '## Artifacts by kind',
     '',
@@ -768,8 +776,14 @@ if (values['check-golden'] && savedGolden === undefined) {
   process.exit(2);
 }
 
+// The default mode writes SUMMARY.md, whose "What agents load" section needs load plans.
+const writesSummary =
+  !values.consistency && !values['write-golden'] && !values['check-golden'] && only.size === 0;
+
 const scanned: Scanned[] = [];
 const consistency: RepoConsistency[] = [];
+const contextFacts: RepoContextFacts[] = [];
+const loaderCrashes: string[] = [];
 const incomplete: string[] = [];
 const importsNotFetched: string[] = [];
 for (const entry of selected) {
@@ -787,6 +801,13 @@ for (const entry of selected) {
     const checked = repoConsistency(repoLabel(entry), loaded.snapshot);
     consistency.push(checked);
     result = checked.result;
+  } else if (writesSummary) {
+    const planned = scanForSummary(loaded.snapshot);
+    contextFacts.push(planned.facts);
+    if (planned.facts.crash !== undefined) {
+      loaderCrashes.push(`${repoLabel(entry)}: ${forTerminal(planned.facts.crash)}`);
+    }
+    result = planned.result;
   } else {
     result = scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
   }
@@ -852,7 +873,10 @@ if (values['write-golden']) {
     forJsonOutput(JSON.stringify(results, null, 2)),
   );
   await writeFormatted(path.join(CORPUS_DIR, 'REPORT.md'), renderReport(repos, scanned, crashes));
-  await writeFormatted(path.join(CORPUS_DIR, 'SUMMARY.md'), renderSummary(repos, scanned, crashes));
+  await writeFormatted(
+    path.join(CORPUS_DIR, 'SUMMARY.md'),
+    renderSummary(repos, scanned, crashes, contextFacts),
+  );
   const totals = zero();
   for (const { summary } of scanned) {
     for (const severity of ['error', 'warn', 'info'] as const)
@@ -877,5 +901,10 @@ if (crashes.length > 0) {
         )
         .join('\n'),
   );
+  process.exitCode = 1;
+}
+
+if (loaderCrashes.length > 0) {
+  log(`\nLoaders crashed on real input:\n${loaderCrashes.map((line) => `- ${line}`).join('\n')}`);
   process.exitCode = 1;
 }
