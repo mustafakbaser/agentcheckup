@@ -1,0 +1,34 @@
+<u>.cursor/rules/style.mdc</u>
+  <dim>2:1</dim>  <yellow>warning</yellow>  `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  <gray>cursor/conflicting-activation</gray>
+
+<u>AGENTS.md</u>
+  <dim> 1:1</dim>  <blue>info</blue>     Start with a one-paragraph project overview.       <gray>clarity/missing-overview</gray>
+  <dim>12:3</dim>  <red>error</red>    Line contains 3 invisible Unicode tag characters.  <gray>risk/hidden-unicode</gray>
+  <dim>30:1</dim>  <dim>warning</dim>  <dim>Pipes a remote script into a shell: curl https://example.com/install.sh | sh</dim>  <gray>risk/remote-script</gray>
+                 <dim>suppressed by inline directive: Documented install step, reviewed 2026-10</dim>
+
+<u>CLAUDE.md</u>
+  <dim>  1:1</dim>  <yellow>warning</yellow>  File is 52,310 characters; Claude Code works best under 40,000.       <gray>budget/file-too-large</gray>
+  <dim>  3:5</dim>  <red>error</red>    Imported file docs/missing.md does not exist.                         <gray>instructions/broken-import</gray>
+                  <gray>↳ docs/: Closest existing directory</gray>
+  <dim>140:1</dim>  <blue>info</blue>     @-imports are only read by Claude Code; Codex sees the literal text.  <gray>portability/claude-only-import</gray>
+                  <gray>↳ AGENTS.md:1:1: Codex reads this file instead</gray>
+                  <gray>↳ docs/a.md:4:1: Imported here</gray>
+                  <gray>↳ docs/b.md:5:1: Imported here</gray>
+                  <gray>↳ … and 1 more related location</gray>
+
+<u>skills/deploy/SKILL.md</u>
+  <dim>2:1</dim>  <dim>warning</dim>  <dim>No risk/remote-script finding to suppress here.</dim>  <gray>directive/unused</gray>
+                <dim>suppressed by configuration: Generated file</dim>
+
+<yellow>!</yellow> 4 files not checked (too large: 1, binary: 1, file limit reached: 2): big/AGENTS.md, assets/CLAUDE.md, vendor/a/AGENTS.md, … and 1 more
+<yellow>!</yellow> 2 symlinks not followed (points outside the scan root: 1, broken: 1): GEMINI.md → ../../shared/GEMINI.md, .github/copilot-instructions.md → missing.md
+<yellow>!</yellow> Unknown rule "instructions/typo-rule" in configuration.
+
+<red><b>✖ 1 rule failed to run. Results are incomplete.</b></red>
+    <b>mcp/unknown-server-field</b>: Cannot read properties of undefined (reading 'type')
+  This is a bug in agentcheck. Please report it: https://github.com/mustafakbaser/agentcheck/issues
+
+<red><b>✖ 6 problems (2 errors, 2 warnings, 2 infos)</b></red><dim> · 2 suppressed</dim>
+  <dim>loading 1 warning · budget 1 warning · portability 1 info · correctness 1 error · risk 1 error · clarity 1 info</dim>
+Agent config score <b>49/100</b> (<red>F</red>) · <red>capped by a risk finding</red> · ruleset 2026.10

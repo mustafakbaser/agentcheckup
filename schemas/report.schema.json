@@ -1,0 +1,416 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/report.schema.json",
+  "title": "agentcheck JSON report",
+  "description": "Output of `agentcheck --format json`. Positions are 1-based; columns count UTF-16 code units. Paths are POSIX and relative to the scan root. Strings are data from the scanned repository: treat them as untrusted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ruleset",
+    "targets",
+    "artifacts",
+    "findings",
+    "score",
+    "summary",
+    "rules",
+    "skipped",
+    "unresolvedSymlinks",
+    "ruleFailures",
+    "configWarnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this report shape. Incremented on any incompatible change.",
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ruleset": {
+      "description": "Calendar-versioned rule set, e.g. 2026.10.",
+      "type": "string",
+      "minLength": 1
+    },
+    "targets": {
+      "description": "Platforms the scan targeted, sorted.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/platformId" },
+      "uniqueItems": true
+    },
+    "artifacts": {
+      "description": "Recognized agent configuration files, sorted by path.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifactSummary" }
+    },
+    "findings": {
+      "description": "Sorted by path, line, column, rule id. Includes suppressed findings, marked with `suppressed`.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "score": { "$ref": "#/$defs/scoreReport" },
+    "summary": {
+      "description": "Counts of unsuppressed findings by severity, and of suppressed findings.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errors", "warnings", "infos", "suppressed"],
+      "properties": {
+        "errors": { "$ref": "#/$defs/count" },
+        "warnings": { "$ref": "#/$defs/count" },
+        "infos": { "$ref": "#/$defs/count" },
+        "suppressed": { "$ref": "#/$defs/count" }
+      }
+    },
+    "rules": {
+      "description": "Metadata of every rule that ran, plus the inline-directive rules, sorted by id.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/ruleMeta" }
+    },
+    "skipped": {
+      "description": "Files that were found but not checked.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/skippedEntry" }
+    },
+    "unresolvedSymlinks": {
+      "description": "Symlinks that were not followed.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/unresolvedSymlink" }
+    },
+    "ruleFailures": {
+      "description": "Rules that crashed. Non-empty means the results are incomplete.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/ruleFailure" }
+    },
+    "configWarnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "platformId": {
+      "enum": ["claude-code", "codex", "cursor", "copilot", "gemini", "windsurf", "cline"]
+    },
+    "severity": { "enum": ["info", "warn", "error"] },
+    "category": {
+      "enum": ["loading", "budget", "portability", "correctness", "risk", "clarity"]
+    },
+    "artifactKind": {
+      "enum": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "claude-settings",
+        "claude-plugin-manifest",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "cursor-hooks",
+        "cursor-mcp",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "gemini-settings",
+        "mcp-json",
+        "codex-hooks",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ]
+    },
+    "grade": { "enum": ["A", "B", "C", "D", "F"] },
+    "path": {
+      "description": "POSIX path relative to the scan root.",
+      "type": "string",
+      "minLength": 1
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "column"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "column": {
+          "description": "1-based, in UTF-16 code units.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "range": {
+      "description": "`end` is exclusive: the position just after the last character.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/position" },
+        "end": { "$ref": "#/$defs/position" }
+      }
+    },
+    "artifactSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "readers"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "kind": { "$ref": "#/$defs/artifactKind" },
+        "readers": {
+          "description": "Platforms that read this kind of file.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "relatedLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "message"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "message": { "type": "string" },
+        "range": { "$ref": "#/$defs/range" }
+      }
+    },
+    "textEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offset", "length", "text"],
+      "properties": {
+        "offset": {
+          "description": "0-based offset into the decoded text (BOM removed), in UTF-16 code units.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "length": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string" }
+      }
+    },
+    "fix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "safety", "edits"],
+      "properties": {
+        "description": { "type": "string" },
+        "safety": { "enum": ["safe", "suggestion"] },
+        "edits": { "type": "array", "items": { "$ref": "#/$defs/textEdit" } }
+      }
+    },
+    "suppression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": { "enum": ["inline", "config"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ruleId",
+        "severity",
+        "category",
+        "message",
+        "path",
+        "range",
+        "related",
+        "platforms",
+        "fingerprint"
+      ],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "severity": { "$ref": "#/$defs/severity" },
+        "category": { "$ref": "#/$defs/category" },
+        "message": { "type": "string" },
+        "path": { "$ref": "#/$defs/path" },
+        "range": { "$ref": "#/$defs/range" },
+        "related": { "type": "array", "items": { "$ref": "#/$defs/relatedLocation" } },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "fingerprint": {
+          "description": "Stable across line shifts: `<hash>:<occurrence>`.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+:[1-9][0-9]*$"
+        },
+        "fix": { "$ref": "#/$defs/fix" },
+        "suppressed": { "$ref": "#/$defs/suppression" }
+      }
+    },
+    "categoryTally": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errors", "warnings", "infos"],
+      "properties": {
+        "errors": { "$ref": "#/$defs/count" },
+        "warnings": { "$ref": "#/$defs/count" },
+        "infos": { "$ref": "#/$defs/count" }
+      }
+    },
+    "scoreReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formula", "score", "grade", "capped", "categories", "artifacts"],
+      "properties": {
+        "formula": {
+          "description": "Version of the scoring formula (docs/scoring.md).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "score": {
+          "description": "0 to 100, or null when no agent configuration files were found.",
+          "oneOf": [{ "type": "integer", "minimum": 0, "maximum": 100 }, { "type": "null" }]
+        },
+        "grade": {
+          "oneOf": [{ "$ref": "#/$defs/grade" }, { "type": "null" }]
+        },
+        "capped": {
+          "description": "True when an unsuppressed risk error capped the score.",
+          "type": "boolean"
+        },
+        "categories": {
+          "description": "Unsuppressed findings per category.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["loading", "budget", "portability", "correctness", "risk", "clarity"],
+          "properties": {
+            "loading": { "$ref": "#/$defs/categoryTally" },
+            "budget": { "$ref": "#/$defs/categoryTally" },
+            "portability": { "$ref": "#/$defs/categoryTally" },
+            "correctness": { "$ref": "#/$defs/categoryTally" },
+            "risk": { "$ref": "#/$defs/categoryTally" },
+            "clarity": { "$ref": "#/$defs/categoryTally" }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "score"],
+            "properties": {
+              "path": { "$ref": "#/$defs/path" },
+              "score": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
+        }
+      }
+    },
+    "ruleSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "url", "checked", "status"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^https?://" },
+        "checked": {
+          "description": "ISO date when the behavior was last checked against this source.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "status": { "enum": ["verified", "unverified"] }
+      }
+    },
+    "ruleMeta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "rationale",
+        "category",
+        "severity",
+        "appliesTo",
+        "platforms",
+        "sources",
+        "since"
+      ],
+      "properties": {
+        "id": {
+          "description": "`<family>/<kebab-name>`. Stable, never reused.",
+          "type": "string",
+          "minLength": 1
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "rationale": { "description": "Markdown.", "type": "string" },
+        "category": { "$ref": "#/$defs/category" },
+        "severity": {
+          "$ref": "#/$defs/severity",
+          "description": "Default severity. A finding may override it."
+        },
+        "appliesTo": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactKind" },
+          "uniqueItems": true
+        },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ruleSource" },
+          "minItems": 1
+        },
+        "since": { "description": "Rule set version that introduced the rule.", "type": "string" },
+        "fixable": { "enum": ["safe", "suggestion"] }
+      }
+    },
+    "skippedEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "reason"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "reason": {
+          "enum": [
+            "too-large",
+            "binary",
+            "special-file",
+            "unreadable",
+            "file-limit",
+            "byte-limit",
+            "depth-limit"
+          ]
+        },
+        "size": { "description": "Size in bytes, when known.", "type": "integer", "minimum": 0 }
+      }
+    },
+    "unresolvedSymlink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "target", "problem"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "target": { "description": "The link text as stored on disk.", "type": "string" },
+        "problem": { "enum": ["outside-root", "broken", "not-a-regular-file"] }
+      }
+    },
+    "ruleFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleId", "message"],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}
