@@ -1,9 +1,12 @@
+import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
 import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
 import { classify, READERS } from '../platforms/classify.js';
 import { MARKDOWN_KINDS } from '../platforms/kinds.js';
+import type { ContextReport } from '../platforms/load/types.js';
+import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import { EMPTY_CONFIG, type ResolvedConfig } from './config.js';
 import {
@@ -90,6 +93,20 @@ export interface ScanResult {
   readonly unresolvedSymlinks: readonly UnresolvedSymlink[];
   readonly ruleFailures: readonly RuleFailure[];
   readonly configWarnings: readonly string[];
+  /**
+   * The prefix `rebaseResult` added to every path, `''` when paths are relative to the scanned
+   * directory. `--baseline` removes it before comparing two reports.
+   */
+  readonly pathBase?: string;
+  /**
+   * Security inventory. Optional only until the inventory builder (src/inventory, work unit U6)
+   * lands; after that every scan includes it.
+   */
+  readonly inventory?: Inventory;
+  /** Load plans, from `agentcheckup context` or a scan with `--context`. */
+  readonly context?: ContextReport;
+  /** Comparison with the `--baseline` report, when one was given. */
+  readonly baseline?: BaselineDiff;
 }
 
 interface PendingFinding {

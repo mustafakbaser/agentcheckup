@@ -11,8 +11,8 @@ TypeScript CLI that lints coding-agent configuration files. Node.js >= 22.12, pn
 
 ## Layout
 
-- `src/core`, `src/parse`, `src/platforms`, `src/rules`, `src/report` must not import `node:fs`,
-  `node:process` or other I/O modules. ESLint enforces it.
+- `src/core`, `src/parse`, `src/platforms`, `src/inventory`, `src/rules`, `src/report` must not
+  import `node:fs`, `node:process` or other I/O modules. ESLint enforces it.
 - File system access only in `src/io`. Process handling only in `src/cli`.
 - Rules: `src/rules/<family>/<name>.ts`, tests in `test/rules/<family>/<name>.test.ts`.
 

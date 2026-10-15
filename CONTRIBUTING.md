@@ -43,6 +43,7 @@ src/
   core/        engine, config, scoring, suppressions, text decoding     (pure)
   parse/       hardened YAML frontmatter, Markdown, imports, JSON        (pure)
   platforms/   which files each agent reads, and where                   (pure)
+  inventory/   MCP servers, hooks, permissions and env overrides         (pure)
   rules/       one file per rule, grouped by family                      (pure)
   report/      stylish, JSON, SARIF, GitHub, Markdown output, sanitizers (pure)
   io/          the only code that touches the file system

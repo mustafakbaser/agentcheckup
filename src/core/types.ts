@@ -1,6 +1,6 @@
 /**
- * Core data model. Everything in src/core, src/parse, src/platforms, src/rules and src/report is
- * pure: it receives bytes and returns data. File access lives in src/io only.
+ * Core data model. Everything in src/core, src/parse, src/platforms, src/inventory, src/rules and
+ * src/report is pure: it receives bytes and returns data. File access lives in src/io only.
  *
  * Positions follow one convention everywhere:
  * - `offset` is a 0-based index into the decoded text (BOM removed), in UTF-16 code units.
@@ -327,6 +327,11 @@ export interface Finding {
   readonly fingerprint: string;
   readonly fix?: Fix;
   readonly suppressed?: Suppression;
+  /**
+   * Set when the scan ran with `--baseline`. `new` when no baseline finding is left to match its
+   * fingerprint, otherwise `unchanged`.
+   */
+  readonly baseline?: 'new' | 'unchanged';
 }
 
 export interface RuleFailure {

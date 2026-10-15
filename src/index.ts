@@ -29,6 +29,7 @@ export async function scan(root: string, options: ScanDirectoryOptions = {}): Pr
   });
 }
 
+export type * from './core/baseline-types.js';
 export { ConfigError, resolveConfig, type ResolvedConfig, type UserConfig } from './core/config.js';
 export { scanSnapshot, type ScanOptions, type ScanResult } from './core/engine.js';
 export { RULESET_VERSION, TOOL_NAME } from './core/meta.js';
@@ -36,5 +37,8 @@ export type { ScoreReport } from './core/score.js';
 export type * from './core/types.js';
 export { ARTIFACT_KINDS, CATEGORIES, PLATFORM_IDS, SEVERITIES } from './core/types.js';
 export { VERSION } from './core/version.js';
+export type * from './inventory/types.js';
 export { WalkError, type WalkOptions } from './io/walk.js';
+export type * from './platforms/load/types.js';
+export { CONTEXT_AGENTS } from './platforms/load/types.js';
 export { builtinRules } from './rules/index.js';
