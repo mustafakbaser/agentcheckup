@@ -5,7 +5,7 @@
  * swap entries deterministically.
  */
 import { chmod, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
-import { rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -143,7 +143,9 @@ describe.skipIf(!symlinksSupported)('walk: link targets replaced between lstat a
     const snapshot = await walk(
       root,
       swapWhen('CLAUDE.md', () => {
-        rmSync(target);
+        // Move the original aside instead of deleting it: Linux file systems reuse a freed inode
+        // number at once, and a replacement with the same inode would be indistinguishable.
+        renameSync(target, `${target}.replaced`);
         writeFileSync(target, 'replacement');
       }),
     );

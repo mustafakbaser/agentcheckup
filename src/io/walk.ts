@@ -809,7 +809,10 @@ class Walker {
   #unresolvedLink(relativePath: string, linkText: string, problem: SymlinkProblem): void {
     this.#paths.add(relativePath);
     if (problem !== 'not-a-regular-file') this.#markOpaque(relativePath);
-    this.#unresolved.push({ path: relativePath, target: sanitizeLinkText(linkText), problem });
+    // Windows returns link text with backslashes; report it with forward slashes like every
+    // other path, so output is the same on every platform. On POSIX a backslash is part of a name.
+    const portable = process.platform === 'win32' ? linkText.replaceAll('\\', '/') : linkText;
+    this.#unresolved.push({ path: relativePath, target: sanitizeLinkText(portable), problem });
   }
 
   #markOpaque(relativePath: string): void {

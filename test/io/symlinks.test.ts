@@ -73,7 +73,9 @@ describeSymlinks('walk: symlinks inside the root', () => {
     expect(snapshot.unresolvedSymlinks).toEqual([]);
   });
 
-  it.skipIf(!tmpdirIsAliased)(
+  // macOS only: /var, /tmp and /etc are symlinks into /private there. On Windows the temporary
+  // directory can also differ from its real path (8.3 short names), which is not this feature.
+  it.skipIf(process.platform !== 'darwin' || !tmpdirIsAliased)(
     'accepts links that spell the root with a system alias (/var for /private/var)',
     async () => {
       const root = await makeTempDir();

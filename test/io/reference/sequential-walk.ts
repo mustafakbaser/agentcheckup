@@ -637,7 +637,8 @@ class Walker {
   #unresolvedLink(relativePath: string, linkText: string, problem: SymlinkProblem): void {
     this.#paths.add(relativePath);
     if (problem !== 'not-a-regular-file') this.#markOpaque(relativePath);
-    this.#unresolved.push({ path: relativePath, target: sanitizeLinkText(linkText), problem });
+    const portable = process.platform === 'win32' ? linkText.replaceAll('\\', '/') : linkText;
+    this.#unresolved.push({ path: relativePath, target: sanitizeLinkText(portable), problem });
   }
 
   #markOpaque(relativePath: string): void {
