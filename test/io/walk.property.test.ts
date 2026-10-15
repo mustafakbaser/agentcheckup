@@ -85,7 +85,7 @@ type Entry = typeof entry extends fc.Arbitrary<infer T> ? T : never;
 /** Candidate files that links can alias, present in some runs. */
 const BASE_TREE = {
   'a/AGENTS.md': 'a',
-  'a/b c/CLAUDE.md': 'b c',
+  'a/b c/CLAUDE.md': 'b c\n@x.md @../x.md @../../x.md\n',
   '.claude/rules/x.md': 'rule',
   'skills/AGENTS.md': 'skills',
   'skills/SKILL.md': 'skill',
@@ -99,8 +99,13 @@ const GITMODULES = ['a', 'skills', '.claude', 'b c', 'a/b c', '../evil', '/abs']
 /** Generated .gitignore files get real patterns, so ignored files and directories occur. */
 const GITIGNORE = 'AGENTS.md\nb c/\n.hidden\n!x.md\nskills\n';
 
+/** Every generated file imports neighbors, so the import pass meets links and ignored files. */
+const IMPORTS = '@x.md @../x.md @a/x.md @b c/AGENTS.md @skills/SKILL.md @../../secret.md';
+
 function contentFor(segments: readonly string[]): string {
-  return segments.at(-1) === '.gitignore' ? GITIGNORE : `content of ${segments.join('/')}`;
+  return segments.at(-1) === '.gitignore'
+    ? GITIGNORE
+    : `content of ${segments.join('/')}\n${IMPORTS}\n`;
 }
 
 interface Shape {
@@ -180,6 +185,11 @@ function assertConsistentSets(snapshot: Snapshot): void {
     expect(pathStatus(snapshot, ignored)).toBe('exists');
   }
   for (const listed of snapshot.paths) expect(pathStatus(snapshot, listed)).toBe('exists');
+  for (const scanned of snapshot.gitignoredConfig ?? []) {
+    assertWellFormed(scanned);
+    expect(snapshot.paths.has(scanned)).toBe(true);
+    expect(snapshot.ignoredFiles.has(scanned)).toBe(false);
+  }
 }
 
 function isSorted(values: readonly string[]): boolean {
@@ -222,6 +232,17 @@ it('yields well-formed, consistent snapshots and no outside content on random tr
       expect(json).not.toContain(SECRET);
       expect(serializeSnapshot(again)).toBe(json);
       expect(serializeSnapshot(sequential)).toBe(json);
+
+      // Untrusted mode: the repository's .gitignore cannot hide agent configuration.
+      const untrusted = await walk(root, { scanIgnoredAgentConfig: true });
+      for (const file of untrusted.files) expect(untrusted.paths.has(file.path)).toBe(true);
+      await assertRealFiles(root, untrusted);
+      assertConsistentSets(untrusted);
+      const untrustedJson = serializeSnapshot(untrusted);
+      expect(untrustedJson).not.toContain(SECRET);
+      expect(serializeSnapshot(await sequentialWalk(root, { scanIgnoredAgentConfig: true }))).toBe(
+        untrustedJson,
+      );
     }),
     { numRuns: 150 },
   );

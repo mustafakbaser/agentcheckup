@@ -211,7 +211,8 @@ agentcheckup is built to run on repositories you do not trust:
   reported, not followed.
 - Parsers and rules are bounded against crafted input, and every output format escapes
   terminal control sequences, CI workflow commands and Markdown.
-- `--untrusted` ignores the repository's configuration file and inline suppressions.
+- `--untrusted` ignores the repository's configuration file and inline suppressions, and the
+  repository's `.gitignore` cannot hide agent configuration from the scan.
 
 The design is in [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md). Report
 vulnerabilities privately as described in [SECURITY.md](SECURITY.md).

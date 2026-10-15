@@ -134,7 +134,8 @@
         "codex-hooks",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ]
     },
     "grade": { "enum": ["A", "B", "C", "D", "F"] },
@@ -398,7 +399,8 @@
             "unreadable",
             "file-limit",
             "byte-limit",
-            "depth-limit"
+            "depth-limit",
+            "import-limit"
           ]
         },
         "size": { "description": "Size in bytes, when known.", "type": "integer", "minimum": 0 }

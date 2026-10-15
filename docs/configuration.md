@@ -70,7 +70,9 @@ Rules:
 - A directive that no longer suppresses anything is reported, so stale suppressions do not
   accumulate.
 - JSON files cannot hold comments. Use `overrides` for them.
-- `--untrusted` ignores all inline directives and the repository's configuration file.
+- `--untrusted` ignores all inline directives and the repository's configuration file. It also
+  reads agent configuration that the repository's `.gitignore` matches, because agents load
+  committed files whether or not they are ignored.
 
 ## Baselines and the gate
 

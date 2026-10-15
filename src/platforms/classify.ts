@@ -1,4 +1,4 @@
-import type { ArtifactKind, PlatformId } from '../core/types.js';
+import type { ArtifactKind, PlatformId, SourceFile } from '../core/types.js';
 
 /**
  * Path-based classification of agent configuration files.
@@ -43,6 +43,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'windsurf-rule': ['windsurf'],
   'windsurf-legacy-rules': ['cline', 'windsurf'],
   'cline-rule': ['cline'],
+  // Not a location the classifier matches: a file an instruction file imports (`@README.md`),
+  // which the two agents that expand imports load. See SourceFile.imported.
+  'imported-file': ['claude-code', 'gemini'],
 };
 
 export interface Classification {
@@ -186,6 +189,18 @@ export function classify(path: string): Classification | undefined {
     return { kind: matcher.kind };
   }
   return undefined;
+}
+
+const IMPORTED_FILE: Classification = { kind: 'imported-file' };
+
+/**
+ * A snapshot file's classification: `classify()` of its path, or `imported-file` for a file the
+ * walker read only because an instruction file imports it and that no pattern matches.
+ */
+export function classifyFile(
+  file: Pick<SourceFile, 'path' | 'imported'>,
+): Classification | undefined {
+  return classify(file.path) ?? (file.imported === true ? IMPORTED_FILE : undefined);
 }
 
 /**

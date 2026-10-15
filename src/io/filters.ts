@@ -3,6 +3,7 @@
  * the walk without a checkout (scripts/corpus). No I/O here.
  */
 import { classify, isCandidateBasename } from '../platforms/classify.js';
+import { TEXT_EXTENSIONS } from '../platforms/load/imports.js';
 
 /**
  * Directories the walker never lists. An entry without `/` matches a directory name at any depth,
@@ -98,6 +99,30 @@ export function isHardExcludedDirectory(relativePath: string): boolean {
     if (AGENT_CONFIG_NAMES.has(name)) belowAgentConfig = true;
   }
   return false;
+}
+
+/**
+ * Whether the directory at `relativePath` (root-relative POSIX; a trailing slash is allowed) is
+ * an agent configuration directory or lies below one: one of its names is in
+ * AGENT_CONFIG_DIRECTORIES. In untrusted mode the walker lists these even when a `.gitignore`
+ * matches them (see WalkOptions.scanIgnoredAgentConfig). Names match exactly (case-sensitive).
+ */
+export function isAgentConfigDirectory(relativePath: string): boolean {
+  const directory = relativePath.endsWith('/') ? relativePath.slice(0, -1) : relativePath;
+  return directory.split('/').some((name) => AGENT_CONFIG_NAMES.has(name));
+}
+
+/**
+ * Whether the walker reads an import target at `relativePath` (root-relative POSIX): a text file
+ * by its extension (TEXT_EXTENSIONS: Markdown, plain text, or no extension such as `README`).
+ * Dotfiles (`.env`, `.npmrc`) never are: they typically hold local secrets, not instructions.
+ */
+export function isTextImportTarget(relativePath: string): boolean {
+  const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
+  if (name === '' || name.startsWith('.')) return false;
+  const dot = name.lastIndexOf('.');
+  const extension = dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
+  return TEXT_EXTENSIONS.has(extension);
 }
 
 /** How many leading bytes looksBinary inspects: the same window as git. */

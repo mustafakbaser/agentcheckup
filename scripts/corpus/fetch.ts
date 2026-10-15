@@ -7,7 +7,8 @@
  * 1. the recursive git tree (`tree.json`), the full path list used for existence checks;
  * 2. the text of every symlink the walk reaches (`links.json`), to resolve them inside the tree;
  * 3. only the blobs the agentcheckup walker would read: paths `classify()` accepts, outside
- *    hard-excluded directories, at most 1 MiB each (`files/<path>`, listed in `files.json`).
+ *    hard-excluded directories, at most 1 MiB each, and the files its import pass reads
+ *    (`files/<path>`, listed in `files.json`).
  *
  * Every blob is verified against its git object id. Resumable: anything already cached and
  * verified is skipped. Repositories are processed one at a time. The cache is untrusted
@@ -22,6 +23,7 @@ import { compareStrings } from '../../src/core/compare.js';
 import { isHardExcludedDirectory } from '../../src/io/filters.js';
 import { MAX_GITMODULES_BYTES } from '../../src/io/submodules.js';
 import { classify } from '../../src/platforms/classify.js';
+import { MAX_HOPS } from '../../src/platforms/load/imports.js';
 import {
   type CachedFiles,
   type CachedLinks,
@@ -39,6 +41,7 @@ import {
   TREE_FILE,
 } from './common.js';
 import { fetchBlobs, fetchTree, GitHub } from './github.js';
+import { loadSnapshot } from './snapshot.js';
 import { type Candidate, VirtualTree, type WalkPlan } from './virtual-walk.js';
 
 const { values } = parseArgs({
@@ -197,13 +200,6 @@ async function fetchRepo(github: GitHub, entry: RepoEntry): Promise<RepoStats> {
     missing.push(candidate);
   }
 
-  const byBlob = new Map<string, string[]>();
-  for (const candidate of missing) {
-    const list = byBlob.get(candidate.sha) ?? [];
-    list.push(candidate.realPath);
-    byBlob.set(candidate.sha, list);
-  }
-
   let downloaded = 0;
   let bytes = 0;
   let sinceSave = 0;
@@ -228,26 +224,49 @@ async function fetchRepo(github: GitHub, entry: RepoEntry): Promise<RepoStats> {
     files.set(realPath, { sha, file: fallback });
   };
 
-  const { failed } = await fetchBlobs(
-    github,
-    entry.repo,
-    [...new Map(missing.map((candidate) => [candidate.sha, candidate.size]))].map(
-      ([sha, size]) => ({ sha, size }),
-    ),
-    async (sha, data) => {
-      for (const realPath of byBlob.get(sha) ?? []) await store(realPath, sha, data);
-      downloaded += 1;
-      bytes += data.length;
-      sinceSave += 1;
-      if (sinceSave >= 50) {
-        sinceSave = 0;
-        await save();
-      }
-    },
-  );
-  await save();
-  return { ...base, downloaded, bytes, failed: failed.length + failedLinks };
+  /** Downloads the blobs of `wanted`, stores each under its real paths, and saves files.json. */
+  const download = async (wanted: readonly Candidate[]): Promise<number> => {
+    const byBlob = new Map<string, string[]>();
+    for (const candidate of wanted) {
+      const list = byBlob.get(candidate.sha) ?? [];
+      if (!list.includes(candidate.realPath)) list.push(candidate.realPath);
+      byBlob.set(candidate.sha, list);
+    }
+    const { failed } = await fetchBlobs(
+      github,
+      entry.repo,
+      [...new Map(wanted.map((candidate) => [candidate.sha, candidate.size]))].map(
+        ([sha, size]) => ({ sha, size }),
+      ),
+      async (sha, data) => {
+        for (const realPath of byBlob.get(sha) ?? []) await store(realPath, sha, data);
+        downloaded += 1;
+        bytes += data.length;
+        sinceSave += 1;
+        if (sinceSave >= 50) {
+          sinceSave = 0;
+          await save();
+        }
+      },
+    );
+    await save();
+    return failed.length;
+  };
+
+  let failed = await download(missing);
+  // The walker also reads the files that instruction files import (src/io/imports.ts). Which ones
+  // depends on the bytes of the files read before them, so they come in rounds, one hop deeper
+  // each, until replaying the import pass (snapshot.ts) finds every one it needs in the cache.
+  for (let round = 0; failed === 0 && round <= IMPORT_ROUNDS; round++) {
+    const loaded = await loadSnapshot(entry);
+    if ('problem' in loaded || loaded.importsNotFetched.length === 0) break;
+    failed += await download(loaded.importsNotFetched);
+  }
+  return { ...base, downloaded, bytes, failed: failed + failedLinks };
 }
+
+/** The deepest import chain an agent follows (Gemini CLI, five hops): one round per hop. */
+const IMPORT_ROUNDS = Math.max(...Object.values(MAX_HOPS));
 
 const repos = await loadRepos();
 const only = new Set(values.only.map((name) => name.toLowerCase()));

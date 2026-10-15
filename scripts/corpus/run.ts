@@ -771,11 +771,15 @@ if (values['check-golden'] && savedGolden === undefined) {
 const scanned: Scanned[] = [];
 const consistency: RepoConsistency[] = [];
 const incomplete: string[] = [];
+const importsNotFetched: string[] = [];
 for (const entry of selected) {
   const loaded = await loadSnapshot(entry);
   if ('problem' in loaded) {
     incomplete.push(`${repoLabel(entry)}: ${loaded.problem}`);
     continue;
+  }
+  if (loaded.importsNotFetched.length > 0) {
+    importsNotFetched.push(`${repoLabel(entry)}: ${String(loaded.importsNotFetched.length)}`);
   }
   let result: RuleResult;
   if (values.consistency) {
@@ -794,6 +798,14 @@ if (incomplete.length > 0) {
     `The cache is incomplete; run \`npx tsx scripts/corpus/fetch.ts\` first:\n${incomplete.map((line) => `- ${line}`).join('\n')}`,
   );
   process.exit(2);
+}
+if (importsNotFetched.length > 0) {
+  // Not fatal: the scan treats those files as unread, as before the walker read imports.
+  log(
+    `Imported files the walker would read are not in the cache, so they stay unread here; ` +
+      `run \`npx tsx scripts/corpus/fetch.ts\` to add them:\n` +
+      importsNotFetched.map((line) => `- ${line}`).join('\n'),
+  );
 }
 
 const crashes = groupCrashes(scanned);

@@ -89,6 +89,27 @@ describe('buildArtifacts', () => {
     expect(artifacts.map((artifact) => artifact.path)).toEqual(['CLAUDE.md']);
   });
 
+  it('makes a file read for an import an imported-file artifact, unless a pattern matches', () => {
+    const snapshot = snapshotFrom({
+      'CLAUDE.md': '@README.md',
+      'README.md': 'r',
+      'x/AGENTS.md': 'a',
+    });
+    const files = snapshot.files.map((file) =>
+      file.path === 'CLAUDE.md' ? file : { ...file, imported: true },
+    );
+    const artifacts = buildArtifacts({ ...snapshot, files }, EMPTY_CONFIG);
+    expect(artifacts.map((artifact) => [artifact.path, artifact.kind, artifact.readers])).toEqual([
+      ['CLAUDE.md', 'claude-md', ['claude-code', 'copilot', 'cursor', 'windsurf']],
+      ['README.md', 'imported-file', ['claude-code', 'gemini']],
+      [
+        'x/AGENTS.md',
+        'agents-md',
+        ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'windsurf'],
+      ],
+    ]);
+  });
+
   it('applies config ignore globs', () => {
     const artifacts = buildArtifacts(
       snapshotFrom({ 'AGENTS.md': 'a', 'fixtures/AGENTS.md': 'b' }),
@@ -169,6 +190,43 @@ describe('scanSnapshot', () => {
     const result = scanSnapshot(snapshotFrom({ 'README.md': '# hi' }), { rules: [everyFile] });
     expect(result.score.score).toBeNull();
     expect(result.artifacts).toEqual([]);
+  });
+});
+
+describe('score and imported files', () => {
+  const importRule = defineRule({
+    meta: meta({ id: 'test/imported', appliesTo: ['claude-md'], severity: 'error' }),
+    defaultOptions: undefined,
+    check(context) {
+      for (const artifact of context.allArtifacts) {
+        if (artifact.kind === 'imported-file' && artifact.decoded.text.includes('bad')) {
+          context.report({ artifact, message: 'Broken import.' });
+        }
+      }
+    },
+  });
+
+  function scanImported(readme: string): ReturnType<typeof scanSnapshot> {
+    const snapshot = snapshotFrom({ 'CLAUDE.md': '@README.md', 'README.md': readme });
+    const files = snapshot.files.map((file) =>
+      file.path === 'README.md' ? { ...file, imported: true } : file,
+    );
+    return scanSnapshot({ ...snapshot, files }, { rules: [importRule] });
+  }
+
+  it('does not count a clean imported file', () => {
+    const result = scanImported('fine');
+    expect(result.artifacts.map((artifact) => artifact.path)).toEqual(['CLAUDE.md', 'README.md']);
+    expect(result.score.artifacts).toEqual([{ path: 'CLAUDE.md', score: 100 }]);
+  });
+
+  it('counts an imported file once it has an error', () => {
+    const result = scanImported('bad');
+    expect(result.score.artifacts).toEqual([
+      { path: 'CLAUDE.md', score: 100 },
+      { path: 'README.md', score: 60 },
+    ]);
+    expect(result.score.score).toBe(Math.round(0.7 * 80 + 0.3 * 60));
   });
 });
 

@@ -9,7 +9,9 @@ changelog.
 
 1. Only unsuppressed `error` and `warn` findings count. `info` findings never change the score.
 2. Each file agentcheckup recognizes starts at 100. It loses **40 points per error** and **8 points
-   per warning**, down to a minimum of 0.
+   per warning**, down to a minimum of 0. A file read only because an instruction file imports it,
+   such as a `README.md` named by `@README.md`, counts once it has an error or a warning, so
+   following imports never raises the score.
 3. The repository score blends the average file with the worst file:
 
    ```text

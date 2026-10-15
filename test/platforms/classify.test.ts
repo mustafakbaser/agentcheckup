@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classify, isCandidateBasename, READERS } from '../../src/platforms/classify.js';
+import {
+  classify,
+  classifyFile,
+  isCandidateBasename,
+  READERS,
+} from '../../src/platforms/classify.js';
 import { ARTIFACT_KINDS } from '../../src/core/types.js';
 
 describe('classify', () => {
@@ -66,6 +71,13 @@ describe('classify', () => {
   it('declares readers for every artifact kind', () => {
     for (const kind of ARTIFACT_KINDS) expect(READERS[kind]).toBeDefined();
     expect(READERS['cursor-rule-md']).toEqual(['windsurf']);
+  });
+
+  it('classifies a file the walker read for an import as imported-file, unless a pattern matches', () => {
+    expect(classifyFile({ path: 'README.md', imported: true })).toEqual({ kind: 'imported-file' });
+    expect(classifyFile({ path: 'docs/AGENTS.md', imported: true })).toEqual({ kind: 'agents-md' });
+    expect(classifyFile({ path: 'README.md' })).toBeUndefined();
+    expect(classifyFile({ path: 'CLAUDE.md' })).toEqual({ kind: 'claude-md' });
   });
 
   it('pre-filters candidate base names cheaply', () => {

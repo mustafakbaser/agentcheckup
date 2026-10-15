@@ -57,6 +57,9 @@ export const localFileNotIgnoredRule = defineRule({
     if (!context.snapshot.gitignoreApplied) return;
     const index = instructionDirectories(context.allArtifacts);
     for (const artifact of context.artifacts) {
+      // Read although a .gitignore matches it: an untrusted scan does not let .gitignore hide
+      // agent configuration.
+      if (context.snapshot.gitignoredConfig?.has(artifact.path) === true) continue;
       const directory = dirnamePosix(artifact.path);
       const agents = agentsMdDependsOnIt(directory, index)
         ? ' and stops reading the AGENTS.md next to it'

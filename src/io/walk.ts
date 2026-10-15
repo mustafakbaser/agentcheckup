@@ -26,7 +26,12 @@ import type {
   SymlinkProblem,
   UnresolvedSymlink,
 } from '../core/types.js';
-import { defaultIsCandidate, isHardExcludedDirectory, looksBinary } from './filters.js';
+import {
+  defaultIsCandidate,
+  isAgentConfigDirectory,
+  isHardExcludedDirectory,
+  looksBinary,
+} from './filters.js';
 import {
   addGitignoreRules,
   chainWeight,
@@ -38,6 +43,7 @@ import {
   MAX_GITIGNORE_WEIGHT_TOTAL,
   parseGitignore,
 } from './gitignore.js';
+import { ImportPlanner, MAX_IMPORTED_BYTES, MAX_IMPORTED_FILES } from './imports.js';
 import { errorCode, joinRelative, sanitizeLinkText } from './paths.js';
 import { type FileProbe, Limiter, type Listing, probeFile, readListing } from './prefetch.js';
 import { resolveSymlink, type ScanRoots } from './resolve.js';
@@ -58,6 +64,22 @@ export interface WalkOptions {
   maxDepth?: number;
   /** Honor `.gitignore` files in the tree. Default true. */
   respectGitignore?: boolean;
+  /**
+   * Do not let `.gitignore` hide agent configuration: list agent configuration directories
+   * (isAgentConfigDirectory) and read candidates even where a `.gitignore` matches them, and
+   * record them in `gitignoredConfig`. Everything else stays ignored. For untrusted
+   * repositories, whose `.gitignore` could hide committed configuration that agents load
+   * (`git add -f .mcp.json`). Default false: in a trusted repository, ignored agent files
+   * (CLAUDE.local.md, .claude/settings.local.json) are personal and stay out of the scan. With
+   * it, `isCandidate` is also called for ignored entries.
+   */
+  scanIgnoredAgentConfig?: boolean;
+  /**
+   * After the walk, also read the files that instruction files import (`@docs/guide.md` in
+   * CLAUDE.md) when they are listed, text and inside the root, up to the hops agents follow.
+   * See imports.ts for the caps. Default true.
+   */
+  followImports?: boolean;
   /** Which files to read. Default: files that `classify()` recognizes. */
   isCandidate?: (relativePosixPath: string) => boolean;
 }
@@ -86,16 +108,23 @@ export class WalkError extends Error {
  *   directories left unlisted when the entry limit stopped the walk. Anything below them is
  *   unknown, never missing.
  * - `ignoredFiles`: files (and symlinks, which git treats as files) excluded by `.gitignore`.
- * - `skipped`: candidates that were not read (`too-large`, `byte-limit`, `binary`,
- *   `special-file`, `unreadable`), directories that were not listed (`depth-limit`,
- *   `unreadable`, with a trailing `/`), `.gitignore` and `.gitmodules` files that could not be
- *   applied, and at most one `file-limit` entry naming the first entry that was not visited.
+ * - `gitignoredConfig`: with `scanIgnoredAgentConfig`, agent configuration that a `.gitignore`
+ *   matches and that was listed and read anyway (directories with a trailing `/`).
+ * - `skipped`: candidates and import targets that were not read (`too-large`, `byte-limit`,
+ *   `import-limit`, `binary`, `special-file`, `unreadable`), directories that were not listed
+ *   (`depth-limit`, `unreadable`, with a trailing `/`), `.gitignore` and `.gitmodules` files that
+ *   could not be applied, and at most one `file-limit` entry naming the first entry that was not
+ *   visited.
+ *
+ * With `followImports` (the default), `files` also holds the import targets read after the walk,
+ * marked `imported` (see readImports).
  */
 export async function walk(root: string, options: WalkOptions = {}): Promise<Snapshot> {
   const settings = resolveOptions(options);
   const roots = await resolveRoot(root);
   const walker = new Walker(roots, settings);
   await walker.run();
+  if (settings.followImports) await walker.readImports();
   return walker.snapshot();
 }
 
@@ -105,6 +134,8 @@ interface Settings {
   readonly maxEntries: number;
   readonly maxDepth: number;
   readonly respectGitignore: boolean;
+  readonly scanIgnoredAgentConfig: boolean;
+  readonly followImports: boolean;
   readonly isCandidate: (relativePosixPath: string) => boolean;
   /**
    * Read candidates ahead of their turn. Only with the default isCandidate, which is pure: a
@@ -120,6 +151,8 @@ function resolveOptions(options: WalkOptions): Settings {
     maxEntries: limit('maxEntries', options.maxEntries, DEFAULT_WALK_LIMITS.maxEntries),
     maxDepth: limit('maxDepth', options.maxDepth, DEFAULT_WALK_LIMITS.maxDepth),
     respectGitignore: options.respectGitignore ?? true,
+    scanIgnoredAgentConfig: options.scanIgnoredAgentConfig ?? false,
+    followImports: options.followImports ?? true,
     isCandidate: options.isCandidate ?? defaultIsCandidate,
     readAhead: options.isCandidate === undefined,
   };
@@ -267,12 +300,17 @@ class Walker {
   readonly #paths = new Set<string>();
   readonly #opaqueDirectories = new Set<string>();
   readonly #ignoredFiles = new Set<string>();
+  /** Agent configuration scanned although a .gitignore matches it (scanIgnoredAgentConfig). */
+  readonly #gitignoredConfig = new Set<string>();
   /** Declared in the root `.gitmodules`. */
   readonly #submodules = new Set<string>();
   readonly #unresolved: UnresolvedSymlink[] = [];
   readonly #skipped: SkippedEntry[] = [];
   #entriesSeen = 0;
   #bytesRead = 0;
+  /** Files the import pass added, and the bytes it read from disk (see imports.ts). */
+  #importedFiles = 0;
+  #importedBytes = 0;
   #stopped = false;
   /** Weight of all .gitignore rules compiled so far (see gitignore.ts for the budgets). */
   #gitignoreWeight = 0;
@@ -405,6 +443,9 @@ class Walker {
       paths: sortedSet(this.#paths),
       opaqueDirectories: sortedSet(this.#opaqueDirectories),
       ignoredFiles: sortedSet(this.#ignoredFiles),
+      ...(this.#gitignoredConfig.size === 0
+        ? {}
+        : { gitignoredConfig: sortedSet(this.#gitignoredConfig) }),
       gitignoreApplied: this.#settings.respectGitignore && !this.#gitignorePartial,
       unresolvedSymlinks: this.#unresolved.sort(byPath),
       skipped: this.#skipped.sort(
@@ -618,28 +659,50 @@ class Walker {
       realRelativePath: joinRelative(frame.realRelativePath, entry.name),
     };
     const kind = entryKind(entry);
+    const { relativePath } = location;
     // A symlink is matched as a file even when it points to a directory, as git stores it. Git
     // never looks below a symlink; here, paths below one are matched as if it were a directory.
-    if (this.#isIgnored(ignore, location.relativePath, kind === 'directory')) {
-      this.#recordIgnored(location.relativePath, kind);
+    const gitignored = this.#isIgnored(ignore, relativePath, kind === 'directory');
+    if (gitignored && !this.#scansIgnored(relativePath, kind)) {
+      this.#recordIgnored(relativePath, kind);
       return;
     }
     switch (kind) {
       case 'directory':
+        if (gitignored) this.#gitignoredConfig.add(`${relativePath}/`);
         this.#enterDirectory(frame, ignore, location);
         return;
       case 'file':
+        if (gitignored) this.#gitignoredConfig.add(relativePath);
         await this.#visitFile(location);
         return;
       case 'symlink':
-        await this.#visitSymlink(frame, ignore, location);
+        await this.#visitSymlink(frame, ignore, location, gitignored);
         return;
       case 'special':
-        this.#paths.add(location.relativePath);
-        if (this.#settings.isCandidate(location.relativePath)) {
-          this.#skip(location.relativePath, 'special-file');
-        }
+        if (gitignored) this.#gitignoredConfig.add(relativePath);
+        this.#paths.add(relativePath);
+        if (this.#settings.isCandidate(relativePath)) this.#skip(relativePath, 'special-file');
         return;
+    }
+  }
+
+  /**
+   * Whether an entry that a .gitignore matches is scanned anyway: with scanIgnoredAgentConfig,
+   * agent configuration directories and everything below them are listed, and candidates are
+   * read, so an untrusted repository cannot hide what agents load from the scan. A symlink
+   * qualifies by its own path; visitSymlink checks what it leads to.
+   */
+  #scansIgnored(relativePath: string, kind: EntryKind): boolean {
+    if (!this.#settings.scanIgnoredAgentConfig) return false;
+    switch (kind) {
+      case 'directory':
+        return isAgentConfigDirectory(relativePath);
+      case 'symlink':
+        return isAgentConfigDirectory(relativePath) || this.#settings.isCandidate(relativePath);
+      case 'file':
+      case 'special':
+        return this.#settings.isCandidate(relativePath);
     }
   }
 
@@ -707,22 +770,29 @@ class Walker {
     return true;
   }
 
+  /**
+   * `gitignored`: a .gitignore matches the link, which #scansIgnored let through. It is scanned
+   * when it leads to an agent configuration directory or is a candidate, like an entry of that
+   * kind; otherwise it stays ignored, as it would have without scanIgnoredAgentConfig.
+   */
   async #visitSymlink(
     frame: DirectoryFrame,
     ignore: IgnoreLayer | undefined,
     link: Location,
+    gitignored: boolean,
   ): Promise<void> {
+    const { relativePath } = link;
     let linkText: string;
     try {
       linkText = await readlink(link.realPath);
     } catch {
-      this.#unresolvedLink(link.relativePath, '', 'broken');
+      this.#unresolvedLink(relativePath, '', 'broken', gitignored);
       return;
     }
     const resolution = await resolveSymlink(this.#roots, frame.realPath, linkText);
     if (resolution.kind !== 'inside') {
       const problem = resolution.kind === 'outside' ? 'outside-root' : 'broken';
-      this.#unresolvedLink(link.relativePath, linkText, problem);
+      this.#unresolvedLink(relativePath, linkText, problem, gitignored);
       return;
     }
     const target: Location = {
@@ -732,15 +802,30 @@ class Walker {
     };
     const { stats } = resolution;
     if (stats.isDirectory()) {
+      if (gitignored) {
+        if (!isAgentConfigDirectory(relativePath)) {
+          this.#recordIgnored(relativePath, 'symlink');
+          return;
+        }
+        this.#gitignoredConfig.add(`${relativePath}/`);
+      }
       this.#enterDirectory(frame, ignore, target);
       return;
     }
     if (!stats.isFile()) {
-      this.#unresolvedLink(link.relativePath, linkText, 'not-a-regular-file');
+      this.#unresolvedLink(relativePath, linkText, 'not-a-regular-file', gitignored);
       return;
     }
-    this.#paths.add(link.relativePath);
-    if (!this.#settings.isCandidate(link.relativePath)) return;
+    const candidate = this.#settings.isCandidate(relativePath);
+    if (gitignored) {
+      if (!candidate) {
+        this.#recordIgnored(relativePath, 'symlink');
+        return;
+      }
+      this.#gitignoredConfig.add(relativePath);
+    }
+    this.#paths.add(relativePath);
+    if (!candidate) return;
     await this.#readCandidate(target, stats);
   }
 
@@ -797,15 +882,110 @@ class Walker {
   }
 
   /** Alias paths share the same bytes object; consumers must treat `bytes` as read-only. */
-  #addFile(location: Location, bytes: Uint8Array): void {
+  #addFile(location: Location, bytes: Uint8Array, imported = false): SourceFile {
     const { relativePath, realRelativePath } = location;
     // Reached through a symlink (the file itself or a parent directory): name the real file, so
     // the engine can treat the alias and the file as one artifact.
-    this.#files.push(
-      realRelativePath === relativePath
-        ? { path: relativePath, bytes }
-        : { path: relativePath, bytes, symlinkTarget: realRelativePath },
+    const file: SourceFile = {
+      path: relativePath,
+      bytes,
+      ...(realRelativePath === relativePath ? {} : { symlinkTarget: realRelativePath }),
+      ...(imported ? { imported } : {}),
+    };
+    this.#files.push(file);
+    return file;
+  }
+
+  /**
+   * The import pass. Instruction files can import other files (`@README.md`), which the agent
+   * then loads too; the walk read only agent configuration, so the import rules and the load
+   * plans could not size those files or follow their own imports. ImportPlanner (imports.ts) says
+   * which targets to read, hop by hop from the files agents load, as far as agents follow imports;
+   * this reads them like candidates: inside the root only, resolved without leaving it (a link out
+   * of the root is never followed), each real file once, within the caps:
+   * - `too-large`: over maxFileBytes, the per-file cap of the walk;
+   * - `import-limit`: past MAX_IMPORTED_FILES files or MAX_IMPORTED_BYTES bytes for the pass;
+   * - `byte-limit`: past what is left of maxTotalBytes.
+   * Read files are marked `imported`; binary ones are skipped as `binary`.
+   */
+  async readImports(): Promise<void> {
+    const planner = new ImportPlanner(this.snapshot());
+    for (let targets = planner.next(); targets.length > 0; targets = planner.next()) {
+      for (const target of targets) planner.done(target, await this.#readImport(target));
+    }
+  }
+
+  async #readImport(relativePath: string): Promise<SourceFile | undefined> {
+    if (this.#importedFiles >= MAX_IMPORTED_FILES) {
+      this.#skip(relativePath, 'import-limit');
+      return undefined;
+    }
+    // The planner only asks for listed files; resolve the path again from the root, never
+    // touching anything outside it, in case it goes through symlinks.
+    const resolution = await resolveSymlink(this.#roots, this.#roots.real, relativePath);
+    if (resolution.kind !== 'inside' || !resolution.stats.isFile()) {
+      const special =
+        resolution.kind === 'inside' &&
+        !resolution.stats.isDirectory() &&
+        !resolution.stats.isSymbolicLink();
+      this.#skip(relativePath, special ? 'special-file' : 'unreadable');
+      return undefined;
+    }
+    const location: Location = {
+      relativePath,
+      realPath: resolution.realPath,
+      realRelativePath: resolution.relativePath,
+    };
+    const known = this.#contents.get(location.realPath);
+    if (known !== undefined) {
+      // Read already, through another path: no second read, and no bytes counted again.
+      this.#importedFiles += 1;
+      if ('bytes' in known) return this.#addFile(location, known.bytes, true);
+      this.#skip(relativePath, 'binary', known.binarySize);
+      return undefined;
+    }
+    const { maxFileBytes, maxTotalBytes } = this.#settings;
+    const size = Number(resolution.stats.size);
+    const importBudget = MAX_IMPORTED_BYTES - this.#importedBytes;
+    const totalBudget = maxTotalBytes - this.#bytesRead;
+    const reason = (bytes: number): SkipReason | undefined =>
+      bytes > maxFileBytes
+        ? 'too-large'
+        : bytes > importBudget
+          ? 'import-limit'
+          : bytes > totalBudget
+            ? 'byte-limit'
+            : undefined;
+    const before = reason(size);
+    if (before !== undefined) {
+      this.#skip(relativePath, before, size);
+      return undefined;
+    }
+    const outcome = await readRegularFile(
+      location.realPath,
+      resolution.stats,
+      Math.min(maxFileBytes, importBudget, totalBudget),
     );
+    if (!outcome.ok) {
+      // A file that grew since it was stat-ed is judged by its new size.
+      if (outcome.reason === 'too-large') {
+        this.#skip(relativePath, reason(outcome.size) ?? 'too-large', outcome.size);
+      } else {
+        this.#skip(relativePath, outcome.reason);
+      }
+      return undefined;
+    }
+    const { bytes } = outcome;
+    this.#importedFiles += 1;
+    this.#importedBytes += bytes.length;
+    this.#bytesRead += bytes.length;
+    if (looksBinary(bytes)) {
+      this.#contents.set(location.realPath, { binarySize: bytes.length });
+      this.#skip(relativePath, 'binary', bytes.length);
+      return undefined;
+    }
+    this.#contents.set(location.realPath, { bytes });
+    return this.#addFile(location, bytes, true);
   }
 
   /**
@@ -813,7 +993,13 @@ class Walker {
    * about what lies below them (the target may be a directory, and is never looked at), so they
    * are also opaque. A `not-a-regular-file` target was examined and is not a directory.
    */
-  #unresolvedLink(relativePath: string, linkText: string, problem: SymlinkProblem): void {
+  #unresolvedLink(
+    relativePath: string,
+    linkText: string,
+    problem: SymlinkProblem,
+    gitignored = false,
+  ): void {
+    if (gitignored) this.#gitignoredConfig.add(relativePath);
     this.#paths.add(relativePath);
     if (problem !== 'not-a-regular-file') this.#markOpaque(relativePath);
     // Windows returns link text with backslashes; report it with forward slashes like every

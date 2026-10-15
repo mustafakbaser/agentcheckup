@@ -30,11 +30,13 @@ function digest(snapshot: Snapshot): string {
     files: snapshot.files.map((file) => [
       file.path,
       file.symlinkTarget ?? null,
+      file.imported ?? false,
       createHash('sha256').update(file.bytes).digest('hex'),
     ]),
     paths: [...snapshot.paths],
     opaqueDirectories: [...snapshot.opaqueDirectories],
     ignoredFiles: [...snapshot.ignoredFiles],
+    gitignoredConfig: [...(snapshot.gitignoredConfig ?? [])],
     gitignoreApplied: snapshot.gitignoreApplied,
     unresolvedSymlinks: snapshot.unresolvedSymlinks,
     skipped: snapshot.skipped,
@@ -51,10 +53,16 @@ async function expectSameAsSequential(root: string, options: WalkOptions = {}): 
 async function mixedTree(): Promise<{ root: string; entries: number }> {
   const root = await makeTempDir();
   const tree: Record<string, string | Uint8Array> = {
-    '.gitignore': '*.local.md\ngenerated/\n',
+    '.gitignore': '*.local.md\ngenerated/\n.cursor/rules/private/\ndocs/private.md\n',
     '.gitmodules': '[submodule "libs/sub"]\n\tpath = libs/sub\n',
     'AGENTS.md': '# root',
-    'CLAUDE.local.md': 'ignored',
+    'CLAUDE.local.md': 'ignored unless untrusted: @docs/local.md',
+    '.cursor/rules/private/secret.mdc': 'ignored config directory',
+    'docs/guide.md': 'Guide: @more.md and @../README.md and @../big/AGENTS.md\n',
+    'docs/more.md': 'x'.repeat(150),
+    'docs/local.md': 'local',
+    'docs/private.md': 'ignored',
+    'README.md': 'readme',
     'generated/AGENTS.md': 'ignored directory',
     'node_modules/pkg/AGENTS.md': 'excluded',
     '.claude/skills/build/SKILL.md': 'agent config is never excluded',
@@ -62,7 +70,7 @@ async function mixedTree(): Promise<{ root: string; entries: number }> {
     'binary/AGENTS.md': new Uint8Array([0x41, 0, 0x42]),
     'big/AGENTS.md': 'x'.repeat(2000),
     'nested/.gitignore': '!CLAUDE.local.md\n',
-    'nested/CLAUDE.local.md': 're-included',
+    'nested/CLAUDE.local.md': 're-included: @../docs/guide.md @../docs/private.md @up/x.md',
   };
   for (let index = 0; index < 40; index++) {
     const name = `pkg${String(index).padStart(2, '0')}`;
@@ -88,6 +96,25 @@ async function mixedTree(): Promise<{ root: string; entries: number }> {
 }
 
 describe('walk() equals the sequential oracle', () => {
+  it('on a tree that exercises the import pass and untrusted .gitignore handling', async () => {
+    const { root } = await mixedTree();
+    const imported = (snapshot: Snapshot): string[] =>
+      snapshot.files.filter((file) => file.imported === true).map((file) => file.path);
+    expect(imported(await walk(root))).toEqual(['README.md', 'docs/guide.md', 'docs/more.md']);
+    const untrusted = await walk(root, { scanIgnoredAgentConfig: true });
+    expect(imported(untrusted)).toEqual([
+      'README.md',
+      'docs/guide.md',
+      'docs/local.md',
+      'docs/more.md',
+    ]);
+    expect([...(untrusted.gitignoredConfig ?? [])]).toEqual([
+      '.cursor/rules/private/',
+      '.cursor/rules/private/secret.mdc',
+      'CLAUDE.local.md',
+    ]);
+  });
+
   it('on a tree with every feature, under every entry limit', { timeout: 60_000 }, async () => {
     const { root, entries } = await mixedTree();
     await expectSameAsSequential(root);
@@ -105,6 +132,9 @@ describe('walk() equals the sequential oracle', () => {
         await expectSameAsSequential(root, { maxDepth });
       await expectSameAsSequential(root, { maxFileBytes: 100 });
       await expectSameAsSequential(root, { respectGitignore: false });
+      await expectSameAsSequential(root, { scanIgnoredAgentConfig: true });
+      await expectSameAsSequential(root, { scanIgnoredAgentConfig: true, maxFileBytes: 100 });
+      await expectSameAsSequential(root, { followImports: false });
       // A custom predicate turns read-ahead off: it is called once per file, at its turn.
       await expectSameAsSequential(root, { isCandidate: (p) => defaultIsCandidate(p) });
     },

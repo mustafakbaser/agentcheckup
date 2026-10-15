@@ -251,7 +251,10 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
   const root = resolve(io.cwd, options.path);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
-  const snapshot = await walk(root, { respectGitignore: options.gitignore });
+  const snapshot = await walk(root, {
+    respectGitignore: options.gitignore,
+    scanIgnoredAgentConfig: options.untrusted,
+  });
   const scanOptions = scanOptionsFor(options, config, options.targets);
   const scanned = options.context
     ? scanWithContext(snapshot, {
@@ -305,7 +308,10 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   const root = resolve(io.cwd, options.path);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
-  const snapshot = await walk(root, { respectGitignore: options.gitignore });
+  const snapshot = await walk(root, {
+    respectGitignore: options.gitignore,
+    scanIgnoredAgentConfig: options.untrusted,
+  });
   checkListedDirectory(snapshot, options.cwd, options.path);
 
   const configured = config?.targets ?? PLATFORM_IDS;

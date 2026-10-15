@@ -68,6 +68,7 @@ export const ARTIFACT_KINDS = [
   'windsurf-rule',
   'windsurf-legacy-rules',
   'cline-rule',
+  'imported-file',
 ] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
@@ -103,6 +104,12 @@ export interface SourceFile {
    * engine treat an alias and its real file as one artifact instead of reporting both.
    */
   readonly symlinkTarget?: string;
+  /**
+   * True for a file read only because an instruction file imports it (`@README.md` in
+   * CLAUDE.md): it is not agent configuration itself, but the agent loads it. Unless the
+   * classifier recognizes its path, it becomes an artifact of kind `imported-file`.
+   */
+  readonly imported?: boolean;
 }
 
 export type SymlinkProblem = 'outside-root' | 'broken' | 'not-a-regular-file';
@@ -121,7 +128,9 @@ export type SkipReason =
   | 'unreadable'
   | 'file-limit'
   | 'byte-limit'
-  | 'depth-limit';
+  | 'depth-limit'
+  /** An imported file past the import pass's file count or total byte cap (see src/io/imports.ts). */
+  | 'import-limit';
 
 export interface SkippedEntry {
   readonly path: string;
@@ -134,7 +143,10 @@ export interface SkippedEntry {
  * a browser playground, or an editor extension.
  */
 export interface Snapshot {
-  /** Candidate config files that were read. Sorted by path (code point order). */
+  /**
+   * Candidate config files that were read, and the files they import that were read for them
+   * (`imported`). Sorted by path (code point order).
+   */
   readonly files: readonly SourceFile[];
   /**
    * Every file and directory path seen during the walk, including ones that were not read.
@@ -149,6 +161,14 @@ export interface Snapshot {
   readonly opaqueDirectories: ReadonlySet<string>;
   /** Files that exist but were excluded by `.gitignore`. They are "present", just not read. */
   readonly ignoredFiles: ReadonlySet<string>;
+  /**
+   * Agent configuration that a `.gitignore` matches but that was scanned anyway, because the
+   * repository is untrusted and its `.gitignore` must not hide what agents load: files the
+   * classifier recognizes (in `paths`, and in `files` when read) and agent configuration
+   * directories (trailing `/`, in `paths`) that were listed although ignored. None of them is in
+   * `ignoredFiles`. Absent or empty when the walk let `.gitignore` hide them (trusted mode).
+   */
+  readonly gitignoredConfig?: ReadonlySet<string>;
   /**
    * True only when every `.gitignore` the walk encountered was fully applied. False with
    * `--no-gitignore`; when any `.gitignore` was not applied or only partly (too large, over a rule

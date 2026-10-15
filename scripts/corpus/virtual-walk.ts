@@ -12,6 +12,8 @@
  * in step. Submodules declared in the root `.gitmodules` get the walker's treatment; a gitlink
  * (tree entry of type `commit`) is never checked out from a tree, so it is always opaque.
  *
+ * The walker's import pass, which needs file bytes, is replayed in snapshot.ts.
+ *
  * Deliberate differences, documented in corpus/README.md:
  * - `.gitignore` is not applied (`ignoredFiles` stays empty): every listed file is committed.
  * - Absolute symlink targets are outside the root: the checkout location is not known.
@@ -56,7 +58,19 @@ export interface WalkPlan {
   readonly missingLinkTexts: readonly string[];
   /** Every symlink the walk looked at, by real path (for statistics). */
   readonly symlinksSeen: number;
+  /** Candidate bytes counted against maxTotalBytes, as the walker's own counter. */
+  readonly bytesRead: number;
 }
+
+/** Where a root-relative path leads, resolved like src/io/resolve.ts does from the root. */
+export type PathResolution =
+  | {
+      readonly kind: 'file';
+      readonly realPath: string;
+      readonly sha: string;
+      readonly size: number;
+    }
+  | { readonly kind: 'other' };
 
 export interface WalkLimits {
   readonly maxFileBytes: number;
@@ -223,6 +237,18 @@ export class VirtualTree {
       realPath,
       node: realPath === '' ? undefined : this.#nodes.get(realPath),
     };
+  }
+
+  /**
+   * Resolves `relativePath` (a path the walk listed) from the root through `links`, never leaving
+   * the root: what the walker's import pass reads. `other` for anything that is not a regular
+   * file inside the root, or whose link texts are not known.
+   */
+  resolvePath(relativePath: string, links: ReadonlyMap<string, string>): PathResolution {
+    const resolution = this.#resolve('', relativePath, links, new Set());
+    if (resolution.kind !== 'inside' || resolution.node?.kind !== 'file') return { kind: 'other' };
+    const { realPath, node } = resolution;
+    return { kind: 'file', realPath, sha: node.sha, size: node.size };
   }
 
   /** Walks the tree as src/io/walk.ts would walk a checkout of it. */
@@ -413,6 +439,7 @@ export class VirtualTree {
       candidates: candidates.sort(byPath),
       missingLinkTexts: [...missing].sort(compareStrings),
       symlinksSeen,
+      bytesRead,
     };
   }
 }

@@ -36,8 +36,11 @@ export const CLAUDE_FILE_NAMES = ['CLAUDE.md', '.claude/CLAUDE.md', 'CLAUDE.loca
 /** Bounds the edges one graph visits, so a hostile repository cannot stall a scan for minutes. */
 const MAX_EDGE_VISITS = 200_000;
 
-/** Extensions of files that may contain further imports. Other files are leaves. */
-const TEXT_EXTENSIONS: ReadonlySet<string> = new Set(['md', 'mdc', 'markdown', 'txt', '']);
+/**
+ * Extensions (lower case, without the dot; `''` for none) of files that may contain further
+ * imports. Other files are leaves. The walker reads import targets with these extensions only.
+ */
+export const TEXT_EXTENSIONS: ReadonlySet<string> = new Set(['md', 'mdc', 'markdown', 'txt', '']);
 
 /** The parts of a `LoadView` the graph reads. */
 export type ImportView = Pick<LoadView, 'snapshot' | 'index' | 'markdown'>;

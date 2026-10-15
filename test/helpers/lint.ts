@@ -16,6 +16,8 @@ export interface SnapshotExtras {
   /** Directories (trailing `/`) whose contents are unknown, e.g. `node_modules/`. */
   readonly opaqueDirectories?: readonly string[];
   readonly ignoredFiles?: readonly string[];
+  /** Agent configuration a .gitignore matches that an untrusted scan read anyway. */
+  readonly gitignoredConfig?: readonly string[];
   /** Alias path -> real path, for files reached through symlinks. */
   readonly symlinks?: Readonly<Record<string, string>>;
   /** Default true, as in a normal walk. */
@@ -47,6 +49,9 @@ export function snapshotFrom(files: FileMap, extras: SnapshotExtras = {}): Snaps
     paths,
     opaqueDirectories: new Set(extras.opaqueDirectories ?? []),
     ignoredFiles: new Set(extras.ignoredFiles ?? []),
+    ...(extras.gitignoredConfig === undefined
+      ? {}
+      : { gitignoredConfig: new Set(extras.gitignoredConfig) }),
     gitignoreApplied: extras.gitignoreApplied ?? true,
     unresolvedSymlinks: [],
     skipped: [],

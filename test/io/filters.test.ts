@@ -5,7 +5,9 @@ import {
   BINARY_SNIFF_BYTES,
   defaultIsCandidate,
   HARD_EXCLUDED_DIRECTORIES,
+  isAgentConfigDirectory,
   isHardExcludedDirectory,
+  isTextImportTarget,
   looksBinary,
 } from '../../src/io/filters.js';
 import * as walkModule from '../../src/io/walk.js';
@@ -119,6 +121,47 @@ describe('defaultIsCandidate', () => {
       expect(defaultIsCandidate(relativePath)).toBe(
         isCandidateBasename(name) && classify(relativePath) !== undefined,
       );
+    }
+  });
+});
+
+describe('isAgentConfigDirectory', () => {
+  it('matches agent configuration directories and everything below them', () => {
+    for (const name of AGENT_CONFIG_DIRECTORIES) {
+      expect(isAgentConfigDirectory(name)).toBe(true);
+      expect(isAgentConfigDirectory(`${name}/`)).toBe(true);
+      expect(isAgentConfigDirectory(`packages/app/${name}/sub`)).toBe(true);
+    }
+    for (const relativePath of ['docs', 'claude', '.Claude', 'my.claude/x', 'skill', '']) {
+      expect(isAgentConfigDirectory(relativePath)).toBe(false);
+    }
+  });
+});
+
+describe('isTextImportTarget', () => {
+  it('accepts Markdown, plain text and extensionless names, not data, binaries or dotfiles', () => {
+    for (const relativePath of [
+      'README.md',
+      'docs/Guide.MD',
+      'a/b.markdown',
+      'rules/x.mdc',
+      'notes.txt',
+      'LICENSE',
+      'docs/README',
+    ]) {
+      expect(isTextImportTarget(relativePath)).toBe(true);
+    }
+    for (const relativePath of [
+      'package.json',
+      'logo.png',
+      'src/index.ts',
+      '.env',
+      'config/.npmrc',
+      '.cursorrules',
+      'docs/',
+      '',
+    ]) {
+      expect(isTextImportTarget(relativePath)).toBe(false);
     }
   });
 });

@@ -480,6 +480,7 @@ describe('schemas/report.schema.json', () => {
       'file-limit',
       'byte-limit',
       'depth-limit',
+      'import-limit',
     ] as const satisfies readonly SkipReason[];
     const SYMLINK_PROBLEMS = [
       'outside-root',

@@ -49,7 +49,8 @@ function asCheckout(snapshot: Snapshot): Snapshot {
 
 async function goldenReport({ fixture, gitRoot }: GoldenCase): Promise<string> {
   const root = fileURLToPath(new URL(`../fixtures/${fixture}`, import.meta.url));
-  const walked = await walk(root);
+  // As `--untrusted` walks: a .gitignore in the fixture could not hide agent configuration.
+  const walked = await walk(root, { scanIgnoredAgentConfig: true });
   const result = scanSnapshot(gitRoot ? asCheckout(walked) : walked, {
     rules: builtinRules,
     targets: PLATFORM_IDS,

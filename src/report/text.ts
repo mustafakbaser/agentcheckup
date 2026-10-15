@@ -145,6 +145,7 @@ export const SKIP_REASON_LABELS: Readonly<Record<SkipReason, string>> = {
   'file-limit': 'file limit reached',
   'byte-limit': 'byte limit reached',
   'depth-limit': 'too deep',
+  'import-limit': 'import limit reached',
 };
 
 export const SYMLINK_PROBLEM_LABELS: Readonly<Record<SymlinkProblem, string>> = {

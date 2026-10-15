@@ -75,14 +75,18 @@ committed fixtures instead.
    ([virtual-walk.ts](../scripts/corpus/virtual-walk.ts), using the walker's own policies from
    `src/io/filters.ts` and `src/io/submodules.ts`) and downloads only what the walker would read:
    paths `defaultIsCandidate()` accepts, outside hard-excluded directories, up to 1 MiB each, plus
-   the root `.gitmodules` and the text of every symlink the walk reaches. Contents are fetched by object id in batches of 40 through GraphQL and verified
+   the root `.gitmodules` and the text of every symlink the walk reaches. The files the walker's
+   import pass reads (`src/io/imports.ts`: imported README.md and similar) depend on the bytes of
+   the files that import them, so they are fetched afterwards in rounds, one hop deeper each. Contents are fetched by object id in batches of 40 through GraphQL and verified
    against the git object id, so the bytes are exact (BOM, encoding and line endings included);
    anything that is not valid UTF-8 is re-fetched as base64 through the REST blob endpoint.
 3. `run.ts` builds the same `Snapshot` the CLI would build from a checkout: `files` are the
    downloaded blobs, `paths` every listed path plus its parent directories (with a trailing
    `/`), `opaqueDirectories` the hard-excluded directories that exist, and symlinks (mode
    `120000`) are resolved inside the tree like `src/io/resolve.ts` does, setting `symlinkTarget`
-   and never following anything outside the repository. It then calls `scanSnapshot` with
+   and never following anything outside the repository. The import pass is replayed with the
+   walker's planner and caps; imported files missing from an older cache are listed as a warning
+   and stay unread (run `fetch.ts` again to add them). It then calls `scanSnapshot` with
    `builtinRules`, every platform targeted and inline suppressions ignored (`--untrusted`).
 
 Differences from scanning a checkout, all deliberate:

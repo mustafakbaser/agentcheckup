@@ -54,6 +54,12 @@ describe('settings/local-file-not-ignored', () => {
     expect(findings(result, ID)).toEqual([]);
   });
 
+  it('does not report a gitignored CLAUDE.local.md that an untrusted scan read anyway', () => {
+    const files = { 'CLAUDE.local.md': '# Mine\n', 'pkg/CLAUDE.local.md': '# Also mine\n' };
+    const result = lint(files, { rules, gitignoredConfig: ['CLAUDE.local.md'] });
+    expect(findings(result, ID).map((finding) => finding.path)).toEqual(['pkg/CLAUDE.local.md']);
+  });
+
   it('does not report CLAUDE.md, .claude/settings.local.json or other files', () => {
     const files = {
       'CLAUDE.md': '# Team\n',

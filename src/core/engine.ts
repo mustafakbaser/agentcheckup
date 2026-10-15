@@ -4,7 +4,7 @@ import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
 import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
-import { classify, READERS } from '../platforms/classify.js';
+import { classifyFile, READERS } from '../platforms/classify.js';
 import { MARKDOWN_KINDS } from '../platforms/kinds.js';
 import {
   buildContextReport,
@@ -212,7 +212,7 @@ export function buildArtifacts(snapshot: Snapshot, config: ResolvedConfig): Arti
   for (const file of snapshot.files) {
     if (file.symlinkTarget !== undefined && realPaths.has(file.symlinkTarget)) continue;
     if (config.isIgnored(file.path)) continue;
-    const classification = classify(file.path);
+    const classification = classifyFile(file);
     if (!classification) continue;
     artifacts.push({
       path: file.path,
@@ -513,10 +513,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
       readers: artifact.readers,
     })),
     findings,
-    score: computeScore(
-      artifacts.map((artifact) => artifact.path),
-      findings,
-    ),
+    score: computeScore(scoredPaths(artifacts, active), findings),
     summary: {
       errors: active.filter((finding) => finding.severity === 'error').length,
       warnings: active.filter((finding) => finding.severity === 'warn').length,
@@ -584,6 +581,21 @@ export function scanWithContext(
         })()
       : buildContextReport({ agents, plans: loadPlans(analysis, { ...shared, cwd }) });
   return { ...result, inventory, context };
+}
+
+/**
+ * The files the score covers: every artifact, except that a file read only because an
+ * instruction file imports it (`imported-file`) counts once it has an error or a warning. Its
+ * problems lower the score like any file's, but following imports never raises the score by
+ * adding clean files that are not agent configuration.
+ */
+function scoredPaths(artifacts: readonly Artifact[], active: readonly Finding[]): string[] {
+  const penalized = new Set(
+    active.filter((finding) => finding.severity !== 'info').map((finding) => finding.path),
+  );
+  return artifacts
+    .filter((artifact) => artifact.kind !== 'imported-file' || penalized.has(artifact.path))
+    .map((artifact) => artifact.path);
 }
 
 /** Number of lines that start before `offset` (binary search over sorted line starts). */
