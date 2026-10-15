@@ -1,0 +1,75 @@
+{
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/config.schema.json",
+  "title": "agentcheck configuration",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "targets": {
+      "description": "Agents to check against. Default: all supported agents.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": ["claude-code", "codex", "cursor", "copilot", "gemini", "windsurf", "cline"]
+      }
+    },
+    "rules": {
+      "description": "Severity, or [severity, options], per rule id.",
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "enum": ["off", "info", "warn", "error"]
+          },
+          {
+            "type": "array",
+            "prefixItems": [
+              {
+                "enum": ["off", "info", "warn", "error"]
+              },
+              {
+                "type": "object"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        ]
+      }
+    },
+    "ignore": {
+      "description": "Globs, relative to the scanned directory, of files to skip.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overrides": {
+      "description": "Severity changes for files matching `files`. Later entries win.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["files", "rules"],
+        "properties": {
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "rules": {
+            "type": "object",
+            "additionalProperties": {
+              "enum": ["off", "info", "warn", "error"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

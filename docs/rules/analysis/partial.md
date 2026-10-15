@@ -1,0 +1,43 @@
+<!-- Generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
+
+# `analysis/partial`
+
+File was only partly analyzed.
+
+|            |                                                                                                                                                                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `info`                                                                                                                                                                                                                                                                                                        |
+| Category   | `clarity`                                                                                                                                                                                                                                                                                                     |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                                                                                                       |
+| Applies to | `agents-md`, `agents-override-md`, `claude-md`, `claude-local-md`, `claude-rule`, `claude-agent`, `claude-command`, `skill`, `cursor-rule`, `cursor-rule-md`, `cursor-legacy-rules`, `copilot-instructions`, `copilot-path-instructions`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `cline-rule` |
+| Fixable    | No                                                                                                                                                                                                                                                                                                            |
+| Since      | 2026.10                                                                                                                                                                                                                                                                                                       |
+
+## Why
+
+agentcheck limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.
+
+Rules do not check the skipped parts, so findings there can be missing. This notice never affects the score.
+
+An instruction file this large is costly for agents too: Codex reads at most 32 KiB of `AGENTS.md` files, and Claude Code recommends `CLAUDE.md` files under 200 lines. Split the file or move reference material out of it.
+
+## Evidence
+
+- [ADR 0003: Treat scanned repositories as hostile](https://github.com/mustafakbaser/agentcheck/blob/main/docs/adr/0003-treat-scanned-repositories-as-hostile.md), verified, checked 2026-10-14
+
+## Configuration
+
+```json
+{
+  "rules": {
+    "analysis/partial": "off"
+  }
+}
+```
+
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+suppress one occurrence with a reason:
+
+```markdown
+<!-- agentcheck-disable-next-line analysis/partial -- reason -->
+```
