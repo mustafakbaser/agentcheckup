@@ -22,6 +22,14 @@ updates:
     # that pnpm then refuses to install.
     cooldown:
       default-days: 7
+    ignore:
+      # Types follow the oldest supported Node.js (package.json engines: >=22.12). Newer majors
+      # would let code use APIs that Node.js 22 does not have.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # Pinned below 6.1 until typescript-eslint supports TypeScript 7.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
     groups:
       development:
         dependency-type: development
