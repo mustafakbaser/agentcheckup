@@ -1,0 +1,53 @@
+name: Source drift
+
+# Re-fetches the documentation and source files that rules cite, compares them with
+# scripts/drift/baseline.json, and opens an issue for each source that changed.
+# See docs/maintainers/source-drift.md.
+
+on:
+  schedule:
+    - cron: '23 6 * * 3'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Check cited sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out the repository
+      issues: write # open, update and close source-drift issues
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Compare cited sources with the baseline
+        id: check
+        # Exit code 1 means a source changed or could not be fetched. The next step turns the
+        # report into issues; it fails if no report was written.
+        continue-on-error: true
+        env:
+          # Reads github.com files through the REST API instead of the unauthenticated
+          # raw.githubusercontent.com. The script sends it to api.github.com only.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm drift:check --report "$RUNNER_TEMP/source-drift.json"
+      - name: Open or update issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pnpm exec tsx scripts/drift/sync-issues.ts "$RUNNER_TEMP/source-drift.json"
