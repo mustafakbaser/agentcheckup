@@ -10,9 +10,11 @@ one protected GitHub environment.
 1. Merge pull requests into `main` with Conventional Commit titles.
 2. release-please keeps a "chore(main): release x.y.z" pull request up to date with the version
    bump and changelog.
-3. Merge that pull request. The workflow tags the release, waits for approval on the `npm`
-   environment, runs `pnpm check`, builds, attests the tarball, publishes to npm with provenance,
-   and attaches the tarball to the GitHub release.
+3. Close and reopen that pull request so the required checks run on it, then approve and merge
+   it. [Repository settings](repository-settings.md#release-pull-requests) explains why. The
+   workflow tags the release, waits for approval on the `npm` environment, runs `pnpm check`,
+   builds, attests the tarball, publishes to npm with provenance, and attaches the tarball to the
+   GitHub release.
 
 Before 1.0.0, breaking changes bump the minor version and features bump the patch version.
 
@@ -29,30 +31,33 @@ not automated.
 2. **Secure the accounts.** Use a passkey or hardware key for npm and GitHub two-factor
    authentication.
 3. **Create the package.** Trusted publishing can only be configured for a package that exists.
-   Publish a `0.0.0` placeholder manually from a clean checkout:
-   `npm publish --access public` with a minimal `package.json` that has the same name.
+   Publish a `0.0.0` placeholder manually: a minimal package with the same name, a README that
+   says the name is reserved, and no install scripts. After 0.1.0 is out, deprecate it with
+   `npm deprecate agentcheckup@0.0.0 "Placeholder. Install the latest version."`.
 4. **Configure trusted publishing** on npmjs.com for the package: GitHub Actions, repository
    `mustafakbaser/agentcheckup`, workflow `release.yml`, environment `npm`.
 5. **Lock down publishing.** In the package settings, require two-factor authentication and
    disallow tokens.
-6. **Protect the environment.** In GitHub, Settings, Environments, create `npm` with yourself as
-   a required reviewer and restrict it to the `main` branch.
-7. **Protect `main`** with a ruleset: require pull requests, require the CI, CodeQL and
-   pull-request-title checks, block force pushes, and require signed commits.
-8. **Protect tags** with a ruleset for `v*`, and enable immutable releases.
-9. **Enable** private vulnerability reporting, secret scanning with push protection, and
-   Dependabot alerts.
-10. **Let release-please open its pull request.** In Settings, Actions, General, enable "Allow
-    GitHub Actions to create and approve pull requests". New repositories have it off, and the
-    Release workflow fails with "GitHub Actions is not permitted to create or approve pull
-    requests" until it is on. The default workflow token stays read-only; only the Release
-    workflow's release-please job asks for `contents: write` and `pull-requests: write`. From
-    the command line:
+6. **Protect the environment.** Create `npm` with yourself as a required reviewer and restrict it
+   to the `main` branch. The command is in
+   [repository settings](repository-settings.md#the-npm-environment).
+7. **Apply the repository settings.** Rulesets for `main` and release tags, merge settings, the
+   Actions allowlist and Dependabot are described in
+   [repository settings](repository-settings.md). They were applied on 2026-10-15.
+8. **At launch,** when the repository becomes public, turn on the features GitHub offers only for
+   public repositories. They are listed under
+   [security features](repository-settings.md#security-features).
+9. **Let release-please open its pull request.** In Settings, Actions, General, enable "Allow
+   GitHub Actions to create and approve pull requests". New repositories have it off, and the
+   Release workflow fails with "GitHub Actions is not permitted to create or approve pull
+   requests" until it is on. The default workflow token stays read-only; only the Release
+   workflow's release-please job asks for `contents: write` and `pull-requests: write`. From
+   the command line:
 
-    ```sh
-    gh api -X PUT repos/mustafakbaser/agentcheckup/actions/permissions/workflow \
-      -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
-    ```
+   ```sh
+   gh api -X PUT repos/mustafakbaser/agentcheckup/actions/permissions/workflow \
+     -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+   ```
 
 ## Dependency updates
 

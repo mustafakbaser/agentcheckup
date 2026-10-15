@@ -93,7 +93,9 @@ Rule ids are permanent. Never rename or reuse one; deprecate it instead.
   [Conventional Commits](https://www.conventionalcommits.org): `feat(rules): ...`,
   `fix(parse): ...`, `docs: ...`. The title becomes the changelog entry, so write it for users.
 - Keep pull requests focused. One rule per pull request is ideal.
-- Pull requests are squash-merged.
+- Pull requests are squash-merged, and the pull request title becomes the commit message. Mark a
+  breaking change with `!` after the type, for example `feat(cli)!: ...`.
+- A maintainer reviews and approves every pull request before it is merged.
 - CI must pass: formatting, lint, types, tests on Linux, macOS and Windows, a package smoke
   test, CodeQL, and workflow security checks.
 

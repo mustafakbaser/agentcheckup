@@ -1,0 +1,33 @@
+{
+  "name": "main: integrity",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "required_signatures" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "Format, lint, types, generated docs", "integration_id": 15368 },
+          { "context": "Build and verify the package", "integration_id": 15368 },
+          { "context": "Test (ubuntu-latest, Node 22.12.0)", "integration_id": 15368 },
+          { "context": "Test (ubuntu-latest, Node 24)", "integration_id": 15368 },
+          { "context": "Test (ubuntu-latest, Node 26)", "integration_id": 15368 },
+          { "context": "Test (macos-latest, Node 22.12.0)", "integration_id": 15368 },
+          { "context": "Test (macos-latest, Node 24)", "integration_id": 15368 },
+          { "context": "Test (macos-latest, Node 26)", "integration_id": 15368 },
+          { "context": "Test (windows-latest, Node 22.12.0)", "integration_id": 15368 },
+          { "context": "Test (windows-latest, Node 24)", "integration_id": 15368 },
+          { "context": "Test (windows-latest, Node 26)", "integration_id": 15368 }
+        ]
+      }
+    }
+  ]
+}
