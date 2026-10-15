@@ -16,9 +16,13 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Code scanning on private repositories needs GitHub Advanced Security; it is free once the
+    # repository is public.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read # read workflow run details, required for private repositories
       contents: read # check out the repository
       security-events: write # upload CodeQL results to code scanning
     strategy:
