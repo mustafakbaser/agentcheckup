@@ -1,0 +1,5 @@
+---
+description: REST conventions for routes in packages/api
+---
+
+Use plural nouns for collections. Return 201 with a Location header on create.

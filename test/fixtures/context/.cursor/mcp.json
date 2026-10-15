@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "linear": { "url": "https://mcp.linear.app/mcp" },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@example/postgres-mcp@1.2.0"],
+      "env": { "DATABASE_URL": "${env:DATABASE_URL}" }
+    }
+  }
+}

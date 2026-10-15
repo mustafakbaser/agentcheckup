@@ -1,0 +1,5 @@
+---
+globs: src/**/*.ts,src/**/*.tsx
+---
+
+Enable `strict` in every tsconfig. Prefer `unknown` over `any`.

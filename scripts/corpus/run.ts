@@ -9,15 +9,21 @@
  *   npx tsx scripts/corpus/run.ts                     scan everything, write all three files
  *   npx tsx scripts/corpus/run.ts --only owner/name   scan some repositories and print their
  *                                                     findings instead (writes nothing)
+ *   npx tsx scripts/corpus/run.ts --write-golden      scan everything and write only the
+ *                                                     gitignored corpus/golden.json (golden.ts)
+ *   npx tsx scripts/corpus/run.ts --check-golden      compare the scan with corpus/golden.json
+ *                                                     and print the differences (writes nothing;
+ *                                                     combines with --only)
  *
  * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
  * suppress findings.
  *
- * Exit status: 0 ok, 1 a rule crashed on at least one repository (listed on stderr), 2 the cache
- * is incomplete (run fetch.ts first).
+ * Exit status: 0 ok, 1 a rule crashed on at least one repository (listed on stderr) or
+ * --check-golden found a difference, 2 the cache is incomplete (run fetch.ts first) or
+ * --check-golden has no corpus/golden.json to compare with.
  */
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -31,12 +37,36 @@ import { VERSION } from '../../src/core/version.js';
 import { forJsonOutput, forMarkdown, forTerminal } from '../../src/report/sanitize.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
+import {
+  compareGolden,
+  findingCount,
+  type Golden,
+  goldenRepo,
+  makeGolden,
+  messageHash,
+  parseGolden,
+  renderDifferences,
+  serializeGolden,
+} from './golden.js';
 import { loadSnapshot } from './snapshot.js';
 
 const { values } = parseArgs({
-  options: { only: { type: 'string', multiple: true, default: [] } },
+  options: {
+    only: { type: 'string', multiple: true, default: [] },
+    'write-golden': { type: 'boolean', default: false },
+    'check-golden': { type: 'boolean', default: false },
+  },
   strict: true,
 });
+
+if (values['write-golden'] && values['check-golden']) {
+  throw new Error('--write-golden and --check-golden cannot be combined');
+}
+if (values['write-golden'] && values.only.length > 0) {
+  throw new Error('--write-golden records the whole corpus and cannot be combined with --only');
+}
+
+const GOLDEN_FILE = path.join(CORPUS_DIR, 'golden.json');
 
 const SEVERITY_RANK: Readonly<Record<Severity, number>> = { error: 3, warn: 2, info: 1 };
 const SAMPLES_PER_RULE = 5;
@@ -650,6 +680,64 @@ async function writeFormatted(file: string, content: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Golden file (golden.ts)
+// ---------------------------------------------------------------------------------------------
+
+async function readGolden(): Promise<Golden | undefined> {
+  let text: string;
+  try {
+    text = await readFile(GOLDEN_FILE, 'utf8');
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
+    throw error;
+  }
+  return parseGolden(text, 'corpus/golden.json');
+}
+
+function count(n: number, singular: string, plural: string): string {
+  return `${String(n)} ${n === 1 ? singular : plural}`;
+}
+
+/**
+ * --check-golden: prints the differences and returns the exit status, 0 or 1. `only` limits the
+ * comparison to the repositories that --only selected.
+ */
+function checkGolden(
+  saved: Golden,
+  scanned: readonly Scanned[],
+  only: ReadonlySet<string> | undefined,
+): number {
+  const current = makeGolden(scanned.map(({ entry, result }) => goldenRepo(entry, result)));
+  const differences = compareGolden(saved, current, only);
+  if (differences.length === 0) {
+    process.stdout.write(
+      `corpus/golden.json matches: ${count(current.repos.length, 'repository', 'repositories')}, ` +
+        `${count(findingCount(current), 'finding', 'findings')}.\n`,
+    );
+    return 0;
+  }
+  const messages = new Map<string, string>();
+  for (const { result } of scanned) {
+    for (const finding of result.findings)
+      messages.set(messageHash(finding.message), finding.message);
+  }
+  let removed = 0;
+  let added = 0;
+  for (const repo of differences) {
+    for (const rule of repo.rules) {
+      removed += rule.removed.length;
+      added += rule.added.length;
+    }
+  }
+  process.stdout.write(renderDifferences(differences, messages));
+  process.stdout.write(
+    `\ncorpus/golden.json differs in ${count(differences.length, 'repository', 'repositories')}: ` +
+      `${count(removed, 'finding', 'findings')} removed, ${String(added)} added.\n`,
+  );
+  return 1;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------------------------
 
@@ -661,6 +749,13 @@ const unknown = [...only].filter(
 if (unknown.length > 0) throw new Error(`not in corpus/repos.json: ${unknown.join(', ')}`);
 const selected =
   only.size === 0 ? repos : repos.filter((entry) => only.has(entry.repo.toLowerCase()));
+
+// Read before scanning, so a missing file fails fast.
+const savedGolden = values['check-golden'] ? await readGolden() : undefined;
+if (values['check-golden'] && savedGolden === undefined) {
+  log('corpus/golden.json does not exist; write it with --write-golden first.');
+  process.exit(2);
+}
 
 const scanned: Scanned[] = [];
 const incomplete: string[] = [];
@@ -683,7 +778,16 @@ if (incomplete.length > 0) {
 
 const crashes = groupCrashes(scanned);
 
-if (only.size > 0) {
+if (values['write-golden']) {
+  const golden = makeGolden(scanned.map(({ entry, result }) => goldenRepo(entry, result)));
+  await writeFile(GOLDEN_FILE, serializeGolden(golden));
+  process.stdout.write(
+    `Wrote corpus/golden.json (local): ${String(golden.repos.length)} repositories, ` +
+      `${String(findingCount(golden))} findings.\n`,
+  );
+} else if (savedGolden !== undefined) {
+  process.exitCode = checkGolden(savedGolden, scanned, only.size > 0 ? only : undefined);
+} else if (only.size > 0) {
   for (const { entry, result, summary } of scanned) {
     process.stdout.write(
       `${repoLabel(entry)}: ${String(summary.artifacts)} artifacts, score ${String(summary.score)}\n`,

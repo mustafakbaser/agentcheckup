@@ -1,0 +1,106 @@
+# Ledger
+
+Double-entry bookkeeping for billing.
+
+- L001: every ledger entry has a debit account and a credit account.
+- L002: entries are append-only; a reversal is a new entry.
+- L003: each journal balances to zero at the end of a transaction.
+- L004: account codes follow the chart of accounts in ledger/accounts.csv.
+- L005: every ledger entry has a debit account and a credit account.
+- L006: entries are append-only; a reversal is a new entry.
+- L007: each journal balances to zero at the end of a transaction.
+- L008: account codes follow the chart of accounts in ledger/accounts.csv.
+- L009: every ledger entry has a debit account and a credit account.
+- L010: entries are append-only; a reversal is a new entry.
+- L011: each journal balances to zero at the end of a transaction.
+- L012: account codes follow the chart of accounts in ledger/accounts.csv.
+- L013: every ledger entry has a debit account and a credit account.
+- L014: entries are append-only; a reversal is a new entry.
+- L015: each journal balances to zero at the end of a transaction.
+- L016: account codes follow the chart of accounts in ledger/accounts.csv.
+- L017: every ledger entry has a debit account and a credit account.
+- L018: entries are append-only; a reversal is a new entry.
+- L019: each journal balances to zero at the end of a transaction.
+- L020: account codes follow the chart of accounts in ledger/accounts.csv.
+- L021: every ledger entry has a debit account and a credit account.
+- L022: entries are append-only; a reversal is a new entry.
+- L023: each journal balances to zero at the end of a transaction.
+- L024: account codes follow the chart of accounts in ledger/accounts.csv.
+- L025: every ledger entry has a debit account and a credit account.
+- L026: entries are append-only; a reversal is a new entry.
+- L027: each journal balances to zero at the end of a transaction.
+- L028: account codes follow the chart of accounts in ledger/accounts.csv.
+- L029: every ledger entry has a debit account and a credit account.
+- L030: entries are append-only; a reversal is a new entry.
+- L031: each journal balances to zero at the end of a transaction.
+- L032: account codes follow the chart of accounts in ledger/accounts.csv.
+- L033: every ledger entry has a debit account and a credit account.
+- L034: entries are append-only; a reversal is a new entry.
+- L035: each journal balances to zero at the end of a transaction.
+- L036: account codes follow the chart of accounts in ledger/accounts.csv.
+- L037: every ledger entry has a debit account and a credit account.
+- L038: entries are append-only; a reversal is a new entry.
+- L039: each journal balances to zero at the end of a transaction.
+- L040: account codes follow the chart of accounts in ledger/accounts.csv.
+- L041: every ledger entry has a debit account and a credit account.
+- L042: entries are append-only; a reversal is a new entry.
+- L043: each journal balances to zero at the end of a transaction.
+- L044: account codes follow the chart of accounts in ledger/accounts.csv.
+- L045: every ledger entry has a debit account and a credit account.
+- L046: entries are append-only; a reversal is a new entry.
+- L047: each journal balances to zero at the end of a transaction.
+- L048: account codes follow the chart of accounts in ledger/accounts.csv.
+- L049: every ledger entry has a debit account and a credit account.
+- L050: entries are append-only; a reversal is a new entry.
+- L051: each journal balances to zero at the end of a transaction.
+- L052: account codes follow the chart of accounts in ledger/accounts.csv.
+- L053: every ledger entry has a debit account and a credit account.
+- L054: entries are append-only; a reversal is a new entry.
+- L055: each journal balances to zero at the end of a transaction.
+- L056: account codes follow the chart of accounts in ledger/accounts.csv.
+- L057: every ledger entry has a debit account and a credit account.
+- L058: entries are append-only; a reversal is a new entry.
+- L059: each journal balances to zero at the end of a transaction.
+- L060: account codes follow the chart of accounts in ledger/accounts.csv.
+- L061: every ledger entry has a debit account and a credit account.
+- L062: entries are append-only; a reversal is a new entry.
+- L063: each journal balances to zero at the end of a transaction.
+- L064: account codes follow the chart of accounts in ledger/accounts.csv.
+- L065: every ledger entry has a debit account and a credit account.
+- L066: entries are append-only; a reversal is a new entry.
+- L067: each journal balances to zero at the end of a transaction.
+- L068: account codes follow the chart of accounts in ledger/accounts.csv.
+- L069: every ledger entry has a debit account and a credit account.
+- L070: entries are append-only; a reversal is a new entry.
+- L071: each journal balances to zero at the end of a transaction.
+- L072: account codes follow the chart of accounts in ledger/accounts.csv.
+- L073: every ledger entry has a debit account and a credit account.
+- L074: entries are append-only; a reversal is a new entry.
+- L075: each journal balances to zero at the end of a transaction.
+- L076: account codes follow the chart of accounts in ledger/accounts.csv.
+- L077: every ledger entry has a debit account and a credit account.
+- L078: entries are append-only; a reversal is a new entry.
+- L079: each journal balances to zero at the end of a transaction.
+- L080: account codes follow the chart of accounts in ledger/accounts.csv.
+- L081: every ledger entry has a debit account and a credit account.
+- L082: entries are append-only; a reversal is a new entry.
+- L083: each journal balances to zero at the end of a transaction.
+- L084: account codes follow the chart of accounts in ledger/accounts.csv.
+- L085: every ledger entry has a debit account and a credit account.
+- L086: entries are append-only; a reversal is a new entry.
+- L087: each journal balances to zero at the end of a transaction.
+- L088: account codes follow the chart of accounts in ledger/accounts.csv.
+- L089: every ledger entry has a debit account and a credit account.
+- L090: entries are append-only; a reversal is a new entry.
+- L091: each journal balances to zero at the end of a transaction.
+- L092: account codes follow the chart of accounts in ledger/accounts.csv.
+- L093: every ledger entry has a debit account and a credit account.
+- L094: entries are append-only; a reversal is a new entry.
+- L095: each journal balances to zero at the end of a transaction.
+- L096: account codes follow the chart of accounts in ledger/accounts.csv.
+- L097: every ledger entry has a debit account and a credit account.
+- L098: entries are append-only; a reversal is a new entry.
+- L099: each journal balances to zero at the end of a transaction.
+- L100: account codes follow the chart of accounts in ledger/accounts.csv.
+- L101: every ledger entry has a debit account and a credit account.
+- L102: entries are append-only; a reversal is a new entry.

@@ -38,6 +38,7 @@ THIRD_PARTY_NOTICES.md
 
 # Corpus outputs with per-repository findings stay local (docs/adr/0005-scoring.md:
 # aggregate statistics only, no public rankings of other projects)
+corpus/golden.json
 corpus/results.json
 corpus/REPORT.md
 

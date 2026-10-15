@@ -1,0 +1,190 @@
+# Billing service
+
+Invoicing, payments and refunds.
+
+- B001: invoice amounts are integer cents in the amount_cents column.
+- B002: an issued invoice is immutable; corrections are credit notes.
+- B003: currency codes are ISO 4217 strings in upper case.
+- B004: tax is computed per line item and rounded half to even.
+- B005: payment provider webhooks are verified before any state change.
+- B006: refunds reference the original payment id and never exceed it.
+- B007: invoice amounts are integer cents in the amount_cents column.
+- B008: an issued invoice is immutable; corrections are credit notes.
+- B009: currency codes are ISO 4217 strings in upper case.
+- B010: tax is computed per line item and rounded half to even.
+- B011: payment provider webhooks are verified before any state change.
+- B012: refunds reference the original payment id and never exceed it.
+- B013: invoice amounts are integer cents in the amount_cents column.
+- B014: an issued invoice is immutable; corrections are credit notes.
+- B015: currency codes are ISO 4217 strings in upper case.
+- B016: tax is computed per line item and rounded half to even.
+- B017: payment provider webhooks are verified before any state change.
+- B018: refunds reference the original payment id and never exceed it.
+- B019: invoice amounts are integer cents in the amount_cents column.
+- B020: an issued invoice is immutable; corrections are credit notes.
+- B021: currency codes are ISO 4217 strings in upper case.
+- B022: tax is computed per line item and rounded half to even.
+- B023: payment provider webhooks are verified before any state change.
+- B024: refunds reference the original payment id and never exceed it.
+- B025: invoice amounts are integer cents in the amount_cents column.
+- B026: an issued invoice is immutable; corrections are credit notes.
+- B027: currency codes are ISO 4217 strings in upper case.
+- B028: tax is computed per line item and rounded half to even.
+- B029: payment provider webhooks are verified before any state change.
+- B030: refunds reference the original payment id and never exceed it.
+- B031: invoice amounts are integer cents in the amount_cents column.
+- B032: an issued invoice is immutable; corrections are credit notes.
+- B033: currency codes are ISO 4217 strings in upper case.
+- B034: tax is computed per line item and rounded half to even.
+- B035: payment provider webhooks are verified before any state change.
+- B036: refunds reference the original payment id and never exceed it.
+- B037: invoice amounts are integer cents in the amount_cents column.
+- B038: an issued invoice is immutable; corrections are credit notes.
+- B039: currency codes are ISO 4217 strings in upper case.
+- B040: tax is computed per line item and rounded half to even.
+- B041: payment provider webhooks are verified before any state change.
+- B042: refunds reference the original payment id and never exceed it.
+- B043: invoice amounts are integer cents in the amount_cents column.
+- B044: an issued invoice is immutable; corrections are credit notes.
+- B045: currency codes are ISO 4217 strings in upper case.
+- B046: tax is computed per line item and rounded half to even.
+- B047: payment provider webhooks are verified before any state change.
+- B048: refunds reference the original payment id and never exceed it.
+- B049: invoice amounts are integer cents in the amount_cents column.
+- B050: an issued invoice is immutable; corrections are credit notes.
+- B051: currency codes are ISO 4217 strings in upper case.
+- B052: tax is computed per line item and rounded half to even.
+- B053: payment provider webhooks are verified before any state change.
+- B054: refunds reference the original payment id and never exceed it.
+- B055: invoice amounts are integer cents in the amount_cents column.
+- B056: an issued invoice is immutable; corrections are credit notes.
+- B057: currency codes are ISO 4217 strings in upper case.
+- B058: tax is computed per line item and rounded half to even.
+- B059: payment provider webhooks are verified before any state change.
+- B060: refunds reference the original payment id and never exceed it.
+- B061: invoice amounts are integer cents in the amount_cents column.
+- B062: an issued invoice is immutable; corrections are credit notes.
+- B063: currency codes are ISO 4217 strings in upper case.
+- B064: tax is computed per line item and rounded half to even.
+- B065: payment provider webhooks are verified before any state change.
+- B066: refunds reference the original payment id and never exceed it.
+- B067: invoice amounts are integer cents in the amount_cents column.
+- B068: an issued invoice is immutable; corrections are credit notes.
+- B069: currency codes are ISO 4217 strings in upper case.
+- B070: tax is computed per line item and rounded half to even.
+- B071: payment provider webhooks are verified before any state change.
+- B072: refunds reference the original payment id and never exceed it.
+- B073: invoice amounts are integer cents in the amount_cents column.
+- B074: an issued invoice is immutable; corrections are credit notes.
+- B075: currency codes are ISO 4217 strings in upper case.
+- B076: tax is computed per line item and rounded half to even.
+- B077: payment provider webhooks are verified before any state change.
+- B078: refunds reference the original payment id and never exceed it.
+- B079: invoice amounts are integer cents in the amount_cents column.
+- B080: an issued invoice is immutable; corrections are credit notes.
+- B081: currency codes are ISO 4217 strings in upper case.
+- B082: tax is computed per line item and rounded half to even.
+- B083: payment provider webhooks are verified before any state change.
+- B084: refunds reference the original payment id and never exceed it.
+- B085: invoice amounts are integer cents in the amount_cents column.
+- B086: an issued invoice is immutable; corrections are credit notes.
+- B087: currency codes are ISO 4217 strings in upper case.
+- B088: tax is computed per line item and rounded half to even.
+- B089: payment provider webhooks are verified before any state change.
+- B090: refunds reference the original payment id and never exceed it.
+- B091: invoice amounts are integer cents in the amount_cents column.
+- B092: an issued invoice is immutable; corrections are credit notes.
+- B093: currency codes are ISO 4217 strings in upper case.
+- B094: tax is computed per line item and rounded half to even.
+- B095: payment provider webhooks are verified before any state change.
+- B096: refunds reference the original payment id and never exceed it.
+- B097: invoice amounts are integer cents in the amount_cents column.
+- B098: an issued invoice is immutable; corrections are credit notes.
+- B099: currency codes are ISO 4217 strings in upper case.
+- B100: tax is computed per line item and rounded half to even.
+- B101: payment provider webhooks are verified before any state change.
+- B102: refunds reference the original payment id and never exceed it.
+- B103: invoice amounts are integer cents in the amount_cents column.
+- B104: an issued invoice is immutable; corrections are credit notes.
+- B105: currency codes are ISO 4217 strings in upper case.
+- B106: tax is computed per line item and rounded half to even.
+- B107: payment provider webhooks are verified before any state change.
+- B108: refunds reference the original payment id and never exceed it.
+- B109: invoice amounts are integer cents in the amount_cents column.
+- B110: an issued invoice is immutable; corrections are credit notes.
+- B111: currency codes are ISO 4217 strings in upper case.
+- B112: tax is computed per line item and rounded half to even.
+- B113: payment provider webhooks are verified before any state change.
+- B114: refunds reference the original payment id and never exceed it.
+- B115: invoice amounts are integer cents in the amount_cents column.
+- B116: an issued invoice is immutable; corrections are credit notes.
+- B117: currency codes are ISO 4217 strings in upper case.
+- B118: tax is computed per line item and rounded half to even.
+- B119: payment provider webhooks are verified before any state change.
+- B120: refunds reference the original payment id and never exceed it.
+- B121: invoice amounts are integer cents in the amount_cents column.
+- B122: an issued invoice is immutable; corrections are credit notes.
+- B123: currency codes are ISO 4217 strings in upper case.
+- B124: tax is computed per line item and rounded half to even.
+- B125: payment provider webhooks are verified before any state change.
+- B126: refunds reference the original payment id and never exceed it.
+- B127: invoice amounts are integer cents in the amount_cents column.
+- B128: an issued invoice is immutable; corrections are credit notes.
+- B129: currency codes are ISO 4217 strings in upper case.
+- B130: tax is computed per line item and rounded half to even.
+- B131: payment provider webhooks are verified before any state change.
+- B132: refunds reference the original payment id and never exceed it.
+- B133: invoice amounts are integer cents in the amount_cents column.
+- B134: an issued invoice is immutable; corrections are credit notes.
+- B135: currency codes are ISO 4217 strings in upper case.
+- B136: tax is computed per line item and rounded half to even.
+- B137: payment provider webhooks are verified before any state change.
+- B138: refunds reference the original payment id and never exceed it.
+- B139: invoice amounts are integer cents in the amount_cents column.
+- B140: an issued invoice is immutable; corrections are credit notes.
+- B141: currency codes are ISO 4217 strings in upper case.
+- B142: tax is computed per line item and rounded half to even.
+- B143: payment provider webhooks are verified before any state change.
+- B144: refunds reference the original payment id and never exceed it.
+- B145: invoice amounts are integer cents in the amount_cents column.
+- B146: an issued invoice is immutable; corrections are credit notes.
+- B147: currency codes are ISO 4217 strings in upper case.
+- B148: tax is computed per line item and rounded half to even.
+- B149: payment provider webhooks are verified before any state change.
+- B150: refunds reference the original payment id and never exceed it.
+- B151: invoice amounts are integer cents in the amount_cents column.
+- B152: an issued invoice is immutable; corrections are credit notes.
+- B153: currency codes are ISO 4217 strings in upper case.
+- B154: tax is computed per line item and rounded half to even.
+- B155: payment provider webhooks are verified before any state change.
+- B156: refunds reference the original payment id and never exceed it.
+- B157: invoice amounts are integer cents in the amount_cents column.
+- B158: an issued invoice is immutable; corrections are credit notes.
+- B159: currency codes are ISO 4217 strings in upper case.
+- B160: tax is computed per line item and rounded half to even.
+- B161: payment provider webhooks are verified before any state change.
+- B162: refunds reference the original payment id and never exceed it.
+- B163: invoice amounts are integer cents in the amount_cents column.
+- B164: an issued invoice is immutable; corrections are credit notes.
+- B165: currency codes are ISO 4217 strings in upper case.
+- B166: tax is computed per line item and rounded half to even.
+- B167: payment provider webhooks are verified before any state change.
+- B168: refunds reference the original payment id and never exceed it.
+- B169: invoice amounts are integer cents in the amount_cents column.
+- B170: an issued invoice is immutable; corrections are credit notes.
+- B171: currency codes are ISO 4217 strings in upper case.
+- B172: tax is computed per line item and rounded half to even.
+- B173: payment provider webhooks are verified before any state change.
+- B174: refunds reference the original payment id and never exceed it.
+- B175: invoice amounts are integer cents in the amount_cents column.
+- B176: an issued invoice is immutable; corrections are credit notes.
+- B177: currency codes are ISO 4217 strings in upper case.
+- B178: tax is computed per line item and rounded half to even.
+- B179: payment provider webhooks are verified before any state change.
+- B180: refunds reference the original payment id and never exceed it.
+- B181: invoice amounts are integer cents in the amount_cents column.
+- B182: an issued invoice is immutable; corrections are credit notes.
+- B183: currency codes are ISO 4217 strings in upper case.
+- B184: tax is computed per line item and rounded half to even.
+- B185: payment provider webhooks are verified before any state change.
+- B186: refunds reference the original payment id and never exceed it.

@@ -7,17 +7,19 @@ instructions, `.mcp.json` and hooks, including monorepos with nested `AGENTS.md`
 scans each one at a fixed commit with every built-in rule, so the false-positive rate of the rule
 set can be measured and compared across changes.
 
-| File                     | Committed | What it is                                                               |
-| ------------------------ | --------- | ------------------------------------------------------------------------ |
-| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`        |
-| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: artifacts by kind, findings by rule, score buckets |
-| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity    |
-| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review |
-| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `pin.ts`, and the walk emulation they share        |
+| File                     | Committed | What it is                                                                     |
+| ------------------------ | --------- | ------------------------------------------------------------------------------ |
+| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`              |
+| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: artifacts by kind, findings by rule, score buckets       |
+| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity          |
+| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review       |
+| `golden.json`            | no        | Every finding per repository, for checking that a refactor changes none        |
+| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `golden.ts`, `pin.ts`, and the walk emulation they share |
 
 Publication policy: following [ADR 0005](../docs/adr/0005-scoring.md), only aggregate statistics
-are committed (`SUMMARY.md`); per-repository results (`results.json`, `REPORT.md`) are gitignored
-local review artifacts, so this repository never publishes a ranking of other people's projects.
+are committed (`SUMMARY.md`); per-repository results (`results.json`, `REPORT.md`, `golden.json`)
+are gitignored local review artifacts, so this repository never publishes a ranking of other
+people's projects.
 
 ## Running it
 
@@ -38,10 +40,30 @@ npx tsx scripts/corpus/fetch.ts && npx tsx scripts/corpus/run.ts
   repository (a crash on real input is a bug in the rule; the crashes are listed) and 2 when the
   cache is incomplete. `--only owner/name` prints that repository's findings instead and writes
   nothing.
+- `run.ts --write-golden` scans the whole corpus and writes only `golden.json`: for each
+  repository, every finding as rule id, path, range, severity, fingerprint and a hash of the
+  message, sorted. `run.ts --check-golden` scans again, compares with `golden.json` and writes
+  nothing. It prints each difference grouped by repository and rule (`-` only in `golden.json`,
+  `+` only in the new scan, with its message) and exits 1 if there is any, 2 if `golden.json` does
+  not exist. With `--only owner/name` it compares only those repositories.
 
 A full fetch takes about 5 minutes and costs about 190 REST requests (one tree per repository,
 plus per-directory listings for the two trees GitHub truncates) and about 300 GraphQL queries
 (file contents and symlink texts, 40 per query).
+
+### Checking that a refactor changes no finding
+
+Write the golden file on the base commit, then check the change against it:
+
+```sh
+git switch main && npx tsx scripts/corpus/run.ts --write-golden
+git switch my-refactor && npx tsx scripts/corpus/run.ts --check-golden
+```
+
+A difference is either a bug in the refactor or an intended change that belongs in its own pull
+request. The check takes under a minute. It needs the local cache, so it is a manual step before
+merging, not part of CI. In CI, `test/core/golden.test.ts` compares complete JSON reports of two
+committed fixtures instead.
 
 ## How it works
 
@@ -85,8 +107,9 @@ The cache is untrusted third-party content. The harness only writes and reads it
 never executes, imports or renders anything from it, and never runs `git` in it. `gh` is started
 with `execFile` and an argument array (no shell); GraphQL variables travel in a JSON request
 body. Tree paths are checked component by component before anything is written, so a hostile
-path cannot escape the cache directory. Text that ends up in `REPORT.md` or `results.json` goes
-through agentcheckup's own output sanitizers (`forMarkdown`, `forJsonOutput`).
+path cannot escape the cache directory. Text that ends up in `REPORT.md`, `results.json`,
+`golden.json` or the terminal goes through agentcheckup's own output sanitizers (`forMarkdown`,
+`forJsonOutput`, `forTerminal`).
 
 ## Licensing
 

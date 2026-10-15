@@ -1,0 +1,3483 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "agentcheckup",
+    "version": "0.0.0-golden"
+  },
+  "ruleset": "2026.10",
+  "targets": [
+    "claude-code",
+    "cline",
+    "codex",
+    "copilot",
+    "cursor",
+    "gemini",
+    "windsurf"
+  ],
+  "artifacts": [
+    {
+      "path": ".agents/skills/changelog/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".agents/skills/db-migrate/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".claude/rules/style.md",
+      "kind": "claude-rule",
+      "readers": [
+        "claude-code"
+      ]
+    },
+    {
+      "path": ".claude/rules/testing.md",
+      "kind": "claude-rule",
+      "readers": [
+        "claude-code"
+      ]
+    },
+    {
+      "path": ".claude/settings.json",
+      "kind": "claude-settings",
+      "readers": [
+        "claude-code",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".claude/skills/release/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".claude/skills/triage/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/hooks.json",
+      "kind": "cursor-hooks",
+      "readers": [
+        "cursor"
+      ]
+    },
+    {
+      "path": ".cursor/mcp.json",
+      "kind": "cursor-mcp",
+      "readers": [
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/README.md",
+      "kind": "cursor-rule-md",
+      "readers": [
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/always.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/api-design.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/manual.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/notes.md",
+      "kind": "cursor-rule-md",
+      "readers": [
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/rules/typescript.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".cursor/skills/review/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "kind": "copilot-instructions",
+      "readers": [
+        "copilot"
+      ]
+    },
+    {
+      "path": ".mcp.json",
+      "kind": "mcp-json",
+      "readers": [
+        "claude-code",
+        "copilot",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/api/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/api/AGENTS.override.md",
+      "kind": "agents-override-md",
+      "readers": [
+        "codex"
+      ]
+    },
+    {
+      "path": "packages/api/CLAUDE.md",
+      "kind": "claude-md",
+      "readers": [
+        "claude-code",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/api/src/handlers/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/web/.claude/skills/storybook/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "gemini",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/web/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "packages/web/CLAUDE.md",
+      "kind": "claude-md",
+      "readers": [
+        "claude-code",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "services/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "services/billing/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "services/billing/ledger/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "services/billing/ledger/export/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "tools/AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "claude-code",
+        "cline",
+        "codex",
+        "copilot",
+        "cursor",
+        "windsurf"
+      ]
+    },
+    {
+      "path": "tools/AGENTS.override.md",
+      "kind": "agents-override-md",
+      "readers": [
+        "codex"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "ruleId": "skill/frontmatter-bom",
+      "severity": "error",
+      "category": "loading",
+      "message": "SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex and Gemini CLI do not recognize the frontmatter and skip the skill.",
+      "path": ".agents/skills/db-migrate/SKILL.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 4
+        }
+      },
+      "related": [],
+      "platforms": [
+        "codex",
+        "gemini"
+      ],
+      "fingerprint": "04e07438515c2a:1"
+    },
+    {
+      "ruleId": "hooks/fails-open",
+      "severity": "info",
+      "category": "risk",
+      "message": "If this PreToolUse hook crashes, cannot start or times out, Claude Code lets the tool call proceed. If the hook enforces a policy, set \"onFailure\": \"block\" (Claude Code v2.1.295 or later).",
+      "path": ".claude/settings.json",
+      "range": {
+        "start": {
+          "line": 15,
+          "column": 43
+        },
+        "end": {
+          "line": 15,
+          "column": 85
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "0782b91873723b:1"
+    },
+    {
+      "ruleId": "hooks/unknown-event",
+      "severity": "error",
+      "category": "loading",
+      "message": "\"BeforeCommit\" is not a Claude Code hook event. Claude Code skips these hooks with a Settings Warning.",
+      "path": ".claude/settings.json",
+      "range": {
+        "start": {
+          "line": 19,
+          "column": 5
+        },
+        "end": {
+          "line": 19,
+          "column": 19
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "13c2b0b8eb6c56:1"
+    },
+    {
+      "ruleId": "skill/frontmatter-missing",
+      "severity": "warn",
+      "category": "loading",
+      "message": "SKILL.md does not start with `---`, so it has no frontmatter. Claude Code uses the directory name as its name and the first non-empty line of the body as its description.",
+      "path": ".claude/skills/triage/SKILL.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 69
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "1f52eb1f9d4d74:1"
+    },
+    {
+      "ruleId": "hooks/fails-open",
+      "severity": "info",
+      "category": "risk",
+      "message": "If this beforeShellExecution hook crashes, times out or exits with an error other than code 2, Cursor lets the tool call proceed. If the hook enforces a policy, set \"failClosed\": true.",
+      "path": ".cursor/hooks.json",
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 43
+        },
+        "end": {
+          "line": 4,
+          "column": 63
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cursor"
+      ],
+      "fingerprint": "1d7ab8c8659b18:1"
+    },
+    {
+      "ruleId": "cursor/rule-never-applied",
+      "severity": "info",
+      "category": "loading",
+      "message": "This rule has no frontmatter, so Cursor applies it only when you @-mention it. Add \"description\", \"globs\" or \"alwaysApply: true\" to apply it automatically.",
+      "path": ".cursor/rules/manual.mdc",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cursor"
+      ],
+      "fingerprint": "0cae83eb40c270:1"
+    },
+    {
+      "ruleId": "cursor/md-file-ignored",
+      "severity": "error",
+      "category": "loading",
+      "message": "Cursor loads only .mdc files from .cursor/rules, so it ignores \"notes.md\". Rename it to \"notes.mdc\" and add frontmatter with description, globs or alwaysApply.",
+      "path": ".cursor/rules/notes.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cursor"
+      ],
+      "fingerprint": "03bff818377079:1"
+    },
+    {
+      "ruleId": "instr/import-unresolved",
+      "severity": "error",
+      "category": "correctness",
+      "message": "Imported file \"../docs/release-checklist.md\" does not exist, so Claude Code cannot load it.",
+      "path": ".github/copilot-instructions.md",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 16
+        },
+        "end": {
+          "line": 5,
+          "column": 45
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "1a63311362c41b:1"
+    },
+    {
+      "ruleId": "mcp/url-without-type",
+      "severity": "error",
+      "category": "loading",
+      "message": "MCP server \"docs\" has a \"url\" but no \"type\", so Claude Code reads it as a stdio server and skips it. Add \"type\": \"http\" (or \"sse\" or \"ws\").",
+      "path": ".mcp.json",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 5
+        },
+        "end": {
+          "line": 12,
+          "column": 11
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "1a8b763edce837:1"
+    },
+    {
+      "ruleId": "instr/agents-md-ignored-by-claude",
+      "severity": "warn",
+      "category": "loading",
+      "message": "Claude Code reads \"CLAUDE.md\" in this directory and skips this AGENTS.md. Add the line \"@AGENTS.md\" to that file so Claude Code reads both.",
+      "path": "packages/api/AGENTS.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [
+        {
+          "path": "packages/api/CLAUDE.md",
+          "message": "Claude Code reads this file instead of AGENTS.md."
+        }
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "12eedc8837f5e1:1"
+    },
+    {
+      "ruleId": "instr/override-shadows-agents-md",
+      "severity": "info",
+      "category": "loading",
+      "message": "Codex reads this file instead of the AGENTS.md next to it, so Codex does not see the instructions in AGENTS.md. Claude Code never reads AGENTS.override.md.",
+      "path": "packages/api/AGENTS.override.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [
+        {
+          "path": "packages/api/AGENTS.md",
+          "message": "Not read by Codex while the override exists."
+        }
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "fingerprint": "0a93722a9c03a1:1"
+    },
+    {
+      "ruleId": "instr/agents-md-ignored-by-claude",
+      "severity": "warn",
+      "category": "loading",
+      "message": "Claude Code reads \"packages/api/CLAUDE.md\" from a parent directory and skips this AGENTS.md. To have Claude Code read it, add a CLAUDE.md in this directory with the line \"@AGENTS.md\".",
+      "path": "packages/api/src/handlers/AGENTS.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [
+        {
+          "path": "packages/api/CLAUDE.md",
+          "message": "Claude Code reads this file instead of AGENTS.md."
+        }
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "06c7e06f4f841e:1"
+    },
+    {
+      "ruleId": "instr/codex-size-budget",
+      "severity": "warn",
+      "category": "budget",
+      "message": "This file and the 2 AGENTS.md files above it total 26,452 bytes, 80% of the 32,768 bytes Codex reads from AGENTS.md files. Codex cuts off anything past that limit.",
+      "path": "services/billing/AGENTS.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [
+        {
+          "path": "AGENTS.md",
+          "message": "Read by Codex first: 271 bytes."
+        },
+        {
+          "path": "services/AGENTS.md",
+          "message": "Read by Codex first: 13,542 bytes."
+        }
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "fingerprint": "111772857717d5:1"
+    },
+    {
+      "ruleId": "instr/codex-size-budget",
+      "severity": "error",
+      "category": "budget",
+      "message": "This file and the 3 AGENTS.md files above it total 33,405 bytes. Codex reads at most 32,768 bytes of AGENTS.md content, so it stops at line 97 of this file and ignores the rest, and it never reads 1 AGENTS.md file in subdirectories.",
+      "path": "services/billing/ledger/AGENTS.md",
+      "range": {
+        "start": {
+          "line": 97,
+          "column": 35
+        },
+        "end": {
+          "line": 97,
+          "column": 69
+        }
+      },
+      "related": [
+        {
+          "path": "AGENTS.md",
+          "message": "Read by Codex first: 271 bytes."
+        },
+        {
+          "path": "services/AGENTS.md",
+          "message": "Read by Codex first: 13,542 bytes."
+        },
+        {
+          "path": "services/billing/AGENTS.md",
+          "message": "Read by Codex first: 12,639 bytes."
+        },
+        {
+          "path": "services/billing/ledger/export/AGENTS.md",
+          "message": "Codex does not read this file: the limit is used up before it."
+        }
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "fingerprint": "1ea6bf6a5266e5:1"
+    },
+    {
+      "ruleId": "instr/override-shadows-agents-md",
+      "severity": "error",
+      "category": "loading",
+      "message": "This AGENTS.override.md is empty, but Codex still reads it instead of the AGENTS.md next to it, so Codex gets no instructions from this directory.",
+      "path": "tools/AGENTS.override.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [
+        {
+          "path": "tools/AGENTS.md",
+          "message": "Not read by Codex while the override exists."
+        }
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "fingerprint": "1f832ffa50bd24:1"
+    }
+  ],
+  "score": {
+    "formula": 1,
+    "score": 81,
+    "grade": "B",
+    "capped": false,
+    "categories": {
+      "loading": {
+        "errors": 5,
+        "warnings": 3,
+        "infos": 2
+      },
+      "budget": {
+        "errors": 1,
+        "warnings": 1,
+        "infos": 0
+      },
+      "portability": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 0
+      },
+      "correctness": {
+        "errors": 1,
+        "warnings": 0,
+        "infos": 0
+      },
+      "risk": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 2
+      },
+      "clarity": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 0
+      }
+    },
+    "artifacts": [
+      {
+        "path": ".agents/skills/changelog/SKILL.md",
+        "score": 100
+      },
+      {
+        "path": ".agents/skills/db-migrate/SKILL.md",
+        "score": 60
+      },
+      {
+        "path": ".claude/rules/style.md",
+        "score": 100
+      },
+      {
+        "path": ".claude/rules/testing.md",
+        "score": 100
+      },
+      {
+        "path": ".claude/settings.json",
+        "score": 60
+      },
+      {
+        "path": ".claude/skills/release/SKILL.md",
+        "score": 100
+      },
+      {
+        "path": ".claude/skills/triage/SKILL.md",
+        "score": 92
+      },
+      {
+        "path": ".cursor/hooks.json",
+        "score": 100
+      },
+      {
+        "path": ".cursor/mcp.json",
+        "score": 100
+      },
+      {
+        "path": ".cursor/rules/README.md",
+        "score": 100
+      },
+      {
+        "path": ".cursor/rules/always.mdc",
+        "score": 100
+      },
+      {
+        "path": ".cursor/rules/api-design.mdc",
+        "score": 100
+      },
+      {
+        "path": ".cursor/rules/manual.mdc",
+        "score": 100
+      },
+      {
+        "path": ".cursor/rules/notes.md",
+        "score": 60
+      },
+      {
+        "path": ".cursor/rules/typescript.mdc",
+        "score": 100
+      },
+      {
+        "path": ".cursor/skills/review/SKILL.md",
+        "score": 100
+      },
+      {
+        "path": ".github/copilot-instructions.md",
+        "score": 60
+      },
+      {
+        "path": ".mcp.json",
+        "score": 60
+      },
+      {
+        "path": "AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "packages/api/AGENTS.md",
+        "score": 92
+      },
+      {
+        "path": "packages/api/AGENTS.override.md",
+        "score": 100
+      },
+      {
+        "path": "packages/api/CLAUDE.md",
+        "score": 100
+      },
+      {
+        "path": "packages/api/src/handlers/AGENTS.md",
+        "score": 92
+      },
+      {
+        "path": "packages/web/.claude/skills/storybook/SKILL.md",
+        "score": 100
+      },
+      {
+        "path": "packages/web/AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "packages/web/CLAUDE.md",
+        "score": 100
+      },
+      {
+        "path": "services/AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "services/billing/AGENTS.md",
+        "score": 92
+      },
+      {
+        "path": "services/billing/ledger/AGENTS.md",
+        "score": 60
+      },
+      {
+        "path": "services/billing/ledger/export/AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "tools/AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "tools/AGENTS.override.md",
+        "score": 60
+      }
+    ]
+  },
+  "summary": {
+    "errors": 7,
+    "warnings": 4,
+    "infos": 4,
+    "suppressed": 0
+  },
+  "rules": [
+    {
+      "id": "analysis/partial",
+      "title": "File was only partly analyzed",
+      "rationale": "agentcheckup limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.\n\nRules do not check the skipped parts, so findings there can be missing. This notice never affects the score.\n\nAn instruction file this large is costly for agents too: Codex reads at most 32 KiB of `AGENTS.md` files, and Claude Code recommends `CLAUDE.md` files under 200 lines. Split the file or move reference material out of it.",
+      "category": "clarity",
+      "severity": "info",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "ADR 0003: Treat scanned repositories as hostile",
+          "url": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/adr/0003-treat-scanned-repositories-as-hostile.md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "copilot/instructions-misplaced",
+      "title": "GitHub Copilot instructions file is not where Copilot looks for it",
+      "rationale": "GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the deprecated `chat.instructionsFilesLocations` setting can add other directories for the Local harness, so a misplaced `*.instructions.md` file is a warning.\n\nA `.github` directory inside a subdirectory is not read on GitHub.com; VS Code reads it when you open that subdirectory as the workspace folder. A subdirectory with its own `.git` counts as a repository root. Only files inside a `.github` directory are checked, except `.github/workflows` and the `.github` directories of templates, examples and fixtures. A file that is also reachable through a symlink in the right place is not reported.\n\nMove the file to `.github/copilot-instructions.md` or into `.github/instructions/`.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "copilot-instructions",
+        "copilot-path-instructions"
+      ],
+      "platforms": [
+        "copilot"
+      ],
+      "sources": [
+        {
+          "title": "GitHub Copilot: Repository custom instructions",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Custom instructions",
+          "url": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "cursor/md-file-ignored",
+      "title": "Cursor ignores .md files in .cursor/rules",
+      "rationale": "Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there \"is ignored by the rules system\" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent in Windsurf (now Devin Desktop), does read `.md` files in `.cursor/rules`, so the same file applies in Windsurf and not in Cursor.\n\nA `README.md` in the directory is treated as documentation and is not reported.\n\nRename the file to `.mdc` and add frontmatter, or move plain Markdown instructions to `AGENTS.md`.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "cursor-rule-md"
+      ],
+      "platforms": [
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Cursor: Rules",
+          "url": "https://cursor.com/docs/rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)",
+          "url": "https://docs.devin.ai/cli/extensibility/rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "cursor/rule-frontmatter",
+      "title": "Cursor rule frontmatter field is unknown or has the wrong type",
+      "rationale": "Three frontmatter fields configure a Cursor rule: `description` (text), `globs` (comma-separated glob patterns) and `alwaysApply` (`true` or `false`). Together they decide whether the rule is always included, attached to matching files, picked by the agent from its description, or included only when @-mentioned. A quoted `\"true\"` is not a boolean, and a field with another name does nothing. When that name is another tool's scoping field, such as `paths` or `applyTo`, the rule does not apply when you expect.\n\nA `globs` YAML list is not documented and other unknown fields are harmless, so both are information only. Unquoted globs such as `globs: *.ts` are not valid YAML, and how Cursor reads them is not documented, so agentcheckup checks only frontmatter that parses as YAML.\n\nRename the field to `description`, `globs` or `alwaysApply`, and write `alwaysApply: true` without quotes.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "cursor-rule"
+      ],
+      "platforms": [
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Cursor: Rules",
+          "url": "https://cursor.com/docs/rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "cursor/rule-never-applied",
+      "title": "Cursor rule is applied only when @-mentioned",
+      "rationale": "Cursor decides when to include a rule from its frontmatter. With `alwaysApply: true` the rule is always included; with `globs` it is attached when a matching file is in context; with only a `description` the agent includes it when relevant. With none of them the rule is included only when you @-mention it in chat.\n\nThat manual mode is useful on purpose, so a rule that sets `alwaysApply: false` explicitly is not reported. A rule without frontmatter, or whose frontmatter sets none of the three fields, is reported as information because it is often an accident, for example a file copied from another tool.\n\nAdd `alwaysApply: true`, `globs` or a `description`, or set `alwaysApply: false` to keep the rule manual on purpose.",
+      "category": "loading",
+      "severity": "info",
+      "appliesTo": [
+        "cursor-rule"
+      ],
+      "platforms": [
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Cursor: Rules",
+          "url": "https://cursor.com/docs/rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "directive/missing-reason",
+      "title": "Suppression directive has no rule id or no reason",
+      "rationale": "An inline directive such as `<!-- agentcheckup-disable-next-line instr/import-unresolved -- generated file -->` must name the rules it disables and give a reason after ` -- `. A directive without either has no effect.\n\nAdd the rule ids and a short reason.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "agentcheckup inline suppression directives",
+          "url": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "directive/unknown-rule",
+      "title": "Suppression directive names a rule that does not exist",
+      "rationale": "agentcheckup has no rule with this id, so the directive suppresses nothing for it. Rules the same directive names correctly are still suppressed.\n\nCheck the id against the rule catalog; usually it is misspelled.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "agentcheckup inline suppression directives",
+          "url": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "directive/unused",
+      "title": "Suppression directive does not suppress anything",
+      "rationale": "None of the rules the directive names reports a finding where it applies, so it suppresses nothing. Remove it so it cannot hide a future problem.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "agentcheckup inline suppression directives",
+          "url": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "hooks/fails-open",
+      "title": "Tool-gating hook lets the tool call proceed when it fails",
+      "rationale": "Hooks on events such as `PreToolUse` (Claude Code, Codex), `beforeShellExecution` (Cursor) and `BeforeTool` (Gemini CLI) can block a tool call, so they are used to enforce policies. By default all four agents fail open: when such a hook crashes or cannot start, the tool call proceeds as if the hook had allowed it. Claude Code, Codex and Cursor also let it proceed when the hook times out. A policy hook with a broken path or a slow dependency therefore protects nothing.\n\nThis is documented behavior, so the finding is advice. To fail closed, set `\"onFailure\": \"block\"` on a Claude Code command or HTTP hook (v2.1.295 or later), or `\"failClosed\": true` on a Cursor hook. Codex and Gemini CLI have no such setting: the script has to catch its own errors and exit with code 2 (in Codex, with a reason on stderr).",
+      "category": "risk",
+      "severity": "info",
+      "appliesTo": [
+        "claude-settings",
+        "codex-hooks",
+        "cursor-hooks",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Hooks",
+          "url": "https://code.claude.com/docs/en/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Hooks",
+          "url": "https://cursor.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Hooks",
+          "url": "https://learn.chatgpt.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Hooks",
+          "url": "https://geminicli.com/docs/hooks/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "hooks/script-missing",
+      "title": "Hook command runs a script that does not exist",
+      "rationale": "A command hook whose script is missing fails on every run. Claude Code treats a hook that \"fails to start, for example because the script or executable doesn't exist\" as a non-blocking error and, by default, lets the action proceed; Codex and Cursor also continue. The check the hook was meant to run never happens. With `\"onFailure\": \"block\"` (Claude Code) or `\"failClosed\": true` (Cursor), the same mistake blocks the action every time instead.\n\nThe rule reports only paths it can resolve with certainty: `$CLAUDE_PROJECT_DIR`, `$CURSOR_PROJECT_DIR`, relative paths in Cursor (which runs project hooks from the project root), `$(git rev-parse --show-toplevel)` in a repository-root `.codex/hooks.json`, and script arguments of interpreters such as `node`, `python3` and `bash`. Claude Code runs hooks in the session's current directory, so a relative path there is reported only when no directory in the project has the file. Ignored and unlisted directories are never reported.\n\nFix the path or add the script.",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "claude-settings",
+        "codex-hooks",
+        "cursor-hooks"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Hooks",
+          "url": "https://code.claude.com/docs/en/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Hooks",
+          "url": "https://cursor.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Hooks",
+          "url": "https://learn.chatgpt.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "hooks/timeout-units",
+      "title": "Hook timeout looks like the wrong unit",
+      "rationale": "Claude Code, Codex and Cursor read a hook's `timeout` in seconds; Claude Code and Codex default to 600. Gemini CLI reads it in milliseconds and defaults to 60,000. A value in the other unit is off by a factor of 1,000: `\"timeout\": 5000` meant as five seconds lets a hung hook block Claude Code for 83 minutes, and `\"timeout\": 30` cancels a Gemini CLI hook after 30 milliseconds.\n\nIn seconds-based files the rule reports values of 1,000 or more that are multiples of 500, and values of a day or more; durations such as 1,800 or 3,600 seconds are not reported. In Gemini CLI settings it reports values below 1,000.\n\nWrite the timeout in the unit of the agent that reads the file.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-settings",
+        "codex-hooks",
+        "cursor-hooks",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Hooks",
+          "url": "https://code.claude.com/docs/en/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Hooks",
+          "url": "https://learn.chatgpt.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Hooks",
+          "url": "https://cursor.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Hooks reference",
+          "url": "https://geminicli.com/docs/hooks/reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: hookRunner.ts (timeout in milliseconds)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRunner.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "hooks/unknown-event",
+      "title": "Hook event name is not one the agent fires",
+      "rationale": "Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an \"Invalid hook event name\" warning, and Codex without a warning.\n\nWrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `\"hooks\"` makes Codex skip the whole file.\n\nRename the key to an event the agent fires.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "claude-settings",
+        "codex-hooks",
+        "cursor-hooks",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Hooks",
+          "url": "https://code.claude.com/docs/en/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Hooks",
+          "url": "https://learn.chatgpt.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: hook_config.rs (event names, hooks.json schema)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Hooks",
+          "url": "https://cursor.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Hooks reference",
+          "url": "https://geminicli.com/docs/hooks/reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: hookRegistry.ts (invalid event names are skipped)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/agents-md-ignored-by-claude",
+      "title": "Claude Code skips AGENTS.md because a CLAUDE.md exists",
+      "rationale": "By default, Claude Code (v2.1.277 and later) reads `AGENTS.md` only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or any directory above it. Otherwise it reads only the `CLAUDE.md` files, so the instructions that Codex, Cursor and GitHub Copilot get from `AGENTS.md` never reach Claude Code.\n\nagentcheckup assumes the default **Project instructions** setting, `claude-md-or-agents-md`. It does not report an `AGENTS.md` that a `CLAUDE.md` or `.claude/rules/` file imports, symlinks or copies; one inside a skill, a template, example or fixture directory, or a directory whose name starts with a dot, such as `.github/`; or one whose status depends on a file agentcheckup did not read, such as a gitignored `CLAUDE.local.md`.\n\nAdd the line `@AGENTS.md` to the `CLAUDE.md`; Claude Code never reads an imported `AGENTS.md` twice. If you keep separate files on purpose, suppress the finding with a reason.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/claude-md-too-long",
+      "title": "CLAUDE.md is longer than 200 lines",
+      "rationale": "Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. The file still loads in full (up to 4 MiB), so this is information only.\n\nMoving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.",
+      "category": "budget",
+      "severity": "info",
+      "appliesTo": [
+        "claude-md",
+        "claude-local-md"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/claude-rule-frontmatter",
+      "title": "Claude Code rule frontmatter is invalid or ignored",
+      "rationale": "Claude Code reads one field from the frontmatter of a `.claude/rules/` file: `paths`, a YAML list of glob patterns or a comma-separated string. A rule without `paths` loads in every session. If the YAML does not parse, Claude Code ignores the frontmatter and loads the rule in every session too. Other fields, including Cursor's `globs` and GitHub Copilot's `applyTo`, are ignored without an error.\n\nIn a pattern, `[` starts a bracket expression. A pattern with a `[` and no closing `]` is invalid and matches no files; the rule's other patterns keep working. Invalid YAML in a rule that has no `paths` is reported as information, and so is a `paths` value that is empty or not a pattern or list of patterns, because the documentation does not say what Claude Code does with it.\n\nRename `globs` or `applyTo` to `paths`, fix the YAML, and escape a literal bracket as `\\[`.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-rule"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/codex-size-budget",
+      "title": "AGENTS.md files exceed the Codex size limit",
+      "rationale": "Codex reads one instruction file per directory, from the project root down to the working directory: `AGENTS.override.md` if it exists, otherwise `AGENTS.md`. It reads at most `project_doc_max_bytes` (32,768 bytes by default) across the whole chain: the file that crosses the limit is cut at that byte, and later files are dropped. Whitespace-only files and the global `~/.codex/AGENTS.md` do not count. Codex's configuration pages call the key a per-file limit; the `AGENTS.md` page and the source code apply it to the chain.\n\nagentcheckup starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheckup judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.\n\nMove instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes`, set the `maxBytes` option to the same value.",
+      "category": "budget",
+      "severity": "error",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md"
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Codex: AGENTS.md",
+          "url": "https://learn.chatgpt.com/docs/agent-configuration/agents-md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: find_up.rs (nearest ancestor with a project root marker)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/file-system/src/find_up.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/empty-file",
+      "title": "Instruction file is empty",
+      "rationale": "An instruction file with no content gives agents nothing to follow. Codex skips an empty or whitespace-only `AGENTS.md`. Claude Code strips block-level HTML comments from `CLAUDE.md` before loading it, so a `CLAUDE.md` with only comments is empty for Claude Code. A rule with frontmatter and no body adds no instructions.\n\nAn empty file still has effects: an empty `CLAUDE.md` stops Claude Code from reading `AGENTS.md`. An empty `AGENTS.override.md` next to an `AGENTS.md` is reported by `instr/override-shadows-agents-md` instead.\n\nAdd the instructions or delete the file.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "cursor-legacy-rules",
+        "copilot-instructions"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Codex: AGENTS.md",
+          "url": "https://learn.chatgpt.com/docs/agent-configuration/agents-md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/encoding",
+      "title": "Instruction file is not UTF-8",
+      "rationale": "Codex decodes `AGENTS.md` as UTF-8 (`String::from_utf8_lossy`), and Gemini CLI reads `GEMINI.md` with Node.js's UTF-8 decoder. A UTF-16 file, as written by Windows PowerShell's `>` redirection or Notepad's \"Unicode\" option, reaches them as garbled text with NUL characters between the letters. Bytes that are not valid UTF-8, usually from a legacy encoding such as Windows-1252, become U+FFFD replacement characters, and the original characters are lost.\n\nThe other agents do not document how they decode instruction files, so for them this is information only.\n\nSave the file as UTF-8.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "cursor-rule",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: memoryDiscovery.ts (reads GEMINI.md as UTF-8)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (file encoding is not documented)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/filename-case",
+      "title": "Instruction file name has the wrong letter case",
+      "rationale": "Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.\n\nWindsurf's Cascade agent documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Windsurf; other spellings, such as `Agents.md`, are reported.\n\nRename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "gemini-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: GEMINI.md",
+          "url": "https://geminicli.com/docs/cli/gemini-md/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin Desktop (Cascade): AGENTS.md (\"Both AGENTS.md and agents.md are recognized\")",
+          "url": "https://docs.devin.ai/desktop/cascade/agents-md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/import-depth",
+      "title": "Import is nested deeper than the agent follows",
+      "rationale": "Imported files can import other files, up to a fixed depth: Claude Code follows imports at most four hops from the file it loads, Gemini CLI five. A deeper import is not followed, so the file it names is not loaded.\n\nagentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.\n\nImport deeply nested files directly from the top-level file.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "agents-md",
+        "gemini-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Memory import processor",
+          "url": "https://geminicli.com/docs/reference/memport/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: memoryImportProcessor.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryImportProcessor.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        },
+        {
+          "title": "Claude Code: Memory (how import cycles are handled is not documented)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/import-outside-root",
+      "title": "Import points outside the repository",
+      "rationale": "An `@path` import of an absolute path, a `~/` path or a relative path that leaves the repository names a file that other clones and CI runners do not have. Claude Code also asks for approval before it loads imports outside the working directory, and loads none of them if you decline. Gemini CLI never loads an import outside the project root (the nearest directory with `.git`) and inserts an \"Import failed ... Path traversal attempt\" comment instead; that case is an error.\n\nClaude Code's documentation suggests `~/` imports for personal instructions, so those are information only, and imports in `CLAUDE.local.md` are not reported. Relative imports are checked only when a `.git` entry shows where the repository ends: at the scanned directory for Claude Code, at or above the file for Gemini CLI. Imports reached only through `.claude/rules/` files are information, because Claude Code's documentation does not say it expands imports there.\n\nCopy shared instructions into the repository and import them with a relative path.",
+      "category": "portability",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "agents-md",
+        "gemini-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Memory import processor",
+          "url": "https://geminicli.com/docs/reference/memport/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: memoryImportProcessor.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryImportProcessor.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/import-unresolved",
+      "title": "Imported file does not exist",
+      "rationale": "Claude Code and Gemini CLI replace an `@path` import with the content of the file it names, resolved relative to the importing file. When that file does not exist, Claude Code has nothing to load, and Gemini CLI inserts an \"Import failed\" comment instead of the text.\n\nClaude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.\n\nFix the path, or put a mention you do not want imported in backticks.",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "agents-md",
+        "gemini-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Memory import processor",
+          "url": "https://geminicli.com/docs/reference/memport/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: memoryImportProcessor.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryImportProcessor.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/override-shadows-agents-md",
+      "title": "AGENTS.override.md hides AGENTS.md from Codex",
+      "rationale": "In each directory, Codex reads only the first of `AGENTS.override.md` and `AGENTS.md` that exists as a file. It picks the override even when it is empty, then skips it because it has no content, so an empty or whitespace-only `AGENTS.override.md` leaves Codex with no instructions from that directory.\n\nA non-empty override replaces `AGENTS.md` for Codex only: Claude Code never reads `AGENTS.override.md`, and the other agents do not document it. That case is reported as information.\n\nDelete an override you no longer need, or keep it out of version control.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "agents-override-md"
+      ],
+      "platforms": [
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Codex: AGENTS.md",
+          "url": "https://learn.chatgpt.com/docs/agent-configuration/agents-md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/symlink-materialized",
+      "title": "Instruction file is a symlink checked out as plain text",
+      "rationale": "When a repository commits a symlink such as `CLAUDE.md -> AGENTS.md`, Git checks it out as a one-line text file that holds the target path unless `core.symlinks` is enabled. This is common on Windows, where creating symlinks needs Administrator rights or Developer Mode. Agents then read the path instead of the instructions it points to. Claude Code's documentation warns about this for `CLAUDE.md`.\n\nFor `CLAUDE.md`, replace the symlink with a file that contains the import `@AGENTS.md`, which works on every platform. Otherwise enable symlinks (`git config core.symlinks true`) and check the file out again.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "cursor-rule",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Git: core.symlinks",
+          "url": "https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instr/vague-directive",
+      "title": "Instruction is generic advice that says nothing about the project",
+      "rationale": "Sentences such as \"Follow best practices\" or \"Write clean code\" tell an agent nothing about this project. Claude Code's documentation asks for instructions concrete enough to verify (\"Use 2-space indentation\" instead of \"Format code properly\"). Windsurf's says generic rules like \"write good code\" are already in Cascade's training data, and Cursor's says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.\n\nagentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.\n\nReplace it with the specific command, convention or path you mean, or delete it.",
+      "category": "clarity",
+      "severity": "info",
+      "appliesTo": [
+        "agents-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "cursor-rule",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin Desktop (Windsurf): Memories and rules",
+          "url": "https://docs.devin.ai/desktop/cascade/memories",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Rules",
+          "url": "https://cursor.com/docs/rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agentic AI Foundation: Writing an effective AGENTS.md",
+          "url": "https://aaif.io/blog/writing-an-effective-agents-md",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)",
+          "url": "https://arxiv.org/abs/2602.11988",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Augment Code: How to write good AGENTS.md files",
+          "url": "https://www.augmentcode.com/blog/how-to-write-good-agents-dot-md-files",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "json/duplicate-key",
+      "title": "JSON object repeats a key",
+      "rationale": "RFC 8259 leaves the result of a repeated key open. `JSON.parse`, which Gemini CLI uses for `settings.json`, keeps only the last value (ECMA-262); some parsers reject the object instead. Either way the earlier value never takes effect: a second `\"hooks\"` block replaces the first, and a second `.mcp.json` server with the same name replaces the first server, without an error.\n\nThe finding points at the earlier key, the one that is ignored. Merge the two entries or delete the one you do not want.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-settings",
+        "claude-plugin-manifest",
+        "cursor-hooks",
+        "cursor-mcp",
+        "gemini-settings",
+        "mcp-json",
+        "codex-hooks"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)",
+          "url": "https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "RFC 8259, section 4: names within an object SHOULD be unique",
+          "url": "https://www.rfc-editor.org/rfc/rfc8259#section-4",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "json/invalid-syntax",
+      "title": "Configuration file is not valid JSON",
+      "rationale": "Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses.\n\nGemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.\n\nThe finding points at the first syntax error. Fix it and run agentcheckup again.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "claude-settings",
+        "claude-plugin-manifest",
+        "mcp-json",
+        "cursor-mcp",
+        "cursor-hooks",
+        "codex-hooks",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)",
+          "url": "https://code.claude.com/docs/en/plugins/troubleshooting",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: MCP",
+          "url": "https://cursor.com/docs/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Hooks",
+          "url": "https://cursor.com/docs/hooks",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor forum: \"The mcp.json parser can't handle JavaScript comments\" (user report)",
+          "url": "https://forum.cursor.com/t/92529",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "mcp/env-syntax-mismatch",
+      "title": "MCP configuration uses another agent's variable syntax",
+      "rationale": "Each agent expands environment variables in MCP configuration with its own syntax. Claude Code expands `${VAR}` and `${VAR:-default}` in the `command`, `args`, `env`, `url` and `headers` of `.mcp.json` servers. Cursor uses `${env:VAR}` and built-ins such as `${workspaceFolder}`. Gemini CLI expands `$VAR`, `${VAR}` and `${VAR:-default}` in every string of `settings.json`. A reference in another agent's syntax is not an error: the server starts without the value, so authentication fails or a path does not exist.\n\nIn `.mcp.json` the rule also reports `$VAR` and `%VAR%` in `env`, `url` and `headers`, where no shell expands them.\n\nRewrite the reference in the syntax of the agent that reads the file.",
+      "category": "portability",
+      "severity": "warn",
+      "appliesTo": [
+        "mcp-json",
+        "claude-plugin-manifest",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Plugins reference",
+          "url": "https://code.claude.com/docs/en/plugins-reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: MCP",
+          "url": "https://cursor.com/docs/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: MCP servers",
+          "url": "https://geminicli.com/docs/tools/mcp-server/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Configuration (environment variables in settings)",
+          "url": "https://geminicli.com/docs/reference/configuration/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: envVarResolver.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/utils/envVarResolver.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "mcp/insecure-transport",
+      "title": "MCP server uses an unencrypted connection to another host",
+      "rationale": "An `http://` or `ws://` URL sends every tool call, result and header, including `Authorization` tokens, in clear text. Anyone on the network path, for example on a shared Wi-Fi network, can read the traffic and change tool results, which the agent then trusts. `claude plugin validate` also warns about `http://` and `ws://` URLs to hosts other than loopback.\n\nLoopback hosts such as `localhost`, `127.0.0.1` and `::1` are not reported. A Claude Code server with `\"type\": \"sse\"` gets an `info` finding, because Claude Code has deprecated the SSE transport in favor of `\"type\": \"http\"`.\n\nUse `https://` or `wss://`.",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "mcp-json",
+        "claude-plugin-manifest",
+        "cursor-mcp",
+        "gemini-settings"
+      ],
+      "platforms": [
+        "claude-code",
+        "cursor",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Plugins reference",
+          "url": "https://code.claude.com/docs/en/plugins-reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: MCP",
+          "url": "https://cursor.com/docs/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: MCP servers",
+          "url": "https://geminicli.com/docs/tools/mcp-server/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "mcp/literal-secret",
+      "title": "Configuration file contains a literal credential",
+      "rationale": "MCP configurations, settings and hook files are committed with the project, so a token written into one is readable by everyone who can read the repository, its forks and its history. Keys exposed in public GitHub repositories have been used within two minutes. `claude plugin validate` also warns about header values that look like literal credentials.\n\nThe rule reports only tokens with a known vendor prefix and shape (GitHub, OpenAI, Anthropic, Slack, AWS access key IDs, GitLab, Stripe live keys, Google API keys, npm, Hugging Face, PyPI, DigitalOcean, Shopify, Doppler). It skips placeholders such as `ghp_xxxx…` and AWS's `…EXAMPLE` keys, and never reports variable references. The message shows only the first four characters and the length. An AWS access key ID is a warning rather than an error: without its secret access key it grants no access, but it identifies the account and the secret is often committed next to it.\n\nRevoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`.",
+      "category": "risk",
+      "severity": "error",
+      "appliesTo": [
+        "claude-settings",
+        "claude-plugin-manifest",
+        "cursor-hooks",
+        "cursor-mcp",
+        "gemini-settings",
+        "mcp-json",
+        "codex-hooks"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Orca Security: 2023 Honeypotting in the Cloud Report (exposed keys used within two minutes)",
+          "url": "https://orca.security/resources/press-releases/orca-security-2023-honeypotting-in-the-cloud-report/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Plugins reference",
+          "url": "https://code.claude.com/docs/en/plugins-reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: MCP",
+          "url": "https://cursor.com/docs/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: MCP servers",
+          "url": "https://geminicli.com/docs/tools/mcp-server/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub: About authentication to GitHub (token prefixes)",
+          "url": "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub blog: Behind GitHub's new authentication token formats",
+          "url": "https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub changelog: new format for GitHub App installation tokens",
+          "url": "https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Get an API key (sk-ant- prefix)",
+          "url": "https://platform.claude.com/docs/en/get-api-key",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Admin API keys (sk-ant-admin01- prefix)",
+          "url": "https://platform.claude.com/docs/en/manage-claude/admin-api-keys",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Slack: Tokens",
+          "url": "https://docs.slack.dev/authentication/tokens",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "AWS IAM: Unique identifier prefixes (AKIA, ASIA)",
+          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitLab: Token prefixes",
+          "url": "https://docs.gitlab.com/security/tokens/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Stripe: API keys",
+          "url": "https://docs.stripe.com/keys",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Google Cloud: API keys",
+          "url": "https://docs.cloud.google.com/docs/authentication/api-keys",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub blog: npm's new access token format",
+          "url": "https://github.blog/2021-09-23-announcing-npms-new-access-token-format/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Hugging Face: User access tokens",
+          "url": "https://huggingface.co/docs/hub/security-tokens",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "PyPI: API tokens",
+          "url": "https://pypi.org/help/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "DigitalOcean: API token format",
+          "url": "https://docs.digitalocean.com/notes/2022/api-token-format",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Shopify: Access tokens",
+          "url": "https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Doppler: Auth token formats",
+          "url": "https://docs.doppler.com/reference/auth-token-formats",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "gitleaks default rules (token lengths that vendors do not document)",
+          "url": "https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "mcp/url-without-type",
+      "title": "MCP server has a \"url\" but no \"type\"",
+      "rationale": "Claude Code reads an MCP server entry without `type` as a stdio server, so an entry with a `url` but no `type` is a configuration error: Claude Code skips the server and reports `MCP server \"<name>\" has a \"url\" but no \"type\"`. This applies to `.mcp.json` and to servers that a plugin manifest declares inline.\n\nAdd `\"type\": \"http\"`, or `\"sse\"` or `\"ws\"` to match the server.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "mcp-json",
+        "claude-plugin-manifest"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Plugins reference",
+          "url": "https://code.claude.com/docs/en/plugins-reference",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/hidden-comment",
+      "title": "HTML comment hides instructions for the agent from human readers",
+      "rationale": "An HTML comment does not show in rendered Markdown, on GitHub or in most editors, but it is still part of the file. Codex passes `AGENTS.md` to the model as written, comments included, and the other agents do not document removing comments; only Claude Code documents removing block-level HTML comments, from `CLAUDE.md`. Instructions in a comment therefore reach the agent while a reviewer of the rendered file never sees them.\n\nThis rule reports comments that read as instructions for an AI agent: they address the agent (\"Note for AI agents: …\"), try to override its instructions (\"ignore all previous instructions\"), or ask it to hide something from the user. Short comments, agentcheckup directives and text that is not English prose are not reported.\n\nMove instructions you intend into visible text, or delete them.",
+      "category": "risk",
+      "severity": "info",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Memory (CLAUDE.md)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: agents_md.rs",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "AGENTS.md open format",
+          "url": "https://agents.md/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Rules (does not say whether HTML comments reach the model)",
+          "url": "https://cursor.com/docs/rules",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        },
+        {
+          "title": "GitHub Copilot: Repository custom instructions (does not say whether HTML comments reach the model)",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions",
+          "checked": "2026-10-14",
+          "status": "unverified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/hidden-unicode",
+      "title": "File contains invisible or text-reordering Unicode characters",
+      "rationale": "Unicode tag characters (U+E0000–U+E007F) mirror ASCII but render as nothing: editors, diffs and rendered Markdown do not show them, yet language models read them as text, so a file can carry instructions no reviewer sees (\"ASCII smuggling\"). Bidirectional controls (U+202A–U+202E, U+2066–U+2069) change the display order of text, so the reviewed text differs from the text the agent reads (\"Trojan Source\"). Zero-width characters and runs of variation selectors hide data the same way.\n\nTag characters and bidirectional controls are errors; bidirectional controls are warnings on a line with right-to-left script, where they have legitimate uses. Zero-width characters and variation selector runs are warnings. Not reported: a joiner inside an emoji sequence or a joining script, a zero width space between letters of a script written without spaces, a byte order mark at the start of the file, and subdivision flags such as England (U+1F3F4 followed by tag letters).\n\nDelete the characters. If they came from copy and paste, retype the affected text.",
+      "category": "risk",
+      "severity": "error",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "claude-settings",
+        "claude-plugin-manifest",
+        "cursor-hooks",
+        "cursor-mcp",
+        "gemini-settings",
+        "mcp-json",
+        "codex-hooks"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Embrace The Red: ASCII Smuggler, hiding text in Unicode tag characters",
+          "url": "https://embracethered.com/blog/posts/2024/hiding-and-finding-text-with-unicode-tags/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Boucher and Anderson, \"Trojan Source: Invisible Vulnerabilities\" (USENIX Security 2023)",
+          "url": "https://arxiv.org/abs/2111.00169",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Unicode Technical Standard #39: Security mechanisms",
+          "url": "https://www.unicode.org/reports/tr39/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Unicode Technical Standard #51: Unicode Emoji (emoji tag sequences, Annex C)",
+          "url": "https://www.unicode.org/reports/tr51/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Paul Butler: Smuggling arbitrary data through an emoji",
+          "url": "https://paulbutler.org/2025/smuggling-arbitrary-data-through-an-emoji/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/remote-script-execution",
+      "title": "Command downloads a script and runs it in one step",
+      "rationale": "Agents run commands from their instruction and skill files, including commands in code blocks. `curl -fsSL https://… | sh` downloads a script and runs it in one step, so whoever controls that address when the command runs decides what executes, with the user's permissions, and nothing reviews it. Hook commands and MCP server command lines do this on every event or server start, without anyone deciding to run them. Claude Code does not auto-approve `curl` and `wget` by default, as a defense against prompt injection.\n\nThe rule reports `curl` or `wget` piped into a shell or interpreter, `bash <(curl …)`, `bash -c \"$(curl …)\"`, `eval \"$(curl …)\"` and PowerShell `irm … | iex` with a real URL. Not reported: placeholder URLs such as `https://example.com`, commands that their line, paragraph or heading says not to run, and commands addressed to a person (\"tell the user to install it with …\"), because a person sees those before anything runs.\n\nPin the download to a version and checksum, or install from a package manager or a vendored script.",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "agents-md",
+        "agents-override-md",
+        "claude-md",
+        "claude-local-md",
+        "claude-rule",
+        "claude-agent",
+        "claude-command",
+        "skill",
+        "cursor-rule",
+        "cursor-rule-md",
+        "cursor-legacy-rules",
+        "copilot-instructions",
+        "copilot-path-instructions",
+        "gemini-md",
+        "windsurf-rule",
+        "windsurf-legacy-rules",
+        "cline-rule",
+        "claude-settings",
+        "codex-hooks",
+        "cursor-hooks",
+        "gemini-settings",
+        "mcp-json",
+        "cursor-mcp",
+        "claude-plugin-manifest"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Security (network command approval)",
+          "url": "https://code.claude.com/docs/en/security",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "AGENTS.md open format",
+          "url": "https://agents.md/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "settings/auto-approve-project-mcp",
+      "title": "Settings approve every project MCP server automatically",
+      "rationale": "In interactive sessions, Claude Code asks before it uses a server from a project's `.mcp.json`. `\"enableAllProjectMcpServers\": true` approves every server in that file without asking, including servers that a later commit or pull request adds. In a committed `.claude/settings.json` it takes effect once a teammate trusts the project; from then on, whoever can change `.mcp.json` can start a new process on that teammate's machine without a prompt.\n\nList the servers you trust by name in `enabledMcpjsonServers` instead.",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-settings"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "settings/ignored-permission-mode",
+      "title": "Claude Code ignores this permission mode in project settings",
+      "rationale": "Since v2.1.257, Claude Code ignores the `permissions.defaultMode` values `auto` and `bypassPermissions` in project settings (`.claude/settings.json`) and local settings (`.claude/settings.local.json`); before that version, `bypassPermissions` took effect from any file. A team that commits one of these values does not get the mode it set.\n\nSet the mode in `~/.claude/settings.json` or managed settings, or pass `--permission-mode` for one session.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-settings"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Settings",
+          "url": "https://code.claude.com/docs/en/settings",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/body-too-long",
+      "title": "Skill body is longer than recommended",
+      "rationale": "Agents load the whole SKILL.md body when a skill runs. In Claude Code the body then stays in the conversation on later turns, so every line is a recurring token cost, and after compaction Claude Code re-attaches only the first 5,000 tokens of each invoked skill.\n\nClaude Code and the Agent Skills specification recommend keeping SKILL.md under 500 lines, and the specification recommends a body under 5,000 tokens. Both are recommendations, so findings are advice and do not affect the score. Tokens are estimated at four characters per token. Set `maxLines` to change the line limit.\n\nMove reference material into separate files next to SKILL.md and link to them.",
+      "category": "budget",
+      "severity": "info",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Skill authoring best practices",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/broad-allowed-tools",
+      "title": "Skill pre-approves shell commands or file edits without limits",
+      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "copilot"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Configure permissions",
+          "url": "https://code.claude.com/docs/en/permissions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub Copilot: Add skills",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/broken-reference",
+      "title": "Skill links to a missing file or outside its directory",
+      "rationale": "SKILL.md links to supporting files with paths relative to the skill directory, as the Agent Skills specification asks. A link to a missing file leads the agent nowhere. A path that differs from the file only in letter case works on macOS and Windows but not on Linux, and backslashes do not separate directories on Linux or macOS. Skills are installed and uploaded one directory at a time, so a link that leaves the skill directory, such as `../shared/style.md`, breaks when the skill is installed on its own.\n\nNot reported: links into another skill of the same collection, and, for a skill used in this repository, paths that exist relative to the repository root. In a symlinked SKILL.md, a link that resolves from the real file's directory counts as found.\n\nFix the path, or move the file into the skill directory.",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Use Agent Skills (GitHub Copilot)",
+          "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Skill authoring best practices",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/description-missing",
+      "title": "Skill description is missing or empty",
+      "rationale": "Agents decide when to use a skill by matching the request against its `description`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as `# Deploy` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.\n\nAdd a `description` that says what the skill does and when to use it.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub Copilot: Add skills",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/description-quality",
+      "title": "Skill description is too short or does not say when to use it",
+      "rationale": "Agents decide whether to load a skill by matching the request against its `name` and `description`. The Claude skill authoring guide and the Agent Skills specification ask for a description that says what the skill does and when to use it, with the keywords a request would contain. A description of a few words, or one without a \"Use when ...\" clause, gives the agent little to match.\n\nThis check reads English only and skips descriptions in other languages. Findings are advice and do not affect the score.\n\nSay what the skill does, then add a \"Use when ...\" clause with the situations and keywords that should trigger it.",
+      "category": "clarity",
+      "severity": "info",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude API: Skill authoring best practices",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Build skills",
+          "url": "https://learn.chatgpt.com/docs/build-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/description-too-long",
+      "title": "Skill description exceeds the upload or Claude Code listing limit",
+      "rationale": "The Agent Skills specification and the Claude API limit `description` to 1,024 characters. The skills-ref validator, the anthropics/skills packager and claude.ai upload reject a longer one, so this limit is checked only for skills that are installed or uploaded on their own. Claude Code appends `when_to_use` to the description in its skill listing and cuts the combined text at 1,536 characters, so Claude does not see the rest when it chooses a skill.\n\nPut the key use case first and move details into the body.",
+      "category": "budget",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/duplicate-name",
+      "title": "Two skills in one skills directory have the same name",
+      "rationale": "Agents identify a skill by its `name`, or by its directory name when `name` is missing. When two skills in the same skills directory share a name, Claude Code gives the `/name` command to only one of them, Codex lists both under the same name, Gemini CLI loads only the last one it finds, and GitHub Copilot requires names to be unique.\n\nOnly skills that an agent finds in the same skills directory are compared: Claude Code reads `<root>/<name>/SKILL.md`, Gemini CLI also `<root>/SKILL.md`, and Codex searches the whole tree. GitHub Copilot does not document a depth and is treated like Claude Code. A skill reached through several symlinks counts once.\n\nRename one of the skills.",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex: Build skills",
+          "url": "https://learn.chatgpt.com/docs/build-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI: Agent Skills",
+          "url": "https://geminicli.com/docs/cli/skills/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillManager.ts (same-name skills override each other)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillManager.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub Copilot: Add skills",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/field-type",
+      "title": "Skill frontmatter field has the wrong type or length",
+      "rationale": "The Agent Skills specification gives each optional field a type: `metadata` maps string keys to string values, `compatibility` is text of up to 500 characters, `allowed-tools` is a space-separated string, and `license` is text. Codex cannot read frontmatter whose `metadata` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a `compatibility` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for `allowed-tools`, but the specification defines a space-separated string.\n\nUse the types from the specification, and quote values that YAML would read as numbers or booleans.",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/frontmatter-bom",
+      "title": "Skill file starts with a byte order mark",
+      "rationale": "A UTF-8 byte order mark (U+FEFF) is invisible in most editors, but it is the first character of the file. Codex decodes SKILL.md without removing it and compares the trimmed first line with `---`; Rust's `trim()` keeps U+FEFF, so Codex finds no frontmatter and skips the skill. Gemini CLI matches `^---` against the raw text and skips the skill too. The skills-ref validator and the anthropics/skills packager require the file to start with `---` and reject it.\n\nSave SKILL.md as UTF-8 without a byte order mark.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Codex source: read_file_text decodes UTF-8 without removing a byte order mark",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Unicode PropList.txt: White_Space (U+FEFF is not whitespace, so Rust trim() keeps it)",
+          "url": "https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/frontmatter-invalid",
+      "title": "Skill frontmatter is not valid YAML",
+      "rationale": "When the YAML between the `---` lines does not parse, Claude Code loads the skill with no fields set: `/name` works, but Claude cannot match requests against the description. Codex skips the skill, unless quoting values that contain `: ` or start with `[`, `{`, `@` or a backtick makes the YAML parse; it retries once that way. Codex also skips a skill that repeats `name`, `description` or `metadata`. For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject the file.\n\nTOML (`+++`) and `---js` blocks are not frontmatter to any agent: Codex and Gemini CLI skip the skill, and Claude Code reads the block as instructions.\n\nQuote values that contain `: ` or start with a YAML indicator such as `[`, `{`, `@` or a backtick, indent with spaces, and do not repeat keys.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "StrictYAML (used by skills-ref): features removed from YAML",
+          "url": "https://hitchdev.com/strictyaml/features-removed/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/frontmatter-missing",
+      "title": "Skill has no YAML frontmatter on line 1",
+      "rationale": "Agents read a skill's `name` and `description` from YAML frontmatter: a `---` line at the very start of SKILL.md, the fields, and a closing `---` line. Codex and Gemini CLI skip a SKILL.md without it, and Codex also skips one whose frontmatter is never closed. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.\n\nStart the file with `---`, add `name` and `description`, and close the block with another `---` line.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/name-dir-mismatch",
+      "title": "Skill name does not match its directory name",
+      "rationale": "The Agent Skills specification, Cursor and GitHub Copilot in VS Code require `name` to equal the name of the directory that contains SKILL.md, and VS Code does not load a skill whose name does not match. The skills-ref validator compares both after NFKC normalization and rejects a mismatch, and the Claude API (with `skills-2025-10-02`) requires uploaded files to sit in a directory named after the skill. Claude Code and Codex do not require a match.\n\nOnly the agents that load the skill where it is count, so a skill in a plugin is judged by the plugin's agents. A SKILL.md at a plugin root is exempt, because there `name` deliberately differs from the plugin directory. The specification and upload requirements count only for skills that are installed or uploaded on their own.\n\nRename the directory or change `name` so that they match.",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "cursor",
+        "copilot"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Use Agent Skills (GitHub Copilot)",
+          "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Using Agent Skills with the API",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/name-format",
+      "title": "Skill name does not follow the Agent Skills naming rules",
+      "rationale": "The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in `name`, with no hyphen at the start or end and no `--`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, `<` or `>`, so typing the name does not invoke the skill.\n\nFor a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject a name that breaks these rules, and claude.ai upload rejects one with other characters or more than 64. skills-ref accepts non-ASCII lowercase letters, but the packager accepts only `a-z`, `0-9` and `-`.\n\nRename the skill to lowercase ASCII words joined by single hyphens, and rename its directory to match.",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Use Agent Skills (GitHub Copilot)",
+          "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/name-missing",
+      "title": "Skill name is missing or empty",
+      "rationale": "The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require a `name` field. Gemini CLI skips a SKILL.md whose frontmatter has no `name`, and loads a skill whose `name` is empty under an empty name. Claude Code and Codex fall back to the directory name, so the skill works there but not in the agents that require the field.\n\nAdd `name` with the directory name, in lowercase letters, digits and hyphens.",
+      "category": "portability",
+      "severity": "error",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "GitHub Copilot: Add skills",
+          "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: skill loader (default name from the directory)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/name-reserved-word",
+      "title": "Skill name uses a reserved word or name",
+      "rationale": "The Claude API and claude.ai upload reject a skill whose `name` contains the reserved words `anthropic` or `claude`. This matters only for skills that are installed or uploaded on their own, so it is not reported for skills in an agent's skills directory or in a plugin.\n\nClaude Code reserves names for skills synced from claude.ai. Outside a plugin, a skill directory or frontmatter `name` that is `anthropic-skills` or starts with `anthropic-skills:` does not load, and Claude Code skips a skill directory named `synced`, in any letter case, in its enterprise, personal and project skills directories. Of these, agentcheckup sees only the project's `.claude/skills` at the scan root, so it checks `synced` there and not in nested `.claude/skills` directories.\n\nChoose a name without these words.",
+      "category": "portability",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude API: Agent Skills overview",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Using Agent Skills with the API",
+          "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude API: Skill authoring best practices",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/non-portable-field",
+      "title": "Skill frontmatter uses a field outside the Agent Skills specification",
+      "rationale": "The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, and GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`.\n\nFor a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.\n\nKeep extension fields in skills that only their agents load, and move your own data under `metadata`.",
+      "category": "portability",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Agent Skills specification",
+          "url": "https://agentskills.io/specification",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Use Agent Skills (GitHub Copilot)",
+          "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/shell-preprocessing",
+      "title": "Skill runs a risky shell command before Claude reads it",
+      "rationale": "In a skill, a code span that follows an exclamation mark at the start of a line or after whitespace, such as `` !`git status` ``, and a fenced code block opened with `` ```! ``, are shell commands. Claude Code runs them when the skill is invoked, before Claude sees the skill, and replaces them with their output. They never prompt: Claude Code checks each command against your permission rules, and outside auto mode a command that is not allowed aborts the skill. A command that your rules or the skill's `allowed-tools` allow runs without asking.\n\nThis rule reports injected commands that pipe downloaded content into a shell, run `eval`, or delete files with `rm -rf`. Ordinary commands such as `git status` are not reported.\n\nReview these commands before you invoke the skill, or set `disableSkillShellExecution` to `true` in managed settings to replace them with a placeholder.",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: Skills",
+          "url": "https://code.claude.com/docs/en/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Claude Code: Configure permissions",
+          "url": "https://code.claude.com/docs/en/permissions",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "skill/yaml-portability",
+      "title": "Skill frontmatter uses YAML that parsers read differently",
+      "rationale": "Agents and validators parse SKILL.md frontmatter with different YAML libraries: Codex uses serde_yaml, Gemini CLI js-yaml, the skills-ref validator strictyaml, and the anthropics/skills packager PyYAML, a YAML 1.1 parser. YAML 1.1 reads unquoted `yes`, `no`, `on` and `off` as booleans; YAML 1.2 reads them as text. YAML 1.2 parsers read `1.0` as the number 1, while strictyaml keeps the text. strictyaml rejects anchors, aliases and explicit tags, and reads an empty value as text where other parsers read null. These findings are reported only for skills that are installed or uploaded on their own.\n\nQuote values that must stay text, write booleans as `true` or `false`, avoid anchors, aliases and tags, and remove keys that have no value.",
+      "category": "portability",
+      "severity": "warn",
+      "appliesTo": [
+        "skill"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ],
+      "sources": [
+        {
+          "title": "StrictYAML (used by skills-ref): features removed from YAML",
+          "url": "https://hitchdev.com/strictyaml/features-removed/",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "YAML 1.1: Boolean type",
+          "url": "https://yaml.org/type/bool.html",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "anthropics/skills packager validation (quick_validate.py)",
+          "url": "https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "agentskills skills-ref reference validator",
+          "url": "https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Gemini CLI source: skillLoader.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
+          "checked": "2026-10-14",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    }
+  ],
+  "skipped": [],
+  "unresolvedSymlinks": [],
+  "ruleFailures": [],
+  "configWarnings": []
+}

@@ -1,0 +1,188 @@
+# Services
+
+Each service is deployed on its own. Conventions shared by every service:
+
+- S001: handlers read configuration from environment variables parsed at startup.
+- S002: queue consumers are idempotent and keyed by message id.
+- S003: outbound HTTP calls set an explicit timeout in milliseconds.
+- S004: log lines are JSON with the fields level, msg, service and request_id.
+- S005: database access goes through the repository layer in src/db.
+- S006: feature flags are read once per request and never cached across requests.
+- S007: metric names start with the service name, in snake_case.
+- S008: background jobs record their start and end time in the jobs table.
+- S009: handlers read configuration from environment variables parsed at startup.
+- S010: queue consumers are idempotent and keyed by message id.
+- S011: outbound HTTP calls set an explicit timeout in milliseconds.
+- S012: log lines are JSON with the fields level, msg, service and request_id.
+- S013: database access goes through the repository layer in src/db.
+- S014: feature flags are read once per request and never cached across requests.
+- S015: metric names start with the service name, in snake_case.
+- S016: background jobs record their start and end time in the jobs table.
+- S017: handlers read configuration from environment variables parsed at startup.
+- S018: queue consumers are idempotent and keyed by message id.
+- S019: outbound HTTP calls set an explicit timeout in milliseconds.
+- S020: log lines are JSON with the fields level, msg, service and request_id.
+- S021: database access goes through the repository layer in src/db.
+- S022: feature flags are read once per request and never cached across requests.
+- S023: metric names start with the service name, in snake_case.
+- S024: background jobs record their start and end time in the jobs table.
+- S025: handlers read configuration from environment variables parsed at startup.
+- S026: queue consumers are idempotent and keyed by message id.
+- S027: outbound HTTP calls set an explicit timeout in milliseconds.
+- S028: log lines are JSON with the fields level, msg, service and request_id.
+- S029: database access goes through the repository layer in src/db.
+- S030: feature flags are read once per request and never cached across requests.
+- S031: metric names start with the service name, in snake_case.
+- S032: background jobs record their start and end time in the jobs table.
+- S033: handlers read configuration from environment variables parsed at startup.
+- S034: queue consumers are idempotent and keyed by message id.
+- S035: outbound HTTP calls set an explicit timeout in milliseconds.
+- S036: log lines are JSON with the fields level, msg, service and request_id.
+- S037: database access goes through the repository layer in src/db.
+- S038: feature flags are read once per request and never cached across requests.
+- S039: metric names start with the service name, in snake_case.
+- S040: background jobs record their start and end time in the jobs table.
+- S041: handlers read configuration from environment variables parsed at startup.
+- S042: queue consumers are idempotent and keyed by message id.
+- S043: outbound HTTP calls set an explicit timeout in milliseconds.
+- S044: log lines are JSON with the fields level, msg, service and request_id.
+- S045: database access goes through the repository layer in src/db.
+- S046: feature flags are read once per request and never cached across requests.
+- S047: metric names start with the service name, in snake_case.
+- S048: background jobs record their start and end time in the jobs table.
+- S049: handlers read configuration from environment variables parsed at startup.
+- S050: queue consumers are idempotent and keyed by message id.
+- S051: outbound HTTP calls set an explicit timeout in milliseconds.
+- S052: log lines are JSON with the fields level, msg, service and request_id.
+- S053: database access goes through the repository layer in src/db.
+- S054: feature flags are read once per request and never cached across requests.
+- S055: metric names start with the service name, in snake_case.
+- S056: background jobs record their start and end time in the jobs table.
+- S057: handlers read configuration from environment variables parsed at startup.
+- S058: queue consumers are idempotent and keyed by message id.
+- S059: outbound HTTP calls set an explicit timeout in milliseconds.
+- S060: log lines are JSON with the fields level, msg, service and request_id.
+- S061: database access goes through the repository layer in src/db.
+- S062: feature flags are read once per request and never cached across requests.
+- S063: metric names start with the service name, in snake_case.
+- S064: background jobs record their start and end time in the jobs table.
+- S065: handlers read configuration from environment variables parsed at startup.
+- S066: queue consumers are idempotent and keyed by message id.
+- S067: outbound HTTP calls set an explicit timeout in milliseconds.
+- S068: log lines are JSON with the fields level, msg, service and request_id.
+- S069: database access goes through the repository layer in src/db.
+- S070: feature flags are read once per request and never cached across requests.
+- S071: metric names start with the service name, in snake_case.
+- S072: background jobs record their start and end time in the jobs table.
+- S073: handlers read configuration from environment variables parsed at startup.
+- S074: queue consumers are idempotent and keyed by message id.
+- S075: outbound HTTP calls set an explicit timeout in milliseconds.
+- S076: log lines are JSON with the fields level, msg, service and request_id.
+- S077: database access goes through the repository layer in src/db.
+- S078: feature flags are read once per request and never cached across requests.
+- S079: metric names start with the service name, in snake_case.
+- S080: background jobs record their start and end time in the jobs table.
+- S081: handlers read configuration from environment variables parsed at startup.
+- S082: queue consumers are idempotent and keyed by message id.
+- S083: outbound HTTP calls set an explicit timeout in milliseconds.
+- S084: log lines are JSON with the fields level, msg, service and request_id.
+- S085: database access goes through the repository layer in src/db.
+- S086: feature flags are read once per request and never cached across requests.
+- S087: metric names start with the service name, in snake_case.
+- S088: background jobs record their start and end time in the jobs table.
+- S089: handlers read configuration from environment variables parsed at startup.
+- S090: queue consumers are idempotent and keyed by message id.
+- S091: outbound HTTP calls set an explicit timeout in milliseconds.
+- S092: log lines are JSON with the fields level, msg, service and request_id.
+- S093: database access goes through the repository layer in src/db.
+- S094: feature flags are read once per request and never cached across requests.
+- S095: metric names start with the service name, in snake_case.
+- S096: background jobs record their start and end time in the jobs table.
+- S097: handlers read configuration from environment variables parsed at startup.
+- S098: queue consumers are idempotent and keyed by message id.
+- S099: outbound HTTP calls set an explicit timeout in milliseconds.
+- S100: log lines are JSON with the fields level, msg, service and request_id.
+- S101: database access goes through the repository layer in src/db.
+- S102: feature flags are read once per request and never cached across requests.
+- S103: metric names start with the service name, in snake_case.
+- S104: background jobs record their start and end time in the jobs table.
+- S105: handlers read configuration from environment variables parsed at startup.
+- S106: queue consumers are idempotent and keyed by message id.
+- S107: outbound HTTP calls set an explicit timeout in milliseconds.
+- S108: log lines are JSON with the fields level, msg, service and request_id.
+- S109: database access goes through the repository layer in src/db.
+- S110: feature flags are read once per request and never cached across requests.
+- S111: metric names start with the service name, in snake_case.
+- S112: background jobs record their start and end time in the jobs table.
+- S113: handlers read configuration from environment variables parsed at startup.
+- S114: queue consumers are idempotent and keyed by message id.
+- S115: outbound HTTP calls set an explicit timeout in milliseconds.
+- S116: log lines are JSON with the fields level, msg, service and request_id.
+- S117: database access goes through the repository layer in src/db.
+- S118: feature flags are read once per request and never cached across requests.
+- S119: metric names start with the service name, in snake_case.
+- S120: background jobs record their start and end time in the jobs table.
+- S121: handlers read configuration from environment variables parsed at startup.
+- S122: queue consumers are idempotent and keyed by message id.
+- S123: outbound HTTP calls set an explicit timeout in milliseconds.
+- S124: log lines are JSON with the fields level, msg, service and request_id.
+- S125: database access goes through the repository layer in src/db.
+- S126: feature flags are read once per request and never cached across requests.
+- S127: metric names start with the service name, in snake_case.
+- S128: background jobs record their start and end time in the jobs table.
+- S129: handlers read configuration from environment variables parsed at startup.
+- S130: queue consumers are idempotent and keyed by message id.
+- S131: outbound HTTP calls set an explicit timeout in milliseconds.
+- S132: log lines are JSON with the fields level, msg, service and request_id.
+- S133: database access goes through the repository layer in src/db.
+- S134: feature flags are read once per request and never cached across requests.
+- S135: metric names start with the service name, in snake_case.
+- S136: background jobs record their start and end time in the jobs table.
+- S137: handlers read configuration from environment variables parsed at startup.
+- S138: queue consumers are idempotent and keyed by message id.
+- S139: outbound HTTP calls set an explicit timeout in milliseconds.
+- S140: log lines are JSON with the fields level, msg, service and request_id.
+- S141: database access goes through the repository layer in src/db.
+- S142: feature flags are read once per request and never cached across requests.
+- S143: metric names start with the service name, in snake_case.
+- S144: background jobs record their start and end time in the jobs table.
+- S145: handlers read configuration from environment variables parsed at startup.
+- S146: queue consumers are idempotent and keyed by message id.
+- S147: outbound HTTP calls set an explicit timeout in milliseconds.
+- S148: log lines are JSON with the fields level, msg, service and request_id.
+- S149: database access goes through the repository layer in src/db.
+- S150: feature flags are read once per request and never cached across requests.
+- S151: metric names start with the service name, in snake_case.
+- S152: background jobs record their start and end time in the jobs table.
+- S153: handlers read configuration from environment variables parsed at startup.
+- S154: queue consumers are idempotent and keyed by message id.
+- S155: outbound HTTP calls set an explicit timeout in milliseconds.
+- S156: log lines are JSON with the fields level, msg, service and request_id.
+- S157: database access goes through the repository layer in src/db.
+- S158: feature flags are read once per request and never cached across requests.
+- S159: metric names start with the service name, in snake_case.
+- S160: background jobs record their start and end time in the jobs table.
+- S161: handlers read configuration from environment variables parsed at startup.
+- S162: queue consumers are idempotent and keyed by message id.
+- S163: outbound HTTP calls set an explicit timeout in milliseconds.
+- S164: log lines are JSON with the fields level, msg, service and request_id.
+- S165: database access goes through the repository layer in src/db.
+- S166: feature flags are read once per request and never cached across requests.
+- S167: metric names start with the service name, in snake_case.
+- S168: background jobs record their start and end time in the jobs table.
+- S169: handlers read configuration from environment variables parsed at startup.
+- S170: queue consumers are idempotent and keyed by message id.
+- S171: outbound HTTP calls set an explicit timeout in milliseconds.
+- S172: log lines are JSON with the fields level, msg, service and request_id.
+- S173: database access goes through the repository layer in src/db.
+- S174: feature flags are read once per request and never cached across requests.
+- S175: metric names start with the service name, in snake_case.
+- S176: background jobs record their start and end time in the jobs table.
+- S177: handlers read configuration from environment variables parsed at startup.
+- S178: queue consumers are idempotent and keyed by message id.
+- S179: outbound HTTP calls set an explicit timeout in milliseconds.
+- S180: log lines are JSON with the fields level, msg, service and request_id.
+- S181: database access goes through the repository layer in src/db.
+- S182: feature flags are read once per request and never cached across requests.
+- S183: metric names start with the service name, in snake_case.
+- S184: background jobs record their start and end time in the jobs table.
