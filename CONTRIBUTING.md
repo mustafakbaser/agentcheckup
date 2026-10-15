@@ -64,7 +64,7 @@ skips, ignores, truncates or breaks the file. Behavior you could not verify can 
 See [ADR 0004](docs/adr/0004-evidence-backed-rules.md).
 
 1. **Find the evidence.** Link official documentation or source code. Note the date you checked
-   it. Add it to `src/rules/sources.ts` if it is not there yet.
+   it. Add it to `src/platforms/sources.ts` if it is not there yet.
 2. **Write the rule** in `src/rules/<family>/<name>.ts` with `defineRule`. Use the parsed views
    on the context (`context.frontmatter(artifact)`, `context.markdown(artifact)`,
    `context.json(artifact)`); never parse raw text yourself.
