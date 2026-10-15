@@ -1,4 +1,5 @@
 import type { RuleSource } from '../../core/types.js';
+import { SOURCES } from '../../platforms/sources.js';
 
 /**
  * Evidence used only by the skill family, checked 2026-10-14. Shared evidence lives in
@@ -31,22 +32,11 @@ export const SKILL_SOURCES = {
     'anthropics/skills packager validation (quick_validate.py)',
     'https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py',
   ),
-  codexSkillParser: verified(
-    'Codex source: SKILL.md frontmatter parser (parser.rs)',
-    'https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs',
-  ),
-  codexSkillLoader: verified(
-    'Codex source: skill loader (default name from the directory)',
-    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs',
-  ),
-  codexSkillDiscovery: verified(
-    'Codex source: skill discovery (exact SKILL.md name, recursive scan)',
-    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/discovery.rs',
-  ),
-  codexReadFileText: verified(
-    'Codex source: read_file_text decodes UTF-8 without removing a byte order mark',
-    'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs',
-  ),
+  // Shared with the Codex load plan, which cites them by key.
+  codexSkillParser: SOURCES.codexSkillParser,
+  codexSkillLoader: SOURCES.codexSkillLoader,
+  codexSkillDiscovery: SOURCES.codexSkillDiscovery,
+  codexReadFileText: SOURCES.codexReadFileText,
   unicodeWhiteSpace: verified(
     'Unicode PropList.txt: White_Space (U+FEFF is not whitespace, so Rust trim() keeps it)',
     'https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt',

@@ -1,6 +1,7 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Span } from '../../core/types.js';
+import { codexRejectsMetadata } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -41,7 +42,7 @@ function metadataProblem(
 ): Problem | undefined {
   if (value === null) return undefined; // skill/yaml-portability reports empty values
   if (!isMap(value)) {
-    const scalar = !Array.isArray(value);
+    const scalar = codexRejectsMetadata(value);
     const clauses = [
       // Codex deserializes `metadata` into a struct and fails on anything but a mapping.
       ...(scalar && codex ? ['Codex cannot read the frontmatter and skips the skill'] : []),

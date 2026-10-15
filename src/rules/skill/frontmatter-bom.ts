@@ -1,4 +1,5 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { bomHidesFrontmatter } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformsDo, sentence } from '../shared/format.js';
@@ -39,8 +40,7 @@ Save SKILL.md as UTF-8 without a byte order mark.`,
       const { decoded } = artifact;
       if (!decoded.hasBom || decoded.encoding !== 'utf-8') continue;
       // Only a delimited block is lost to the mark; without one, skill/frontmatter-missing reports.
-      const kind = context.frontmatter(artifact).kind;
-      if (kind !== 'valid' && kind !== 'invalid') continue;
+      if (!bomHidesFrontmatter(decoded, context.frontmatter(artifact))) continue;
       const skipping = reached(context, artifact, ['codex', 'gemini']);
       const resolved = resolveImpacts(context, artifact, [
         ...impactsOn(skipping, 'error'),

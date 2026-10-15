@@ -9,6 +9,7 @@ import {
   CODEX_FILE_NAMES,
   type CodexChainFile,
   codexChain,
+  codexMaxBytes,
 } from '../../platforms/load/codex-chain.js';
 import { viewOf } from '../../platforms/load/view.js';
 import { defineRule } from '../define.js';
@@ -40,14 +41,6 @@ interface NearLimit {
   readonly file: CodexChainFile;
   readonly total: number;
   readonly before: readonly CodexChainFile[];
-}
-
-function maxBytesOption(options: CodexSizeBudgetOptions): number {
-  const value: unknown = options.maxBytes;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`Option "maxBytes" must be a positive integer, got ${JSON.stringify(value)}.`);
-  }
-  return value;
 }
 
 function filesAbove(count: number): string {
@@ -86,7 +79,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
   },
   defaultOptions: { maxBytes: CODEX_DEFAULT_MAX_BYTES },
   check(context) {
-    const maxBytes = maxBytesOption(context.options);
+    const maxBytes = codexMaxBytes(context.options.maxBytes);
     const view = viewOf(context);
     const { snapshot, index } = view;
 

@@ -1,4 +1,5 @@
 import type { RuleSource } from '../../core/types.js';
+import { SOURCES } from '../../platforms/sources.js';
 
 /**
  * Evidence used only by instruction-file rules, in addition to the shared SOURCES.
@@ -22,14 +23,9 @@ const unverified = (title: string, url: string): RuleSource => ({
 });
 
 export const INSTRUCTION_SOURCES = {
-  codexDefaults: verified(
-    'Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)',
-    'https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml',
-  ),
-  codexFindUp: verified(
-    'Codex source: find_up.rs (nearest ancestor with a project root marker)',
-    'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/find_up.rs',
-  ),
+  // Shared with the Codex load plan, which cites them by key.
+  codexDefaults: SOURCES.codexDefaults,
+  codexFindUp: SOURCES.codexFindUp,
   geminiImportSource: verified(
     'Gemini CLI source: memoryImportProcessor.ts',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryImportProcessor.ts',

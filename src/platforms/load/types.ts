@@ -208,7 +208,11 @@ export interface HiddenScope {
 export interface LimitUsage {
   /** For example `codex.project_doc_max_bytes`. */
   readonly key: string;
-  readonly unit: 'bytes' | 'chars' | 'lines' | 'hops' | 'context-fraction';
+  /**
+   * `levels`: directory levels below a search root. `directories`: directories a search visits.
+   */
+  readonly unit:
+    'bytes' | 'chars' | 'lines' | 'hops' | 'levels' | 'directories' | 'context-fraction';
   /** Null when the limit depends on the model's context window and none was given. */
   readonly limit: number | null;
   readonly used: number;

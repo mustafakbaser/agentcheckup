@@ -1,6 +1,7 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { PlatformId } from '../../core/types.js';
+import { codexNameTooLong, nameNotText } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -43,16 +44,6 @@ function showChar(char: string): string {
 
 function listChars(chars: ReadonlySet<string>): string {
   return joinNames([...chars].slice(0, MAX_LISTED).map(showChar));
-}
-
-/** Codex collapses runs of whitespace before it counts characters (parser.rs). */
-function codexLength(value: string): number {
-  return codePointLength(
-    value
-      .split(/\s+/u)
-      .filter((part) => part !== '')
-      .join(' '),
-  );
 }
 
 interface Analysis {
@@ -116,7 +107,8 @@ function analyze(
 
   const consequences: string[] = [];
   const impacts: Impact[] = [];
-  if (tooLong && codexLength(raw) > MAX_NAME_LENGTH && reaches('codex')) {
+  // Codex collapses runs of whitespace before it counts characters (parser.rs).
+  if (codexNameTooLong(raw) && reaches('codex')) {
     consequences.push('Codex skips the skill');
     impacts.push({ platform: 'codex', severity: 'error' });
   }
@@ -192,7 +184,7 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
       let message: string;
       let impacts: readonly Impact[];
       const { reach, distributable } = placement(context, artifact);
-      if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+      if (nameNotText(value)) {
         const codex = reach.has('codex');
         const clauses = [
           ...(codex ? ['Codex cannot read the frontmatter and skips the skill'] : []),

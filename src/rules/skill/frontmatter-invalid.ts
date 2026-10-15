@@ -1,12 +1,17 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText } from '../../core/text.js';
 import type { Artifact, Span } from '../../core/types.js';
-import { locateFrontmatter } from '../../parse/frontmatter.js';
 import type { FrontmatterResult, ParseIssue } from '../../parse/types.js';
+import {
+  codexRejectsDuplicate,
+  codexRepairedYaml,
+  frontmatterYaml,
+  invalidCause,
+} from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformsDo, quote, sentence } from '../shared/format.js';
-import { claudeCodeRepair, codexRepair, parsesAsFrontmatter } from './repair.js';
+import { claudeCodeRepair, parsesAsFrontmatter } from './repair.js';
 import {
   type Impact,
   impactsOn,
@@ -27,17 +32,6 @@ interface Problem {
   readonly impacts: readonly Impact[];
   readonly span: Span;
 }
-
-/** Errors that come from agentcheckup's own resource limits, not from the YAML itself. */
-const LIMIT_CODES: ReadonlySet<string> = new Set([
-  'too-large',
-  'too-deep',
-  'excessive-aliases',
-  'parse-failed',
-]);
-
-/** Fields that Codex deserializes; serde rejects a repeated field. */
-const CODEX_FIELDS: ReadonlySet<string> = new Set(['name', 'description', 'metadata']);
 
 /** skills-ref and the anthropics/skills packager reject frontmatter that does not parse. */
 const VALIDATORS: Impact = { platform: 'claude-code', severity: 'warn', scope: 'distribution' };
@@ -82,19 +76,13 @@ function unsupportedProblem(scope: SkillScope, artifact: Artifact, result: Unsup
   };
 }
 
-/** The key a duplicate-key error points at: the text before the `:` on that line. */
-function duplicatedKey(text: string, issue: ParseIssue): string {
-  const lineEnd = text.indexOf('\n', issue.span.offset);
-  const rest = text.slice(issue.span.offset, lineEnd === -1 ? text.length : lineEnd);
-  const colon = rest.indexOf(':');
-  const key = (colon === -1 ? rest : rest.slice(0, colon)).trim();
-  const quoted = key.length >= 2 && (key.startsWith('"') || key.startsWith("'"));
-  return quoted && key.endsWith(key.charAt(0)) ? key.slice(1, -1) : key;
-}
-
-function duplicateProblem(scope: SkillScope, artifact: Artifact, issue: ParseIssue): Problem {
-  const key = duplicatedKey(artifact.decoded.text, issue);
-  if (CODEX_FIELDS.has(key) && reached(scope, artifact, ['codex']).length > 0) {
+function duplicateProblem(
+  scope: SkillScope,
+  artifact: Artifact,
+  issue: ParseIssue,
+  key: string,
+): Problem {
+  if (codexRejectsDuplicate(key) && reached(scope, artifact, ['codex']).length > 0) {
     return {
       message: withClauses(`The frontmatter repeats ${quote(key)}.`, [
         'Codex rejects a repeated field and skips the skill',
@@ -114,14 +102,11 @@ function duplicateProblem(scope: SkillScope, artifact: Artifact, issue: ParseIss
 }
 
 function syntaxProblem(scope: SkillScope, artifact: Artifact, issue: ParseIssue): Problem {
-  const text = artifact.decoded.text;
-  const location = locateFrontmatter(text);
-  const yaml = location.kind === 'block' ? text.slice(location.yamlStart, location.yamlEnd) : '';
+  const yaml = frontmatterYaml(artifact.decoded.text);
   // Claude Code's recovery is undocumented: it only decides whether to claim the documented
   // outcome (no fields), never what the message says.
   const claudeRecovers = parsesAsFrontmatter(claudeCodeRepair(yaml));
-  const codexRepaired = codexRepair(yaml);
-  const codexRecovers = codexRepaired !== undefined && parsesAsFrontmatter(codexRepaired);
+  const codexRecovers = codexRepairedYaml(yaml) !== undefined;
 
   const clauses: string[] = [];
   const impacts: Impact[] = [VALIDATORS];
@@ -150,16 +135,16 @@ function invalidProblem(
   artifact: Artifact,
   result: Invalid,
 ): Problem | undefined {
-  const first = result.errors[0];
-  if (first === undefined) return undefined;
-  if (LIMIT_CODES.has(first.code)) {
+  const cause = invalidCause(artifact.decoded.text, result);
+  if (cause === undefined) return undefined;
+  if (cause.kind === 'limit') {
     return {
-      message: `agentcheckup did not check this frontmatter: ${reason(first)}.`,
+      message: `agentcheckup did not check this frontmatter: ${reason(cause.issue)}.`,
       impacts: impactsOn(SKILL_PLATFORMS, 'info', 'distribution'),
-      span: first.span,
+      span: cause.issue.span,
     };
   }
-  if (first.code === 'not-a-mapping') {
+  if (cause.kind === 'not-a-mapping') {
     const skipping = reached(scope, artifact, ['codex', 'gemini']);
     return {
       message: withClauses('The frontmatter is not a mapping of keys to values.', [
@@ -167,14 +152,11 @@ function invalidProblem(
         isDistributable(scope, artifact) ? 'the skills-ref validator rejects it' : undefined,
       ]),
       impacts: [...impactsOn(skipping, 'error'), VALIDATORS],
-      span: first.span,
+      span: cause.issue.span,
     };
   }
-  if (result.errors.every((issue) => issue.code === 'duplicate-key')) {
-    return duplicateProblem(scope, artifact, first);
-  }
-  const syntax = result.errors.find((issue) => issue.code !== 'duplicate-key') ?? first;
-  return syntaxProblem(scope, artifact, syntax);
+  if (cause.kind === 'duplicate') return duplicateProblem(scope, artifact, cause.issue, cause.key);
+  return syntaxProblem(scope, artifact, cause.issue);
 }
 
 export const frontmatterInvalidRule = defineRule({

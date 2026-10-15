@@ -27,6 +27,8 @@ const UNIT_NAMES: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   chars: 'character',
   lines: 'line',
   hops: 'hop',
+  levels: 'level',
+  directories: 'directory',
   'context-fraction': undefined,
 };
 

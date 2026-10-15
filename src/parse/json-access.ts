@@ -3,11 +3,32 @@
  * and `constructor` are ordinary keys and `Object.hasOwn` is the only safe test.
  */
 import type { Span } from '../core/types.js';
-import type { JsonDocument, JsonPathSegment } from './types.js';
+import { JSON_ISSUE } from './json.js';
+import type { JsonDocument, JsonPathSegment, ParseIssue } from './types.js';
 
 export type JsonObject = Readonly<Record<string, unknown>>;
 export type JsonPath = readonly JsonPathSegment[];
 export type ParsedJson = Extract<JsonDocument, { ok: true }>;
+
+export type IssueKind = 'comment' | 'trailing-comma' | 'limit' | 'other';
+
+/**
+ * Limits of agentcheckup's own parser, not syntax errors: agents' `JSON.parse` accepts such files.
+ * An unterminated comment (`unexpected-end-of-comment`) is a real error and stays `other`.
+ */
+const LIMIT_CODES: ReadonlySet<string> = new Set([
+  JSON_ISSUE.tooLarge,
+  JSON_ISSUE.tooDeep,
+  'parse-failed',
+]);
+
+/** What kind of problem a JSON parse issue is: a comment, a trailing comma, a limit, or other. */
+export function issueKind(issue: ParseIssue): IssueKind {
+  if (issue.code === JSON_ISSUE.comment) return 'comment';
+  if (issue.code === JSON_ISSUE.trailingComma) return 'trailing-comma';
+  if (LIMIT_CODES.has(issue.code)) return 'limit';
+  return 'other';
+}
 
 export function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

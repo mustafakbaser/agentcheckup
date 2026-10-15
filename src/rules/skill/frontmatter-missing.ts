@@ -1,10 +1,10 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText } from '../../core/text.js';
 import type { Artifact, DecodedText, PlatformId, Span } from '../../core/types.js';
+import { codexFrontmatterClose, isCodexDelimiter } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger, joinClauses, platformsDo, sentence } from '../shared/format.js';
-import { rustTrim } from './repair.js';
 import {
   type Impact,
   impactsOn,
@@ -32,9 +32,6 @@ function findLine(
   }
   return undefined;
 }
-
-/** Codex accepts a delimiter line whose trimmed text is `---` (codex-rs/skills/src/parser.rs). */
-const isCodexDelimiter = (text: string): boolean => rustTrim(text) === '---';
 
 const SKIP = ['skips', 'skip'] as const;
 const CLAUDE_READS_AS_INSTRUCTIONS = 'Claude Code reads the frontmatter as instructions';
@@ -90,7 +87,7 @@ function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefin
   const first = lineText(decoded, 1);
   if (isCodexDelimiter(first)) {
     // `  ---`: Codex trims the line; Claude Code and Gemini CLI need `---` to start the file.
-    const closed = findLine(decoded, 1, isCodexDelimiter) !== undefined;
+    const closed = codexFrontmatterClose(decoded) !== undefined;
     return problem(
       scope,
       artifact,
@@ -139,7 +136,8 @@ function unclosedProblem(
   const { decoded } = artifact;
   // Gemini CLI closes the block at any line that starts with `---` (skillLoader.ts).
   const geminiCloses = findLine(decoded, 1, (text) => text.startsWith('---')) !== undefined;
-  const indentedClose = findLine(decoded, 1, isCodexDelimiter);
+  // The block opens with `---` on line 1, so this is the line where Codex finds it closed.
+  const indentedClose = codexFrontmatterClose(decoded);
   if (indentedClose !== undefined) {
     // Codex trims lines, so it finds the indented `---`. Claude Code's handling of a closing
     // line is undocumented, so only Gemini CLI, which needs `---` at the line start, is claimed.

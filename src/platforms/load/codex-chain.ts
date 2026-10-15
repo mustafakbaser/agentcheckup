@@ -14,9 +14,9 @@
  * Only files agentcheckup read can be measured. When a candidate exists but was not read, or might
  * exist, the choice in that directory is unknown and the chain stops before it.
  */
-import { pathStatus } from '../../core/paths.js';
-import type { Artifact } from '../../core/types.js';
-import { joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
+import { dirnamePosix, pathStatus } from '../../core/paths.js';
+import type { Artifact, Snapshot } from '../../core/types.js';
+import { fileExists, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { codexSeesBlank } from './codex-text.js';
 import type { LoadView } from './view.js';
 
@@ -29,6 +29,26 @@ export const CODEX_DEFAULT_MAX_BYTES = 32_768;
 export interface CodexChainOptions {
   /** Codex's `project_doc_max_bytes`: a positive integer. */
   readonly maxBytes: number;
+}
+
+/**
+ * Validates a `maxBytes` option (Codex's `project_doc_max_bytes`, as set on
+ * instr/codex-size-budget): a positive safe integer. Throws otherwise.
+ */
+export function codexMaxBytes(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`Option "maxBytes" must be a positive integer, got ${JSON.stringify(value)}.`);
+  }
+  return value;
+}
+
+/**
+ * The `AGENTS.md` next to an `AGENTS.override.md` at `overridePath`, when it exists as a file.
+ * Codex picks the override in that directory, even an empty one, so it never reads this file.
+ */
+export function agentsMdBeside(snapshot: Snapshot, overridePath: string): string | undefined {
+  const path = joinPath(dirnamePosix(overridePath), 'AGENTS.md');
+  return fileExists(snapshot, path) ? path : undefined;
 }
 
 interface ChainFileBase {
@@ -113,7 +133,7 @@ function selectFile(view: Pick<LoadView, 'snapshot' | 'index'>, directory: strin
 }
 
 /** Directories from `root` down to `directory`, inclusive. */
-function chainDirectories(root: string, directory: string): string[] {
+export function chainDirectories(root: string, directory: string): string[] {
   const upward = selfAndAncestors(directory);
   const end = upward.indexOf(root);
   return upward.slice(0, end === -1 ? upward.length : end + 1).reverse();

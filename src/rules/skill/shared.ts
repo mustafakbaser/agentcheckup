@@ -21,6 +21,7 @@ export {
   audience,
   bodyOffset,
   inPlugin,
+  normalizeName,
   placement,
   readersAt,
   SKILL_PLATFORMS,
@@ -68,11 +69,6 @@ export const OPENING_DELIMITER: Span = { offset: 0, length: 3 };
 /** A frontmatter value as written: trimmed text for strings, undefined otherwise. */
 export function trimmedString(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() : undefined;
-}
-
-/** Normalizes a name the way skills-ref compares names: trimmed, then NFKC. */
-export function normalizeName(value: string): string {
-  return value.trim().normalize('NFKC');
 }
 
 /**

@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { defineRule } from '../define.js';
-import { at, FileFindings, isObject, keySpanOf } from '../json/access.js';
+import { codexMisplacedEvents } from '../../platforms/hooks.js';
+import { at, FileFindings, keySpanOf } from '../json/access.js';
 import { quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { HOOK_EVENTS, HOOK_PLATFORMS, type HookPlatform } from './events.js';
@@ -60,8 +61,6 @@ export function describeUnknownEvent(platform: HookPlatform, name: string): stri
   return `${quote(name)} is not a ${label} hook event${hint}. ${consequence}`;
 }
 
-const CODEX_TOP_LEVEL: ReadonlySet<string> = new Set(['description', 'hooks']);
-
 export const unknownEventRule = defineRule({
   meta: {
     id: 'hooks/unknown-event',
@@ -106,12 +105,10 @@ export const unknownEventRule = defineRule({
           platforms: [platform],
         });
       }
-      const root = platform === 'codex' && isObject(doc.value) ? doc.value : undefined;
-      for (const key of root === undefined ? [] : Object.keys(root)) {
-        if (CODEX_TOP_LEVEL.has(key) || !known.has(key)) continue;
+      for (const { name: key, path } of platform === 'codex' ? codexMisplacedEvents(doc) : []) {
         findings.report({
           artifact,
-          ...at(keySpanOf(doc, [key])),
+          ...at(keySpanOf(doc, path)),
           message: `Event ${quote(key)} is outside the "hooks" object. Codex allows only "description" and "hooks" at the top level, so it skips the whole file and none of its hooks run.`,
           platforms: [platform],
         });

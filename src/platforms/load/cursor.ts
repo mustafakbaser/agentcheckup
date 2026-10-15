@@ -55,7 +55,7 @@ import {
   type HookHandler,
   hookHandlers,
 } from '../hooks.js';
-import { issueKind } from '../json-issues.js';
+import { issueKind } from '../../parse/json-access.js';
 import { isBundledSkill } from '../location.js';
 import { mcpServers } from '../mcp.js';
 import { basename } from '../paths.js';

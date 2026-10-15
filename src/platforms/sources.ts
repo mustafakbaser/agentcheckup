@@ -45,8 +45,57 @@ export const SOURCES = {
     'Codex source: agents_md.rs',
     'https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs',
   ),
+  codexDefaults: verified(
+    'Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)',
+    'https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml',
+  ),
+  codexFindUp: verified(
+    'Codex source: find_up.rs (nearest ancestor with a project root marker)',
+    'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/find_up.rs',
+  ),
+  codexConfigBasic: verified(
+    'Codex: Config basics',
+    'https://learn.chatgpt.com/docs/config-file/config-basic',
+  ),
+  codexConfigAdvanced: verified(
+    'Codex: Advanced configuration',
+    'https://learn.chatgpt.com/docs/config-file/config-advanced',
+  ),
+  codexMcp: verified('Codex: MCP', 'https://learn.chatgpt.com/docs/extend/mcp'),
   codexSkills: verified('Codex: Build skills', 'https://learn.chatgpt.com/docs/build-skills'),
+  codexSkillParser: verified(
+    'Codex source: SKILL.md frontmatter parser (parser.rs)',
+    'https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs',
+  ),
+  codexSkillLoader: verified(
+    'Codex source: skill loader (default name from the directory)',
+    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs',
+  ),
+  codexSkillDiscovery: verified(
+    'Codex source: skill discovery (exact SKILL.md name, recursive scan)',
+    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/discovery.rs',
+  ),
+  codexSkillLimits: verified(
+    'Codex source: skill scan limits (MAX_SCAN_DEPTH = 6, MAX_SKILLS_DIRS_PER_ROOT = 2000)',
+    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/mod.rs',
+  ),
+  codexSkillRoots: verified(
+    'Codex source: skill roots (.agents/skills up to the project root, project config folders)',
+    'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs',
+  ),
+  codexReadFileText: verified(
+    'Codex source: read_file_text decodes UTF-8 without removing a byte order mark',
+    'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs',
+  ),
   codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
+  codexHookConfig: verified(
+    'Codex source: hook_config.rs (event names, hooks.json schema)',
+    'https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs',
+  ),
+  codexHookDiscovery: verified(
+    'Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)',
+    'https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs',
+  ),
   cursorRules: verified('Cursor: Rules', 'https://cursor.com/docs/rules'),
   cursorRulesHelp: verified('Cursor Help: Rules', 'https://cursor.com/help/customization/rules'),
   cursorSkills: verified('Cursor: Skills', 'https://cursor.com/docs/skills'),

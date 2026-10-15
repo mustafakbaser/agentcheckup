@@ -1,4 +1,5 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { descriptionState } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -64,11 +65,10 @@ Add a \`description\` that says what the skill does and when to use it.`,
       const frontmatter = validFrontmatter(context, artifact);
       if (frontmatter === undefined) continue;
       const { data } = frontmatter;
+      const state = descriptionState(data);
+      if (state === 'text') continue;
       const present = data.keys.includes('description');
       const value = data.values['description'];
-      const notText = Array.isArray(value) || (typeof value === 'object' && value !== null);
-      const empty = value === null || (typeof value === 'string' && value.trim() === '');
-      if (present && !notText && !empty) continue;
 
       const requiring = reached(context, artifact, ['cursor', 'copilot']);
       const distributable = isDistributable(context, artifact);
@@ -94,14 +94,14 @@ Add a \`description\` that says what the skill does and when to use it.`,
       ];
       const clauses: (string | undefined)[] = [];
       let lead: string;
-      if (notText) {
+      if (state === 'not-text') {
         lead = `\`description\` is ${describeType(value)}, not text.`;
         if (codex) {
           clauses.push('Codex cannot read the frontmatter and skips the skill');
           impacts.push({ platform: 'codex', severity: 'error' });
         }
         if (distributable) clauses.push('the skills-ref validator rejects it');
-      } else if (!present) {
+      } else if (state === 'missing') {
         lead = 'The frontmatter has no `description`.';
         const skipping = reached(context, artifact, ['codex', 'gemini']);
         clauses.push(platformsDo(skipping, ['skips', 'skip'], 'the skill'));

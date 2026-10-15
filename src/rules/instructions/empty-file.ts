@@ -1,10 +1,10 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ArtifactKind, ParseServices } from '../../core/types.js';
+import { agentsMdBeside } from '../../platforms/load/codex-chain.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { isBlank } from './codex.js';
-import { basename, fileExists, joinPath, targetedReaders } from './helpers.js';
+import { basename, targetedReaders } from './helpers.js';
 
 /** Kinds whose frontmatter is metadata that the agent removes before loading the body. */
 const FRONTMATTER_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
@@ -55,7 +55,7 @@ export const emptyFileRule = defineRule({
       // instr/override-shadows-agents-md reports an empty override next to AGENTS.md.
       if (
         artifact.kind === 'agents-override-md' &&
-        fileExists(context.snapshot, joinPath(dirnamePosix(artifact.path), 'AGENTS.md'))
+        agentsMdBeside(context.snapshot, artifact.path) !== undefined
       ) {
         continue;
       }

@@ -1,9 +1,9 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix } from '../../core/paths.js';
+import { agentsMdBeside } from '../../platforms/load/codex-chain.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { isBlank } from './codex.js';
-import { basename, fileExists, joinPath } from './helpers.js';
+import { basename } from './helpers.js';
 
 export const overrideShadowsAgentsMdRule = defineRule({
   meta: {
@@ -27,9 +27,8 @@ export const overrideShadowsAgentsMdRule = defineRule({
       // A case variant such as agents.override.md is not found on case-sensitive file systems;
       // instr/filename-case reports it.
       if (basename(artifact.path) !== 'AGENTS.override.md') continue;
-      const directory = dirnamePosix(artifact.path);
-      const agentsPath = joinPath(directory, 'AGENTS.md');
-      if (!fileExists(context.snapshot, agentsPath)) continue;
+      const agentsPath = agentsMdBeside(context.snapshot, artifact.path);
+      if (agentsPath === undefined) continue;
       const related = [
         { path: agentsPath, message: 'Not read by Codex while the override exists.' },
       ];

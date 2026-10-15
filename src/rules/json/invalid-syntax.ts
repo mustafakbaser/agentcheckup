@@ -1,14 +1,15 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { ArtifactKind, PlatformId, Severity } from '../../core/types.js';
+import { issueKind } from '../../parse/json-access.js';
 import type { ParseIssue } from '../../parse/types.js';
-import { issueKind } from '../../platforms/json-issues.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { at } from './access.js';
 import { quote } from '../shared/format.js';
 import { JSON_SOURCES } from './sources.js';
 
-export { issueKind } from '../../platforms/json-issues.js';
+// Shared with the load plans, which skip a config file that does not parse.
+export { issueKind } from '../../parse/json-access.js';
 
 /** The parser's sentence as a clause: `Expected a comma.` -> `expected a comma`. */
 function describeIssue(issue: ParseIssue): string {

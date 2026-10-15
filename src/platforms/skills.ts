@@ -132,6 +132,11 @@ export interface Placement {
 
 const placements = new WeakMap<Artifact, Placement>();
 
+/** Normalizes a name the way skills-ref compares names: trimmed, then NFKC. */
+export function normalizeName(value: string): string {
+  return value.trim().normalize('NFKC');
+}
+
 /** True when the file at `path` is named SKILL.md (in any letter case). */
 function isSkillFile(path: string): boolean {
   return path.slice(path.lastIndexOf('/') + 1).toLowerCase() === 'skill.md';

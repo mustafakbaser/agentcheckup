@@ -40,7 +40,15 @@ const lossyUtf8 = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true });
  * A UTF-8 byte order mark stays in the text as U+FEFF, which Rust does not trim.
  */
 export function codexSeesBlank(bytes: Uint8Array): boolean {
-  return isBlank(lossyUtf8.decode(bytes));
+  return isBlank(codexText(bytes));
+}
+
+/**
+ * The text Codex reads from these bytes: `String::from_utf8_lossy`, which keeps a byte order mark
+ * as U+FEFF and turns each invalid sequence, including one cut off at the end, into U+FFFD.
+ */
+export function codexText(bytes: Uint8Array): string {
+  return lossyUtf8.decode(bytes);
 }
 
 /**
