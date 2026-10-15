@@ -6,11 +6,11 @@ request, then apply it with the commands at the end of this page.
 
 ## Rulesets
 
-| Ruleset                   | Applies to      | What it enforces                                                                                                                                                                                          | Who can bypass |
-| ------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `main: integrity`         | the main branch | No deletion, no force push, linear history, signed commits. The CI checks must have passed on the exact commit, with the branch up to date.                                                               | Nobody         |
-| `main: pull requests`     | the main branch | Changes arrive through a pull request with an approving review from a code owner, the latest push approved by someone else, resolved review threads, squash merge only, and a Conventional Commits title. | Admins         |
-| `release tags: immutable` | `v*` tags       | Release tags cannot be moved or deleted.                                                                                                                                                                  | Nobody         |
+| Ruleset                   | Applies to      | What it enforces                                                                                                                                                                                                                | Who can bypass |
+| ------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `main: integrity`         | the main branch | No deletion, no force push, linear history, signed commits. The CI checks must have passed on the exact commit, with the branch up to date.                                                                                     | Nobody         |
+| `main: pull requests`     | the main branch | Changes arrive through a pull request with an approving review from a code owner, the latest push approved by someone else, resolved review threads, squash merge only, a Conventional Commits title, and clean CodeQL results. | Admins         |
+| `release tags: immutable` | `v*` tags       | Release tags cannot be moved or deleted.                                                                                                                                                                                        | Nobody         |
 
 The rules are split in two on purpose. The integrity rules hold for everyone, admins included:
 nothing reaches `main` unsigned, rewritten, or without green CI on that commit. Only the
@@ -75,19 +75,18 @@ App token instead of the workflow token would remove this step.
 ## Security features
 
 - Dependabot alerts and Dependabot security updates are on.
-- GitHub offers these only for public repositories on this plan. Turn them on at launch:
-  - private vulnerability reporting;
-  - secret scanning with push protection;
-  - approval for workflow runs from all outside contributors;
-  - a `code_scanning` rule in `main: integrity` that requires CodeQL results. CodeQL and
-    Scorecard only run while the repository is public.
+- Private vulnerability reporting is on, so reports can follow [SECURITY.md](../../SECURITY.md).
+- Secret scanning and push protection are on.
+- Workflow runs from all outside contributors need approval before they start.
+- `main: pull requests` requires CodeQL results with no errors and no security alerts of high
+  severity or above. The rule is in the pull request ruleset, not in `main: integrity`, so a
+  maintainer's fast-forward is not blocked when CodeQL has not analyzed that commit yet.
 
 ## The `npm` environment
 
 The publish job runs in the `npm` environment, and npm trusted publishing is bound to it. The
 environment needs the maintainer as a required reviewer, no admin bypass, and deployments from
-`main` only. Required reviewers are available for private repositories only on GitHub
-Enterprise, so create the environment when the repository goes public:
+`main` only. Create it with:
 
 ```sh
 gh api -X PUT repos/mustafakbaser/agentcheckup/environments/npm --input - <<'JSON'

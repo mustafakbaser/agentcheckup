@@ -46,7 +46,8 @@ not automated.
    [repository settings](repository-settings.md). They were applied on 2026-10-15.
 8. **At launch,** when the repository becomes public, turn on the features GitHub offers only for
    public repositories. They are listed under
-   [security features](repository-settings.md#security-features).
+   [security features](repository-settings.md#security-features) and were turned on on
+   2026-10-15.
 9. **Let release-please open its pull request.** In Settings, Actions, General, enable "Allow
    GitHub Actions to create and approve pull requests". New repositories have it off, and the
    Release workflow fails with "GitHub Actions is not permitted to create or approve pull
