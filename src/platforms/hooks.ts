@@ -136,6 +136,28 @@ export const HOOK_EVENTS: Readonly<Record<HookPlatform, readonly string[]>> = {
 
 export const HOOK_PLATFORMS: readonly HookPlatform[] = ['claude-code', 'codex', 'cursor', 'gemini'];
 
+/**
+ * Claude Code hook events Cursor runs from Claude Code settings files, and the Cursor event each
+ * one becomes. https://cursor.com/docs/reference/third-party-hooks ("Hook Step Mapping"),
+ * transcribed 2026-10-15. Events missing here have no documented mapping.
+ */
+export const CURSOR_EVENT_FOR_CLAUDE: Readonly<Record<string, string>> = {
+  PreToolUse: 'preToolUse',
+  PostToolUse: 'postToolUse',
+  UserPromptSubmit: 'beforeSubmitPrompt',
+  Stop: 'stop',
+  SubagentStop: 'subagentStop',
+  SessionStart: 'sessionStart',
+  SessionEnd: 'sessionEnd',
+  PreCompact: 'preCompact',
+};
+
+/** Claude Code events the same page lists as not supported by Cursor. */
+export const CURSOR_UNSUPPORTED_CLAUDE_EVENTS: ReadonlySet<string> = new Set([
+  'Notification',
+  'PermissionRequest',
+]);
+
 // ---------------------------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------------------------

@@ -48,7 +48,14 @@ export const SOURCES = {
   codexSkills: verified('Codex: Build skills', 'https://learn.chatgpt.com/docs/build-skills'),
   codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
   cursorRules: verified('Cursor: Rules', 'https://cursor.com/docs/rules'),
+  cursorRulesHelp: verified('Cursor Help: Rules', 'https://cursor.com/help/customization/rules'),
   cursorSkills: verified('Cursor: Skills', 'https://cursor.com/docs/skills'),
+  cursorThirdPartyHooks: {
+    title: 'Cursor: Third-party hooks',
+    url: 'https://cursor.com/docs/reference/third-party-hooks',
+    checked: '2026-10-15',
+    status: 'verified',
+  },
   cursorHooks: verified('Cursor: Hooks', 'https://cursor.com/docs/hooks'),
   cursorMcp: verified('Cursor: MCP', 'https://cursor.com/docs/mcp'),
   copilotRepoInstructions: verified(

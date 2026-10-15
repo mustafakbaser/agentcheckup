@@ -19,6 +19,7 @@ import { placement, type SkillScope } from '../../platforms/skills.js';
 export { inPayloadFolder } from '../../platforms/paths.js';
 export {
   audience,
+  bodyOffset,
   inPlugin,
   placement,
   readersAt,
@@ -47,14 +48,6 @@ export function validFrontmatter<Options>(
 ): ValidFrontmatter | undefined {
   const result = context.frontmatter(artifact);
   return result.kind === 'valid' ? result : undefined;
-}
-
-/**
- * Where the skill body starts. Agents treat everything as body when they find no closed
- * frontmatter block, so only `valid` and `invalid` blocks are skipped.
- */
-export function bodyOffset(result: FrontmatterResult): number {
-  return result.kind === 'valid' || result.kind === 'invalid' ? result.bodyOffset : 0;
 }
 
 /** The skill directory: the directory that contains SKILL.md, '' at the scan root. */

@@ -1,31 +1,14 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { ArtifactKind, PlatformId, Severity } from '../../core/types.js';
-import { JSON_ISSUE } from '../../parse/json.js';
 import type { ParseIssue } from '../../parse/types.js';
+import { issueKind } from '../../platforms/json-issues.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { at } from './access.js';
 import { quote } from '../shared/format.js';
 import { JSON_SOURCES } from './sources.js';
 
-type IssueKind = 'comment' | 'trailing-comma' | 'limit' | 'other';
-
-/**
- * Limits of agentcheckup's own parser, not syntax errors: agents' `JSON.parse` accepts such files.
- * An unterminated comment (`unexpected-end-of-comment`) is a real error and stays `other`.
- */
-const LIMIT_CODES: ReadonlySet<string> = new Set([
-  JSON_ISSUE.tooLarge,
-  JSON_ISSUE.tooDeep,
-  'parse-failed',
-]);
-
-export function issueKind(issue: ParseIssue): IssueKind {
-  if (issue.code === JSON_ISSUE.comment) return 'comment';
-  if (issue.code === JSON_ISSUE.trailingComma) return 'trailing-comma';
-  if (LIMIT_CODES.has(issue.code)) return 'limit';
-  return 'other';
-}
+export { issueKind } from '../../platforms/json-issues.js';
 
 /** The parser's sentence as a clause: `Expected a comma.` -> `expected a comma`. */
 function describeIssue(issue: ParseIssue): string {

@@ -1,4 +1,5 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { isRulesReadme } from '../../platforms/cursor-rules.js';
 import { defineRule } from '../define.js';
 import { quote } from '../shared/format.js';
 import { basename } from '../instructions/helpers.js';
@@ -24,8 +25,8 @@ export const mdFileIgnoredRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
+      if (isRulesReadme(artifact.path)) continue;
       const name = basename(artifact.path);
-      if (name.toLowerCase() === 'readme.md') continue;
       const renamed = `${name.slice(0, -'.md'.length)}.mdc`;
       context.report({
         artifact,

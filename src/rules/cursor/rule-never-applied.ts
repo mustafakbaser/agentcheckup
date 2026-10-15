@@ -1,12 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { cursorActivation } from '../../platforms/cursor-rules.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
-
-function isSet(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim() !== '';
-  if (Array.isArray(value)) return value.length > 0;
-  return value !== undefined && value !== null;
-}
 
 export const ruleNeverAppliedRule = defineRule({
   meta: {
@@ -28,6 +23,9 @@ export const ruleNeverAppliedRule = defineRule({
   check(context) {
     for (const artifact of context.artifacts) {
       const frontmatter = context.frontmatter(artifact);
+      // Frontmatter that does not parse has an unknown mode; an explicit alwaysApply is on purpose.
+      const activation = cursorActivation(frontmatter);
+      if (activation.mode !== 'manual' || activation.alwaysApplySet) continue;
       if (frontmatter.kind === 'absent') {
         context.report({
           artifact,
@@ -36,10 +34,6 @@ export const ruleNeverAppliedRule = defineRule({
         });
         continue;
       }
-      if (frontmatter.kind !== 'valid') continue;
-      const { values } = frontmatter.data;
-      if (Object.hasOwn(values, 'alwaysApply')) continue;
-      if (isSet(values['description']) || isSet(values['globs'])) continue;
       context.report({
         artifact,
         span: { offset: 0, length: 3 },

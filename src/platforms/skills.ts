@@ -4,6 +4,7 @@
  */
 import { dirnamePosix } from '../core/paths.js';
 import type { Artifact, PlatformId, Snapshot } from '../core/types.js';
+import type { FrontmatterResult } from '../parse/types.js';
 import { pluginRootOf } from './location.js';
 
 /** Platforms that read SKILL.md files (READERS.skill in src/platforms/classify.ts). */
@@ -273,4 +274,12 @@ export function audience(scope: SkillScope, artifact: Artifact): ReadonlySet<Pla
     for (const platform of readersAt(scope.snapshot, path, caseMismatch)) result.add(platform);
   }
   return result;
+}
+
+/**
+ * Where the skill body starts. Agents treat everything as body when they find no closed
+ * frontmatter block, so only `valid` and `invalid` blocks are skipped.
+ */
+export function bodyOffset(result: FrontmatterResult): number {
+  return result.kind === 'valid' || result.kind === 'invalid' ? result.bodyOffset : 0;
 }
