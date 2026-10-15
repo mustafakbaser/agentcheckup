@@ -148,8 +148,11 @@ describe('writeOutputFile durability', () => {
     await writeOutputFile(file, 'new');
     spy.restore();
     expect(await readFile(file, 'utf8')).toBe('new');
-    // Windows cannot open a directory to sync it; the report is written all the same.
-    expect(seen).toEqual(isWindows ? [false] : [false, true]);
+    // The report is flushed before the rename, then its directory. Whether Windows can open a
+    // directory to sync it depends on the Node.js version and file system; when it cannot, the
+    // report is written all the same.
+    if (isWindows) expect([[false], [false, true]]).toContainEqual(seen);
+    else expect(seen).toEqual([false, true]);
   });
 
   it('keeps the old report and removes the temporary file when the flush fails', async () => {
