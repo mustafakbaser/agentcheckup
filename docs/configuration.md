@@ -74,6 +74,32 @@ Rules:
   reads agent configuration that the repository's `.gitignore` matches, because agents load
   committed files whether or not they are ignored.
 
+## What each agent loads
+
+`agentcheckup context [path]` shows the load plan of each modeled agent: what is in context when a
+session starts, what loads on demand, the MCP servers and hooks it starts, and what it skips and
+why. It never fails on findings. [What each agent loads](context.md) explains the output.
+
+| Option                 | Meaning                                                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--agent <list>`       | `claude-code`, `codex`, `cursor`, comma-separated. Default: those among the configured targets. Another platform id is a usage error: it has no load plan yet. |
+| `--cwd <dir>`          | Plan a session started in this directory, relative to the scanned path. No `..`; the directory must exist. Default: the root.                                  |
+| `--matrix`             | Also plan Codex in each directory with an `AGENTS.md`, and show which agent reads which file. Cannot be combined with `--cwd`.                                 |
+| `--context-window <n>` | The model's context window in tokens, for limits that depend on it, such as the skills listing.                                                                |
+| `--format <name>`      | `text` (default), `json` or `markdown`. JSON is the same report a scan writes.                                                                                 |
+
+The command also takes `--output`, `--baseline`, `--gate`, `--config`, `--no-config`,
+`--untrusted` and `--no-gitignore`, with the same meaning as for a scan. Rule options feed the
+plans: the `maxBytes` option of `instr/codex-size-budget` sets the Codex byte limit the plan
+assumes.
+
+On a regular scan, `--context` adds the plans and the matrix that `context --matrix` makes
+(every agent at the root, plus Codex in each directory with an `AGENTS.md`) to the report, and
+`--context-window` needs it. Use `--context` for the scan that writes a baseline, so a later
+comparison also shows how session-start context changed. How findings, inventory items and plan
+entries are matched, and exactly when each gate class trips, is in
+[Baselines and the gate](context.md#baselines-and-the-gate).
+
 ## Baselines and the gate
 
 `--baseline <report.json>` compares a scan with the JSON report of an earlier one, usually the

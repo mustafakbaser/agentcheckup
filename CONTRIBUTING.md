@@ -40,14 +40,18 @@ Useful commands:
 
 ```text
 src/
-  core/        engine, config, scoring, suppressions, text decoding     (pure)
-  parse/       hardened YAML frontmatter, Markdown, imports, JSON        (pure)
-  platforms/   which files each agent reads, and where                   (pure)
-  inventory/   MCP servers, hooks, permissions and env overrides         (pure)
-  rules/       one file per rule, grouped by family                      (pure)
-  report/      stylish, JSON, SARIF, GitHub, Markdown output, sanitizers (pure)
+  core/        engine, config, scoring, baseline comparison, suppressions (pure)
+  parse/       hardened YAML frontmatter, Markdown, imports, JSON          (pure)
+  platforms/   which files each agent reads, and where                     (pure)
+    load/      load plans: what one agent loads for one working directory  (pure)
+  inventory/   MCP servers, hooks, permissions and env overrides           (pure)
+  rules/       one file per rule, grouped by family                        (pure)
+  report/      stylish, JSON, SARIF, GitHub, Markdown and context output   (pure)
   io/          the only code that touches the file system
   cli/         argument parsing and process handling
+scripts/
+  corpus/      the real-world corpus harness (see corpus/README.md)
+  drift/       the weekly check of cited sources
 ```
 
 "Pure" directories cannot import `node:fs`, `node:process` and similar modules. ESLint enforces
@@ -78,6 +82,44 @@ stops reading at 32,768 bytes, so the rest of this file is ignored.`
 6. **Regenerate docs** with `pnpm docs:generate` and commit the result.
 
 Rule ids are permanent. Never rename or reuse one; deprecate it instead.
+
+## Changing what an agent loads
+
+`agentcheckup context` makes positive claims ("Codex loads this file"), so a wrong load plan
+costs more trust than a missed finding. See [ADR 0007](docs/adr/0007-model-what-each-agent-loads.md).
+
+1. **One implementation per behavior.** Each loading behavior lives in `src/platforms/` and is
+   shared by the rule that reports problems and the loader in `src/platforms/load/<agent>.ts`
+   that builds the plan. Do not copy the logic into either one.
+2. **Cite it.** Every entry and skip carries `evidence` keys from `src/platforms/sources.ts`.
+   Behavior that neither documentation nor source code confirms is `certainty: 'unverified'`.
+3. **Never read outside the repository.** User and managed scopes go into `hidden`, settings the
+   repository cannot show into `assumptions`.
+4. **Test it** in `test/platforms/load/<agent>.test.ts`. `test/platforms/load/consistency.test.ts`
+   checks that every skip caused by a problem has its finding and every loading finding has its
+   skip; a new case it cannot match needs an explicit allowance in
+   `src/platforms/load/consistency.ts`.
+5. **Run the corpus checks** below before you open the pull request.
+
+## The real-world corpus
+
+`corpus/` pins 80 public repositories with agent configuration. The harness needs the
+[GitHub CLI](https://cli.github.com/), logged in, and a local cache (`.corpus-cache/`, gitignored):
+
+| Command                                           | What it does                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npx tsx scripts/corpus/fetch.ts`                 | Download the pinned files into `.corpus-cache/` (resumable)                               |
+| `npx tsx scripts/corpus/run.ts`                   | Scan everything; rewrite `corpus/SUMMARY.md` and the local `results.json` and `REPORT.md` |
+| `npx tsx scripts/corpus/run.ts --write-golden`    | On `main`: record every finding in the local `corpus/golden.json`                         |
+| `npx tsx scripts/corpus/run.ts --check-golden`    | On your branch: list every finding that differs from `golden.json`; exit 1 if any         |
+| `npx tsx scripts/corpus/run.ts --consistency`     | Plan every repository as `context --matrix` does and check the plans against the findings |
+| `npx tsx scripts/corpus/run.ts --only owner/name` | Print one repository's findings                                                           |
+
+A refactor must leave `--check-golden` clean, and a loader change must leave `--consistency`
+at zero mismatches. These checks need the cache, so they are a manual step before merging,
+not part of CI. Commit `corpus/SUMMARY.md` when a rule or loader change moves its numbers; it
+holds aggregate statistics only, never per-repository results
+([ADR 0005](docs/adr/0005-scoring.md)). [corpus/README.md](corpus/README.md) has the details.
 
 ## Tests
 
