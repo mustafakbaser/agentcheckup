@@ -23,17 +23,20 @@ exists cannot change.
 
 ## Landing a maintainer change
 
-Pull requests are the normal path. A maintainer can also fast-forward `main` to commits that
-already passed CI on another branch. GitHub accepts the push only if the required checks
-passed on that exact commit.
+Every change goes through a pull request, including the maintainer's. The merge button replaces
+the commits with a squash commit signed by GitHub. To keep their own signed commits, a
+maintainer can instead fast-forward `main` to the pull request head once the checks pass:
 
 ```sh
-git push origin HEAD:refs/heads/land/<topic>
-gh workflow run ci.yml --ref land/<topic>
-gh run watch --exit-status "$(gh run list --workflow ci.yml --branch land/<topic> --limit 1 --json databaseId --jq '.[0].databaseId')"
+git push origin HEAD:refs/heads/<topic>
+gh pr create --fill
+gh pr checks --watch --fail-fast
 git push origin HEAD:main
-git push origin --delete land/<topic>
 ```
+
+GitHub accepts the push only if the required checks passed on that exact commit in a pull
+request. Checks from a manual workflow run on a branch don't count. GitHub then marks the pull
+request as merged and deletes its branch.
 
 ## Release pull requests
 
