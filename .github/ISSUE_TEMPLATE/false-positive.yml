@@ -1,0 +1,45 @@
+name: False positive
+description: agentcheck reported a problem that is not real.
+title: 'False positive: <rule-id>'
+labels: [false-positive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        False positives are the bugs we care most about. A minimal reproduction gets them fixed fastest.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      placeholder: skill/name-format
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: The file that triggers it
+      description: Paste the smallest file content that reproduces the finding, and its path.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: agentcheck output
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Why it is not a problem
+      description: For example, the agent loads the file correctly. Link documentation or show the agent's behavior if you can.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agentcheck version
+      placeholder: Output of `npx agentcheck --version`
+    validations:
+      required: true

@@ -1,0 +1,42 @@
+name: Rule request
+description: Propose a new check based on how a coding agent loads its configuration.
+labels: [rule-request]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        agentcheck rules are backed by evidence: official documentation or the agent's source code.
+        Opinions about style belong in an `info` rule at most. See [ADR 0004](https://github.com/mustafakbaser/agentcheck/blob/main/docs/adr/0004-evidence-backed-rules.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What goes wrong today
+      description: Which agent, which file, and what the agent does with it.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Links to documentation or source code, or a reproduction showing the behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Affected agents
+      multiple: true
+      options:
+        - Claude Code
+        - Codex
+        - Cursor
+        - GitHub Copilot
+        - Gemini CLI
+        - Windsurf
+        - Cline
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example that should be reported, and one that should not
