@@ -7,10 +7,12 @@ import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import type { ContextReport, Size } from '../platforms/load/types.js';
 import {
+  contextView,
   MATRIX_CELL_LABELS,
+  MATRIX_LEGEND,
   matrixView,
+  type MatrixView,
   type Part,
-  planViews,
   type PlanView,
   type StartupRow,
 } from './context-view.js';
@@ -75,6 +77,9 @@ function startupFile(row: StartupRow): string {
 }
 
 function startupSection(view: PlanView, maxRows: number): string[] {
+  if (view.startup.length === 0) {
+    return ['### At session start', '', 'No files.', ...servicesTable(view, maxRows)];
+  }
   const { rows } = cappedRows(
     view.startup,
     (row) => {
@@ -88,7 +93,7 @@ function startupSection(view: PlanView, maxRows: number): string[] {
     MAX_TABLE_CHARACTERS,
   );
   const total = `|  | **Total** | **${formatInteger(view.total.bytes)}** | **≈ ${formatInteger(view.total.tokens)}** |  |`;
-  const lines = [
+  return [
     '### At session start',
     '',
     ...table(
@@ -98,26 +103,29 @@ function startupSection(view: PlanView, maxRows: number): string[] {
       view.startup.length + 1,
       'row',
     ),
+    ...servicesTable(view, maxRows),
   ];
-  if (view.services.length > 0) {
-    const services = cappedRows(
-      view.services,
-      (row) => `| ${row.group} | ${partsText(row.parts)}${row.unverified ? ' ?' : ''} |`,
-      maxRows,
-      MAX_TABLE_CHARACTERS,
-    );
-    lines.push(
-      '',
-      ...table(
-        '| Service | Detail |',
-        '| :------ | :----- |',
-        services.rows,
-        view.services.length,
-        'service',
-      ),
-    );
-  }
-  return lines;
+}
+
+/** MCP servers and hooks, after a blank line; nothing when the plan has none. */
+function servicesTable(view: PlanView, maxRows: number): string[] {
+  if (view.services.length === 0) return [];
+  const services = cappedRows(
+    view.services,
+    (row) => `| ${row.group} | ${partsText(row.parts)}${row.unverified ? ' ?' : ''} |`,
+    maxRows,
+    MAX_TABLE_CHARACTERS,
+  );
+  return [
+    '',
+    ...table(
+      '| Service | Detail |',
+      '| :------ | :----- |',
+      services.rows,
+      view.services.length,
+      'service',
+    ),
+  ];
 }
 
 function onDemandSection(view: PlanView, maxRows: number): string[] {
@@ -126,7 +134,9 @@ function onDemandSection(view: PlanView, maxRows: number): string[] {
     view.onDemand,
     (row) => {
       const size = row.size === undefined ? '' : `${row.body ? 'body ' : ''}${sizeText(row.size)}`;
-      return `| ${path(row.path)} | ${size} | ${text(row.when)}${row.unverified ? ' ?' : ''} |`;
+      const importer = row.importedBy === undefined ? '' : `, imported by ${path(row.importedBy)}`;
+      const when = `${text(row.when)}${importer}${row.unverified ? ' ?' : ''}`;
+      return `| ${path(row.path)} | ${size} | ${when} |`;
     },
     maxRows,
     MAX_TABLE_CHARACTERS,
@@ -199,6 +209,18 @@ function incompleteSection(view: PlanView, maxRows: number): string[] {
   ];
 }
 
+/** Every hidden location, one list item per scope. */
+function hiddenList(view: PlanView): string[] {
+  if (view.hidden.length === 0) return [];
+  return [
+    '**Not visible** (outside the repository, never read):',
+    '',
+    ...view.hidden.map(
+      (scope) => `- ${text(scope.scope)}: ${scope.locations.map(path).join(', ')}`,
+    ),
+  ];
+}
+
 function planBlocks(view: PlanView, maxRows: number): string[][] {
   const where = view.cwd === '' ? './' : path(view.cwd);
   const header = [`## ${view.agentName} context · ${where}`];
@@ -206,10 +228,10 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
   if (view.assumptions.length > 0) {
     notes.push(`**Assumes:** ${view.assumptions.map(text).join(', ')}`);
   }
-  if (view.hidden.length > 0) notes.push(`**Not visible:** ${view.hidden.map(text).join('; ')}`);
   return [
     header,
     paragraphs(notes),
+    hiddenList(view),
     startupSection(view, maxRows),
     onDemandSection(view, maxRows),
     skippedSection(view, maxRows),
@@ -217,8 +239,7 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
   ].filter((block) => block.length > 0);
 }
 
-function matrixBlock(context: ContextReport | undefined, maxRows: number): string[] {
-  const view = matrixView(context);
+function matrixBlock(view: MatrixView | undefined, maxRows: number): string[] {
   if (view === undefined) return [];
   const { rows } = cappedRows(
     view.rows,
@@ -226,6 +247,10 @@ function matrixBlock(context: ContextReport | undefined, maxRows: number): strin
       `| ${path(row.path)} | ${row.cells.map((cell) => MATRIX_CELL_LABELS[cell]).join(' | ')} |`,
     maxRows,
     MAX_TABLE_CHARACTERS,
+  );
+  const used = new Set(view.rows.flatMap((row) => row.cells));
+  const legend = MATRIX_LEGEND.filter((item) => used.has(item.cell)).map(
+    (item) => `${MATRIX_CELL_LABELS[item.cell]}: ${item.text}`,
   );
   return [
     '## Files by agent',
@@ -237,6 +262,7 @@ function matrixBlock(context: ContextReport | undefined, maxRows: number): strin
       view.rows.length,
       'file',
     ),
+    ...(legend.length > 0 ? ['', legend.join(' · ')] : []),
   ];
 }
 
@@ -261,21 +287,26 @@ export function formatMatrixMarkdown(
   context: ContextReport | undefined,
   options: ContextMarkdownOptions = {},
 ): string {
-  const block = matrixBlock(context, maxRowsOf(options));
+  const block = matrixBlock(matrixView(context), maxRowsOf(options));
   return block.length === 0 ? '' : `${block.join('\n')}\n`;
 }
 
-/** Load plans as Markdown, then the matrix when the report has one. Ends with a newline. */
+/**
+ * Load plans as Markdown, then the matrix when the report has one. Paths are relative to the
+ * scanned directory, which the first line names when the report was rebased. Ends with a
+ * newline.
+ */
 export function formatContextMarkdown(
   result: ScanResult,
   options: ContextMarkdownOptions = {},
 ): string {
   const maxRows = maxRowsOf(options);
-  const views = planViews(result);
-  const blocks = views.flatMap((view) => planBlocks(view, maxRows));
-  const matrix = matrixBlock(result.context, maxRows);
+  const view = contextView(result);
+  const blocks = view.plans.flatMap((plan) => planBlocks(plan, maxRows));
+  const matrix = matrixBlock(view.matrix, maxRows);
   if (matrix.length > 0) blocks.push(matrix);
   if (blocks.length === 0) return 'No load plans in this report.\n';
-  blocks.push(footnotes(views));
+  if (view.pathBase !== '') blocks.unshift([`Paths are relative to ${path(view.pathBase)}`]);
+  blocks.push(footnotes(view.plans));
   return `${blocks.map((block) => block.join('\n')).join('\n\n')}\n`;
 }

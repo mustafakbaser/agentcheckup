@@ -758,13 +758,15 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
     contextWindow === undefined
       ? CODEX_SKILL_LISTING_CHARS
       : Math.floor((contextWindow * CODEX_SKILL_LISTING_PERCENT) / 100) * 4;
+  // The chain and the listing are computed for the working directory, which identifies them.
   const limits: LimitUsage[] = [
     {
       key: 'codex.project_doc_max_bytes',
       unit: 'bytes',
       limit: budget.value,
       used: chain.total,
-      subject: 'AGENTS.md chain',
+      subject: cwd,
+      label: 'AGENTS.md chain',
       effect: 'truncates',
       evidence: INSTRUCTION_EVIDENCE,
     },
@@ -773,7 +775,8 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
       unit: 'chars',
       limit: listingLimit,
       used: skills.listingChars,
-      subject: 'skills listing',
+      subject: cwd,
+      label: 'skills listing',
       effect: 'shortens',
       evidence: ['codexSkills'],
     },

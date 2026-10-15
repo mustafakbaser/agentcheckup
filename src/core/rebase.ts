@@ -18,7 +18,9 @@ import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
  * items, `inventoryId`, baseline id lists and gate hits other than `unicode`) get the prefix
  * after their kind, so they keep matching `<kind>:${path}`. Not rebased, because they are text
  * as written rather than repository paths: `patterns` (globs), hook `script` and `command`, MCP
- * `command` and `args`, hidden-scope locations, and summaries.
+ * `command` and `args`, hidden-scope locations, limit labels, and summaries. A limit subject is
+ * always a path (a group of files uses its working directory, `''` at the root), so it is
+ * rebased like one.
  */
 export function rebaseResult(result: ScanResult, prefix: string): ScanResult {
   if (prefix === '' || prefix === '.') return result;

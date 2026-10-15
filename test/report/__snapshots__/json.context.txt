@@ -1101,7 +1101,7 @@
         ],
         "assumptions": [
           {
-            "key": "claude.instructionsMode",
+            "key": "claude-code.instructions_mode",
             "value": "claude-md-or-agents-md",
             "origin": "default",
             "evidence": [
@@ -1109,14 +1109,20 @@
             ]
           },
           {
-            "key": "claude.session",
+            "key": "claude-code.min_version",
+            "value": "2.1.277",
+            "origin": "default",
+            "evidence": []
+          },
+          {
+            "key": "claude-code.session",
             "value": "interactive",
             "origin": "default",
             "evidence": []
           },
           {
-            "key": "claude.version",
-            "value": ">=2.1.277",
+            "key": "claude-code.workspace_trusted",
+            "value": true,
             "origin": "default",
             "evidence": []
           }
@@ -1125,7 +1131,8 @@
           {
             "scope": "managed",
             "locations": [
-              "managed CLAUDE.md"
+              "/etc/claude-code/CLAUDE.md",
+              "C:\\Program Files\\ClaudeCode\\CLAUDE.md"
             ],
             "roles": [
               "instructions"
@@ -1145,11 +1152,32 @@
               "skill",
               "mcp-server"
             ]
+          },
+          {
+            "scope": "account",
+            "locations": [
+              "claude.ai connectors"
+            ],
+            "roles": [
+              "mcp-server"
+            ]
           }
         ],
         "limits": [
           {
-            "key": "claude.skill_listing_chars",
+            "key": "claude-code.skill_listing_budget",
+            "unit": "chars",
+            "limit": null,
+            "used": 1310,
+            "subject": "packages/api",
+            "label": "skills listing",
+            "effect": "shortens",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "key": "claude-code.skill_listing_max_desc_chars",
             "unit": "chars",
             "limit": 1536,
             "used": 400,
@@ -1295,6 +1323,7 @@
             "limit": 32768,
             "used": 33010,
             "subject": "packages/api",
+            "label": "AGENTS.md chain",
             "effect": "truncates",
             "evidence": [
               "codexAgentsMd"
@@ -1541,7 +1570,8 @@
     "against": {
       "version": "0.1.0",
       "ruleset": "2026.10",
-      "sameRuleset": true
+      "sameRuleset": true,
+      "newRules": []
     },
     "findings": {
       "new": 2,
@@ -1628,6 +1658,7 @@
           {
             "key": "codex.project_doc_max_bytes",
             "subject": "packages/api",
+            "label": "AGENTS.md chain",
             "before": 31204,
             "after": 33010,
             "limit": 32768

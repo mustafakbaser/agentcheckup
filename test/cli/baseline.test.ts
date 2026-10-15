@@ -333,7 +333,7 @@ describe('exitCodeFor with a baseline', () => {
   it('trips on gate hits before anything else, and after rule failures', async () => {
     const report = await readJson<ScanResult>(baseReport);
     const diff: NonNullable<ScanResult['baseline']> = {
-      against: { version: '0.0.0', ruleset: report.ruleset, sameRuleset: true },
+      against: { version: '0.0.0', ruleset: report.ruleset, sameRuleset: true, newRules: [] },
       findings: { new: 0, unchanged: report.findings.length, resolved: [] },
       inventory: { added: [], removed: [], changed: [] },
       context: [],

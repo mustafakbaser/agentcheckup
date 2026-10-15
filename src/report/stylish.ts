@@ -7,7 +7,7 @@ import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL } from '../core/meta.js';
 import type { Grade } from '../core/score.js';
 import { CATEGORIES, type Finding, type Severity } from '../core/types.js';
-import { gateRows } from './gate.js';
+import { gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
   breakdown,
@@ -107,10 +107,16 @@ interface Context {
   readonly ascii: boolean;
   /** The scan ran with `--baseline`: rows get a column that marks new findings. */
   readonly baseline: boolean;
+  /** Rules newer than the baseline's rule set: their new findings are marked "new rule". */
+  readonly newRules: ReadonlySet<string>;
+  /** Width of the marker column, without the gap after it. */
+  readonly markerWidth: number;
 }
 
 /** Marker for findings the baseline does not have; unchanged ones get blanks of equal width. */
 const NEW_MARKER = 'new';
+/** Marker for new findings of a rule the baseline's rule set did not have. */
+const NEW_RULE_MARKER = 'new rule';
 
 /** Sanitized single-line text, safe to write to a terminal. TAB becomes a space for alignment. */
 function clean(text: string, context: Context, max = MAX_MESSAGE_LENGTH): string {
@@ -173,7 +179,7 @@ function renderFile(
       .map((row) => displayWidth(row.message))
       .filter((width) => width <= MAX_ALIGNED_MESSAGE_WIDTH),
   );
-  const markerWidth = context.baseline ? NEW_MARKER.length + 2 : 0;
+  const markerWidth = context.baseline ? context.markerWidth + 2 : 0;
   const indent = ' '.repeat(2 + lineWidth + 1 + columnWidth + 2 + severityWidth + 2 + markerWidth);
 
   const lines = [style.underline(clean(path, context))];
@@ -192,10 +198,14 @@ function renderFile(
     const padding = ' '.repeat(Math.max(0, messageWidth - displayWidth(row.message)));
     let marker = '';
     if (context.baseline) {
-      marker =
-        finding.baseline === 'new'
-          ? `${style.bold(NEW_MARKER)}  `
-          : ' '.repeat(NEW_MARKER.length + 2);
+      const text =
+        finding.baseline !== 'new'
+          ? ''
+          : isNewRuleFinding(finding, context.newRules)
+            ? NEW_RULE_MARKER
+            : NEW_MARKER;
+      const pad = ' '.repeat(context.markerWidth - text.length + 2);
+      marker = text === '' ? pad : `${style.bold(text)}${pad}`;
     }
     lines.push(
       `  ${style.dim(position)}  ${severity}  ${marker}${message}${padding}  ${style.gray(clean(finding.ruleId, context))}`,
@@ -347,13 +357,15 @@ function renderGateHits(result: ScanResult, context: Context): string[] {
   return lines;
 }
 
-/** `2 new, 5 unchanged, 1 resolved since the baseline`. */
+/** `2 new (1 from new rules), 5 unchanged, 1 resolved since the baseline`. */
 function baselineLine(result: ScanResult, context: Context): string | undefined {
   if (result.baseline === undefined) return undefined;
   const { findings } = result.baseline;
   const resolved = findings.resolved.length > 0 ? `, ${findings.resolved.length} resolved` : '';
+  const fromNewRules = newRuleFindings(result);
+  const newRules = fromNewRules > 0 ? ` (${fromNewRules} from new rules)` : '';
   return (
-    `${context.style.bold(`${findings.new} new`)}, ${findings.unchanged} unchanged` +
+    `${context.style.bold(`${findings.new} new`)}${newRules}, ${findings.unchanged} unchanged` +
     `${resolved} since the baseline`
   );
 }
@@ -409,6 +421,7 @@ function scoreLine(result: ScanResult, context: Context): string {
 /** Formats a scan result for a terminal. Returns text ending with a newline. */
 export function formatStylish(result: ScanResult, options: StylishOptions): string {
   const ascii = options.ascii === true;
+  const newRules = newRuleSet(result);
   const context: Context = {
     style: options.style,
     symbols: ascii ? ASCII_SYMBOLS : UNICODE_SYMBOLS,
@@ -416,6 +429,14 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     baseline:
       result.baseline !== undefined ||
       result.findings.some((finding) => finding.baseline !== undefined),
+    newRules,
+    markerWidth: result.findings.some(
+      (finding) =>
+        (options.showSuppressed === true || !finding.suppressed) &&
+        isNewRuleFinding(finding, newRules),
+    )
+      ? NEW_RULE_MARKER.length
+      : NEW_MARKER.length,
   };
   const maxPerFile =
     options.maxPerFile !== undefined && Number.isFinite(options.maxPerFile)

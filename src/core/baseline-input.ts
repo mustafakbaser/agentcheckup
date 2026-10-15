@@ -54,6 +54,7 @@ export interface BaselineSkippedLoad {
 export interface BaselineLimitUsage {
   readonly key: string;
   readonly subject: string;
+  readonly label?: string;
   readonly used: number;
   readonly limit: number | null;
 }
@@ -535,9 +536,11 @@ function readSkipped(value: unknown, at: string): BaselineSkippedLoad {
 function readLimit(value: unknown, at: string): BaselineLimitUsage {
   const source = object(value, at);
   const limit = own(source, 'limit');
+  const label = optional(source, 'label', at, string);
   return {
     key: string(own(source, 'key'), field(at, 'key')),
     subject: string(own(source, 'subject'), field(at, 'subject')),
+    ...(label === undefined ? {} : { label }),
     used: finite(own(source, 'used'), field(at, 'used')),
     limit: limit === null ? null : finite(limit, field(at, 'limit')),
   };

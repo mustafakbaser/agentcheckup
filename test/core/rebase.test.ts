@@ -54,7 +54,10 @@ describe('rebaseResult', () => {
     });
     expect(claude.skipped[1]?.id).toBe('mcp-server:repo/.mcp.json#docs');
     expect(claude.outOfScope[0]?.path).toBe('repo/.claude/skills/deploy/scripts/run.md');
-    expect(claude.limits[0]?.subject).toBe('repo/.claude/skills/deploy/SKILL.md');
+    expect(claude.limits.map((limit) => [limit.subject, limit.label])).toEqual([
+      ['repo/packages/api', 'skills listing'],
+      ['repo/.claude/skills/deploy/SKILL.md', undefined],
+    ]);
     expect(plans[1]?.incomplete).toEqual(['unparsed:repo/.codex/config.toml']);
     expect(rebased.context?.matrix?.rows[0]?.path).toBe('repo/.agents/skills/release-notes');
 

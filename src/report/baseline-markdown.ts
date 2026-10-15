@@ -10,9 +10,10 @@
 import type { BaselineDiff, GateHit, PlanDelta } from '../core/baseline-types.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
+import { stripPathBase } from '../core/rebase.js';
 import type { LimitUsage } from '../platforms/load/types.js';
 import { AGENT_NAMES } from './context-view.js';
-import { gateRows } from './gate.js';
+import { gateRows, newRuleFindings } from './gate.js';
 import { toJsonBaseline, toJsonContext, toJsonInventory } from './json.js';
 import { cappedRows, escaped, omittedNote, paragraphs } from './markdown-common.js';
 import { plural } from './text.js';
@@ -127,8 +128,18 @@ function findingsLine(result: ScanResult, diff: BaselineDiff): string {
     line +=
       ` The baseline was written with ruleset ${escaped(diff.against.ruleset, MAX_TEXT_LENGTH)},` +
       ' so findings from rules it did not run count as new.';
+    const fromNewRules = newRuleFindings(result);
+    if (fromNewRules > 0) {
+      line += ` ${plural(fromNewRules, 'new finding comes', 'new findings come')} from rules added since then, marked "new rule".`;
+    }
   }
   return line;
+}
+
+function stripTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 0x2f) end--;
+  return path.slice(0, end);
 }
 
 function signed(value: number): string {
@@ -160,6 +171,13 @@ function limitChanges(
     const wasOver = before !== null && before > limit.limit;
     if (over === wasOver) continue;
     const unit = units.get([delta.agent, delta.cwd, limit.key, limit.subject].join('\n'));
+    // A group's label (`AGENTS.md chain`), else the file's path, else the limit's key.
+    const what =
+      limit.label !== undefined
+        ? clean(limit.label, MAX_TEXT_LENGTH)
+        : limit.subject !== ''
+          ? clean(limit.subject, MAX_PATH_LENGTH)
+          : clean(limit.key, MAX_TEXT_LENGTH);
     const unitName = unit === undefined ? undefined : UNIT_NAMES[unit];
     const bound =
       unitName === undefined
@@ -167,9 +185,7 @@ function limitChanges(
         : `the ${formatInteger(limit.limit)}-${unitName} limit`;
     const from = before === null ? '' : `${formatInteger(before)} → `;
     const amount = `${from}${formatInteger(after)}${unit === undefined ? '' : ` ${unit}`}`;
-    changes.push(
-      `${clean(limit.key, MAX_TEXT_LENGTH)} ${amount}, ${over ? 'now over' : 'back under'} ${bound}`,
-    );
+    changes.push(`${what} ${amount}, ${over ? 'now over' : 'back under'} ${bound}`);
   }
   return changes;
 }
@@ -187,8 +203,11 @@ export function contextDeltas(
 ): { readonly parts: readonly string[]; readonly hidden: number } | undefined {
   if (diff.context.length === 0) return undefined;
   const units = limitUnits(result);
+  const base = stripTrailingSlashes(result.pathBase ?? '');
   const parts = diff.context.slice(0, MAX_DELTAS).map((delta) => {
-    const where = delta.cwd === '' ? '' : ` (${clean(delta.cwd, MAX_PATH_LENGTH)})`;
+    // After a rebase the root plan's cwd is pathBase; other plans show their rebased path.
+    const root = delta.cwd === '' || delta.cwd === base;
+    const where = root ? '' : ` (${clean(delta.cwd, MAX_PATH_LENGTH)})`;
     const name = `${AGENT_NAMES[delta.agent]}${where}`;
     const { before, after } = delta.startupTokens;
     const tokens =
@@ -229,9 +248,11 @@ const MAX_STANDALONE_CHARACTERS = 50_000;
 
 /**
  * The baseline section on its own, for output without a findings table, such as
- * `agentcheckup context --format markdown`. Ends with a newline; empty without a baseline.
+ * `agentcheckup context --format markdown`. Paths are relative to the scanned directory, as in
+ * the context output it follows (see contextView). Ends with a newline; empty without a
+ * baseline.
  */
 export function formatBaselineMarkdown(result: ScanResult): string {
-  const lines = baselineSummary(result, MAX_STANDALONE_CHARACTERS);
+  const lines = baselineSummary(stripPathBase(result), MAX_STANDALONE_CHARACTERS);
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
 }

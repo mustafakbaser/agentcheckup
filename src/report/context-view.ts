@@ -7,8 +7,10 @@
  * The view is built from the canonical copy of the report (see toJsonContext), so its order
  * does not depend on the order the loaders produced things in.
  */
+import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
+import { stripPathBase } from '../core/rebase.js';
 import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../inventory/types.js';
 import type {
   Assumption,
@@ -74,11 +76,98 @@ export const MATRIX_CELL_LABELS: Readonly<Record<MatrixCell, string>> = {
   'not-read': '—',
 };
 
+/** What each matrix state means, in the order a legend lists them. */
+export const MATRIX_LEGEND: readonly { readonly cell: MatrixCell; readonly text: string }[] = [
+  { cell: 'startup', text: 'loaded at session start' },
+  { cell: 'on-path', text: 'loaded when the agent opens a file it covers' },
+  { cell: 'start-dir', text: 'loaded when a session starts in its directory' },
+  { cell: 'listed', text: 'in the skills listing; the body loads when used' },
+  { cell: 'model-selected', text: 'loaded when the model picks it' },
+  { cell: 'manual', text: 'loaded only when you ask for it' },
+  { cell: 'partial', text: 'loaded, but cut by a limit' },
+  { cell: 'skipped', text: 'not loaded; the plan says why' },
+  { cell: 'unknown', text: 'not documented, or not analyzed' },
+  { cell: 'not-read', text: 'not read by this agent' },
+];
+
 const ORIGIN_LABELS: Readonly<Record<Assumption['origin'], string>> = {
   default: 'default',
   'rule-option': 'rule option',
   repository: 'from the repository',
   flag: 'from a flag',
+};
+
+/**
+ * How a known assumption reads in a sentence. `setting`: the value is an agent setting the
+ * user can change, so a default is marked "(default)". Phrases are listed in the order they
+ * are shown; unknown keys follow as `key = value (origin)`, in key order.
+ */
+interface AssumptionPhrase {
+  readonly key: string;
+  readonly phrase: (value: string | number | boolean) => string;
+  readonly setting?: boolean;
+}
+
+const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
+  {
+    key: 'claude-code.instructions_mode',
+    phrase: (value) => `instructions mode ${valueText(value)}`,
+    setting: true,
+  },
+  { key: 'claude-code.min_version', phrase: (value) => `Claude Code ${valueText(value)} or later` },
+  { key: 'claude-code.session', phrase: (value) => `${valueText(value)} session` },
+  { key: 'claude-code.workspace_trusted', phrase: (value) => trusted(value, 'workspace') },
+  {
+    key: 'claude-code.memory_file_lines',
+    phrase: (value) => `memory files advised under ${valueText(value)} lines`,
+    setting: true,
+  },
+  { key: 'claude-code.context_window', phrase: (value) => contextWindowText(value) },
+  {
+    key: 'codex.project_doc_max_bytes',
+    phrase: (value) => `AGENTS.md budget ${valueText(value)} bytes`,
+    setting: true,
+  },
+  { key: 'codex.project_root_markers', phrase: (value) => listPhrase(value, 'root marker') },
+  {
+    key: 'codex.project_doc_fallback_filenames',
+    phrase: (value) => listPhrase(value, 'fallback file name'),
+  },
+  {
+    key: 'codex.trust_level',
+    phrase: (value) =>
+      value === 'trusted' ? 'trusted project' : `trust level ${valueText(value)}`,
+  },
+  { key: 'codex.context_window', phrase: (value) => contextWindowText(value) },
+  {
+    key: 'cursor.mode',
+    phrase: (value) => (value === 'agent' ? 'Agent mode' : `${valueText(value)} mode`),
+  },
+  {
+    key: 'cursor.thirdPartyConfigs',
+    phrase: (value) =>
+      `third-party configs ${value === true ? 'on' : value === false ? 'off' : valueText(value)}`,
+  },
+  { key: 'cursor.trustedWorkspace', phrase: (value) => trusted(value, 'workspace') },
+];
+
+const PHRASE_ORDER: ReadonlyMap<string, number> = new Map(
+  ASSUMPTION_PHRASES.map((entry, index) => [entry.key, index]),
+);
+
+/**
+ * Words for each hidden scope. Locations that are paths are summarized under these words, with
+ * their home directories (`~/.claude`, `$CODEX_HOME`); system paths, which differ by operating
+ * system, are left to the JSON and Markdown output. Named locations ("installed plugins") are
+ * shown as they are.
+ */
+const SCOPE_NOUNS: Readonly<Record<HiddenScope['scope'], string>> = {
+  managed: 'managed settings',
+  user: 'user settings',
+  global: 'global settings',
+  team: 'team settings',
+  account: 'account settings',
+  plugin: 'plugins',
 };
 
 const INCOMPLETE_LABELS: Readonly<Record<string, string>> = {
@@ -130,6 +219,8 @@ export interface OnDemandRow {
   /** True when `size` is a skill body rather than the whole entry. */
   readonly body: boolean;
   readonly when: string;
+  /** For an import: the file that imports it. */
+  readonly importedBy?: string;
   readonly unverified: boolean;
 }
 
@@ -146,13 +237,23 @@ export interface IncompleteRow {
   readonly reason: string;
 }
 
+/** One hidden scope, with every location of that scope in the plan. */
+export interface HiddenView {
+  readonly scope: HiddenScope['scope'];
+  readonly locations: readonly string[];
+  /** Short items for one line: named locations, and `user settings (~/.claude)` for paths. */
+  readonly summary: readonly string[];
+}
+
 export interface PlanView {
   readonly agent: ContextAgent;
   readonly agentName: string;
-  /** Root-relative working directory, `''` for the root. */
+  /** Working directory relative to the scanned directory, `''` for the scanned directory. */
   readonly cwd: string;
+  /** Readable phrases, such as `Claude Code 2.1.277 or later`. */
   readonly assumptions: readonly string[];
-  readonly hidden: readonly string[];
+  /** In scope order: managed, user, global, team, account, plugin. */
+  readonly hidden: readonly HiddenView[];
   readonly startup: readonly StartupRow[];
   readonly total: Size;
   readonly services: readonly ServiceRow[];
@@ -170,16 +271,104 @@ export interface MatrixView {
   readonly rows: readonly { readonly path: string; readonly cells: readonly MatrixCell[] }[];
 }
 
-function assumptionText(assumption: Assumption): string {
-  const value =
-    typeof assumption.value === 'number' && Number.isSafeInteger(assumption.value)
-      ? formatInteger(assumption.value)
-      : String(assumption.value);
-  return `${assumption.key} = ${value} (${ORIGIN_LABELS[assumption.origin]})`;
+function valueText(value: string | number | boolean): string {
+  return typeof value === 'number' && Number.isSafeInteger(value)
+    ? formatInteger(value)
+    : String(value);
 }
 
-function hiddenText(hidden: HiddenScope): string {
-  return `${hidden.locations.join(', ')} (${hidden.scope})`;
+function trusted(value: string | number | boolean, what: string): string {
+  if (value === true) return `trusted ${what}`;
+  if (value === false) return `untrusted ${what}`;
+  return `${what} trust ${valueText(value)}`;
+}
+
+function contextWindowText(value: string | number | boolean): string {
+  return typeof value === 'number'
+    ? `context window ${valueText(value)} tokens`
+    : `context window ${valueText(value)}`;
+}
+
+/**
+ * A list written as a JSON array of strings, such as `[".git"]`: `root marker .git`,
+ * `no fallback file names`. Anything else is shown as it is.
+ */
+function listPhrase(value: string | number | boolean, noun: string): string {
+  if (typeof value === 'string' && value.startsWith('[')) {
+    let items: unknown;
+    try {
+      items = JSON.parse(value);
+    } catch {
+      items = undefined;
+    }
+    if (Array.isArray(items) && items.every((item) => typeof item === 'string')) {
+      if (items.length === 0) return `no ${noun}s`;
+      // Not joined with commas: the phrase is one item of a comma-separated list.
+      return `${noun}${items.length === 1 ? '' : 's'} ${items.join(' and ')}`;
+    }
+  }
+  return `${noun}s ${valueText(value)}`;
+}
+
+/** Known keys as phrases, in a fixed order; unknown keys as `key = value (origin)`. */
+function assumptionTexts(assumptions: readonly Assumption[]): string[] {
+  const known = new Map(ASSUMPTION_PHRASES.map((entry) => [entry.key, entry]));
+  const rank = (assumption: Assumption): number =>
+    PHRASE_ORDER.get(assumption.key) ?? ASSUMPTION_PHRASES.length;
+  // A stable sort keeps the canonical key order among unknown keys.
+  return [...assumptions]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((assumption) => {
+      const entry = known.get(assumption.key);
+      const origin = ORIGIN_LABELS[assumption.origin];
+      if (entry === undefined) {
+        return `${assumption.key} = ${valueText(assumption.value)} (${origin})`;
+      }
+      const marked = assumption.origin !== 'default' || entry.setting === true;
+      return `${entry.phrase(assumption.value)}${marked ? ` (${origin})` : ''}`;
+    });
+}
+
+/** `~/…`, `$VAR/…`, `/…` and `C:\…` locations are paths; anything else is a name. */
+function isPathLocation(location: string): boolean {
+  return /^(?:[~$/\\]|[a-z]:[/\\])/i.test(location);
+}
+
+/** `~/.claude/skills/` → `~/.claude`, `$CODEX_HOME/AGENTS.md` → `$CODEX_HOME`; else undefined. */
+function homeRoot(location: string): string | undefined {
+  const parts = location.split('/');
+  const first = parts[0] ?? '';
+  if (first === '~') return parts.length > 1 && parts[1] !== '' ? `~/${parts[1]}` : '~';
+  if (first.startsWith('$')) return first;
+  return undefined;
+}
+
+/** Scopes merged in their canonical order, each with its compact summary. */
+function hiddenViews(hidden: readonly HiddenScope[]): HiddenView[] {
+  const scopes = new Map<HiddenScope['scope'], string[]>();
+  for (const entry of hidden) {
+    const locations = scopes.get(entry.scope) ?? [];
+    for (const location of entry.locations) {
+      if (!locations.includes(location)) locations.push(location);
+    }
+    scopes.set(entry.scope, locations);
+  }
+  return [...scopes].map(([scope, locations]) => {
+    const names = locations.filter((location) => !isPathLocation(location));
+    const paths = locations.filter(isPathLocation);
+    const roots: string[] = [];
+    for (const path of paths) {
+      const root = homeRoot(path);
+      if (root !== undefined && !roots.includes(root)) roots.push(root);
+    }
+    roots.sort(compareStrings);
+    // Read as a partial table: a report built at runtime may hold scopes the types rule out.
+    const nouns: Readonly<Partial<Record<string, string>>> = SCOPE_NOUNS;
+    const noun = nouns[scope] ?? scope;
+    const summary = [...names];
+    if (paths.length > 0) summary.push(roots.length > 0 ? `${noun} (${roots.join(', ')})` : noun);
+    return { scope, locations, summary };
+  });
 }
 
 function incompleteRow(entry: string): IncompleteRow {
@@ -209,7 +398,11 @@ function pinPart(spec: PackageSpec | undefined): Part | undefined {
 
 function mcpParts(entry: LoadEntry, item: McpServerItem | undefined): Part[] {
   if (item === undefined) return [{ text: entry.name ?? entry.path }];
-  const parts: Part[] = [{ text: item.name }, { text: item.transport }];
+  const parts: Part[] = [{ text: item.name }];
+  // A URL or a command says enough; "unknown" next to it reads as a problem.
+  if (item.transport !== 'unknown' || (item.url === undefined && item.command === undefined)) {
+    parts.push({ text: item.transport === 'unknown' ? 'transport unknown' : item.transport });
+  }
   if (item.url !== undefined) {
     parts.push({ text: item.url.origin });
     if (!item.url.tls && !item.url.loopback) {
@@ -352,11 +545,13 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       continue;
     }
     const size = entry.role === 'skill' ? (entry.deferred ?? entry.size) : entry.size;
+    const importer = entry.role === 'import' ? entry.via?.at(-1) : undefined;
     onDemand.push({
       path: entry.path,
       ...(size === undefined ? {} : { size }),
       body: entry.role === 'skill' && entry.deferred !== undefined,
       when: whenText(entry, plan.agent),
+      ...(importer === undefined ? {} : { importedBy: importer }),
       unverified,
     });
   }
@@ -384,8 +579,8 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     agent: plan.agent,
     agentName: AGENT_NAMES[plan.agent],
     cwd: plan.cwd,
-    assumptions: plan.assumptions.map(assumptionText),
-    hidden: plan.hidden.map(hiddenText),
+    assumptions: assumptionTexts(plan.assumptions),
+    hidden: hiddenViews(plan.hidden),
     startup,
     total: plan.totals.startup,
     // MCP servers first, then hooks; each group keeps the plan's order.
@@ -417,12 +612,31 @@ function sumSizes(sizes: readonly (Size | undefined)[]): Size {
   return { bytes, chars, tokens };
 }
 
-/** One view per plan, in canonical order. Empty when the result has no context. */
-export function planViews(result: ScanResult): PlanView[] {
-  if (result.context === undefined) return [];
-  const context = toJsonContext(result.context);
-  const inventory = toJsonInventory(result.inventory);
-  return context.plans.map((plan) => planView(plan, inventory));
+/**
+ * Plans and matrix of a result, with paths relative to the scanned directory again: in a
+ * subdirectory scan every path would otherwise repeat `pathBase`, while globs and hook scripts
+ * are written relative to the scanned directory anyway. Reports state `pathBase` once.
+ */
+export interface ContextView {
+  /** The scanned directory as the report's paths were rebased onto it; `''` when they were not. */
+  readonly pathBase: string;
+  readonly plans: readonly PlanView[];
+  readonly matrix?: MatrixView;
+}
+
+/** The plans in canonical order and the matrix, relative to the scanned directory. */
+export function contextView(result: ScanResult): ContextView {
+  const pathBase = result.pathBase === undefined || result.pathBase === '.' ? '' : result.pathBase;
+  const stripped = stripPathBase(result);
+  if (stripped.context === undefined) return { pathBase, plans: [] };
+  const context = toJsonContext(stripped.context);
+  const inventory = toJsonInventory(stripped.inventory);
+  const matrix = matrixView(context);
+  return {
+    pathBase,
+    plans: context.plans.map((plan) => planView(plan, inventory)),
+    ...(matrix === undefined ? {} : { matrix }),
+  };
 }
 
 /** The matrix in canonical order, or undefined when the report has none. */

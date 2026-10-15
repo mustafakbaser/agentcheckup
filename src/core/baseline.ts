@@ -137,15 +137,16 @@ export function compareWithBaseline(
     selected.has(hit.class),
   );
 
-  const against = {
+  const versions = {
     version: baseline.tool.version,
     ruleset: baseline.ruleset,
     sameRuleset: baseline.ruleset === current.ruleset,
   };
+  const newRules = newRuleIds(current.rules, versions);
   const fresh = findings.filter((finding) => finding.baseline === 'new').length;
   return {
     diff: {
-      against,
+      against: { ...versions, newRules },
       findings: { new: fresh, unchanged: findings.length - fresh, resolved },
       inventory: diffInventory(before, after),
       context: diffPlans(
@@ -157,7 +158,7 @@ export function compareWithBaseline(
       gate: { classes, hits },
     },
     findings,
-    newRules: newRuleIds(current.rules, against),
+    newRules,
   };
 }
 
@@ -168,7 +169,7 @@ export function compareWithBaseline(
  */
 export function newRuleIds(
   rules: readonly Pick<RuleMeta, 'id' | 'since'>[],
-  against: BaselineDiff['against'],
+  against: Pick<BaselineDiff['against'], 'ruleset' | 'sameRuleset'>,
 ): string[] {
   if (against.sameRuleset) return [];
   const ids = new Set<string>();
@@ -886,6 +887,7 @@ function diffLimits(
   afterList: readonly BaselineLimitUsage[],
   afterBase: string,
 ): PlanDelta['limits'] {
+  // Matched by key and subject; the label is display text only.
   const rows = new Map<
     string,
     { key: string; subject: string; before?: BaselineLimitUsage; after?: BaselineLimitUsage }
@@ -906,13 +908,17 @@ function diffLimits(
   add(beforeList, beforeBase, 'before');
   add(afterList, afterBase, 'after');
   return [...rows.values()]
-    .map((row) => ({
-      key: row.key,
-      subject: row.subject,
-      before: row.before?.used ?? null,
-      after: row.after?.used ?? null,
-      limit: row.after !== undefined ? row.after.limit : (row.before?.limit ?? null),
-    }))
+    .map((row) => {
+      const label = row.after?.label ?? row.before?.label;
+      return {
+        key: row.key,
+        subject: row.subject,
+        ...(label === undefined ? {} : { label }),
+        before: row.before?.used ?? null,
+        after: row.after?.used ?? null,
+        limit: row.after !== undefined ? row.after.limit : (row.before?.limit ?? null),
+      };
+    })
     .sort((a, b) => compareStrings(a.key, b.key) || compareStrings(a.subject, b.subject));
 }
 

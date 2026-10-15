@@ -9,9 +9,10 @@
  * `guardWorkflowCommands`.
  */
 import type { ScanResult } from '../core/engine.js';
+import { stripPathBase } from '../core/rebase.js';
 import { contextDeltas } from './baseline-markdown.js';
 import type { ContextTextOptions } from './context-text.js';
-import { gateRows } from './gate.js';
+import { gateRows, newRuleFindings } from './gate.js';
 import { toJsonBaseline } from './json.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle } from './stylish.js';
@@ -23,9 +24,12 @@ const MAX_TEXT_LENGTH = 300;
 
 /**
  * The baseline comparison as terminal text ending with a newline; empty when the result has no
- * baseline.
+ * baseline. Paths are relative to the scanned directory, as in the context output it follows
+ * (see contextView).
  */
-export function formatBaselineText(result: ScanResult, options: ContextTextOptions = {}): string {
+export function formatBaselineText(input: ScanResult, options: ContextTextOptions = {}): string {
+  if (input.baseline === undefined) return '';
+  const result = stripPathBase(input);
   if (result.baseline === undefined) return '';
   const style = options.style ?? plainStyle;
   const ascii = options.ascii === true;
@@ -58,8 +62,10 @@ export function formatBaselineText(result: ScanResult, options: ContextTextOptio
   }
 
   const { findings } = diff;
+  const fromNewRules = newRuleFindings(result);
+  const newRules = fromNewRules > 0 ? ` (${fromNewRules} from new rules)` : '';
   lines.push(
-    `Findings: ${findings.new} new, ${findings.unchanged} unchanged, ` +
+    `Findings: ${findings.new} new${newRules}, ${findings.unchanged} unchanged, ` +
       `${findings.resolved.length} resolved`,
   );
 

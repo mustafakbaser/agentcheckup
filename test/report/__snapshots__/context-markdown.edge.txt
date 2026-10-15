@@ -13,7 +13,7 @@
 
 | Service | Detail |
 | :------ | :----- |
-| MCP | bare · unknown |
+| MCP | bare · transport unknown |
 | MCP | local · stdio · \./bin/server \(local\) |
 | MCP | loop · http · http\://127\.0\.0\.1\:3000 |
 | MCP | odd · stdio · run |

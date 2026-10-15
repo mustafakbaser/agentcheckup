@@ -6,7 +6,7 @@ At session start                         bytes  ≈tokens
   2  link.md → docs/real.md                  4        1
      Skills listing (1 skill, metadata)      8        2
                                   Total     12      ≈ 3
-  MCP:                 bare  unknown
+  MCP:                 bare  transport unknown
                        local  stdio  ./bin/server (local)
                        loop  http  http://127.0.0.1:3000
                        odd  stdio  run

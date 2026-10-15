@@ -1,6 +1,7 @@
 Claude Code context · packages/api
-Assumes claude.instructionsMode = claude-md-or-agents-md (default), claude.session = interactive (default), claude.version = >=2.1.277 (default)
-Not visible: managed CLAUDE.md (managed); ~/.claude.json, ~/.claude/CLAUDE.md, ~/.claude/rules, ~/.claude/skills (user)
+Assumes instructions mode claude-md-or-agents-md (default), Claude Code 2.1.277 or later,
+  interactive session, trusted workspace
+Not visible: managed settings, user settings (~/.claude, ~/.claude.json), claude.ai connectors
 
 At session start                            bytes  ≈tokens
    1  CLAUDE.md                             1,204      301
@@ -28,8 +29,8 @@ Skipped
 Not read by Claude Code: .cursor/rules/api.mdc
 
 Codex context · packages/api
-Assumes codex.project_doc_max_bytes = 32,768 (rule option)
-Not visible: $CODEX_HOME/AGENTS.md, ~/.agents/skills, ~/.codex/config.toml (user)
+Assumes AGENTS.md budget 32,768 bytes (rule option)
+Not visible: user settings ($CODEX_HOME, ~/.agents, ~/.codex)
 
 At session start                                             bytes  ≈tokens
   1  AGENTS.md                                               6,880    1,720
@@ -47,8 +48,8 @@ Incomplete
   .codex/config.toml  not analyzed: agentcheckup does not parse this format
 
 Cursor context · ./
-Assumes cursor.mode = agent (default), cursor.thirdPartyConfigs = true (default)
-Not visible: Team rules (team)
+Assumes Agent mode, third-party configs on
+Not visible: Team rules
 
 At session start  bytes  ≈tokens
   1  AGENTS.md    6,880    1,720
@@ -62,7 +63,7 @@ On demand
 Skipped
   .cursor/rules/style.md  only .mdc files are read here  cursor/md-file-ignored
 
-                               Claude Code   Codex       Cursor
+Files by agent                 Claude Code   Codex       Cursor
 .agents/skills/release-notes   —             listed      listed
 .claude/skills/deploy          listed        —           listed
 .cursor/rules/api.mdc          —             —           on-path
@@ -72,6 +73,14 @@ AGENTS.md                      skipped       startup     startup
 CLAUDE.md                      startup       —           startup
 packages/api/AGENTS.md         skipped       start-dir   on-path
 packages/web/AGENTS.md         skipped       partial     on-path
+
+startup    loaded at session start
+on-path    loaded when the agent opens a file it covers
+start-dir  loaded when a session starts in its directory
+listed     in the skills listing; the body loads when used
+partial    loaded, but cut by a limit
+skipped    not loaded; the plan says why
+—          not read by this agent
 
 ≈tokens = characters ÷ 4
 ? = unverified: neither documentation nor source code confirms it

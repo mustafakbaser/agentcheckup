@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '../../src/core/engine.js';
 import { formatBaselineMarkdown } from '../../src/report/baseline-markdown.js';
 import { formatBaselineText } from '../../src/report/baseline-text.js';
+import { rebaseResult } from '../../src/core/rebase.js';
 import { plainStyle } from '../../src/report/stylish.js';
 import { ansiStyle } from '../../src/cli/style.js';
 import {
@@ -34,11 +35,37 @@ describe('formatBaselineText', () => {
         '    Hidden Unicode: AGENTS.md:12 has 3 invisible Unicode tag characters',
         'Findings: 2 new, 6 unchanged, 2 resolved',
         'Session-start context: Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720) · ' +
-          'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), codex.project_doc_max_bytes ' +
+          'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS.md chain ' +
           '31,204 → 33,010 bytes, now over the 32,768-byte limit · Cursor unchanged',
         '',
       ].join('\n'),
     );
+  });
+
+  it('shows plan directories relative to the scanned directory, as the context output does', () => {
+    expect(formatBaselineText(rebaseResult(result, 'sub/dir'))).toBe(formatBaselineText(result));
+    expect(formatBaselineMarkdown(rebaseResult(result, 'sub/dir'))).toBe(
+      formatBaselineMarkdown(result),
+    );
+  });
+
+  it('counts the new findings of rules newer than the baseline', () => {
+    const newer: ScanResult = {
+      ...result,
+      baseline: {
+        ...sampleBaseline,
+        against: {
+          version: '0.1.0',
+          ruleset: '2026.09',
+          sameRuleset: false,
+          newRules: ['instructions/broken-import'],
+        },
+      },
+    };
+    expect(formatBaselineText(newer)).toContain(
+      'Findings: 2 new (1 from new rules), 6 unchanged, 2 resolved\n',
+    );
+    expect(formatBaselineText(result)).toContain('Findings: 2 new, 6 unchanged, 2 resolved\n');
   });
 
   it('says when nothing needs review, and says nothing about the gate without one', () => {
@@ -67,7 +94,7 @@ describe('formatBaselineText', () => {
       ...result,
       baseline: {
         ...sampleBaseline,
-        against: { version: '0.0.0', ruleset: '2026.09', sameRuleset: false },
+        against: { version: '0.0.0', ruleset: '2026.09', sameRuleset: false, newRules: [] },
         context: Array.from({ length: 12 }, () => sampleBaseline.context[2]!),
         gate: { classes: ['hooks'], hits },
       },
@@ -93,7 +120,7 @@ describe('formatBaselineText', () => {
       ...hostile,
       baseline: {
         ...hostile.baseline!,
-        against: { version: 'x', ruleset: '\u001b[2J::error::x', sameRuleset: false },
+        against: { version: 'x', ruleset: '\u001b[2J::error::x', sameRuleset: false, newRules: [] },
       },
     });
     expect(unsafeCodePoints(text, { tab: true, newline: true })).toEqual([]);

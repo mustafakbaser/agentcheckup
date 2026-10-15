@@ -225,6 +225,8 @@ export interface HiddenScope {
  * - `truncates`: the agent drops everything past the limit.
  * - `shortens`: the agent shortens the text, such as long skill descriptions in the listing.
  * - `advice`: documented guidance; nothing is dropped.
+ *
+ * `key` and `subject` identify a usage within a plan; `--baseline` matches usages by them.
  */
 export interface LimitUsage {
   /** For example `codex.project_doc_max_bytes`. */
@@ -237,8 +239,19 @@ export interface LimitUsage {
   /** Null when the limit depends on the model's context window and none was given. */
   readonly limit: number | null;
   readonly used: number;
-  /** What the usage is measured on: a path, or a group such as the Codex instruction chain. */
+  /**
+   * What the usage is measured on, always a path relative to the scan root (`''` is the root),
+   * so a rebase can prefix it like any other path: a file, a directory, or, for a group of
+   * files, the working directory the group is computed for (Codex's AGENTS.md chain and the
+   * skills listing of a session started there). `label` names such a group.
+   */
   readonly subject: string;
+  /**
+   * Words for a subject that stands for a group rather than one file, such as `AGENTS.md chain`
+   * or `skills listing`. Display text only: never a path, never rebased, not part of the
+   * identity.
+   */
+  readonly label?: string;
   readonly effect: 'skips' | 'truncates' | 'shortens' | 'advice';
   readonly evidence: readonly SourceKey[];
 }

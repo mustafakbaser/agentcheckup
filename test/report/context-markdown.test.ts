@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { rebaseResult } from '../../src/core/rebase.js';
 import { formatContextMarkdown, formatMatrixMarkdown } from '../../src/report/context-markdown.js';
 import {
   contextReport,
@@ -129,6 +130,25 @@ describe('formatContextMarkdown', () => {
     expect(output.match(/^\| \\\.claude\/rules\/r/gm)).toHaveLength(5);
     expect(formatContextMarkdown(many, { maxRows: Number.NaN })).toContain(
       'Showing 0 of 30 files.',
+    );
+  });
+
+  it('names the scanned directory once and shows paths relative to it', () => {
+    expect(formatContextMarkdown(rebaseResult(result, 'repo/sub'))).toBe(
+      `Paths are relative to repo/sub\n\n${formatContextMarkdown(result)}`,
+    );
+  });
+
+  it('lists every hidden location, one item per scope, and readable assumptions', () => {
+    const output = formatContextMarkdown(result);
+    expect(output).toContain(
+      '**Assumes:** instructions mode claude\\-md\\-or\\-agents\\-md \\(default\\), Claude Code 2\\.1\\.277 or later, interactive session, trusted workspace\n',
+    );
+    expect(output).toContain(
+      '**Not visible** (outside the repository, never read):\n\n' +
+        '- managed: /etc/claude\\-code/CLAUDE\\.md, C\\:\\\\Program Files\\\\ClaudeCode\\\\CLAUDE\\.md\n' +
+        '- user: \\~/\\.claude\\.json, \\~/\\.claude/CLAUDE\\.md, \\~/\\.claude/rules, \\~/\\.claude/skills\n' +
+        '- account: claude\\.ai connectors\n',
     );
   });
 

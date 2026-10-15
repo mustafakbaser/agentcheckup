@@ -227,7 +227,7 @@ export function planDelta(
 
 export function baselineDiff(overrides: Partial<BaselineDiff> = {}): BaselineDiff {
   return {
-    against: { version: '0.1.0', ruleset: '2026.10', sameRuleset: true },
+    against: { version: '0.1.0', ruleset: '2026.10', sameRuleset: true, newRules: [] },
     findings: { new: 0, unchanged: 0, resolved: [] },
     inventory: itemDiff(),
     context: [],
@@ -366,25 +366,41 @@ export const claudePlan: LoadPlan = plan('claude-code', {
   outOfScope: [{ path: '.claude/skills/deploy/scripts/run.md', because: 'payload-folder' }],
   assumptions: [
     {
-      key: 'claude.instructionsMode',
+      key: 'claude-code.instructions_mode',
       value: 'claude-md-or-agents-md',
       origin: 'default',
       evidence: ['claudeMemory'],
     },
-    { key: 'claude.session', value: 'interactive', origin: 'default', evidence: [] },
-    { key: 'claude.version', value: '>=2.1.277', origin: 'default', evidence: [] },
+    { key: 'claude-code.min_version', value: '2.1.277', origin: 'default', evidence: [] },
+    { key: 'claude-code.session', value: 'interactive', origin: 'default', evidence: [] },
+    { key: 'claude-code.workspace_trusted', value: true, origin: 'default', evidence: [] },
   ],
   hidden: [
-    { scope: 'managed', locations: ['managed CLAUDE.md'], roles: ['instructions'] },
+    {
+      scope: 'managed',
+      locations: ['/etc/claude-code/CLAUDE.md', 'C:\\Program Files\\ClaudeCode\\CLAUDE.md'],
+      roles: ['instructions'],
+    },
     {
       scope: 'user',
       locations: ['~/.claude.json', '~/.claude/CLAUDE.md', '~/.claude/rules', '~/.claude/skills'],
       roles: ['instructions', 'rule', 'skill', 'mcp-server'],
     },
+    { scope: 'account', locations: ['claude.ai connectors'], roles: ['mcp-server'] },
   ],
   limits: [
     {
-      key: 'claude.skill_listing_chars',
+      key: 'claude-code.skill_listing_budget',
+      unit: 'chars',
+      limit: null,
+      used: 1310,
+      subject: 'packages/api',
+      label: 'skills listing',
+      effect: 'shortens',
+      evidence: ['claudeMemory'],
+    },
+    {
+      key: 'claude-code.skill_listing_max_desc_chars',
       unit: 'chars',
       limit: 1536,
       used: 400,
@@ -447,6 +463,7 @@ export const codexPlan: LoadPlan = plan('codex', {
       limit: 32768,
       used: 33010,
       subject: 'packages/api',
+      label: 'AGENTS.md chain',
       effect: 'truncates',
       evidence: ['codexAgentsMd'],
     },
@@ -593,6 +610,7 @@ export const sampleBaseline: BaselineDiff = baselineDiff({
         {
           key: 'codex.project_doc_max_bytes',
           subject: 'packages/api',
+          label: 'AGENTS.md chain',
           before: 31204,
           after: 33010,
           limit: 32768,
@@ -895,7 +913,25 @@ export function withHostileContext(result: ScanResult): ScanResult {
     assumptions: [
       { key: HOSTILE.osc8Link, value: HOSTILE.addMask, origin: 'rule-option', evidence: [] },
     ],
-    hidden: [{ scope: 'user', locations: [HOSTILE.zeroWidth], roles: ['instructions'] }],
+    hidden: [
+      {
+        scope: 'user',
+        locations: [HOSTILE.zeroWidth, `~/${HOSTILE.osc52Clipboard}/x`, `$${HOSTILE.html}/y`],
+        roles: ['instructions'],
+      },
+    ],
+    limits: [
+      {
+        key: HOSTILE.links,
+        unit: 'bytes',
+        limit: 15,
+        used: 20,
+        subject: HOSTILE.stopCommands,
+        label: HOSTILE.fakeError,
+        effect: 'truncates',
+        evidence: [],
+      },
+    ],
     incomplete: [`unread:${HOSTILE.tags}`, HOSTILE.c1Csi],
   });
   const context = contextReport([hostilePlan], {
@@ -908,7 +944,12 @@ export function withHostileContext(result: ScanResult): ScanResult {
     },
   });
   const baseline = baselineDiff({
-    against: { version: HOSTILE.clearScreen, ruleset: HOSTILE.html, sameRuleset: false },
+    against: {
+      version: HOSTILE.clearScreen,
+      ruleset: HOSTILE.html,
+      sameRuleset: false,
+      newRules: [HOSTILE.fakeError],
+    },
     findings: {
       new: 1,
       unchanged: 0,
@@ -917,7 +958,17 @@ export function withHostileContext(result: ScanResult): ScanResult {
     context: [
       planDelta('claude-code', 100, 50, {
         cwd: HOSTILE.stopCommands,
-        limits: [{ key: HOSTILE.links, subject: 'x', before: 10, after: 20, limit: 15 }],
+        limits: [
+          { key: HOSTILE.links, subject: 'x', before: 10, after: 20, limit: 15 },
+          {
+            key: HOSTILE.links,
+            subject: HOSTILE.stopCommands,
+            label: HOSTILE.osc8Link,
+            before: 10,
+            after: 20,
+            limit: 15,
+          },
+        ],
       }),
     ],
     gate: {

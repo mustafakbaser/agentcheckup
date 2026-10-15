@@ -14,6 +14,7 @@ import {
 import {
   CONTEXT_AGENTS,
   type Certainty,
+  type LimitUsage,
   type LoadRole,
   type LoadTrigger,
   type MatrixCell,
@@ -450,6 +451,15 @@ describe('schemas/report.schema.json', () => {
       'env',
       'unicode',
     ] as const satisfies readonly GateClass[];
+    const LIMIT_UNITS = [
+      'bytes',
+      'chars',
+      'lines',
+      'hops',
+      'levels',
+      'directories',
+      'context-fraction',
+    ] as const satisfies readonly LimitUsage['unit'][];
     // Compile-time exhaustiveness, as above.
     const exhaustive: true[] = [
       true satisfies Exhaustive<SkipCode, (typeof SKIP_CODES)[number]>,
@@ -458,8 +468,9 @@ describe('schemas/report.schema.json', () => {
       true satisfies Exhaustive<LoadTrigger, (typeof TRIGGERS)[number]>,
       true satisfies Exhaustive<Certainty, (typeof CERTAINTIES)[number]>,
       true satisfies Exhaustive<GateClass, (typeof GATE_CLASSES)[number]>,
+      true satisfies Exhaustive<LimitUsage['unit'], (typeof LIMIT_UNITS)[number]>,
     ];
-    expect(exhaustive).toHaveLength(6);
+    expect(exhaustive).toHaveLength(7);
 
     const defs = schema.$defs;
     expect(defs['skipCode']?.enum).toEqual([...SKIP_CODES]);
@@ -468,6 +479,7 @@ describe('schemas/report.schema.json', () => {
     expect(defs['loadTrigger']?.enum).toEqual([...TRIGGERS]);
     expect(defs['certainty']?.enum).toEqual([...CERTAINTIES]);
     expect(defs['gateClass']?.enum).toEqual([...GATE_CLASSES]);
+    expect(defs['limitUsage']?.properties?.['unit']?.enum).toEqual([...LIMIT_UNITS]);
     expect(defs['contextAgent']?.enum).toEqual([...CONTEXT_AGENTS]);
   });
 

@@ -14,6 +14,7 @@
 import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Range, RuleMeta, Severity } from '../core/types.js';
+import { isNewRuleFinding, newRuleSet } from './gate.js';
 import { forJsonOutput, forSarifMessage, forSarifText } from './sanitize.js';
 import {
   breakdown,
@@ -92,6 +93,11 @@ interface SarifResult {
     readonly kind: 'inSource' | 'external';
     readonly justification: string;
   }[];
+  /**
+   * `newRule`: a new finding of a rule newer than the baseline's rule set, which the baseline
+   * could not have reported. Set only then.
+   */
+  readonly properties?: { readonly newRule: true };
 }
 
 interface SarifNotification {
@@ -260,7 +266,7 @@ function buildRules(result: ScanResult): { rules: SarifRule[]; index: Map<string
   return { rules, index };
 }
 
-function toResult(finding: Finding, ruleIndex: number): SarifResult {
+function toResult(finding: Finding, ruleIndex: number, newRules: ReadonlySet<string>): SarifResult {
   const related = finding.related.slice(0, MAX_RELATED).map((location, position) => ({
     id: position + 1,
     physicalLocation: physicalLocation(location.path, location.range),
@@ -286,6 +292,7 @@ function toResult(finding: Finding, ruleIndex: number): SarifResult {
           ],
         }
       : {}),
+    ...(isNewRuleFinding(finding, newRules) ? { properties: { newRule: true } } : {}),
   };
 }
 
@@ -368,7 +375,10 @@ function executionNotifications(
 export function toSarif(result: ScanResult): SarifLog {
   const { rules, index } = buildRules(result);
   const findings = capFindings(result.findings, MAX_RESULTS);
-  const results = findings.map((finding) => toResult(finding, index.get(finding.ruleId) ?? 0));
+  const newRules = newRuleSet(result);
+  const results = findings.map((finding) =>
+    toResult(finding, index.get(finding.ruleId) ?? 0, newRules),
+  );
   const execution = executionNotifications(result, index, result.findings.length - findings.length);
   const configuration = result.configWarnings.map((warning) => ({
     level: 'warning' as const,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '../../src/core/engine.js';
+import { rebaseResult } from '../../src/core/rebase.js';
 import { formatMarkdown } from '../../src/report/markdown.js';
 import {
   at,
@@ -165,7 +166,7 @@ describe('formatMarkdown with a baseline', () => {
       'Findings: 2 new errors, 2 resolved.',
       '',
       'Session-start context: Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720) · ' +
-        'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), codex\\.project\\_doc\\_max\\_bytes ' +
+        'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS\\.md chain ' +
         '31,204 → 33,010 bytes, now over the 32,768-byte limit · Cursor unchanged',
     ]);
   });
@@ -178,6 +179,27 @@ describe('formatMarkdown with a baseline', () => {
       '**new** error',
     ]);
     expect(findings.slice(2).every((row) => !row.includes('**new**'))).toBe(true);
+  });
+
+  it('marks new findings of rules newer than the baseline as "new rule"', () => {
+    const newer = formatMarkdown({
+      ...baselineResult,
+      baseline: {
+        ...baselineResult.baseline!,
+        against: {
+          version: '0.1.0',
+          ruleset: '2026.09',
+          sameRuleset: false,
+          newRules: ['instructions/broken-import'],
+        },
+      },
+    });
+    const marks = tableRows(newer).map((row) => row.split(' | ')[1]);
+    expect(marks.slice(0, 2)).toEqual(['**new** error', '**new rule** error']);
+    expect(marks.slice(2).every((mark) => !mark?.includes('**new'))).toBe(true);
+    expect(newer).toContain(
+      'so findings from rules it did not run count as new. 1 new finding comes from rules added since then, marked "new rule".',
+    );
   });
 
   it('is the same whatever order the baseline lists are in', () => {
@@ -198,7 +220,7 @@ describe('formatMarkdown with a baseline', () => {
       ...richResult,
       baseline: baselineDiff({
         findings: { new: 3, unchanged: 5, resolved: [] },
-        against: { version: '0.1.0', ruleset: '2026.09', sameRuleset: false },
+        against: { version: '0.1.0', ruleset: '2026.09', sameRuleset: false, newRules: [] },
         context: [],
       }),
     });
@@ -209,7 +231,14 @@ describe('formatMarkdown with a baseline', () => {
     expect(off).not.toContain('Session-start context');
   });
 
-  it('shows a limit crossed back under, and a limit without a known unit', () => {
+  it('names the root plan without a directory after a rebase, other plans by their path', () => {
+    const rebased = formatMarkdown(rebaseResult(baselineResult, 'sub/dir'));
+    expect(rebased).toContain('Session-start context: Claude Code (sub/dir/packages/api) ≈1,977');
+    expect(rebased).toContain('· Cursor unchanged\n');
+    expect(rebased).not.toContain('Cursor (sub/dir)');
+  });
+
+  it('names a crossed limit by its label, path or key, with or without a known unit', () => {
     const delta = sampleBaseline.context[1]!;
     const back = formatMarkdown({
       ...richResult,
@@ -218,17 +247,26 @@ describe('formatMarkdown with a baseline', () => {
           {
             ...delta,
             limits: [
-              { key: 'k.bytes', subject: 'x', before: 40_000, after: 30_000, limit: 32_768 },
-              { key: 'k.none', subject: 'y', before: null, after: 9, limit: 8 },
-              { key: 'k.same', subject: 'z', before: 9, after: 10, limit: 8 },
+              { key: 'k.bytes', subject: 'x.md', before: 40_000, after: 30_000, limit: 32_768 },
+              { key: 'k.none', subject: '', before: null, after: 9, limit: 8 },
+              {
+                key: 'k.group',
+                subject: 'pkg',
+                label: 'skills listing',
+                before: 1,
+                after: 9,
+                limit: 8,
+              },
+              { key: 'k.same', subject: 'z.md', before: 9, after: 10, limit: 8 },
             ],
           },
         ],
       }),
     });
-    expect(back).toContain('k\\.bytes 40,000 → 30,000, back under the limit of 32,768');
+    expect(back).toContain('x\\.md 40,000 → 30,000, back under the limit of 32,768');
     expect(back).toContain('k\\.none 9, now over the limit of 8');
-    expect(back).not.toContain('k\\.same');
+    expect(back).toContain('skills listing 1 → 9, now over the limit of 8');
+    expect(back).not.toContain('z\\.md');
   });
 
   it('stays under the PR comment size limit with many hostile changes and findings', () => {

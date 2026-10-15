@@ -60,7 +60,8 @@ export const CONTEXT_HELP = `Usage: ${TOOL_NAME} context [path] [options]
 Show what each coding agent loads in a session: the files in its context at
 session start with their sizes, what loads on demand, its MCP servers and hooks,
 and what it skips and why. [path] is the repository root; default: the current
-directory.
+directory. Text and Markdown output show paths relative to [path]; JSON output
+uses paths relative to the current directory, as a scan does.
 
 Options
       --agent <list>       Comma-separated agents: ${CONTEXT_AGENTS.join(', ')}.

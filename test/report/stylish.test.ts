@@ -243,12 +243,38 @@ describe('formatStylish with a baseline', () => {
     expect(none).not.toContain('need review');
   });
 
+  it('marks new findings of rules newer than the baseline as "new rule"', () => {
+    const newer = plain({
+      ...result,
+      baseline: {
+        ...result.baseline!,
+        against: {
+          version: '0.1.0',
+          ruleset: '2026.09',
+          sameRuleset: false,
+          newRules: ['instructions/broken-import'],
+        },
+      },
+    });
+    expect(newer).toMatch(
+      /^ {4}3:5 {2}error {4}new rule {2}Imported file docs\/missing\.md does not exist\. +instructions\/broken-import$/m,
+    );
+    expect(newer).toMatch(/^ {2}12:3 {2}error {2}new {7}Line contains 3 invisible Unicode/m);
+    // Continuation lines stay under the message.
+    expect(newer).toContain(`\n${' '.repeat(28)}↳ docs/: Closest existing directory\n`);
+    expect(newer).toContain(
+      '\n2 new (1 from new rules), 6 unchanged, 2 resolved since the baseline\n',
+    );
+    // Without a finding of a new rule, the column keeps its narrow width.
+    expect(output).not.toContain('new rule');
+  });
+
   it('warns when the baseline comes from another ruleset', () => {
     const other = plain({
       ...result,
       baseline: {
         ...result.baseline!,
-        against: { version: '0.1.0', ruleset: '2026.09', sameRuleset: false },
+        against: { version: '0.1.0', ruleset: '2026.09', sameRuleset: false, newRules: [] },
       },
     });
     expect(other).toContain(

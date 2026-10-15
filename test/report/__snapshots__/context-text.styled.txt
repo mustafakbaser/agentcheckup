@@ -1,6 +1,7 @@
 <b>Claude Code context · packages/api</b>
-<dim>Assumes claude.instructionsMode = claude-md-or-agents-md (default), claude.session = interactive (default), claude.version = >=2.1.277 (default)</dim>
-<dim>Not visible: managed CLAUDE.md (managed); ~/.claude.json, ~/.claude/CLAUDE.md, ~/.claude/rules, ~/.claude/skills (user)</dim>
+<dim>Assumes instructions mode claude-md-or-agents-md (default), Claude Code 2.1.277 or later,</dim>
+<dim>  interactive session, trusted workspace</dim>
+<dim>Not visible: managed settings, user settings (~/.claude, ~/.claude.json), claude.ai connectors</dim>
 
 <b>At session start</b>                         <dim>   bytes  ≈tokens</dim>
    1  CLAUDE.md                             1,204      301
@@ -28,8 +29,8 @@
 <dim>Not read by Claude Code: .cursor/rules/api.mdc</dim>
 
 <b>Codex context · packages/api</b>
-<dim>Assumes codex.project_doc_max_bytes = 32,768 (rule option)</dim>
-<dim>Not visible: $CODEX_HOME/AGENTS.md, ~/.agents/skills, ~/.codex/config.toml (user)</dim>
+<dim>Assumes AGENTS.md budget 32,768 bytes (rule option)</dim>
+<dim>Not visible: user settings ($CODEX_HOME, ~/.agents, ~/.codex)</dim>
 
 <b>At session start</b>                                          <dim>   bytes  ≈tokens</dim>
   1  AGENTS.md                                               6,880    1,720
@@ -47,8 +48,8 @@
   .codex/config.toml  not analyzed: agentcheckup does not parse this format
 
 <b>Cursor context · ./</b>
-<dim>Assumes cursor.mode = agent (default), cursor.thirdPartyConfigs = true (default)</dim>
-<dim>Not visible: Team rules (team)</dim>
+<dim>Assumes Agent mode, third-party configs on</dim>
+<dim>Not visible: Team rules</dim>
 
 <b>At session start</b><dim>  bytes  ≈tokens</dim>
   1  AGENTS.md    6,880    1,720
@@ -62,7 +63,7 @@
 <b>Skipped</b>
   .cursor/rules/style.md  only .mdc files are read here  <gray>cursor/md-file-ignored</gray>
 
-                               <b>Claude Code</b>   <b>Codex</b>       <b>Cursor</b>
+<b>Files by agent</b>                 <b>Claude Code</b>   <b>Codex</b>       <b>Cursor</b>
 .agents/skills/release-notes   <dim>—</dim>             listed      listed
 .claude/skills/deploy          listed        <dim>—</dim>           listed
 .cursor/rules/api.mdc          <dim>—</dim>             <dim>—</dim>           on-path
@@ -72,6 +73,14 @@ AGENTS.md                      <yellow>skipped</yellow>       <green>startup</gr
 CLAUDE.md                      <green>startup</green>       <dim>—</dim>           <green>startup</green>
 packages/api/AGENTS.md         <yellow>skipped</yellow>       start-dir   on-path
 packages/web/AGENTS.md         <yellow>skipped</yellow>       <yellow>partial</yellow>     on-path
+
+<dim>startup    loaded at session start</dim>
+<dim>on-path    loaded when the agent opens a file it covers</dim>
+<dim>start-dir  loaded when a session starts in its directory</dim>
+<dim>listed     in the skills listing; the body loads when used</dim>
+<dim>partial    loaded, but cut by a limit</dim>
+<dim>skipped    not loaded; the plan says why</dim>
+<dim>—          not read by this agent</dim>
 
 <dim>≈tokens = characters ÷ 4</dim>
 <dim>? = unverified: neither documentation nor source code confirms it</dim>

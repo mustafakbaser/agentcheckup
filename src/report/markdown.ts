@@ -11,6 +11,7 @@ import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL } from '../core/meta.js';
 import { CATEGORIES, type Finding } from '../core/types.js';
 import { baselineSummary } from './baseline-markdown.js';
+import { newRuleSet } from './gate.js';
 import {
   escaped as text,
   ruleCode as safeRuleCode,
@@ -132,11 +133,18 @@ function ruleLink(ruleId: string): string {
   return safeRuleLink(ruleId, MAX_PATH_LENGTH);
 }
 
-function findingRow(finding: Finding): string {
+/**
+ * One table row. A new finding is marked **new**, or **new rule** when its rule is newer than
+ * the baseline's rule set, so it is not mistaken for a regression.
+ */
+function findingRow(finding: Finding, newRules: ReadonlySet<string>): string {
   const where = `${text(finding.path, MAX_PATH_LENGTH)}:${finding.range.start.line}`;
   const message = text(finding.message, MAX_MESSAGE_LENGTH);
   const severity = SEVERITY_LABELS[finding.severity];
-  const marked = finding.baseline === 'new' ? `**new** ${severity}` : severity;
+  let marked = severity;
+  if (finding.baseline === 'new') {
+    marked = `**${newRules.has(finding.ruleId) ? 'new rule' : 'new'}** ${severity}`;
+  }
   return `| ${where} | ${marked} | ${ruleLink(finding.ruleId)} | ${message} |`;
 }
 
@@ -163,10 +171,11 @@ function findingsSection(result: ScanResult, maxFindings: number, budget: number
   if (findings.length === 0) {
     return result.score.score === null ? [] : ['No problems found.'];
   }
+  const newRules = newRuleSet(result);
   const rows: string[] = [];
   let size = 0;
   for (const finding of findings.slice(0, maxFindings)) {
-    const row = findingRow(finding);
+    const row = findingRow(finding, newRules);
     if (size + row.length > budget) break;
     rows.push(row);
     size += row.length + 1;

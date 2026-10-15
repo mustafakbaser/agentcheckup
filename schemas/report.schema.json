@@ -626,15 +626,23 @@
       "required": ["key", "unit", "limit", "used", "subject", "effect", "evidence"],
       "properties": {
         "key": { "type": "string", "minLength": 1 },
-        "unit": { "enum": ["bytes", "chars", "lines", "hops", "context-fraction"] },
+        "unit": {
+          "description": "`levels`: directory levels below a search root. `directories`: directories a search visits.",
+          "enum": ["bytes", "chars", "lines", "hops", "levels", "directories", "context-fraction"]
+        },
         "limit": {
           "description": "Null when the limit depends on the model's context window and none was given.",
           "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }]
         },
         "used": { "type": "number", "minimum": 0 },
         "subject": {
-          "description": "What the usage is measured on: a path, or the directory that holds a group of files.",
-          "type": "string"
+          "description": "What the usage is measured on, always a path: a file, a directory, or for a group of files (Codex's AGENTS.md chain, a skills listing) the working directory it is computed for. Empty for the scan root. With `key`, identifies the usage.",
+          "$ref": "#/$defs/relativePath"
+        },
+        "label": {
+          "description": "Words for a subject that stands for a group of files, such as `AGENTS.md chain`. Display text only, never a path.",
+          "type": "string",
+          "minLength": 1
         },
         "effect": { "enum": ["skips", "truncates", "shortens", "advice"] },
         "evidence": { "$ref": "#/$defs/sourceKeys" }
@@ -1079,7 +1087,8 @@
             "required": ["key", "subject", "before", "after", "limit"],
             "properties": {
               "key": { "type": "string", "minLength": 1 },
-              "subject": { "type": "string" },
+              "subject": { "$ref": "#/$defs/relativePath" },
+              "label": { "type": "string", "minLength": 1 },
               "before": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
               "after": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
               "limit": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] }
@@ -1117,11 +1126,17 @@
           "description": "The baseline report's tool and rule set versions.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["version", "ruleset", "sameRuleset"],
+          "required": ["version", "ruleset", "sameRuleset", "newRules"],
           "properties": {
             "version": { "type": "string", "minLength": 1 },
             "ruleset": { "type": "string", "minLength": 1 },
-            "sameRuleset": { "type": "boolean" }
+            "sameRuleset": { "type": "boolean" },
+            "newRules": {
+              "description": "Rules this scan ran that are newer than the baseline's rule set, sorted. Their findings count as new; reports label them \"new rule\".",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
           }
         },
         "findings": {

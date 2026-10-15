@@ -284,6 +284,7 @@ function limitUsage(value: LimitUsage): LimitUsage {
     limit: value.limit,
     used: value.used,
     subject: value.subject,
+    ...(value.label === undefined ? {} : { label: value.label }),
     effect: value.effect,
     evidence: sortedStrings(value.evidence),
   };
@@ -504,6 +505,7 @@ function planDelta(value: PlanDelta): PlanDelta {
     ).map((entry) => ({
       key: entry.key,
       subject: entry.subject,
+      ...(entry.label === undefined ? {} : { label: entry.label }),
       before: entry.before,
       after: entry.after,
       limit: entry.limit,
@@ -522,6 +524,7 @@ export function toJsonBaseline(diff: BaselineDiff): BaselineDiff {
       version: diff.against.version,
       ruleset: diff.against.ruleset,
       sameRuleset: diff.against.sameRuleset,
+      newRules: sortedStrings(diff.against.newRules),
     },
     findings: {
       new: diff.findings.new,

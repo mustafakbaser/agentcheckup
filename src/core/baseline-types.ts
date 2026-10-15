@@ -15,6 +15,12 @@ export interface BaselineDiff {
     readonly version: string;
     readonly ruleset: string;
     readonly sameRuleset: boolean;
+    /**
+     * Ids of rules this scan ran that are newer than the baseline's rule set, sorted. Their
+     * findings count as new because the baseline could not have reported them; reports label
+     * them "new rule". Empty when both reports use the same rule set.
+     */
+    readonly newRules: readonly string[];
   };
   /**
    * Findings match by fingerprint, as a multiset. Unmatched current findings are new; unmatched
@@ -58,6 +64,8 @@ export interface PlanDelta {
   readonly limits: readonly {
     readonly key: string;
     readonly subject: string;
+    /** The usage's label, from the current scan, else from the baseline. */
+    readonly label?: string;
     readonly before: number | null;
     readonly after: number | null;
     readonly limit: number | null;

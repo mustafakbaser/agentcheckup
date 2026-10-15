@@ -1142,7 +1142,8 @@ class ClaudeLoader {
 
   /**
    * One usage per limit: the file that uses the most of it. The skill listing budget is 1% of
-   * the context window; it is measured in characters, at the estimate's four per token.
+   * the context window; it is measured in characters, at the estimate's four per token. The
+   * listing is computed for the working directory, so that is its subject.
    */
   #limits(): LimitUsage[] {
     const limits: LimitUsage[] = [];
@@ -1183,8 +1184,9 @@ class ClaudeLoader {
       evidence: SKILLS,
     });
     const window = this.#contextWindow;
-    add(this.#listedSkills === 0 ? undefined : { path: 'skill-listing', value: this.#listed }, {
+    add(this.#listedSkills === 0 ? undefined : { path: this.#cwd, value: this.#listed }, {
       key: 'claude-code.skill_listing_budget',
+      label: 'skills listing',
       unit: 'chars',
       limit:
         window === undefined

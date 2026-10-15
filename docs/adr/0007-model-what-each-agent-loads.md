@@ -65,4 +65,5 @@ limits agentcheckup to the repository: it never reads the home directory.
 - Configuration in user scope cannot be checked. Plans say so instead of guessing.
 - Codex MCP servers and hooks declared in `.codex/config.toml` are reported as not analyzed.
 - Token estimates are rough, especially for code and non-Latin text.
-- A baseline written by a different rule set shows findings from new rules as new.
+- A baseline written by a different rule set shows findings from new rules as new. Reports label
+  them "new rule" so they are not mistaken for regressions.

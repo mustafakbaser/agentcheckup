@@ -591,11 +591,15 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       deferred: { chars: 'Body.\n'.length },
     });
     expect(entry(result, 'skill:.claude/skills/open/SKILL.md').certainty).toBe('unverified');
+    // The listing is computed for the working directory, the scan root here.
     expect(limit(result, 'claude-code.skill_listing_budget')).toMatchObject({
       unit: 'chars',
       limit: null,
       used: 1536 + '# Bare skill'.length + '---'.length,
+      subject: '',
+      label: 'skills listing',
     });
+    expect(limit(result, 'claude-code.skill_listing_max_desc_chars')?.label).toBeUndefined();
   });
 
   it('derives the listing budget from the context window', () => {

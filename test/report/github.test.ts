@@ -120,7 +120,12 @@ describe('formatGithub with a baseline', () => {
       ...result,
       baseline: {
         ...result.baseline!,
-        against: { version: '0.0.0', ruleset: '2026.09\n::stop-commands::x', sameRuleset: false },
+        against: {
+          version: '0.0.0',
+          ruleset: '2026.09\n::stop-commands::x',
+          sameRuleset: false,
+          newRules: [],
+        },
       },
     });
     expect(lines(older)).toContain(

@@ -1,7 +1,17 @@
-import { chmod, link as hardLink, readdir, readFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import {
+  chmod,
+  type FileHandle,
+  link as hardLink,
+  open,
+  readdir,
+  readFile,
+  stat,
+  unlink,
+} from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { OutputError, writeOutputFile } from '../../src/io/output.js';
 import {
@@ -100,5 +110,76 @@ describe('writeOutputFile', () => {
     await writeOutputFile(file, 'x');
     // 0o666 minus the umask, as fs.writeFile would; never executable.
     expect((await stat(file)).mode & 0o111).toBe(0);
+  });
+});
+
+describe('writeOutputFile durability', () => {
+  /** Calls FileHandle#sync through `hook`, which sees whether the report exists yet. */
+  async function spySync(
+    file: string,
+    hook: (call: number, exists: boolean) => void,
+  ): Promise<{ restore: () => void }> {
+    const probe = await open(path.join(path.dirname(file), '.probe'), 'w');
+    const prototype = Object.getPrototypeOf(probe) as { sync: (this: FileHandle) => Promise<void> };
+    await probe.close();
+    await unlink(path.join(path.dirname(file), '.probe'));
+    const original = prototype.sync;
+    let calls = 0;
+    const spy = vi.spyOn(prototype, 'sync').mockImplementation(function (this: FileHandle) {
+      hook(++calls, existsSync(file));
+      return original.call(this);
+    });
+    return {
+      restore: () => {
+        spy.mockRestore();
+      },
+    };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('flushes the report before the rename, then its directory where it can', async () => {
+    const root = await makeTempDir();
+    const file = path.join(root, 'report.txt');
+    const seen: boolean[] = [];
+    const spy = await spySync(file, (_, exists) => seen.push(exists));
+    await writeOutputFile(file, 'new');
+    spy.restore();
+    expect(await readFile(file, 'utf8')).toBe('new');
+    // Windows cannot open a directory to sync it; the report is written all the same.
+    expect(seen).toEqual(isWindows ? [false] : [false, true]);
+  });
+
+  it('keeps the old report and removes the temporary file when the flush fails', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, { 'report.txt': 'old' });
+    const file = path.join(root, 'report.txt');
+    const spy = await spySync(file, () => {
+      throw Object.assign(new Error('disk gone'), { code: 'EIO' });
+    });
+    await expect(writeOutputFile(file, 'new')).rejects.toThrow(/Cannot write .*: EIO\.$/);
+    spy.restore();
+    expect(await readFile(file, 'utf8')).toBe('old');
+    expect(await readdir(root)).toEqual(['report.txt']);
+  });
+
+  it.skipIf(isWindows)('ignores a directory it cannot sync, but not a failed sync', async () => {
+    const root = await makeTempDir();
+    const file = path.join(root, 'report.txt');
+    const failDirectory = (code: string) => (call: number) => {
+      if (call === 2) throw Object.assign(new Error('no'), { code });
+    };
+    let spy = await spySync(file, failDirectory('EINVAL'));
+    await writeOutputFile(file, 'first');
+    spy.restore();
+    expect(await readFile(file, 'utf8')).toBe('first');
+
+    spy = await spySync(file, failDirectory('EIO'));
+    await expect(writeOutputFile(file, 'second')).rejects.toThrow(OutputError);
+    spy.restore();
+    // The rename happened before the directory sync: the new report is in place.
+    expect(await readFile(file, 'utf8')).toBe('second');
   });
 });

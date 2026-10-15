@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '../../src/core/engine.js';
+import { rebaseResult } from '../../src/core/rebase.js';
 import { formatContextText, formatMatrixText } from '../../src/report/context-text.js';
 import {
   claudePlan,
   contextReport,
   COMMAND_PATH,
   entry,
+  inventory,
+  mcpServer,
   plan,
   sampleContext,
   shuffleReport,
@@ -150,10 +153,123 @@ describe('formatContextText content', () => {
 
   it('renders "—" for files an agent does not read', () => {
     const matrix = formatMatrixText(sampleContext).split('\n');
-    expect(matrix[0]).toBe('                               Claude Code   Codex       Cursor');
+    expect(matrix[0]).toBe('Files by agent                 Claude Code   Codex       Cursor');
     expect(matrix).toContain('CLAUDE.md                      startup       —           startup');
     expect(formatMatrixText(sampleContext, { ascii: true })).toContain(
       'CLAUDE.md                      startup       -           startup',
+    );
+  });
+});
+
+describe('formatContextText wording and layout', () => {
+  const single = (item: ReturnType<typeof plan>, extra: Partial<ScanResult> = {}): string =>
+    formatContextText({ ...result, context: contextReport([item]), ...extra });
+
+  it('names the scanned directory once and shows paths relative to it', () => {
+    expect(formatContextText(rebaseResult(result, 'repo/sub'))).toBe(
+      `Paths are relative to repo/sub\n\n${formatContextText(result)}`,
+    );
+  });
+
+  it('phrases known assumptions and keeps unknown keys as they are', () => {
+    const output = single(
+      plan('codex', {
+        assumptions: [
+          { key: 'codex.context_window', value: 200_000, origin: 'flag', evidence: [] },
+          {
+            key: 'codex.project_doc_fallback_filenames',
+            value: '[]',
+            origin: 'default',
+            evidence: [],
+          },
+          {
+            key: 'codex.project_doc_max_bytes',
+            value: 65_536,
+            origin: 'rule-option',
+            evidence: [],
+          },
+          {
+            key: 'codex.project_root_markers',
+            value: '[".git", ".hg"]',
+            origin: 'default',
+            evidence: [],
+          },
+          { key: 'codex.trust_level', value: 'untrusted', origin: 'default', evidence: [] },
+          { key: 'cursor.thirdPartyConfigs', value: false, origin: 'repository', evidence: [] },
+          { key: 'cursor.trustedWorkspace', value: false, origin: 'default', evidence: [] },
+          { key: 'zz.other', value: 'x', origin: 'default', evidence: [] },
+        ],
+      }),
+    );
+    expect(output.split('\n').slice(1, 4)).toEqual([
+      'Assumes AGENTS.md budget 65,536 bytes (rule option), root markers .git and .hg,',
+      '  no fallback file names, trust level untrusted, context window 200,000 tokens (from a flag),',
+      '  third-party configs off (from the repository), untrusted workspace, zz.other = x (default)',
+    ]);
+  });
+
+  it('sums up hidden scopes: names as they are, home directories for paths, no system paths', () => {
+    const output = single(
+      plan('claude-code', {
+        hidden: [
+          { scope: 'managed', locations: ['/etc/a/CLAUDE.md', 'C:\\A\\CLAUDE.md'], roles: [] },
+          { scope: 'user', locations: ['~/.claude/rules/', '$HOME_X/AGENTS.md', '~'], roles: [] },
+          { scope: 'plugin', locations: ['installed plugins'], roles: [] },
+        ],
+      }),
+    );
+    expect(output).toContain(
+      '\nNot visible: managed settings, user settings ($HOME_X, ~, ~/.claude), installed plugins\n',
+    );
+  });
+
+  it('puts the rest of a row with a long path on the next line, under its column', () => {
+    const long = `deep/${'x'.repeat(70)}/AGENTS.md`;
+    const output = single(
+      plan('codex', {
+        entries: [
+          entry('instructions', 'AGENTS.md', { position: 1, size: size(8) }),
+          entry('instructions', long, { position: 2, size: size(4) }),
+          entry('instructions', 'a/AGENTS.md', { trigger: 'on-path', size: size(4) }),
+          entry('instructions', long, { id: 'x', trigger: 'on-path', size: size(4) }),
+        ],
+      }),
+    );
+    // The numbers stay under their headings: `bytes` ends at column 23, `≈tokens` at 32.
+    expect(output).toContain(
+      '\nAt session start  bytes  ≈tokens\n  1  AGENTS.md        8        2\n',
+    );
+    expect(output).toContain(`\n  2  ${long}\n${' '.repeat(22)}4        1\n`);
+    expect(output).toContain(
+      `\n  a/AGENTS.md  4 bytes ≈ 1, when Codex opens a matching file\n  ${long}\n` +
+        '               4 bytes ≈ 1, when Codex opens a matching file\n',
+    );
+  });
+
+  it('says when nothing loads at session start, and leaves out an unknown transport', () => {
+    const server = mcpServer('.cursor/mcp.json', 'linear', {
+      transport: 'unknown',
+      url: { origin: 'https://mcp.linear.app', tls: true, loopback: false },
+    });
+    const output = single(
+      plan('cursor', {
+        entries: [
+          entry('mcp-server', '.cursor/mcp.json', { name: 'linear', inventoryId: server.id }),
+          entry('import', 'docs/b.md', {
+            trigger: 'on-path',
+            via: ['CLAUDE.md', 'docs/a.md'],
+            patterns: ['docs/**'],
+            size: size(4),
+          }),
+        ],
+      }),
+      { inventory: inventory({ mcpServers: [server] }) },
+    );
+    expect(output).toContain(
+      '\nAt session start: no files\n  MCP:  linear  https://mcp.linear.app\n',
+    );
+    expect(output).toContain(
+      '\n  docs/b.md  4 bytes ≈ 1, when Cursor opens docs/**, imported by docs/a.md\n',
     );
   });
 });

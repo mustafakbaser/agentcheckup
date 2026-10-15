@@ -11,6 +11,9 @@
  *   planted after the check is replaced rather than written through, and readers never see a
  *   half-written report. A hard-linked destination gets a new file; the other links keep the
  *   old content.
+ * - The temporary file is flushed to disk (fsync) before the rename, and the directory after
+ *   it where the platform can sync a directory (not Windows). After a crash or power loss the
+ *   path holds the old report or the complete new one, never an empty or partial file.
  */
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -24,7 +27,7 @@ export class OutputError extends Error {
   override readonly name = 'OutputError';
 }
 
-function optionalFlag(name: 'O_NOFOLLOW' | 'O_NOCTTY'): number {
+function optionalFlag(name: 'O_NOFOLLOW' | 'O_NOCTTY' | 'O_DIRECTORY'): number {
   const value: number | undefined = (constants as Partial<typeof constants>)[name];
   return value ?? 0;
 }
@@ -39,6 +42,21 @@ const CREATE_FLAGS =
 
 /** Permissions before the umask, as `fs.writeFile` uses. */
 const FILE_MODE = 0o666;
+
+/**
+ * Errors that mean a directory cannot be opened or synced here, as on Windows (EISDIR, EPERM)
+ * and on some file systems (EINVAL, ENOTSUP). The report is in place by then; only the extra
+ * durability of its directory entry is lost.
+ */
+const NO_DIRECTORY_SYNC: ReadonlySet<string> = new Set([
+  'EISDIR',
+  'EINVAL',
+  'ENOTSUP',
+  'EOPNOTSUPP',
+  'EPERM',
+  'EACCES',
+  'EBADF',
+]);
 
 /**
  * Writes `text` as UTF-8 to `filePath`, replacing a regular file that is there. Throws
@@ -62,6 +80,8 @@ export async function writeOutputFile(filePath: string, text: string): Promise<v
   try {
     try {
       await handle.writeFile(text, 'utf8');
+      // On disk before the rename makes it visible: a crash must not leave an empty report.
+      await handle.sync();
     } finally {
       await handle.close();
     }
@@ -72,6 +92,25 @@ export async function writeOutputFile(filePath: string, text: string): Promise<v
   } catch (error) {
     await unlink(temporary).catch(() => undefined);
     throw error instanceof OutputError ? error : failure(filePath, error);
+  }
+  await syncDirectory(directory, filePath);
+}
+
+/** Flushes the directory entry the rename wrote, where the platform can sync a directory. */
+async function syncDirectory(directory: string, filePath: string): Promise<void> {
+  let handle: FileHandle;
+  try {
+    handle = await open(directory, constants.O_RDONLY | optionalFlag('O_DIRECTORY'));
+  } catch (error) {
+    if (NO_DIRECTORY_SYNC.has(errorCode(error) ?? '')) return;
+    throw failure(filePath, error);
+  }
+  try {
+    await handle.sync();
+  } catch (error) {
+    if (!NO_DIRECTORY_SYNC.has(errorCode(error) ?? '')) throw failure(filePath, error);
+  } finally {
+    await handle.close();
   }
 }
 

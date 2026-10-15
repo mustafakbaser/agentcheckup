@@ -22,6 +22,11 @@ interface Report {
       readonly cwd: string;
       readonly entries: readonly { readonly path: string; readonly trigger: string }[];
       readonly assumptions: readonly { readonly key: string; readonly value: unknown }[];
+      readonly limits: readonly {
+        readonly key: string;
+        readonly subject: string;
+        readonly label?: string;
+      }[];
     }[];
     readonly matrix?: { readonly rows: readonly { readonly path: string }[] };
   };
@@ -67,10 +72,42 @@ describe('agentcheckup context', () => {
     ]);
   });
 
-  it('rebases plan paths onto the working directory', async () => {
+  it('names the scanned directory once and shows paths relative to it', async () => {
     const io = capture(join(CONTEXT_FIXTURE, '..'));
     expect(await run(['context', 'context', '--cwd', 'packages/api'], io)).toBe(EXIT.ok);
-    expect(io.output()).toContain('Claude Code context · context/packages/api\n');
+    const text = io.output();
+    expect(
+      text.startsWith('Paths are relative to context\n\nClaude Code context · packages/api\n'),
+    ).toBe(true);
+    expect(text).toMatch(/^ {2}2 {2}packages\/api\/CLAUDE\.md +82 +21$/m);
+    expect(text).not.toContain('context/packages/');
+  });
+
+  it('rebases JSON paths, limit subjects included, and keeps limit labels as words', async () => {
+    const report = await contextJson(
+      ['context', '--cwd', 'packages/api'],
+      join(CONTEXT_FIXTURE, '..'),
+    );
+    const codex = report.context?.plans.find((plan) => plan.agent === 'codex');
+    expect(codex?.cwd).toBe('context/packages/api');
+    expect(codex?.limits).toContainEqual(
+      expect.objectContaining({
+        key: 'codex.project_doc_max_bytes',
+        subject: 'context/packages/api',
+        label: 'AGENTS.md chain',
+      }),
+    );
+    const root = await contextJson(
+      ['context', '--agent', 'claude-code'],
+      join(CONTEXT_FIXTURE, '..'),
+    );
+    expect(root.context?.plans[0]?.limits).toContainEqual(
+      expect.objectContaining({
+        key: 'claude-code.skill_listing_budget',
+        subject: 'context',
+        label: 'skills listing',
+      }),
+    );
   });
 
   it('plans only the agents named with --agent', async () => {
@@ -88,9 +125,10 @@ describe('agentcheckup context', () => {
     const io = capture(CONTEXT_FIXTURE);
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
-    expect(text).toMatch(/^ +Claude Code {3}Codex {7}Cursor$/m);
+    expect(text).toMatch(/^Files by agent +Claude Code {3}Codex {7}Cursor$/m);
     expect(text).toMatch(/^AGENTS\.md +startup +startup +startup$/m);
     expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir +—$/m);
+    expect(text).toMatch(/^start-dir {7}loaded when a session starts in its directory$/m);
 
     const report = await contextJson(['--matrix']);
     expect(report.context?.matrix?.rows.length).toBeGreaterThan(10);
@@ -287,7 +325,7 @@ describe('contextExitCode', () => {
     const tripped: ScanResult = {
       ...clean,
       baseline: {
-        against: { version: '0.0.0', ruleset: clean.ruleset, sameRuleset: true },
+        against: { version: '0.0.0', ruleset: clean.ruleset, sameRuleset: true, newRules: [] },
         findings: { new: 0, unchanged: 0, resolved: [] },
         inventory: { added: [], removed: [], changed: [] },
         context: [],

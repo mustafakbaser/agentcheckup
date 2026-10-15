@@ -1,9 +1,17 @@
 /**
- * Gate hits as reviewers see them: one row per changed item, labeled. An unpinned MCP server
- * added with `--gate mcp,mcp-unpinned` trips two classes; it is still one change to review.
- * Shared by the Markdown summary and the terminal output so both count the same.
+ * Baseline comparisons as reviewers see them, shared by the formatters so all of them count
+ * the same.
+ *
+ * Gate hits: one row per changed item, labeled. An unpinned MCP server added with
+ * `--gate mcp,mcp-unpinned` trips two classes; it is still one change to review.
+ *
+ * New rules: findings of rules newer than the baseline's rule set are new, but the baseline
+ * could not have reported them. Formatters label them "new rule" so they are not mistaken for
+ * regressions.
  */
 import type { BaselineDiff, GateClass, GateHit } from '../core/baseline-types.js';
+import type { ScanResult } from '../core/engine.js';
+import type { Finding } from '../core/types.js';
 import { toJsonBaseline } from './json.js';
 
 const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'], string>>>> = {
@@ -41,4 +49,23 @@ export function gateRows(diff: BaselineDiff): GateRow[] {
     const unpinned = hit.class === 'mcp' && group.some((other) => other.class === 'mcp-unpinned');
     return [{ hit, label: unpinned ? `${label}, not pinned` : label, emphasis: unpinned }];
   });
+}
+
+/** Ids of the rules newer than the baseline's rule set; empty without a baseline. */
+export function newRuleSet(result: Pick<ScanResult, 'baseline'>): ReadonlySet<string> {
+  return new Set(result.baseline?.against.newRules ?? []);
+}
+
+/** True for a new finding of a rule the baseline's rule set did not have. */
+export function isNewRuleFinding(finding: Finding, newRules: ReadonlySet<string>): boolean {
+  return finding.baseline === 'new' && newRules.has(finding.ruleId);
+}
+
+/** New, unsuppressed findings of rules the baseline did not have. */
+export function newRuleFindings(result: Pick<ScanResult, 'baseline' | 'findings'>): number {
+  const rules = newRuleSet(result);
+  if (rules.size === 0) return 0;
+  return result.findings.filter(
+    (finding) => !finding.suppressed && isNewRuleFinding(finding, rules),
+  ).length;
 }

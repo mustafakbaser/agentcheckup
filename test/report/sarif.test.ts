@@ -56,6 +56,28 @@ describe('formatSarif with a baseline', () => {
   it('leaves it out without a baseline', () => {
     expect(formatSarif(richResult)).not.toContain('baselineState');
   });
+
+  it('marks new findings of rules newer than the baseline with a newRule property', () => {
+    const result = withContext(richResult);
+    const newer: ScanResult = {
+      ...result,
+      baseline: {
+        ...result.baseline!,
+        against: {
+          version: '0.1.0',
+          ruleset: '2026.09',
+          sameRuleset: false,
+          newRules: ['instructions/broken-import', 'risk/no-findings'],
+        },
+      },
+    };
+    const results = toSarif(newer).runs[0].results;
+    expect(
+      results.filter((item) => item.properties?.newRule === true).map((item) => item.ruleId),
+    ).toEqual(['instructions/broken-import']);
+    expect(validate(JSON.parse(formatSarif(newer)))).toBe(true);
+    expect(formatSarif(result)).not.toContain('newRule');
+  });
 });
 
 function parse(result: ScanResult): SarifLog {

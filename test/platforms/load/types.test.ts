@@ -159,7 +159,7 @@ describe('report additions', () => {
       incomplete: [],
     };
     const diff: BaselineDiff = {
-      against: { version: '0.1.0', ruleset: '2026.10', sameRuleset: true },
+      against: { version: '0.1.0', ruleset: '2026.10', sameRuleset: true, newRules: [] },
       findings: { new: 0, unchanged: 2, resolved: [] },
       inventory: { added: [inventory.env[0]!.id], removed: [], changed: [] },
       context: [],

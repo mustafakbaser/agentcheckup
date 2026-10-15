@@ -134,10 +134,13 @@ describe('loadCodex: instructions', () => {
     expect(plan.outOfScope).toEqual([{ path: 'a/b/c/AGENTS.md', because: 'below-start-dir' }]);
     expect(plan.skipped).toEqual([]);
     expect(plan.totals.startup).toEqual({ bytes: 27, chars: 27, tokens: 7 });
+    // The chain is identified by the directory it is computed for; the label names it.
     expect(limit(plan, 'codex.project_doc_max_bytes')).toMatchObject({
       limit: 32_768,
       used: 27,
       unit: 'bytes',
+      subject: 'a/b',
+      label: 'AGENTS.md chain',
       effect: 'truncates',
     });
   });
@@ -340,6 +343,8 @@ describe('loadCodex: skills', () => {
     expect(limit(plan, 'codex.skills_listing')).toMatchObject({
       unit: 'chars',
       limit: 8000,
+      subject: 'apps/web',
+      label: 'skills listing',
       effect: 'shortens',
     });
     expect(limit(plan, 'codex.skills_scan_depth', '.agents/skills')).toMatchObject({
@@ -347,6 +352,8 @@ describe('loadCodex: skills', () => {
       limit: 6,
       used: 2,
     });
+    // A search root is a path already: no label.
+    expect(limit(plan, 'codex.skills_scan_depth', '.agents/skills')?.label).toBeUndefined();
     expect(limit(plan, 'codex.skills_scan_directories', '.agents/skills')).toMatchObject({
       unit: 'directories',
       limit: 2000,

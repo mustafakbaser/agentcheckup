@@ -921,6 +921,16 @@ describe('pathBase', () => {
         skipped: [skip('AGENTS.md')],
         limits: [
           {
+            key: 'claude-code.skill_listing_budget',
+            unit: 'chars',
+            limit: null,
+            used: 40,
+            subject: '',
+            label: 'skills listing',
+            effect: 'shortens',
+            evidence: [],
+          },
+          {
             key: 'k',
             unit: 'chars',
             limit: 10,
@@ -987,6 +997,7 @@ describe('rule sets', () => {
       version: '0.1.0',
       ruleset: '2026.10',
       sameRuleset: false,
+      newRules: ['b/new', 'c/newer'],
     });
     expect(result.newRules).toEqual(['b/new', 'c/newer']);
   });
@@ -994,6 +1005,7 @@ describe('rule sets', () => {
   it('has no new rules within one rule set', () => {
     const result = compare(report(), report({ rules }));
     expect(result.diff.against.sameRuleset).toBe(true);
+    expect(result.diff.against.newRules).toEqual([]);
     expect(result.newRules).toEqual([]);
   });
 
@@ -1025,12 +1037,14 @@ describe('context', () => {
   });
 
   it('reports entries, skips, startup tokens and limits', () => {
-    const limit = (used: number, subject = 'chain') => ({
+    // The chain is identified by its working directory; the label is display text only.
+    const limit = (used: number, subject = 'pkg', label?: string) => ({
       key: 'codex.project_doc_max_bytes',
       unit: 'bytes' as const,
       limit: 32768,
       used,
       subject,
+      ...(label === undefined ? {} : { label }),
       effect: 'truncates' as const,
       evidence: [],
     });
@@ -1046,7 +1060,10 @@ describe('context', () => {
             entry('gone.md'),
           ],
           skipped: [skip('x.md'), skip('y.md')],
-          limits: [limit(31204), { ...limit(10, 'old'), key: 'a.old' }],
+          limits: [
+            limit(31204, 'pkg', 'chain, before'),
+            { ...limit(10, 'old', 'old label'), key: 'a.old' },
+          ],
           totals: { startup: size(10_788), onDemand: size(0) },
         }),
         plan('codex', ''),
@@ -1064,7 +1081,7 @@ describe('context', () => {
             entry('new.md'),
           ],
           skipped: [skip('x.md', { code: 'blank-file', ruleId: 'instr/empty-file' }), skip('z.md')],
-          limits: [limit(33010), { ...limit(5, 'new'), limit: null }],
+          limits: [limit(33010, 'pkg', 'AGENTS.md chain'), { ...limit(5, 'new'), limit: null }],
           totals: { startup: size(17_640), onDemand: size(0) },
         }),
         plan('codex', ''),
@@ -1100,12 +1117,12 @@ describe('context', () => {
         },
         startupTokens: { before: 2697, after: 4410 },
         limits: [
-          { key: 'a.old', subject: 'old', before: 10, after: null, limit: 32768 },
           {
-            key: 'codex.project_doc_max_bytes',
-            subject: 'chain',
-            before: 31204,
-            after: 33010,
+            key: 'a.old',
+            subject: 'old',
+            label: 'old label',
+            before: 10,
+            after: null,
             limit: 32768,
           },
           {
@@ -1114,6 +1131,14 @@ describe('context', () => {
             before: null,
             after: 5,
             limit: null,
+          },
+          {
+            key: 'codex.project_doc_max_bytes',
+            subject: 'pkg',
+            label: 'AGENTS.md chain',
+            before: 31204,
+            after: 33010,
+            limit: 32768,
           },
         ],
       },
@@ -1433,6 +1458,10 @@ describe('validateBaseline', () => {
     expect(
       invalid(withPlan({ limits: [{ key: 'k', subject: 's', used: 1, limit: 'none' }] })).message,
     ).toContain('context.plans[0].limits[0].limit must be a number');
+    expect(
+      invalid(withPlan({ limits: [{ key: 'k', subject: '', label: 7, used: 1, limit: null }] }))
+        .message,
+    ).toContain('context.plans[0].limits[0].label must be a string');
     expect(invalid({ ...(json(full) as object), context: { plans: {} } }).message).toContain(
       'context.plans must be an array, not an object',
     );
