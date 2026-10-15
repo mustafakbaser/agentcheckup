@@ -20,7 +20,7 @@ Once `1.0.0` ships, the latest major and the previous major receive security fix
 Use GitHub's private vulnerability reporting:
 [Report a vulnerability](https://github.com/mustafakbaser/agentcheck/security/advisories/new).
 
-If that is unavailable, email **mkursatbaser@gmail.com** with the subject line
+If that is unavailable, email **info@mustafabaser.net** with the subject line
 `[agentcheck security]`.
 
 Please include:
