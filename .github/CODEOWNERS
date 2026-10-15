@@ -1,0 +1,7 @@
+# Default owner for everything. Security-sensitive paths are listed explicitly so the rule
+# survives if more owners are added for other areas.
+*                         @mustafakbaser
+/src/io/                  @mustafakbaser
+/src/report/sanitize.ts   @mustafakbaser
+/.github/workflows/       @mustafakbaser
+/pnpm-workspace.yaml      @mustafakbaser
