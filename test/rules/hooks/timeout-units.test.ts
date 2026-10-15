@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import {
+  describeTimeout,
+  looksLikeMilliseconds,
+  timeoutUnitsRule,
+} from '../../../src/rules/hooks/timeout-units.js';
+import { findings, lint } from '../../helpers/lint.js';
+import { json, rangeOf } from '../json/helpers.js';
+
+const ID = 'hooks/timeout-units';
+const rules = [timeoutUnitsRule];
+
+function nested(timeout: unknown, event = 'PreToolUse') {
+  return {
+    hooks: { [event]: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'x', timeout }] }] },
+  };
+}
+
+function gemini(timeout: unknown) {
+  return nested(timeout, 'BeforeTool');
+}
+
+describe('hooks/timeout-units', () => {
+  it('reports a millisecond-looking value in Claude Code settings', () => {
+    const text = json(nested(5000));
+    expect(findings(lint({ '.claude/settings.json': text }, { rules }), ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'warn',
+        path: '.claude/settings.json',
+        message:
+          'Hook timeout is 5,000 seconds (about 83 minutes), because Claude Code reads "timeout" in seconds. If you meant 5,000 milliseconds, write 5.',
+        range: rangeOf(text, '5000'),
+      },
+    ]);
+  });
+
+  it('reports seconds in Gemini CLI settings', () => {
+    const text = json(gemini(30));
+    expect(findings(lint({ '.gemini/settings.json': text }, { rules }), ID)[0]?.message).toBe(
+      'Hook timeout is 30 milliseconds (0.03 seconds), because Gemini CLI reads "timeout" in milliseconds. If you meant 30 seconds, write 30000.',
+    );
+    expect(
+      findings(lint({ '.gemini/settings.json': json(gemini(0.5)) }, { rules }), ID)[0]?.message,
+    ).toContain('Hook timeout is 0.5 milliseconds (0.0005 seconds),');
+  });
+
+  it('checks Cursor and Codex files', () => {
+    const cursor = json({
+      version: 1,
+      hooks: { beforeShellExecution: [{ command: 'x', timeout: 10000 }] },
+    });
+    expect(findings(lint({ '.cursor/hooks.json': cursor }, { rules }), ID)[0]?.message).toMatch(
+      /^Hook timeout is 10,000 seconds \(about 3 hours\), because Cursor reads/,
+    );
+    expect(
+      findings(lint({ '.codex/hooks.json': json(nested(600_000)) }, { rules }), ID)[0]?.message,
+    ).toMatch(
+      /\(about 7 days\), because Codex reads "timeout" in seconds\. If you meant 600,000 milliseconds, write 600\.$/,
+    );
+  });
+
+  it('does not report plausible values', () => {
+    const files: Record<string, string> = {};
+    [30, 600, 1200, 1800, 3600, 999, 7200].forEach((value, i) => {
+      files[`p${i}/.claude/settings.json`] = json(nested(value));
+    });
+    [1000, 5000, 60000, 0, -5, 'fast'].forEach((value, i) => {
+      files[`g${i}/.gemini/settings.json`] = json(gemini(value));
+    });
+    expect(findings(lint(files, { rules }), ID)).toEqual([]);
+  });
+
+  it('classifies values and skips non-finite ones', () => {
+    expect([1000, 1500, 30000, 86400, 1800, 3600, 999].map(looksLikeMilliseconds)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    expect(describeTimeout('claude-code', Number.POSITIVE_INFINITY)).toBeUndefined();
+    expect(describeTimeout('codex', 1500)).toBe(
+      'Hook timeout is 1,500 seconds (about 25 minutes), because Codex reads "timeout" in seconds. If you meant 1,500 milliseconds, write 2.',
+    );
+  });
+
+  it('skips hooks under unknown events, which never run', () => {
+    const text = json({
+      hooks: { preToolUse: [{ hooks: [{ type: 'command', command: 'x', timeout: 5000 }] }] },
+    });
+    expect(findings(lint({ '.claude/settings.json': text }, { rules }), ID)).toEqual([]);
+  });
+
+  it('respects targets', () => {
+    expect(
+      findings(
+        lint({ '.claude/settings.json': json(nested(5000)) }, { rules, targets: ['gemini'] }),
+        ID,
+      ),
+    ).toEqual([]);
+  });
+});
