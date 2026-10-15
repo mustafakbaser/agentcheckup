@@ -41,7 +41,7 @@ const CLEAN: DriftReport = {
 };
 
 describe('formatText', () => {
-  it('lists changed and unreachable URLs with their rules, and unchanged ones as a count', () => {
+  it('lists changed and unreachable URLs with their users, and unchanged ones as a count', () => {
     const text = formatText({ ...REPORT, unreachable: REPORT.unreachable.slice(0, 1) });
     expect(text).toBe(
       [
@@ -49,23 +49,23 @@ describe('formatText', () => {
         '',
         'Changed (2):',
         '  https://code.claude.com/docs/en/memory',
-        '    rules: instr/import-depth, instr/claude-md-too-long',
+        '    used by: instr/import-depth, instr/claude-md-too-long',
         '    hash: aaaaaaaaaaaa -> bbbbbbbbbbbb',
         '  https://cursor.com/docs/rules',
-        '    rules: cursor/glob',
+        '    used by: cursor/glob',
         '    hash: not in the baseline -> aaaaaaaaaaaa',
         '',
         'Unreachable (1):',
         '  https://docs.example/gone',
         '    reason: HTTP 404',
-        '    rules: mcp/x',
+        '    used by: mcp/x',
         '',
         'Unchanged: 1',
-        'No longer cited by any rule (--update removes them): 1',
+        'No longer cited by any rule or loader (--update removes them): 1',
         '  https://old.example/',
         'Not checked, in this repository: 1',
         '',
-        'Re-read each changed source and update the rule or its `checked` date. Then run',
+        'Re-read each changed source and update the rules, the loaders or the `checked` date. Then run',
         '`pnpm drift:update --only <url>` and commit scripts/drift/baseline.json in the same pull request.',
         '',
       ].join('\n'),

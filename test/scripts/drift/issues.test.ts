@@ -107,6 +107,12 @@ describe('changedIssueBody', () => {
     expect(body).toContain('`pnpm drift:update --only <url>`');
   });
 
+  it('lists the context loaders as a user, without a rule link', () => {
+    const body = changedIssueBody({ ...CHANGED, rules: ['context loaders', 'mcp/x'] });
+    expect(body).toContain('## Used by\n\n- context loaders\n- [`mcp/x`]');
+    expect(body).toContain('compare it with the load plans in `src/platforms/load`');
+  });
+
   it('has a plain title with the URL', () => {
     expect(changedIssueTitle(DOCS)).toBe(`Source changed: ${DOCS}`);
   });

@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { parseBaseline } from '../../../scripts/drift/baseline.js';
 import {
   buildSourceIndex,
+  CONTEXT_LOADERS,
   isOwnRepositoryUrl,
   splitOwnSources,
 } from '../../../scripts/drift/sources.js';
+import { DIRECTIVE_RULES } from '../../../src/core/directive-rules.js';
 import type { RuleSource } from '../../../src/core/types.js';
+import { SOURCES } from '../../../src/platforms/sources.js';
 import { builtinRules } from '../../../src/rules/index.js';
 
 function source(url: string): RuleSource {
@@ -44,6 +49,46 @@ describe('buildSourceIndex', () => {
       expect(ids.length).toBeGreaterThan(0);
       expect(url.startsWith('https://')).toBe(true);
     }
+  });
+});
+
+describe('buildSourceIndex with the shared source table', () => {
+  const index = buildSourceIndex(
+    [...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES],
+    SOURCES,
+  );
+
+  it('watches every entry of src/platforms/sources.ts, as used by the context loaders', () => {
+    for (const [key, source] of Object.entries(SOURCES)) {
+      expect(index.get(source.url), key).toContain(CONTEXT_LOADERS);
+    }
+    // Cited by the Cursor loader only, never by a rule.
+    expect(index.get(SOURCES.cursorThirdPartyHooks.url)).toEqual([CONTEXT_LOADERS]);
+    // Cited by rules and loaders.
+    expect(index.get(SOURCES.claudeMemory.url)).toEqual(
+      expect.arrayContaining([CONTEXT_LOADERS, 'instr/claude-md-too-long']),
+    );
+  });
+
+  it('lists users sorted and once, rule ids next to the loaders', () => {
+    const merged = buildSourceIndex([{ id: 'z/rule', sources: [source(A)] }], {
+      one: source(A),
+      two: source(A),
+      three: source(B),
+    });
+    expect([...merged]).toEqual([
+      [A, [CONTEXT_LOADERS, 'z/rule']],
+      [B, [CONTEXT_LOADERS]],
+    ]);
+  });
+
+  it('the committed baseline has a hash for every watched URL', () => {
+    const baseline = parseBaseline(
+      readFileSync(new URL('../../../scripts/drift/baseline.json', import.meta.url), 'utf8'),
+    );
+    const { watched } = splitOwnSources(index);
+    expect([...watched.keys()].filter((url) => !baseline.has(url))).toEqual([]);
+    expect([...baseline.keys()].filter((url) => !watched.has(url))).toEqual([]);
   });
 });
 
