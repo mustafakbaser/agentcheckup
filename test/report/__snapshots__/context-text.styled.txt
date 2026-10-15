@@ -1,0 +1,77 @@
+<b>Claude Code context · packages/api</b>
+<dim>Assumes claude.instructionsMode = claude-md-or-agents-md (default), claude.session = interactive (default), claude.version = >=2.1.277 (default)</dim>
+<dim>Not visible: managed CLAUDE.md (managed); ~/.claude.json, ~/.claude/CLAUDE.md, ~/.claude/rules, ~/.claude/skills (user)</dim>
+
+<b>At session start</b>                         <dim>   bytes  ≈tokens</dim>
+   1  CLAUDE.md                             1,204      301
+   2    └ @AGENTS.md                        6,880    1,720
+   3  packages/api/CLAUDE.md                  412      103
+  4?  .claude/rules/testing.md                980      245
+   5  Skills listing (4 skills, metadata)   1,310      328
+<b>                                    Total  10,786  ≈ 2,697</b>
+  MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github@1.4.0 (pinned)
+  Hooks:            PreToolUse Bash → scripts/hooks/guard.sh <yellow>(fails open)</yellow>
+
+<b>On demand</b>
+  .claude/skills/deploy/SKILL.md   body 9,402 bytes ≈ 2,351, when the model picks it
+  .claude/skills/docs/SKILL.md     body 1,200 bytes ≈ 300, when the model picks it
+  .claude/skills/lint/SKILL.md     body 1,500 bytes ≈ 375, when the model picks it
+  .claude/skills/release/SKILL.md  body 2,000 bytes ≈ 500, when the model picks it
+  .claude/rules/api.md             900 bytes ≈ 225, when Claude opens src/api/**
+  .claude/agents/reviewer.md       1,500 bytes ≈ 375, when the model picks it
+  .claude/commands/release.md      600 bytes ≈ 150, when you run /release
+
+<b>Skipped</b>
+  .mcp.json › docs        "url" without "type"                     <gray>mcp/url-without-type</gray>
+  packages/api/AGENTS.md  a CLAUDE.md on the path is read instead  <gray>instr/agents-md-ignored-by-claude</gray>
+
+<dim>Not read by Claude Code: .cursor/rules/api.mdc</dim>
+
+<b>Codex context · packages/api</b>
+<dim>Assumes codex.project_doc_max_bytes = 32,768 (rule option)</dim>
+<dim>Not visible: $CODEX_HOME/AGENTS.md, ~/.agents/skills, ~/.codex/config.toml (user)</dim>
+
+<b>At session start</b>                                          <dim>   bytes  ≈tokens</dim>
+  1  AGENTS.md                                               6,880    1,720
+  2  <yellow>packages/api/AGENTS.md (cut at byte 25,888, line 812)</yellow>  26,130    6,472
+     Skills listing (1 skill, metadata)                        240       60
+<b>                                                     Total  33,250  ≈ 8,252</b>
+  Hooks, asks first:  Stop → node scripts/notify.js
+
+<b>On demand</b>
+  .agents/skills/release-notes/SKILL.md  body 3,100 bytes ≈ 775, when the model picks it
+
+<dim>Not read by Codex: CLAUDE.md</dim>
+
+<b><yellow>Incomplete</yellow></b>
+  .codex/config.toml  not analyzed: agentcheckup does not parse this format
+
+<b>Cursor context · ./</b>
+<dim>Assumes cursor.mode = agent (default), cursor.thirdPartyConfigs = true (default)</dim>
+<dim>Not visible: Team rules (team)</dim>
+
+<b>At session start</b><dim>  bytes  ≈tokens</dim>
+  1  AGENTS.md    6,880    1,720
+  2  CLAUDE.md    1,204      301
+<b>           Total  8,084  ≈ 2,021</b>
+  MCP:  browser  stdio  npx -y @acme/browser-mcp <yellow>(not pinned)</yellow>
+
+<b>On demand</b>
+  .cursor/rules/api.mdc  1,100 bytes ≈ 275, when Cursor opens src/api/**/*.ts, src/routes/**
+
+<b>Skipped</b>
+  .cursor/rules/style.md  only .mdc files are read here  <gray>cursor/md-file-ignored</gray>
+
+                               <b>Claude Code</b>   <b>Codex</b>       <b>Cursor</b>
+.agents/skills/release-notes   <dim>—</dim>             listed      listed
+.claude/skills/deploy          listed        <dim>—</dim>           listed
+.cursor/rules/api.mdc          <dim>—</dim>             <dim>—</dim>           on-path
+.cursor/rules/style.md         <dim>—</dim>             <dim>—</dim>           <yellow>skipped</yellow>
+.mcp.json                      <yellow>skipped</yellow>       <dim>—</dim>           <dim>—</dim>
+AGENTS.md                      <yellow>skipped</yellow>       <green>startup</green>     <green>startup</green>
+CLAUDE.md                      <green>startup</green>       <dim>—</dim>           <green>startup</green>
+packages/api/AGENTS.md         <yellow>skipped</yellow>       start-dir   on-path
+packages/web/AGENTS.md         <yellow>skipped</yellow>       <yellow>partial</yellow>     on-path
+
+<dim>≈tokens = characters ÷ 4</dim>
+<dim>? = unverified: neither documentation nor source code confirms it</dim>

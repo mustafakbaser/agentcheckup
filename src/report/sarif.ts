@@ -86,6 +86,8 @@ interface SarifResult {
   readonly locations: readonly SarifLocation[];
   readonly relatedLocations?: readonly SarifLocation[];
   readonly partialFingerprints: Readonly<Record<string, string>>;
+  /** The finding against the `--baseline` report, when the scan ran with one. */
+  readonly baselineState?: 'new' | 'unchanged';
   readonly suppressions?: readonly {
     readonly kind: 'inSource' | 'external';
     readonly justification: string;
@@ -272,6 +274,7 @@ function toResult(finding: Finding, ruleIndex: number): SarifResult {
     locations: [{ physicalLocation: physicalLocation(finding.path, finding.range) }],
     ...(related.length > 0 ? { relatedLocations: related } : {}),
     partialFingerprints: { [FINGERPRINT_KEY]: finding.fingerprint },
+    ...(finding.baseline === undefined ? {} : { baselineState: finding.baseline }),
     ...(finding.suppressed
       ? {
           suppressions: [

@@ -91,7 +91,14 @@
     "configWarnings": {
       "type": "array",
       "items": { "type": "string" }
-    }
+    },
+    "pathBase": {
+      "description": "The directory prefix added to every path so that paths read relative to where the command ran (POSIX, no trailing slash). Absent or empty when paths are relative to the scanned directory. `--baseline` removes it before comparing two reports.",
+      "type": "string"
+    },
+    "inventory": { "$ref": "#/$defs/inventory" },
+    "context": { "$ref": "#/$defs/contextReport" },
+    "baseline": { "$ref": "#/$defs/baselineDiff" }
   },
   "$defs": {
     "count": { "type": "integer", "minimum": 0 },
@@ -250,7 +257,11 @@
           "pattern": "^[0-9a-f]+:[1-9][0-9]*$"
         },
         "fix": { "$ref": "#/$defs/fix" },
-        "suppressed": { "$ref": "#/$defs/suppression" }
+        "suppressed": { "$ref": "#/$defs/suppression" },
+        "baseline": {
+          "description": "Set when the scan ran with `--baseline`: `new` when no baseline finding is left to match the fingerprint, otherwise `unchanged`.",
+          "enum": ["new", "unchanged"]
+        }
       }
     },
     "categoryTally": {
@@ -410,6 +421,753 @@
       "properties": {
         "ruleId": { "type": "string", "minLength": 1 },
         "message": { "type": "string" }
+      }
+    },
+    "relativePath": {
+      "description": "POSIX path relative to the scan root. Empty for the root itself.",
+      "type": "string"
+    },
+    "contextAgent": {
+      "description": "Agents with a load model, in platform order.",
+      "enum": ["claude-code", "codex", "cursor"]
+    },
+    "loadRole": {
+      "enum": [
+        "instructions",
+        "import",
+        "rule",
+        "skill",
+        "subagent",
+        "command",
+        "mcp-server",
+        "hook"
+      ]
+    },
+    "loadTrigger": {
+      "description": "When the agent adds the entry to the model's context.",
+      "enum": ["startup", "on-path", "model-selected", "manual", "on-approval"]
+    },
+    "certainty": {
+      "description": "How a loading claim is backed. Text output marks `unverified` with \"?\".",
+      "enum": ["documented", "source-code", "unverified"]
+    },
+    "sourceKeys": {
+      "description": "Keys into `context.sources`, sorted.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "chars", "tokens"],
+      "properties": {
+        "bytes": { "description": "Size of the file on disk.", "$ref": "#/$defs/count" },
+        "chars": {
+          "description": "Code points the agent receives after documented transforms.",
+          "$ref": "#/$defs/count"
+        },
+        "tokens": {
+          "description": "Estimate: `ceil(chars / 4)`. Never drives a finding or the score.",
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "loadEntry": {
+      "description": "One thing the agent loads, or may load once its trigger fires.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "trigger", "path", "realPath", "certainty", "evidence"],
+      "properties": {
+        "id": {
+          "description": "`<role>:<path>` or `<role>:<path>#<name>`. Unique within a plan.",
+          "type": "string",
+          "minLength": 1
+        },
+        "role": { "$ref": "#/$defs/loadRole" },
+        "trigger": { "$ref": "#/$defs/loadTrigger" },
+        "position": {
+          "description": "1-based assembly order of startup context. Startup entries only.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "path": {
+          "description": "The path as the agent reaches it; may be a symlink alias of `realPath`.",
+          "$ref": "#/$defs/path"
+        },
+        "realPath": { "$ref": "#/$defs/path" },
+        "name": { "type": "string" },
+        "via": {
+          "description": "For imports: the files that led here, root instruction file first.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "patterns": {
+          "description": "For `on-path` entries: the globs, or the directory, that trigger loading, as written.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "size": {
+          "description": "What the entry adds to context. For a skill, its listing text.",
+          "$ref": "#/$defs/size"
+        },
+        "deferred": {
+          "description": "For a skill: the body, loaded only when the skill is used.",
+          "$ref": "#/$defs/size"
+        },
+        "truncated": {
+          "description": "Set when a limit cuts the file: the byte where the cut falls and its line.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["atByte", "line"],
+          "properties": {
+            "atByte": { "$ref": "#/$defs/count" },
+            "line": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "inventoryId": {
+          "description": "For MCP servers and hooks: the id of the matching inventory item.",
+          "type": "string",
+          "minLength": 1
+        },
+        "certainty": { "$ref": "#/$defs/certainty" },
+        "evidence": { "$ref": "#/$defs/sourceKeys" }
+      }
+    },
+    "skipCode": {
+      "enum": [
+        "shadowed-by-claude-md",
+        "shadowed-by-override",
+        "over-byte-budget",
+        "empty-override",
+        "blank-file",
+        "not-mdc",
+        "no-frontmatter",
+        "invalid-frontmatter",
+        "bom",
+        "no-description",
+        "invalid-subagent",
+        "import-unresolved",
+        "import-too-deep",
+        "import-outside-root",
+        "url-without-type",
+        "unknown-event",
+        "invalid-json",
+        "not-utf8",
+        "case-mismatch",
+        "materialized-symlink",
+        "not-read"
+      ]
+    },
+    "skippedLoad": {
+      "description": "A file or item the agent would consider but skips.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "path", "code", "certainty", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "role": { "$ref": "#/$defs/loadRole" },
+        "path": { "$ref": "#/$defs/path" },
+        "name": { "type": "string" },
+        "code": { "$ref": "#/$defs/skipCode" },
+        "ruleId": {
+          "description": "The loading rule whose finding reports this skip. Absent only for `not-read`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "certainty": { "$ref": "#/$defs/certainty" },
+        "evidence": { "$ref": "#/$defs/sourceKeys" }
+      }
+    },
+    "outOfScope": {
+      "description": "A file the plan leaves out on purpose.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "because"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "because": {
+          "enum": ["below-start-dir", "other-agent-plugin", "payload-folder", "documentation"]
+        }
+      }
+    },
+    "assumption": {
+      "description": "A setting the repository cannot show, stated so that the reader can check it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value", "origin", "evidence"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "value": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] },
+        "origin": { "enum": ["default", "rule-option", "repository", "flag"] },
+        "evidence": { "$ref": "#/$defs/sourceKeys" }
+      }
+    },
+    "hiddenScope": {
+      "description": "A scope outside the repository that can add to the plan. Listed, never read.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "locations", "roles"],
+      "properties": {
+        "scope": { "enum": ["managed", "user", "global", "team", "account", "plugin"] },
+        "locations": {
+          "description": "Display text such as `~/.claude/CLAUDE.md`. Never resolved or read.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "roles": { "type": "array", "items": { "$ref": "#/$defs/loadRole" }, "uniqueItems": true }
+      }
+    },
+    "limitUsage": {
+      "description": "How much of a documented limit the repository uses.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "unit", "limit", "used", "subject", "effect", "evidence"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "unit": { "enum": ["bytes", "chars", "lines", "hops", "context-fraction"] },
+        "limit": {
+          "description": "Null when the limit depends on the model's context window and none was given.",
+          "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }]
+        },
+        "used": { "type": "number", "minimum": 0 },
+        "subject": {
+          "description": "What the usage is measured on: a path, or the directory that holds a group of files.",
+          "type": "string"
+        },
+        "effect": { "enum": ["skips", "truncates", "shortens", "advice"] },
+        "evidence": { "$ref": "#/$defs/sourceKeys" }
+      }
+    },
+    "loadPlan": {
+      "description": "What one agent loads for a session started in `cwd`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent",
+        "cwd",
+        "entries",
+        "skipped",
+        "outOfScope",
+        "assumptions",
+        "hidden",
+        "limits",
+        "totals",
+        "incomplete"
+      ],
+      "properties": {
+        "agent": { "$ref": "#/$defs/contextAgent" },
+        "cwd": {
+          "description": "Working directory of the session. Empty for the scan root.",
+          "$ref": "#/$defs/relativePath"
+        },
+        "entries": {
+          "description": "Sorted by position, trigger, path, id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/loadEntry" }
+        },
+        "skipped": {
+          "description": "Sorted by path, id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/skippedLoad" }
+        },
+        "outOfScope": {
+          "description": "Sorted by path.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/outOfScope" }
+        },
+        "assumptions": {
+          "description": "Sorted by key.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/assumption" }
+        },
+        "hidden": { "type": "array", "items": { "$ref": "#/$defs/hiddenScope" } },
+        "limits": {
+          "description": "Sorted by key, subject.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/limitUsage" }
+        },
+        "totals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startup", "onDemand"],
+          "properties": {
+            "startup": { "description": "Context at session start.", "$ref": "#/$defs/size" },
+            "onDemand": {
+              "description": "The most that other triggers can add.",
+              "$ref": "#/$defs/size"
+            }
+          }
+        },
+        "incomplete": {
+          "description": "Parts that could not be analyzed, so entries may be missing: `markdown-budget:<path>`, `unparsed:<path>`, `unread:<path>`.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "matrixCell": {
+      "description": "`not-read`: the agent does not read this file (shown as \"—\").",
+      "enum": [
+        "startup",
+        "on-path",
+        "start-dir",
+        "listed",
+        "model-selected",
+        "manual",
+        "partial",
+        "skipped",
+        "unknown",
+        "not-read"
+      ]
+    },
+    "contextReport": {
+      "description": "Load plans: what each agent loads (`agentcheckup context`, or a scan with `--context`).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agents", "sources", "plans"],
+      "properties": {
+        "agents": {
+          "description": "In platform order. Matrix cell `i` belongs to agent `i`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextAgent" },
+          "uniqueItems": true
+        },
+        "sources": {
+          "description": "Every source cited by `evidence`, by key, sorted.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ruleSource" }
+        },
+        "plans": {
+          "description": "Sorted by agent, then cwd.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/loadPlan" }
+        },
+        "matrix": {
+          "description": "File-by-agent matrix, with `--matrix`.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "description": "Sorted by path.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "kind", "cells"],
+                "properties": {
+                  "path": { "$ref": "#/$defs/path" },
+                  "kind": { "$ref": "#/$defs/artifactKind" },
+                  "cells": { "type": "array", "items": { "$ref": "#/$defs/matrixCell" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "packageSpec": {
+      "description": "How an MCP server's code is fetched.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launcher", "pin"],
+      "properties": {
+        "launcher": {
+          "enum": [
+            "npx",
+            "pnpm-dlx",
+            "bunx",
+            "yarn-dlx",
+            "uvx",
+            "pipx",
+            "docker",
+            "local",
+            "unknown"
+          ]
+        },
+        "ecosystem": { "enum": ["npm", "pypi", "oci"] },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "pin": { "enum": ["exact", "digest", "range", "tag", "none", "local", "unknown"] }
+      }
+    },
+    "mcpServerItem": {
+      "description": "One MCP server entry.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "file",
+        "line",
+        "platforms",
+        "digest",
+        "name",
+        "transport",
+        "envKeys",
+        "headerKeys",
+        "status"
+      ],
+      "properties": {
+        "id": { "description": "`mcp:<file>#<name>`.", "type": "string", "minLength": 1 },
+        "file": {
+          "description": "The config file that declares the item.",
+          "$ref": "#/$defs/path"
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "digest": {
+          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        },
+        "name": { "type": "string" },
+        "transport": { "enum": ["stdio", "http", "sse", "ws", "unknown"] },
+        "declaredType": { "description": "The `type` value as written.", "type": "string" },
+        "command": { "type": "string" },
+        "args": {
+          "description": "Secret-looking arguments are redacted.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "package": { "$ref": "#/$defs/packageSpec" },
+        "url": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["origin", "tls", "loopback"],
+          "properties": {
+            "origin": {
+              "description": "URL origin only, never the path or query.",
+              "type": "string"
+            },
+            "tls": { "type": "boolean" },
+            "loopback": { "type": "boolean" }
+          }
+        },
+        "envKeys": {
+          "description": "Names only, never values.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "headerKeys": {
+          "description": "Names only, never values.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "description": "What each agent that reads `file` does with the server.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/platformId" },
+          "additionalProperties": { "enum": ["loads", "needs-approval", "skipped"] }
+        }
+      }
+    },
+    "hookItem": {
+      "description": "One hook command.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "file",
+        "line",
+        "platforms",
+        "digest",
+        "event",
+        "known",
+        "failsOpen",
+        "remoteScript"
+      ],
+      "properties": {
+        "id": {
+          "description": "`hook:<file>#<event>:<digest of command>`, plus an occurrence number for repeats.",
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "description": "The config file that declares the item.",
+          "$ref": "#/$defs/path"
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "digest": {
+          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        },
+        "event": { "type": "string" },
+        "known": {
+          "description": "False when the event is not documented, so the hook never runs.",
+          "type": "boolean"
+        },
+        "matcher": { "type": "string" },
+        "type": { "type": "string" },
+        "command": { "type": "string" },
+        "script": {
+          "description": "The repository script the command runs, when it can be told.",
+          "type": "string"
+        },
+        "failsOpen": {
+          "description": "True when an error or timeout lets the action go ahead.",
+          "type": "boolean"
+        },
+        "remoteScript": {
+          "description": "True when the command downloads and runs a script.",
+          "type": "boolean"
+        }
+      }
+    },
+    "permissionItem": {
+      "description": "One permission value.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "file",
+        "line",
+        "platforms",
+        "digest",
+        "key",
+        "value",
+        "broad",
+        "effective"
+      ],
+      "properties": {
+        "id": { "description": "`perm:<file>#<key>=<value>`.", "type": "string", "minLength": 1 },
+        "file": {
+          "description": "The config file that declares the item.",
+          "$ref": "#/$defs/path"
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "digest": {
+          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        },
+        "key": { "type": "string", "minLength": 1 },
+        "value": { "type": "string" },
+        "broad": { "description": "True when the value grants wide access.", "type": "boolean" },
+        "effective": {
+          "description": "False when the agent ignores the value where it is set.",
+          "type": "boolean"
+        }
+      }
+    },
+    "envItem": {
+      "description": "One environment override.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "file", "line", "platforms", "digest", "key", "class"],
+      "properties": {
+        "id": { "description": "`env:<file>#<key>`.", "type": "string", "minLength": 1 },
+        "file": {
+          "description": "The config file that declares the item.",
+          "$ref": "#/$defs/path"
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "platforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/platformId" },
+          "uniqueItems": true
+        },
+        "digest": {
+          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        },
+        "key": { "type": "string", "minLength": 1 },
+        "class": { "enum": ["endpoint", "credential", "tls", "code-exec", "other"] },
+        "shown": {
+          "description": "For `endpoint` only: the URL origin. Never a credential value.",
+          "type": "string"
+        }
+      }
+    },
+    "inventory": {
+      "description": "Security inventory: every MCP server, hook, permission and environment override in the repository, whether or not an agent loads it. Never holds credential values.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mcpServers", "hooks", "permissions", "env", "incomplete"],
+      "properties": {
+        "mcpServers": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/mcpServerItem" }
+        },
+        "hooks": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/hookItem" }
+        },
+        "permissions": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/permissionItem" }
+        },
+        "env": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/envItem" }
+        },
+        "incomplete": {
+          "description": "Config files that could not be analyzed, so items may be missing.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "gateClass": { "enum": ["mcp", "mcp-unpinned", "permissions", "hooks", "env", "unicode"] },
+    "itemDiff": {
+      "description": "Ids added, removed and changed between the baseline and this scan, sorted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "removed", "changed"],
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "fields"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "fields": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "planDelta": {
+      "description": "Change in one load plan present in both reports.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "cwd", "entries", "skipped", "startupTokens", "limits"],
+      "properties": {
+        "agent": { "$ref": "#/$defs/contextAgent" },
+        "cwd": { "$ref": "#/$defs/relativePath" },
+        "entries": { "$ref": "#/$defs/itemDiff" },
+        "skipped": { "$ref": "#/$defs/itemDiff" },
+        "startupTokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "$ref": "#/$defs/count" },
+            "after": { "$ref": "#/$defs/count" }
+          }
+        },
+        "limits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "subject", "before", "after", "limit"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "subject": { "type": "string" },
+              "before": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+              "after": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+              "limit": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] }
+            }
+          }
+        }
+      }
+    },
+    "gateHit": {
+      "description": "One change that trips the gate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "id", "change", "summary"],
+      "properties": {
+        "class": { "$ref": "#/$defs/gateClass" },
+        "id": {
+          "description": "The inventory item id; for `unicode`, the finding's fingerprint.",
+          "type": "string",
+          "minLength": 1
+        },
+        "change": { "enum": ["added", "changed"] },
+        "summary": {
+          "description": "One line for the pull request summary. Untrusted text.",
+          "type": "string"
+        }
+      }
+    },
+    "baselineDiff": {
+      "description": "Comparison with the `--baseline` report. Paths are compared after removing each report's `pathBase`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["against", "findings", "inventory", "context", "gate"],
+      "properties": {
+        "against": {
+          "description": "The baseline report's tool and rule set versions.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "ruleset", "sameRuleset"],
+          "properties": {
+            "version": { "type": "string", "minLength": 1 },
+            "ruleset": { "type": "string", "minLength": 1 },
+            "sameRuleset": { "type": "boolean" }
+          }
+        },
+        "findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["new", "unchanged", "resolved"],
+          "properties": {
+            "new": { "$ref": "#/$defs/count" },
+            "unchanged": { "$ref": "#/$defs/count" },
+            "resolved": {
+              "description": "Baseline findings with no match in this scan, sorted by path.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ruleId", "path", "fingerprint"],
+                "properties": {
+                  "ruleId": { "type": "string", "minLength": 1 },
+                  "path": { "$ref": "#/$defs/path" },
+                  "fingerprint": { "type": "string", "pattern": "^[0-9a-f]+:[1-9][0-9]*$" }
+                }
+              }
+            }
+          }
+        },
+        "inventory": { "$ref": "#/$defs/itemDiff" },
+        "context": {
+          "description": "Only for (agent, cwd) pairs present in both reports.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/planDelta" }
+        },
+        "gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classes", "hits"],
+          "properties": {
+            "classes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/gateClass" },
+              "uniqueItems": true
+            },
+            "hits": {
+              "description": "Changes that trip the gate. Removals never do.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/gateHit" }
+            }
+          }
+        }
       }
     }
   }

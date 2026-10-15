@@ -183,6 +183,27 @@ export function forTerminal(text: string, options: TerminalTextOptions = {}): st
   return neutralize(text, { lineBreak });
 }
 
+/**
+ * Terminal output is also read by the GitHub Actions runner, which treats every log line whose
+ * first non-blank characters are `::` as a workflow command (it trims leading white space before
+ * parsing). A scanned path printed at the start of a line could therefore fake an annotation or
+ * switch command processing off with `::stop-commands::`. This renders the first colon of such
+ * a line as `<U+003A>`. Apply it to the whole output, after {@link forTerminal}: line breaks in
+ * untrusted text are already markers, so every `\n` here is one the formatter wrote.
+ * https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommandManager.cs
+ */
+export function guardWorkflowCommands(text: string): string {
+  if (!text.includes('::')) return text;
+  return text
+    .split('\n')
+    .map((line) => {
+      const start = line.length - line.trimStart().length;
+      if (!line.startsWith('::', start)) return line;
+      return `${line.slice(0, start)}${codePointLabel(0x3a)}${line.slice(start + 1)}`;
+    })
+    .join('\n');
+}
+
 // ---------------------------------------------------------------------------------------------
 // GitHub Actions workflow commands
 // ---------------------------------------------------------------------------------------------

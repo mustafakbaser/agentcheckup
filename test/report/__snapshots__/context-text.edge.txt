@@ -1,0 +1,30 @@
+Codex context · ./
+Assumes ratio = 0.5 (from a flag), repo = x (from the repository)
+
+At session start                         bytes  ≈tokens
+  1  AGENTS.md
+  2  link.md → docs/real.md                  4        1
+     Skills listing (1 skill, metadata)      8        2
+                                  Total     12      ≈ 3
+  MCP:                 bare  unknown
+                       local  stdio  ./bin/server (local)
+                       loop  http  http://127.0.0.1:3000
+                       odd  stdio  run
+  Hooks, on path:      Stop → ?
+  Hooks, when picked:  Stop
+  Hooks, manual:       Stop
+
+On demand
+  .agents/skills/a/SKILL.md         body 80 bytes ≈ 20, when the model picks it
+  nested/.agents/skills/b/SKILL.md  body 40 bytes ≈ 10, when Codex opens nested
+  nested/AGENTS.md                  when Codex opens a matching file
+  .agents/skills/c/SKILL.md         12 bytes ≈ 3, only when you ask for it
+  r.md                              4 bytes ≈ 1, only when you ask for it
+  q.md                              after you approve it ?
+
+Incomplete
+  big.md         not analyzed: the scan's Markdown budget ran out
+  mystery:thing  not analyzed
+
+≈tokens = characters ÷ 4
+? = unverified: neither documentation nor source code confirms it

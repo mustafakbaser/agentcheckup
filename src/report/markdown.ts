@@ -4,11 +4,18 @@
  *
  * Size: a PR comment body is limited to 65,536 characters and a step summary to 1 MiB, so the
  * findings table stops at `maxFindings` rows or MAX_TABLE_CHARACTERS, whichever comes first,
- * and says how many findings it left out.
+ * and says how many findings it left out. With `--baseline`, the summary of changes
+ * (baseline-markdown.ts) comes out of the same budget: the findings table gets what it leaves.
  */
 import type { ScanResult } from '../core/engine.js';
-import { REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
+import { REPOSITORY_URL } from '../core/meta.js';
 import { CATEGORIES, type Finding } from '../core/types.js';
+import { baselineSummary } from './baseline-markdown.js';
+import {
+  escaped as text,
+  ruleCode as safeRuleCode,
+  ruleLink as safeRuleLink,
+} from './markdown-common.js';
 import { forMarkdown } from './sanitize.js';
 import {
   breakdown,
@@ -17,7 +24,6 @@ import {
   SEVERITY_RANK,
   SKIP_REASON_LABELS,
   SYMLINK_PROBLEM_LABELS,
-  truncate,
 } from './text.js';
 
 export interface MarkdownOptions {
@@ -26,17 +32,16 @@ export interface MarkdownOptions {
 }
 
 const DEFAULT_MAX_FINDINGS = 50;
-/** Budget for the findings table, leaving room for the rest within GitHub's 65,536. */
+/**
+ * Budget for the findings table and the baseline summary together, leaving room for the rest
+ * within GitHub's 65,536.
+ */
 const MAX_TABLE_CHARACTERS = 50_000;
+/** Most of MAX_TABLE_CHARACTERS the table of baseline changes may take. */
+const MAX_BASELINE_CHARACTERS = 10_000;
 const MAX_MESSAGE_LENGTH = 300;
 const MAX_PATH_LENGTH = 200;
 const MAX_LISTED = 3;
-/** Rule ids that are safe to put in a code span and a docs URL as they are. */
-const SAFE_RULE_ID = /^[a-z\d]+(?:-[a-z\d]+)*\/[a-z\d]+(?:-[a-z\d]+)*$/;
-
-function text(value: string, max: number): string {
-  return forMarkdown(truncate(value, max));
-}
 
 function heading(result: ScanResult): string {
   const { score, grade } = result.score;
@@ -119,37 +124,41 @@ function notices(result: ScanResult): string[] {
   return lines.flatMap((line, index) => (index === 0 ? [line] : ['', line]));
 }
 
-/** `` `rule/id` `` for known-safe ids, otherwise escaped text. */
 function ruleCode(ruleId: string): string {
-  return SAFE_RULE_ID.test(ruleId) ? `\`${ruleId}\`` : text(ruleId, MAX_PATH_LENGTH);
+  return safeRuleCode(ruleId, MAX_PATH_LENGTH);
 }
 
 function ruleLink(ruleId: string): string {
-  return SAFE_RULE_ID.test(ruleId)
-    ? `[\`${ruleId}\`](${ruleDocsUrl(ruleId)})`
-    : text(ruleId, MAX_PATH_LENGTH);
+  return safeRuleLink(ruleId, MAX_PATH_LENGTH);
 }
 
 function findingRow(finding: Finding): string {
   const where = `${text(finding.path, MAX_PATH_LENGTH)}:${finding.range.start.line}`;
   const message = text(finding.message, MAX_MESSAGE_LENGTH);
-  return `| ${where} | ${SEVERITY_LABELS[finding.severity]} | ${ruleLink(finding.ruleId)} | ${message} |`;
+  const severity = SEVERITY_LABELS[finding.severity];
+  const marked = finding.baseline === 'new' ? `**new** ${severity}` : severity;
+  return `| ${where} | ${marked} | ${ruleLink(finding.ruleId)} | ${message} |`;
 }
 
-/** Unsuppressed findings, most severe first, otherwise in report order. */
+/**
+ * Unsuppressed findings: new ones first when the scan has a baseline, then most severe first,
+ * otherwise in report order.
+ */
 function ranked(result: ScanResult): Finding[] {
+  const fresh = (finding: Finding): number => (finding.baseline === 'new' ? 1 : 0);
   return result.findings
     .map((finding, position) => ({ finding, position }))
     .filter((entry) => !entry.finding.suppressed)
     .sort(
       (a, b) =>
+        fresh(b.finding) - fresh(a.finding) ||
         SEVERITY_RANK[b.finding.severity] - SEVERITY_RANK[a.finding.severity] ||
         a.position - b.position,
     )
     .map((entry) => entry.finding);
 }
 
-function findingsSection(result: ScanResult, maxFindings: number): string[] {
+function findingsSection(result: ScanResult, maxFindings: number, budget: number): string[] {
   const findings = ranked(result);
   if (findings.length === 0) {
     return result.score.score === null ? [] : ['No problems found.'];
@@ -158,7 +167,7 @@ function findingsSection(result: ScanResult, maxFindings: number): string[] {
   let size = 0;
   for (const finding of findings.slice(0, maxFindings)) {
     const row = findingRow(finding);
-    if (size + row.length > MAX_TABLE_CHARACTERS) break;
+    if (size + row.length > budget) break;
     rows.push(row);
     size += row.length + 1;
   }
@@ -195,11 +204,18 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
     if (details.length > 0)
       blocks.push(details.flatMap((line, i) => (i === 0 ? [line] : ['', line])));
   }
+  const baseline = baselineSummary(result, MAX_BASELINE_CHARACTERS);
+  if (baseline.length > 0) blocks.push(baseline);
   const failures = ruleFailures(result);
   if (failures.length > 0) blocks.push(failures);
   const notes = notices(result);
   if (notes.length > 0) blocks.push(notes);
-  const findings = findingsSection(result, maxFindings);
+  const baselineSize = baseline.reduce((size, line) => size + line.length + 1, 0);
+  const findings = findingsSection(
+    result,
+    maxFindings,
+    Math.max(0, MAX_TABLE_CHARACTERS - baselineSize),
+  );
   if (findings.length > 0) blocks.push(findings);
   blocks.push([
     '---',

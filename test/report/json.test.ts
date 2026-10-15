@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
+import type { GateClass } from '../../src/core/baseline-types.js';
 import type { ScanResult } from '../../src/core/engine.js';
 import {
   ARTIFACT_KINDS,
@@ -10,7 +11,35 @@ import {
   type SkipReason,
   type SymlinkProblem,
 } from '../../src/core/types.js';
-import { formatJson, toJsonReport } from '../../src/report/json.js';
+import {
+  CONTEXT_AGENTS,
+  type Certainty,
+  type LoadRole,
+  type LoadTrigger,
+  type MatrixCell,
+  type SkipCode,
+} from '../../src/platforms/load/types.js';
+import {
+  formatJson,
+  toJsonBaseline,
+  toJsonContext,
+  toJsonInventory,
+  toJsonReport,
+} from '../../src/report/json.js';
+import {
+  baselineDiff,
+  contextReport,
+  entry,
+  plan,
+  planDelta,
+  sampleBaseline,
+  sampleContext,
+  sampleInventory,
+  shuffleReport,
+  skip,
+  withContext,
+  withHostileContext,
+} from '../helpers/context.js';
 import { cleanResult, emptyResult, richResult } from './fixtures.js';
 import { hostileResult } from './hostile.js';
 import { unsafeCodePoints } from './safety.js';
@@ -31,11 +60,15 @@ const schema = JSON.parse(
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 const validate = ajv.compile(schema);
 
+const contextResult: ScanResult = { ...withContext(richResult), pathBase: 'packages/app' };
+const hostileContextResult: ScanResult = withHostileContext(hostileResult);
+
 const FIXTURES: readonly [string, ScanResult][] = [
   ['clean', cleanResult],
   ['empty', emptyResult],
   ['rich', richResult],
   ['hostile', hostileResult],
+  ['context', contextResult],
 ];
 
 function expectValid(value: unknown): void {
@@ -84,6 +117,215 @@ describe('formatJson', () => {
   it('matches the snapshot', async () => {
     await expect(formatJson(richResult)).toMatchFileSnapshot('__snapshots__/json.rich.txt');
   });
+
+  it('matches the snapshot with inventory, context and baseline', async () => {
+    await expect(formatJson(contextResult)).toMatchFileSnapshot('__snapshots__/json.context.txt');
+  });
+});
+
+describe('formatJson with inventory, context and baseline', () => {
+  it('validates hostile content against the schema and canonicalizes it once', () => {
+    const output = formatJson(hostileContextResult);
+    expectValid(JSON.parse(output));
+    expect(JSON.parse(output)).toEqual(toJsonReport(hostileContextResult));
+    expect(formatJson(JSON.parse(output) as ScanResult)).toBe(output);
+    expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
+  });
+
+  it('keeps the samples as they are: they are already canonical', () => {
+    expect(toJsonContext(sampleContext)).toEqual(sampleContext);
+    expect(toJsonInventory(sampleInventory)).toEqual(sampleInventory);
+    expect(toJsonBaseline(sampleBaseline)).toEqual(sampleBaseline);
+  });
+
+  it('gives byte-identical output whatever order the lists are in', () => {
+    const expected = formatJson(contextResult);
+    for (const seed of [1, 2, 3, 42, 1234]) {
+      expect(formatJson(shuffleReport(contextResult, seed))).toBe(expected);
+    }
+    expect(formatJson(shuffleReport(hostileContextResult, 7))).toBe(
+      formatJson(hostileContextResult),
+    );
+  });
+
+  it('puts agents in platform order and moves matrix cells with them', () => {
+    const context = toJsonContext({
+      ...contextReport([plan('cursor'), plan('claude-code')]),
+      agents: ['cursor', 'claude-code'],
+      matrix: { rows: [{ path: 'CLAUDE.md', kind: 'claude-md', cells: ['startup', 'not-read'] }] },
+    });
+    expect(context.agents).toEqual(['claude-code', 'cursor']);
+    expect(context.plans.map((item) => item.agent)).toEqual(['claude-code', 'cursor']);
+    expect(context.matrix?.rows[0]?.cells).toEqual(['not-read', 'startup']);
+  });
+
+  it('breaks ties on every secondary key and sorts unknown values last', () => {
+    const server = (name: string) =>
+      entry('mcp-server', '.mcp.json', { trigger: 'on-approval', name });
+    const context = toJsonContext({
+      ...contextReport([
+        plan('codex', { cwd: 'b' }),
+        plan('codex', {
+          cwd: 'a',
+          entries: [server('b'), { ...server('z'), trigger: 'later' as LoadTrigger }, server('a')],
+          skipped: [
+            skip('rule', 'x.md', 'not-mdc', { id: 'rule:x.md#2' }),
+            skip('rule', 'x.md', 'not-mdc'),
+          ],
+          outOfScope: [
+            { path: 'x.md', because: 'payload-folder' },
+            { path: 'x.md', because: 'documentation' },
+            { path: 'x.md', because: 'documentation' },
+          ],
+          hidden: [
+            { scope: 'user', locations: ['~/b'], roles: ['hook', 'instructions'] },
+            { scope: 'user', locations: ['~/a'], roles: [] },
+          ],
+          limits: [
+            {
+              key: 'k',
+              unit: 'bytes',
+              limit: 1,
+              used: 2,
+              subject: 'b',
+              effect: 'advice',
+              evidence: [],
+            },
+            {
+              key: 'k',
+              unit: 'bytes',
+              limit: 1,
+              used: 2,
+              subject: 'a',
+              effect: 'advice',
+              evidence: [],
+            },
+          ],
+        }),
+      ]),
+      matrix: {
+        rows: [
+          { path: 'x', kind: 'skill', cells: [] },
+          { path: 'x', kind: 'agents-md', cells: [] },
+        ],
+      },
+    });
+    const [first] = context.plans;
+    expect(context.plans.map((item) => item.cwd)).toEqual(['a', 'b']);
+    expect(first?.entries.map((item) => item.id)).toEqual([
+      'mcp-server:.mcp.json#a',
+      'mcp-server:.mcp.json#b',
+      'mcp-server:.mcp.json#z',
+    ]);
+    expect(first?.skipped.map((item) => item.id)).toEqual(['rule:x.md', 'rule:x.md#2']);
+    expect(first?.outOfScope.map((item) => item.because)).toEqual([
+      'documentation',
+      'documentation',
+      'payload-folder',
+    ]);
+    expect(first?.hidden.map((item) => item.locations[0])).toEqual(['~/a', '~/b']);
+    expect(first?.hidden[1]?.roles).toEqual(['instructions', 'hook']);
+    expect(first?.limits.map((item) => item.subject)).toEqual(['a', 'b']);
+    expect(context.matrix?.rows.map((row) => row.kind)).toEqual(['agents-md', 'skill']);
+
+    const diff = toJsonBaseline(
+      baselineDiff({
+        findings: {
+          new: 0,
+          unchanged: 0,
+          resolved: [
+            { ruleId: 'b/b', path: 'p', fingerprint: '2:1' },
+            { ruleId: 'a/a', path: 'p', fingerprint: '3:1' },
+            { ruleId: 'a/a', path: 'p', fingerprint: '1:1' },
+          ],
+        },
+        inventory: {
+          added: [],
+          removed: [],
+          changed: [
+            { id: 'b', fields: ['y', 'x'] },
+            { id: 'a', fields: [] },
+          ],
+        },
+        context: [
+          planDelta('codex', 1, 1, { cwd: 'b' }),
+          planDelta('codex', 1, 1, {
+            cwd: 'a',
+            limits: [
+              { key: 'k', subject: 'b', before: null, after: 1, limit: null },
+              { key: 'k', subject: 'a', before: null, after: 1, limit: null },
+            ],
+          }),
+        ],
+        gate: {
+          classes: ['env', 'mcp'],
+          hits: [
+            { class: 'mcp', id: 'b', change: 'added', summary: 's' },
+            { class: 'mcp', id: 'a', change: 'changed', summary: 's' },
+            { class: 'mcp', id: 'a', change: 'added', summary: 't' },
+            { class: 'mcp', id: 'a', change: 'added', summary: 's' },
+          ],
+        },
+      }),
+    );
+    expect(diff.findings.resolved.map((item) => item.fingerprint)).toEqual(['1:1', '3:1', '2:1']);
+    expect(diff.inventory.changed).toEqual([
+      { id: 'a', fields: [] },
+      { id: 'b', fields: ['x', 'y'] },
+    ]);
+    expect(diff.context.map((delta) => delta.cwd)).toEqual(['a', 'b']);
+    expect(diff.context[0]?.limits.map((limit) => limit.subject)).toEqual(['a', 'b']);
+    expect(diff.gate.classes).toEqual(['mcp', 'env']);
+    expect(diff.gate.hits.map((hit) => `${hit.id} ${hit.change} ${hit.summary}`)).toEqual([
+      'a added s',
+      'a added t',
+      'a changed s',
+      'b added s',
+    ]);
+  });
+
+  it('reads a missing matrix cell as unknown rather than shifting columns', () => {
+    const context = toJsonContext({
+      ...contextReport([plan('claude-code'), plan('codex')]),
+      matrix: { rows: [{ path: 'AGENTS.md', kind: 'agents-md', cells: ['skipped'] }] },
+    });
+    expect(context.matrix?.rows[0]?.cells).toEqual(['skipped', 'unknown']);
+  });
+
+  it('keeps order that is data: import chains and command arguments', () => {
+    const reversed = {
+      ...sampleInventory,
+      mcpServers: sampleInventory.mcpServers.map((server) => ({
+        ...server,
+        ...(server.args === undefined ? {} : { args: [...server.args].reverse() }),
+      })),
+    };
+    const github = toJsonInventory(reversed).mcpServers.find((server) => server.name === 'github');
+    expect(github?.args).toEqual(['@modelcontextprotocol/server-github@1.4.0', '-y']);
+    const chain = toJsonContext(
+      contextReport([
+        plan('claude-code', {
+          entries: [
+            {
+              ...sampleContext.plans[0]!.entries[1]!,
+              via: ['z.md', 'CLAUDE.md'],
+            },
+          ],
+        }),
+      ]),
+    );
+    expect(chain.plans[0]?.entries[0]?.via).toEqual(['z.md', 'CLAUDE.md']);
+  });
+
+  it('drops runtime-only properties from the new structures', () => {
+    const noisy = {
+      ...contextResult,
+      context: { ...sampleContext, debug: true },
+      inventory: { ...sampleInventory, cache: {} },
+      baseline: { ...sampleBaseline, raw: 'x' },
+    } as unknown as ScanResult;
+    expect(formatJson(noisy)).toBe(formatJson(contextResult));
+  });
 });
 
 describe('schemas/report.schema.json', () => {
@@ -107,6 +349,125 @@ describe('schemas/report.schema.json', () => {
       mutate(report);
       expect(validate(report)).toBe(false);
     }
+  });
+
+  it('rejects bad inventory, context and baseline values', () => {
+    type Json = Record<string, unknown>;
+    const at = (value: unknown, ...keys: (string | number)[]): Json =>
+      keys.reduce<unknown>((node, key) => (node as Json)[key], value) as Json;
+    const report = (): Json => JSON.parse(formatJson(contextResult)) as Json;
+    const cases: ((value: Json) => void)[] = [
+      (value) => (at(value, 'findings', 0)['baseline'] = 'old'),
+      (value) => (value['pathBase'] = 3),
+      (value) => (at(value, 'context', 'plans', 0, 'entries', 0)['trigger'] = 'later'),
+      (value) => (at(value, 'context', 'plans', 0, 'entries', 0)['extra'] = 1),
+      (value) => (at(value, 'context', 'plans', 0, 'entries', 0)['position'] = 0),
+      (value) => (at(value, 'context', 'plans', 0, 'skipped', 0)['code'] = 'gone'),
+      (value) => (at(value, 'context', 'plans', 0)['agent'] = 'copilot'),
+      (value) => (at(value, 'context', 'plans', 0, 'totals', 'startup')['tokens'] = -1),
+      (value) => (at(value, 'context', 'matrix', 'rows', 0, 'cells')[0] = 'maybe'),
+      (value) => (at(value, 'context', 'sources', 'claudeMcp')['url'] = 'file:///etc/passwd'),
+      (value) => (at(value, 'inventory', 'env', 0)['class'] = 'secret'),
+      (value) => (at(value, 'inventory', 'mcpServers', 0, 'status')['vim'] = 'loads'),
+      (value) => (at(value, 'inventory', 'mcpServers', 0)['digest'] = 'XYZ'),
+      (value) => (at(value, 'inventory', 'hooks', 0)['value'] = 'secret'),
+      (value) => (at(value, 'baseline', 'gate', 'classes')[0] = 'security'),
+      (value) => (at(value, 'baseline', 'gate', 'hits', 0)['change'] = 'removed'),
+      (value) => (at(value, 'baseline', 'findings', 'resolved', 0)['fingerprint'] = 'x'),
+    ];
+    expectValid(report());
+    for (const mutate of cases) {
+      const value = report();
+      mutate(value);
+      expect(validate(value), mutate.toString()).toBe(false);
+    }
+  });
+
+  it('context, inventory and baseline enumerations mirror the TypeScript types', () => {
+    const SKIP_CODES = [
+      'shadowed-by-claude-md',
+      'shadowed-by-override',
+      'over-byte-budget',
+      'empty-override',
+      'blank-file',
+      'not-mdc',
+      'no-frontmatter',
+      'invalid-frontmatter',
+      'bom',
+      'no-description',
+      'invalid-subagent',
+      'import-unresolved',
+      'import-too-deep',
+      'import-outside-root',
+      'url-without-type',
+      'unknown-event',
+      'invalid-json',
+      'not-utf8',
+      'case-mismatch',
+      'materialized-symlink',
+      'not-read',
+    ] as const satisfies readonly SkipCode[];
+    const MATRIX_CELLS = [
+      'startup',
+      'on-path',
+      'start-dir',
+      'listed',
+      'model-selected',
+      'manual',
+      'partial',
+      'skipped',
+      'unknown',
+      'not-read',
+    ] as const satisfies readonly MatrixCell[];
+    const LOAD_ROLES = [
+      'instructions',
+      'import',
+      'rule',
+      'skill',
+      'subagent',
+      'command',
+      'mcp-server',
+      'hook',
+    ] as const satisfies readonly LoadRole[];
+    const TRIGGERS = [
+      'startup',
+      'on-path',
+      'model-selected',
+      'manual',
+      'on-approval',
+    ] as const satisfies readonly LoadTrigger[];
+    const CERTAINTIES = [
+      'documented',
+      'source-code',
+      'unverified',
+    ] as const satisfies readonly Certainty[];
+    const GATE_CLASSES = [
+      'mcp',
+      'mcp-unpinned',
+      'permissions',
+      'hooks',
+      'env',
+      'unicode',
+    ] as const satisfies readonly GateClass[];
+    // Compile-time exhaustiveness, as above.
+    const exhaustive: true[] = [
+      true satisfies Exhaustive<SkipCode, (typeof SKIP_CODES)[number]>,
+      true satisfies Exhaustive<MatrixCell, (typeof MATRIX_CELLS)[number]>,
+      true satisfies Exhaustive<LoadRole, (typeof LOAD_ROLES)[number]>,
+      true satisfies Exhaustive<LoadTrigger, (typeof TRIGGERS)[number]>,
+      true satisfies Exhaustive<Certainty, (typeof CERTAINTIES)[number]>,
+      true satisfies Exhaustive<GateClass, (typeof GATE_CLASSES)[number]>,
+    ];
+    expect(exhaustive).toHaveLength(6);
+
+    const defs = schema.$defs;
+    expect(defs['skipCode']?.enum).toEqual([...SKIP_CODES]);
+    expect(defs['matrixCell']?.enum).toEqual([...MATRIX_CELLS]);
+    expect(defs['loadRole']?.enum).toEqual([...LOAD_ROLES]);
+    expect(defs['loadTrigger']?.enum).toEqual([...TRIGGERS]);
+    expect(defs['certainty']?.enum).toEqual([...CERTAINTIES]);
+    expect(defs['gateClass']?.enum).toEqual([...GATE_CLASSES]);
+    expect(defs['contextAgent']?.enum).toEqual([...CONTEXT_AGENTS]);
   });
 
   it('enumerations mirror the TypeScript constants', () => {

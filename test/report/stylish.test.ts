@@ -10,6 +10,7 @@ import {
   richResult,
   RULES,
 } from './fixtures.js';
+import { withContext, withHostileContext } from '../helpers/context.js';
 import { hostileResult } from './hostile.js';
 import { ansiStyle, hasEscOrBel, stripKnownSgr, tagStyle, unsafeCodePoints } from './safety.js';
 
@@ -197,5 +198,77 @@ describe('formatStylish layout', () => {
     expect(output).toContain('big0.md, big1.md, big2.md, … and 2 more');
     expect(output).toContain(`${'x'.repeat(500)}…`);
     expect(output).not.toContain('x'.repeat(501));
+  });
+});
+
+describe('formatStylish with a baseline', () => {
+  const result = withContext(richResult);
+  const output = plain(result);
+
+  it('matches the snapshot', async () => {
+    await expect(output).toMatchFileSnapshot('__snapshots__/stylish.baseline.txt');
+  });
+
+  it('marks new findings in their own aligned column', () => {
+    const lines = output.split('\n');
+    expect(lines).toContain(
+      '  12:3  error  new  Line contains 3 invisible Unicode tag characters.  risk/hidden-unicode',
+    );
+    expect(lines).toContain(
+      '   1:1  info        Start with a one-paragraph project overview.       clarity/missing-overview',
+    );
+    expect(lines).toContain('                       ↳ docs/: Closest existing directory');
+    expect(plain(richResult)).not.toMatch(/ {2}new {2}/);
+  });
+
+  it('says how many findings are new and lists the changes that need review', () => {
+    expect(output).toContain('\n2 new, 6 unchanged, 2 resolved since the baseline\n');
+    expect(output).toContain(
+      '✖ 5 security-relevant changes since the baseline need review\n' +
+        '    New MCP server, not pinned: stdio, npx -y @acme/browser-mcp, not pinned\n',
+    );
+    expect(output).toContain(
+      '    Hidden Unicode: AGENTS.md:12 has 3 invisible Unicode tag characters\n\n',
+    );
+    const quiet = withContext(cleanResult);
+    const none = plain({
+      ...quiet,
+      baseline: {
+        ...quiet.baseline!,
+        findings: { new: 0, unchanged: 0, resolved: [] },
+        gate: { classes: [], hits: [] },
+      },
+    });
+    expect(none).toContain('\n0 new, 0 unchanged since the baseline\n');
+    expect(none).not.toContain('need review');
+  });
+
+  it('warns when the baseline comes from another ruleset', () => {
+    const other = plain({
+      ...result,
+      baseline: {
+        ...result.baseline!,
+        against: { version: '0.1.0', ruleset: '2026.09', sameRuleset: false },
+      },
+    });
+    expect(other).toContain(
+      '! The baseline was written with ruleset 2026.09, so findings from rules it did not run count as new.',
+    );
+  });
+
+  it('never prints a line the Actions runner reads as a workflow command', () => {
+    const commandPath = makeResult({
+      findings: [finding(RULES.fileTooLarge, '::error file=a::pwned/AGENTS.md', 'x')],
+    });
+    const hostile = withHostileContext(hostileResult);
+    for (const input of [commandPath, hostile]) {
+      for (const options of [{}, { ascii: true }, { showSuppressed: true }]) {
+        const text = plain(input, options);
+        expect(text.split('\n').filter((line) => line.trimStart().startsWith('::'))).toEqual([]);
+        expect(hasEscOrBel(text)).toBe(false);
+        expect(unsafeCodePoints(text, { newline: true })).toEqual([]);
+      }
+    }
+    expect(plain(commandPath).split('\n')[0]).toBe('<U+003A>:error file=a::pwned/AGENTS.md');
   });
 });

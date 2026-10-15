@@ -22,6 +22,7 @@ import {
   richResult,
   RULES,
 } from './fixtures.js';
+import { NEW_FINGERPRINTS, withContext, withHostileContext } from '../helpers/context.js';
 import { hostileResult } from './hostile.js';
 import { unsafeCodePoints } from './safety.js';
 
@@ -37,7 +38,25 @@ const FIXTURES: readonly [string, ScanResult][] = [
   ['empty', emptyResult],
   ['rich', richResult],
   ['hostile', hostileResult],
+  ['baseline', withContext(richResult)],
+  ['hostile-baseline', withHostileContext(hostileResult)],
 ];
+
+describe('formatSarif with a baseline', () => {
+  it('sets baselineState from each finding', () => {
+    const results = toSarif(withContext(richResult)).runs[0].results;
+    expect(results.map((result) => result.baselineState)).toEqual(
+      richResult.findings.map((item) =>
+        NEW_FINGERPRINTS.has(item.fingerprint) ? 'new' : 'unchanged',
+      ),
+    );
+    expect(results.filter((result) => result.baselineState === 'new')).toHaveLength(2);
+  });
+
+  it('leaves it out without a baseline', () => {
+    expect(formatSarif(richResult)).not.toContain('baselineState');
+  });
+});
 
 function parse(result: ScanResult): SarifLog {
   return JSON.parse(formatSarif(result)) as SarifLog;

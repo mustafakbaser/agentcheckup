@@ -10,8 +10,20 @@ import { formatSarif } from './sarif.js';
 import { formatStylish, plainStyle, type Style } from './stylish.js';
 
 export { badgeMarkdown, badgeUrl } from './badge.js';
+export {
+  type ContextMarkdownOptions,
+  formatContextMarkdown,
+  formatMatrixMarkdown,
+} from './context-markdown.js';
+export { type ContextTextOptions, formatContextText, formatMatrixText } from './context-text.js';
 export { formatGithub } from './github.js';
-export { formatJson, toJsonReport } from './json.js';
+export {
+  formatJson,
+  toJsonBaseline,
+  toJsonContext,
+  toJsonInventory,
+  toJsonReport,
+} from './json.js';
 export { formatMarkdown, type MarkdownOptions } from './markdown.js';
 export {
   forJsonOutput,
@@ -21,6 +33,7 @@ export {
   forTerminal,
   forWorkflowCommand,
   forWorkflowProperty,
+  guardWorkflowCommands,
 } from './sanitize.js';
 export { formatSarif, MAX_RESULTS as MAX_SARIF_RESULTS, type SarifLog, toSarif } from './sarif.js';
 export {

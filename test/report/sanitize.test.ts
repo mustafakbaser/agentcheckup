@@ -9,6 +9,7 @@ import {
   forTerminal,
   forWorkflowCommand,
   forWorkflowProperty,
+  guardWorkflowCommands,
 } from '../../src/report/sanitize.js';
 import { HOSTILE, type HostileName } from './hostile.js';
 import { hostileText, parseWorkflowCommand, unescapeData, unsafeCodePoints } from './safety.js';
@@ -228,6 +229,32 @@ describe('workflow commands', () => {
   it('escapes property delimiters and keeps properties single-line', () => {
     expect(forWorkflowProperty('a::b,title=x\n')).toBe('a%3A%3Ab%2Ctitle=x⏎');
     expect(forWorkflowProperty('evil\u001b[31m.md')).toBe('evil<U+001B>[31m.md');
+  });
+});
+
+describe('guardWorkflowCommands', () => {
+  it('defuses lines whose first non-blank characters are "::", visibly', () => {
+    expect(guardWorkflowCommands('::error::x\n  ::warning file=a::b\nok :: fine\n')).toBe(
+      '<U+003A>:error::x\n  <U+003A>:warning file=a::b\nok :: fine\n',
+    );
+    expect(guardWorkflowCommands(' 　::stop-commands::t')).toBe(' 　<U+003A>:stop-commands::t');
+  });
+
+  it('leaves other text alone', () => {
+    for (const text of ['', 'no colons', 'a::b', ': :x', '\u001b[4m::styled', 'x\n:y']) {
+      expect(guardWorkflowCommands(text)).toBe(text);
+    }
+  });
+
+  it('leaves no line the runner parses as a command, for any input', () => {
+    fc.assert(
+      fc.property(fc.array(fc.oneof(hostileText, fc.constant('::'), fc.constant(' '))), (parts) => {
+        const output = guardWorkflowCommands(parts.map((part) => forTerminal(part)).join('\n'));
+        for (const line of output.split('\n')) {
+          expect(line.trimStart().startsWith('::')).toBe(false);
+        }
+      }),
+    );
   });
 });
 

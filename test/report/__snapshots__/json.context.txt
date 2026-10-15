@@ -1,0 +1,1706 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "agentcheckup",
+    "version": "1.4.0"
+  },
+  "ruleset": "2026.10",
+  "targets": [
+    "claude-code",
+    "cline",
+    "codex",
+    "copilot",
+    "cursor",
+    "gemini",
+    "windsurf"
+  ],
+  "artifacts": [
+    {
+      "path": ".cursor/rules/style.mdc",
+      "kind": "cursor-rule",
+      "readers": [
+        "cursor"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "kind": "agents-md",
+      "readers": [
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "kind": "claude-md",
+      "readers": [
+        "claude-code"
+      ]
+    },
+    {
+      "path": "skills/deploy/SKILL.md",
+      "kind": "skill",
+      "readers": [
+        "claude-code",
+        "codex"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "ruleId": "cursor/conflicting-activation",
+      "severity": "warn",
+      "category": "loading",
+      "message": "`alwaysApply: true` overrides `globs`, so the rule loads in every chat.",
+      "path": ".cursor/rules/style.mdc",
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "line": 2,
+          "column": 18
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cursor"
+      ],
+      "fingerprint": "1a2b3c4d5e6f70:1",
+      "fix": {
+        "description": "Remove `globs`",
+        "safety": "safe",
+        "edits": [
+          {
+            "offset": 4,
+            "length": 14,
+            "text": ""
+          }
+        ]
+      },
+      "baseline": "unchanged"
+    },
+    {
+      "ruleId": "clarity/missing-overview",
+      "severity": "info",
+      "category": "clarity",
+      "message": "Start with a one-paragraph project overview.",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "2b3c4d5e6f7081:1",
+      "baseline": "unchanged"
+    },
+    {
+      "ruleId": "risk/hidden-unicode",
+      "severity": "error",
+      "category": "risk",
+      "message": "Line contains 3 invisible Unicode tag characters.",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 3
+        },
+        "end": {
+          "line": 12,
+          "column": 9
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "fingerprint": "3c4d5e6f708192:1",
+      "baseline": "new"
+    },
+    {
+      "ruleId": "risk/remote-script",
+      "severity": "warn",
+      "category": "risk",
+      "message": "Pipes a remote script into a shell: curl https://example.com/install.sh | sh",
+      "path": "AGENTS.md",
+      "range": {
+        "start": {
+          "line": 30,
+          "column": 1
+        },
+        "end": {
+          "line": 30,
+          "column": 46
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "4d5e6f708192a3:1",
+      "suppressed": {
+        "kind": "inline",
+        "reason": "Documented install step, reviewed 2026-10"
+      },
+      "baseline": "unchanged"
+    },
+    {
+      "ruleId": "budget/file-too-large",
+      "severity": "warn",
+      "category": "budget",
+      "message": "File is 52,310 characters; Claude Code works best under 40,000.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "5e6f708192a3b4:1",
+      "baseline": "unchanged"
+    },
+    {
+      "ruleId": "instructions/broken-import",
+      "severity": "error",
+      "category": "correctness",
+      "message": "Imported file docs/missing.md does not exist.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 5
+        },
+        "end": {
+          "line": 3,
+          "column": 22
+        }
+      },
+      "related": [
+        {
+          "path": "docs/",
+          "message": "Closest existing directory"
+        }
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "fingerprint": "6f708192a3b4c5:1",
+      "baseline": "new"
+    },
+    {
+      "ruleId": "portability/claude-only-import",
+      "severity": "info",
+      "category": "portability",
+      "message": "@-imports are only read by Claude Code; Codex sees the literal text.",
+      "path": "CLAUDE.md",
+      "range": {
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 140,
+          "column": 30
+        }
+      },
+      "related": [
+        {
+          "path": "AGENTS.md",
+          "message": "Codex reads this file instead",
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 1
+            }
+          }
+        },
+        {
+          "path": "docs/a.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 1
+            },
+            "end": {
+              "line": 4,
+              "column": 12
+            }
+          }
+        },
+        {
+          "path": "docs/b.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 1
+            },
+            "end": {
+              "line": 5,
+              "column": 12
+            }
+          }
+        },
+        {
+          "path": "docs/c.md",
+          "message": "Imported here",
+          "range": {
+            "start": {
+              "line": 6,
+              "column": 1
+            },
+            "end": {
+              "line": 6,
+              "column": 12
+            }
+          }
+        }
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "708192a3b4c5d6:1",
+      "baseline": "unchanged"
+    },
+    {
+      "ruleId": "directive/unused",
+      "severity": "warn",
+      "category": "correctness",
+      "message": "No risk/remote-script finding to suppress here.",
+      "path": "skills/deploy/SKILL.md",
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "line": 2,
+          "column": 60
+        }
+      },
+      "related": [],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "fingerprint": "8192a3b4c5d6e7:1",
+      "suppressed": {
+        "kind": "config",
+        "reason": "Generated file"
+      },
+      "baseline": "unchanged"
+    }
+  ],
+  "score": {
+    "formula": 1,
+    "score": 49,
+    "grade": "F",
+    "capped": true,
+    "categories": {
+      "loading": {
+        "errors": 0,
+        "warnings": 1,
+        "infos": 0
+      },
+      "budget": {
+        "errors": 0,
+        "warnings": 1,
+        "infos": 0
+      },
+      "portability": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 1
+      },
+      "correctness": {
+        "errors": 1,
+        "warnings": 0,
+        "infos": 0
+      },
+      "risk": {
+        "errors": 1,
+        "warnings": 0,
+        "infos": 0
+      },
+      "clarity": {
+        "errors": 0,
+        "warnings": 0,
+        "infos": 1
+      }
+    },
+    "artifacts": [
+      {
+        "path": ".cursor/rules/style.mdc",
+        "score": 100
+      },
+      {
+        "path": "AGENTS.md",
+        "score": 100
+      },
+      {
+        "path": "CLAUDE.md",
+        "score": 100
+      },
+      {
+        "path": "skills/deploy/SKILL.md",
+        "score": 100
+      }
+    ]
+  },
+  "summary": {
+    "errors": 2,
+    "warnings": 2,
+    "infos": 2,
+    "suppressed": 2
+  },
+  "rules": [
+    {
+      "id": "budget/file-too-large",
+      "title": "Instruction file exceeds the size budget",
+      "rationale": "Large files crowd out the conversation. **Codex** truncates `AGENTS.md` at 32 KiB.",
+      "category": "budget",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "clarity/missing-overview",
+      "title": "File has no project overview",
+      "rationale": "Why `clarity/missing-overview` matters. See [the docs](https://example.com/clarity/missing-overview).",
+      "category": "clarity",
+      "severity": "info",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "cursor/conflicting-activation",
+      "title": "Rule sets both alwaysApply and globs",
+      "rationale": "Why `cursor/conflicting-activation` matters. See [the docs](https://example.com/cursor/conflicting-activation).",
+      "category": "loading",
+      "severity": "warn",
+      "appliesTo": [
+        "cursor-rule"
+      ],
+      "platforms": [
+        "cursor"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10",
+      "fixable": "safe"
+    },
+    {
+      "id": "directive/unused",
+      "title": "Suppression directive does not suppress anything",
+      "rationale": "Why `directive/unused` matters. See [the docs](https://example.com/directive/unused).",
+      "category": "correctness",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "instructions/broken-import",
+      "title": "Imported file does not exist",
+      "rationale": "Claude Code silently skips `@path` imports that do not resolve, so the instructions in them never load. See [memory imports](https://docs.anthropic.com/en/docs/claude-code/memory#imports).",
+      "category": "correctness",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "portability/claude-only-import",
+      "title": "@import syntax is specific to Claude Code",
+      "rationale": "Why `portability/claude-only-import` matters. See [the docs](https://example.com/portability/claude-only-import).",
+      "category": "portability",
+      "severity": "info",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/hidden-unicode",
+      "title": "Instructions contain invisible Unicode",
+      "rationale": "Why `risk/hidden-unicode` matters. See [the docs](https://example.com/risk/hidden-unicode).",
+      "category": "risk",
+      "severity": "error",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot",
+        "gemini",
+        "windsurf",
+        "cline"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
+      "id": "risk/remote-script",
+      "title": "Instructions pipe a remote script into a shell",
+      "rationale": "Why `risk/remote-script` matters. See [the docs](https://example.com/risk/remote-script).",
+      "category": "risk",
+      "severity": "warn",
+      "appliesTo": [
+        "claude-md",
+        "agents-md"
+      ],
+      "platforms": [
+        "claude-code",
+        "codex"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code memory documentation",
+          "url": "https://docs.anthropic.com/en/docs/claude-code/memory",
+          "checked": "2026-10-01",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    }
+  ],
+  "skipped": [
+    {
+      "path": "big/AGENTS.md",
+      "reason": "too-large",
+      "size": 2400000
+    },
+    {
+      "path": "assets/CLAUDE.md",
+      "reason": "binary"
+    },
+    {
+      "path": "vendor/a/AGENTS.md",
+      "reason": "file-limit"
+    },
+    {
+      "path": "vendor/b/AGENTS.md",
+      "reason": "file-limit"
+    }
+  ],
+  "unresolvedSymlinks": [
+    {
+      "path": "GEMINI.md",
+      "target": "../../shared/GEMINI.md",
+      "problem": "outside-root"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "target": "missing.md",
+      "problem": "broken"
+    }
+  ],
+  "ruleFailures": [
+    {
+      "ruleId": "mcp/unknown-server-field",
+      "message": "Cannot read properties of undefined (reading 'type')"
+    }
+  ],
+  "configWarnings": [
+    "Unknown rule \"instructions/typo-rule\" in configuration."
+  ],
+  "pathBase": "packages/app",
+  "inventory": {
+    "mcpServers": [
+      {
+        "id": "mcp:.cursor/mcp.json#browser",
+        "file": ".cursor/mcp.json",
+        "line": 2,
+        "platforms": [
+          "cursor"
+        ],
+        "digest": "0000000000002a",
+        "name": "browser",
+        "transport": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@acme/browser-mcp"
+        ],
+        "package": {
+          "launcher": "npx",
+          "ecosystem": "npm",
+          "name": "@acme/browser-mcp",
+          "pin": "none"
+        },
+        "envKeys": [],
+        "headerKeys": [],
+        "status": {
+          "cursor": "loads"
+        }
+      },
+      {
+        "id": "mcp:.mcp.json#docs",
+        "file": ".mcp.json",
+        "line": 11,
+        "platforms": [
+          "claude-code"
+        ],
+        "digest": "0000000000002a",
+        "name": "docs",
+        "transport": "unknown",
+        "url": {
+          "origin": "https://docs.example.com",
+          "tls": true,
+          "loopback": false
+        },
+        "envKeys": [],
+        "headerKeys": [
+          "Authorization"
+        ],
+        "status": {
+          "claude-code": "skipped"
+        }
+      },
+      {
+        "id": "mcp:.mcp.json#github",
+        "file": ".mcp.json",
+        "line": 3,
+        "platforms": [
+          "claude-code"
+        ],
+        "digest": "0000000000002a",
+        "name": "github",
+        "transport": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-github@1.4.0"
+        ],
+        "package": {
+          "launcher": "npx",
+          "ecosystem": "npm",
+          "name": "@modelcontextprotocol/server-github",
+          "version": "1.4.0",
+          "pin": "exact"
+        },
+        "envKeys": [
+          "GITHUB_TOKEN"
+        ],
+        "headerKeys": [],
+        "status": {
+          "claude-code": "needs-approval"
+        }
+      }
+    ],
+    "hooks": [
+      {
+        "id": "hook:.claude/settings.json#PreToolUse:00000000000001",
+        "file": ".claude/settings.json",
+        "line": 4,
+        "platforms": [
+          "claude-code"
+        ],
+        "digest": "0000000000002a",
+        "event": "PreToolUse",
+        "known": true,
+        "matcher": "Bash",
+        "type": "command",
+        "command": "bash scripts/hooks/guard.sh",
+        "script": "scripts/hooks/guard.sh",
+        "failsOpen": true,
+        "remoteScript": false
+      },
+      {
+        "id": "hook:.codex/hooks.json#Stop:00000000000002",
+        "file": ".codex/hooks.json",
+        "line": 4,
+        "platforms": [
+          "codex"
+        ],
+        "digest": "0000000000002a",
+        "event": "Stop",
+        "known": true,
+        "type": "command",
+        "command": "node scripts/notify.js",
+        "failsOpen": false,
+        "remoteScript": false
+      }
+    ],
+    "permissions": [
+      {
+        "id": "perm:.claude/settings.json#permissions.allow=Bash(curl:*)",
+        "file": ".claude/settings.json",
+        "line": 6,
+        "platforms": [
+          "claude-code"
+        ],
+        "digest": "0000000000002a",
+        "key": "permissions.allow",
+        "value": "Bash(curl:*)",
+        "broad": true,
+        "effective": true
+      }
+    ],
+    "env": [
+      {
+        "id": "env:.claude/settings.json#ANTHROPIC_BASE_URL",
+        "file": ".claude/settings.json",
+        "line": 8,
+        "platforms": [
+          "claude-code"
+        ],
+        "digest": "0000000000002a",
+        "key": "ANTHROPIC_BASE_URL",
+        "class": "endpoint",
+        "shown": "https://llm-proxy.example.net"
+      }
+    ],
+    "incomplete": [
+      ".codex/config.toml"
+    ]
+  },
+  "context": {
+    "agents": [
+      "claude-code",
+      "codex",
+      "cursor"
+    ],
+    "sources": {
+      "claudeHooks": {
+        "title": "Claude Code: Hooks",
+        "url": "https://code.claude.com/docs/en/hooks",
+        "checked": "2026-10-15",
+        "status": "verified"
+      },
+      "claudeMcp": {
+        "title": "Claude Code: MCP",
+        "url": "https://code.claude.com/docs/en/mcp",
+        "checked": "2026-10-15",
+        "status": "verified"
+      },
+      "claudeMemory": {
+        "title": "Claude Code: Memory (CLAUDE.md)",
+        "url": "https://code.claude.com/docs/en/memory",
+        "checked": "2026-10-15",
+        "status": "verified"
+      },
+      "codexAgentsMd": {
+        "title": "Codex: AGENTS.md",
+        "url": "https://developers.openai.com/codex/guides/agents-md",
+        "checked": "2026-10-15",
+        "status": "verified"
+      },
+      "cursorRules": {
+        "title": "Cursor: Rules",
+        "url": "https://cursor.com/docs/context/rules",
+        "checked": "2026-10-15",
+        "status": "verified"
+      }
+    },
+    "plans": [
+      {
+        "agent": "claude-code",
+        "cwd": "packages/api",
+        "entries": [
+          {
+            "id": "instructions:CLAUDE.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 1,
+            "path": "CLAUDE.md",
+            "realPath": "CLAUDE.md",
+            "size": {
+              "bytes": 1204,
+              "chars": 1204,
+              "tokens": 301
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "import:AGENTS.md",
+            "role": "import",
+            "trigger": "startup",
+            "position": 2,
+            "path": "AGENTS.md",
+            "realPath": "AGENTS.md",
+            "via": [
+              "CLAUDE.md"
+            ],
+            "size": {
+              "bytes": 6880,
+              "chars": 6880,
+              "tokens": 1720
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "instructions:packages/api/CLAUDE.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 3,
+            "path": "packages/api/CLAUDE.md",
+            "realPath": "packages/api/CLAUDE.md",
+            "size": {
+              "bytes": 412,
+              "chars": 412,
+              "tokens": 103
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "rule:.claude/rules/testing.md",
+            "role": "rule",
+            "trigger": "startup",
+            "position": 4,
+            "path": ".claude/rules/testing.md",
+            "realPath": ".claude/rules/testing.md",
+            "size": {
+              "bytes": 980,
+              "chars": 980,
+              "tokens": 245
+            },
+            "certainty": "unverified",
+            "evidence": []
+          },
+          {
+            "id": "skill:.claude/skills/deploy/SKILL.md#deploy",
+            "role": "skill",
+            "trigger": "model-selected",
+            "position": 5,
+            "path": ".claude/skills/deploy/SKILL.md",
+            "realPath": ".claude/skills/deploy/SKILL.md",
+            "name": "deploy",
+            "size": {
+              "bytes": 400,
+              "chars": 400,
+              "tokens": 100
+            },
+            "deferred": {
+              "bytes": 9402,
+              "chars": 9402,
+              "tokens": 2351
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "skill:.claude/skills/docs/SKILL.md#docs",
+            "role": "skill",
+            "trigger": "model-selected",
+            "position": 6,
+            "path": ".claude/skills/docs/SKILL.md",
+            "realPath": ".claude/skills/docs/SKILL.md",
+            "name": "docs",
+            "size": {
+              "bytes": 300,
+              "chars": 300,
+              "tokens": 75
+            },
+            "deferred": {
+              "bytes": 1200,
+              "chars": 1200,
+              "tokens": 300
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "skill:.claude/skills/lint/SKILL.md#lint",
+            "role": "skill",
+            "trigger": "model-selected",
+            "position": 7,
+            "path": ".claude/skills/lint/SKILL.md",
+            "realPath": ".claude/skills/lint/SKILL.md",
+            "name": "lint",
+            "size": {
+              "bytes": 300,
+              "chars": 300,
+              "tokens": 75
+            },
+            "deferred": {
+              "bytes": 1500,
+              "chars": 1500,
+              "tokens": 375
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "skill:.claude/skills/release/SKILL.md#release",
+            "role": "skill",
+            "trigger": "model-selected",
+            "position": 8,
+            "path": ".claude/skills/release/SKILL.md",
+            "realPath": ".claude/skills/release/SKILL.md",
+            "name": "release",
+            "size": {
+              "bytes": 310,
+              "chars": 310,
+              "tokens": 78
+            },
+            "deferred": {
+              "bytes": 2000,
+              "chars": 2000,
+              "tokens": 500
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "hook:.claude/settings.json#PreToolUse",
+            "role": "hook",
+            "trigger": "startup",
+            "path": ".claude/settings.json",
+            "realPath": ".claude/settings.json",
+            "name": "PreToolUse",
+            "inventoryId": "hook:.claude/settings.json#PreToolUse:00000000000001",
+            "certainty": "documented",
+            "evidence": [
+              "claudeHooks"
+            ]
+          },
+          {
+            "id": "rule:.claude/rules/api.md",
+            "role": "rule",
+            "trigger": "on-path",
+            "path": ".claude/rules/api.md",
+            "realPath": ".claude/rules/api.md",
+            "patterns": [
+              "src/api/**"
+            ],
+            "size": {
+              "bytes": 900,
+              "chars": 900,
+              "tokens": 225
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "subagent:.claude/agents/reviewer.md#reviewer",
+            "role": "subagent",
+            "trigger": "model-selected",
+            "path": ".claude/agents/reviewer.md",
+            "realPath": ".claude/agents/reviewer.md",
+            "name": "reviewer",
+            "size": {
+              "bytes": 1500,
+              "chars": 1500,
+              "tokens": 375
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "command:.claude/commands/release.md#release",
+            "role": "command",
+            "trigger": "manual",
+            "path": ".claude/commands/release.md",
+            "realPath": ".claude/commands/release.md",
+            "name": "release",
+            "size": {
+              "bytes": 600,
+              "chars": 600,
+              "tokens": 150
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "id": "mcp-server:.mcp.json#github",
+            "role": "mcp-server",
+            "trigger": "on-approval",
+            "path": ".mcp.json",
+            "realPath": ".mcp.json",
+            "name": "github",
+            "inventoryId": "mcp:.mcp.json#github",
+            "certainty": "documented",
+            "evidence": [
+              "claudeMcp"
+            ]
+          }
+        ],
+        "skipped": [
+          {
+            "id": "rule:.cursor/rules/api.mdc",
+            "role": "rule",
+            "path": ".cursor/rules/api.mdc",
+            "code": "not-read",
+            "certainty": "documented",
+            "evidence": []
+          },
+          {
+            "id": "mcp-server:.mcp.json#docs",
+            "role": "mcp-server",
+            "path": ".mcp.json",
+            "name": "docs",
+            "code": "url-without-type",
+            "ruleId": "mcp/url-without-type",
+            "certainty": "documented",
+            "evidence": [
+              "claudeMcp"
+            ]
+          },
+          {
+            "id": "instructions:packages/api/AGENTS.md",
+            "role": "instructions",
+            "path": "packages/api/AGENTS.md",
+            "code": "shadowed-by-claude-md",
+            "ruleId": "instr/agents-md-ignored-by-claude",
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          }
+        ],
+        "outOfScope": [
+          {
+            "path": ".claude/skills/deploy/scripts/run.md",
+            "because": "payload-folder"
+          }
+        ],
+        "assumptions": [
+          {
+            "key": "claude.instructionsMode",
+            "value": "claude-md-or-agents-md",
+            "origin": "default",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
+            "key": "claude.session",
+            "value": "interactive",
+            "origin": "default",
+            "evidence": []
+          },
+          {
+            "key": "claude.version",
+            "value": ">=2.1.277",
+            "origin": "default",
+            "evidence": []
+          }
+        ],
+        "hidden": [
+          {
+            "scope": "managed",
+            "locations": [
+              "managed CLAUDE.md"
+            ],
+            "roles": [
+              "instructions"
+            ]
+          },
+          {
+            "scope": "user",
+            "locations": [
+              "~/.claude.json",
+              "~/.claude/CLAUDE.md",
+              "~/.claude/rules",
+              "~/.claude/skills"
+            ],
+            "roles": [
+              "instructions",
+              "rule",
+              "skill",
+              "mcp-server"
+            ]
+          }
+        ],
+        "limits": [
+          {
+            "key": "claude.skill_listing_chars",
+            "unit": "chars",
+            "limit": 1536,
+            "used": 400,
+            "subject": ".claude/skills/deploy/SKILL.md",
+            "effect": "shortens",
+            "evidence": [
+              "claudeMemory"
+            ]
+          }
+        ],
+        "totals": {
+          "startup": {
+            "bytes": 10786,
+            "chars": 10786,
+            "tokens": 2697
+          },
+          "onDemand": {
+            "bytes": 17102,
+            "chars": 17102,
+            "tokens": 4276
+          }
+        },
+        "incomplete": []
+      },
+      {
+        "agent": "codex",
+        "cwd": "packages/api",
+        "entries": [
+          {
+            "id": "instructions:AGENTS.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 1,
+            "path": "AGENTS.md",
+            "realPath": "AGENTS.md",
+            "size": {
+              "bytes": 6880,
+              "chars": 6880,
+              "tokens": 1720
+            },
+            "certainty": "documented",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          },
+          {
+            "id": "instructions:packages/api/AGENTS.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 2,
+            "path": "packages/api/AGENTS.md",
+            "realPath": "packages/api/AGENTS.md",
+            "size": {
+              "bytes": 26130,
+              "chars": 25888,
+              "tokens": 6472
+            },
+            "truncated": {
+              "atByte": 25888,
+              "line": 812
+            },
+            "certainty": "documented",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          },
+          {
+            "id": "skill:.agents/skills/release-notes/SKILL.md#release-notes",
+            "role": "skill",
+            "trigger": "model-selected",
+            "path": ".agents/skills/release-notes/SKILL.md",
+            "realPath": ".agents/skills/release-notes/SKILL.md",
+            "name": "release-notes",
+            "size": {
+              "bytes": 240,
+              "chars": 240,
+              "tokens": 60
+            },
+            "deferred": {
+              "bytes": 3100,
+              "chars": 3100,
+              "tokens": 775
+            },
+            "certainty": "documented",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          },
+          {
+            "id": "hook:.codex/hooks.json#Stop",
+            "role": "hook",
+            "trigger": "on-approval",
+            "path": ".codex/hooks.json",
+            "realPath": ".codex/hooks.json",
+            "name": "Stop",
+            "inventoryId": "hook:.codex/hooks.json#Stop:00000000000002",
+            "certainty": "documented",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          }
+        ],
+        "skipped": [
+          {
+            "id": "instructions:CLAUDE.md",
+            "role": "instructions",
+            "path": "CLAUDE.md",
+            "code": "not-read",
+            "certainty": "documented",
+            "evidence": []
+          }
+        ],
+        "outOfScope": [],
+        "assumptions": [
+          {
+            "key": "codex.project_doc_max_bytes",
+            "value": 32768,
+            "origin": "rule-option",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          }
+        ],
+        "hidden": [
+          {
+            "scope": "user",
+            "locations": [
+              "$CODEX_HOME/AGENTS.md",
+              "~/.agents/skills",
+              "~/.codex/config.toml"
+            ],
+            "roles": [
+              "instructions",
+              "skill",
+              "mcp-server"
+            ]
+          }
+        ],
+        "limits": [
+          {
+            "key": "codex.project_doc_max_bytes",
+            "unit": "bytes",
+            "limit": 32768,
+            "used": 33010,
+            "subject": "packages/api",
+            "effect": "truncates",
+            "evidence": [
+              "codexAgentsMd"
+            ]
+          }
+        ],
+        "totals": {
+          "startup": {
+            "bytes": 33250,
+            "chars": 33008,
+            "tokens": 8252
+          },
+          "onDemand": {
+            "bytes": 3100,
+            "chars": 3100,
+            "tokens": 775
+          }
+        },
+        "incomplete": [
+          "unparsed:.codex/config.toml"
+        ]
+      },
+      {
+        "agent": "cursor",
+        "cwd": "",
+        "entries": [
+          {
+            "id": "instructions:AGENTS.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 1,
+            "path": "AGENTS.md",
+            "realPath": "AGENTS.md",
+            "size": {
+              "bytes": 6880,
+              "chars": 6880,
+              "tokens": 1720
+            },
+            "certainty": "documented",
+            "evidence": [
+              "cursorRules"
+            ]
+          },
+          {
+            "id": "instructions:CLAUDE.md",
+            "role": "instructions",
+            "trigger": "startup",
+            "position": 2,
+            "path": "CLAUDE.md",
+            "realPath": "CLAUDE.md",
+            "size": {
+              "bytes": 1204,
+              "chars": 1204,
+              "tokens": 301
+            },
+            "certainty": "documented",
+            "evidence": [
+              "cursorRules"
+            ]
+          },
+          {
+            "id": "mcp-server:.cursor/mcp.json#browser",
+            "role": "mcp-server",
+            "trigger": "startup",
+            "path": ".cursor/mcp.json",
+            "realPath": ".cursor/mcp.json",
+            "name": "browser",
+            "inventoryId": "mcp:.cursor/mcp.json#browser",
+            "certainty": "documented",
+            "evidence": [
+              "cursorRules"
+            ]
+          },
+          {
+            "id": "rule:.cursor/rules/api.mdc",
+            "role": "rule",
+            "trigger": "on-path",
+            "path": ".cursor/rules/api.mdc",
+            "realPath": ".cursor/rules/api.mdc",
+            "patterns": [
+              "src/api/**/*.ts",
+              "src/routes/**"
+            ],
+            "size": {
+              "bytes": 1100,
+              "chars": 1100,
+              "tokens": 275
+            },
+            "certainty": "documented",
+            "evidence": [
+              "cursorRules"
+            ]
+          }
+        ],
+        "skipped": [
+          {
+            "id": "rule:.cursor/rules/style.md",
+            "role": "rule",
+            "path": ".cursor/rules/style.md",
+            "code": "not-mdc",
+            "ruleId": "cursor/md-file-ignored",
+            "certainty": "documented",
+            "evidence": [
+              "cursorRules"
+            ]
+          }
+        ],
+        "outOfScope": [
+          {
+            "path": ".cursor/rules/README.md",
+            "because": "documentation"
+          }
+        ],
+        "assumptions": [
+          {
+            "key": "cursor.mode",
+            "value": "agent",
+            "origin": "default",
+            "evidence": [
+              "cursorRules"
+            ]
+          },
+          {
+            "key": "cursor.thirdPartyConfigs",
+            "value": true,
+            "origin": "default",
+            "evidence": []
+          }
+        ],
+        "hidden": [
+          {
+            "scope": "team",
+            "locations": [
+              "Team rules"
+            ],
+            "roles": [
+              "rule"
+            ]
+          }
+        ],
+        "limits": [],
+        "totals": {
+          "startup": {
+            "bytes": 8084,
+            "chars": 8084,
+            "tokens": 2021
+          },
+          "onDemand": {
+            "bytes": 1100,
+            "chars": 1100,
+            "tokens": 275
+          }
+        },
+        "incomplete": []
+      }
+    ],
+    "matrix": {
+      "rows": [
+        {
+          "path": ".agents/skills/release-notes",
+          "kind": "skill",
+          "cells": [
+            "not-read",
+            "listed",
+            "listed"
+          ]
+        },
+        {
+          "path": ".claude/skills/deploy",
+          "kind": "skill",
+          "cells": [
+            "listed",
+            "not-read",
+            "listed"
+          ]
+        },
+        {
+          "path": ".cursor/rules/api.mdc",
+          "kind": "cursor-rule",
+          "cells": [
+            "not-read",
+            "not-read",
+            "on-path"
+          ]
+        },
+        {
+          "path": ".cursor/rules/style.md",
+          "kind": "cursor-rule-md",
+          "cells": [
+            "not-read",
+            "not-read",
+            "skipped"
+          ]
+        },
+        {
+          "path": ".mcp.json",
+          "kind": "mcp-json",
+          "cells": [
+            "skipped",
+            "not-read",
+            "not-read"
+          ]
+        },
+        {
+          "path": "AGENTS.md",
+          "kind": "agents-md",
+          "cells": [
+            "skipped",
+            "startup",
+            "startup"
+          ]
+        },
+        {
+          "path": "CLAUDE.md",
+          "kind": "claude-md",
+          "cells": [
+            "startup",
+            "not-read",
+            "startup"
+          ]
+        },
+        {
+          "path": "packages/api/AGENTS.md",
+          "kind": "agents-md",
+          "cells": [
+            "skipped",
+            "start-dir",
+            "on-path"
+          ]
+        },
+        {
+          "path": "packages/web/AGENTS.md",
+          "kind": "agents-md",
+          "cells": [
+            "skipped",
+            "partial",
+            "on-path"
+          ]
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "against": {
+      "version": "0.1.0",
+      "ruleset": "2026.10",
+      "sameRuleset": true
+    },
+    "findings": {
+      "new": 2,
+      "unchanged": 6,
+      "resolved": [
+        {
+          "ruleId": "instructions/broken-import",
+          "path": "CLAUDE.md",
+          "fingerprint": "0a0b0c0d0e0f10:1"
+        },
+        {
+          "ruleId": "budget/file-too-large",
+          "path": "docs/old.md",
+          "fingerprint": "1a1b1c1d1e1f20:1"
+        }
+      ]
+    },
+    "inventory": {
+      "added": [
+        "env:.claude/settings.json#ANTHROPIC_BASE_URL",
+        "mcp:.cursor/mcp.json#browser",
+        "perm:.claude/settings.json#permissions.allow=Bash(curl:*)"
+      ],
+      "removed": [
+        "mcp:.mcp.json#legacy"
+      ],
+      "changed": [
+        {
+          "id": "hook:.claude/settings.json#PreToolUse:00000000000001",
+          "fields": [
+            "command",
+            "digest"
+          ]
+        }
+      ]
+    },
+    "context": [
+      {
+        "agent": "claude-code",
+        "cwd": "packages/api",
+        "entries": {
+          "added": [
+            "instructions:packages/api/CLAUDE.md"
+          ],
+          "removed": [],
+          "changed": []
+        },
+        "skipped": {
+          "added": [],
+          "removed": [],
+          "changed": []
+        },
+        "startupTokens": {
+          "before": 1977,
+          "after": 2697
+        },
+        "limits": []
+      },
+      {
+        "agent": "codex",
+        "cwd": "packages/api",
+        "entries": {
+          "added": [],
+          "removed": [],
+          "changed": [
+            {
+              "id": "instructions:packages/api/AGENTS.md",
+              "fields": [
+                "size"
+              ]
+            }
+          ]
+        },
+        "skipped": {
+          "added": [],
+          "removed": [],
+          "changed": []
+        },
+        "startupTokens": {
+          "before": 7801,
+          "after": 8253
+        },
+        "limits": [
+          {
+            "key": "codex.project_doc_max_bytes",
+            "subject": "packages/api",
+            "before": 31204,
+            "after": 33010,
+            "limit": 32768
+          }
+        ]
+      },
+      {
+        "agent": "cursor",
+        "cwd": "",
+        "entries": {
+          "added": [],
+          "removed": [],
+          "changed": []
+        },
+        "skipped": {
+          "added": [],
+          "removed": [],
+          "changed": []
+        },
+        "startupTokens": {
+          "before": 2021,
+          "after": 2021
+        },
+        "limits": []
+      }
+    ],
+    "gate": {
+      "classes": [
+        "mcp",
+        "mcp-unpinned",
+        "permissions",
+        "hooks",
+        "env",
+        "unicode"
+      ],
+      "hits": [
+        {
+          "class": "mcp",
+          "id": "mcp:.cursor/mcp.json#browser",
+          "change": "added",
+          "summary": "stdio, npx -y @acme/browser-mcp, not pinned"
+        },
+        {
+          "class": "mcp-unpinned",
+          "id": "mcp:.cursor/mcp.json#browser",
+          "change": "added",
+          "summary": "stdio, npx -y @acme/browser-mcp, not pinned"
+        },
+        {
+          "class": "permissions",
+          "id": "perm:.claude/settings.json#permissions.allow=Bash(curl:*)",
+          "change": "added",
+          "summary": "permissions.allow adds Bash(curl:*)"
+        },
+        {
+          "class": "hooks",
+          "id": "hook:.claude/settings.json#PreToolUse:00000000000001",
+          "change": "changed",
+          "summary": "PreToolUse Bash runs scripts/hooks/guard.sh, command changed"
+        },
+        {
+          "class": "env",
+          "id": "env:.claude/settings.json#ANTHROPIC_BASE_URL",
+          "change": "added",
+          "summary": "ANTHROPIC_BASE_URL → https://llm-proxy.example.net"
+        },
+        {
+          "class": "unicode",
+          "id": "3c4d5e6f708192:1",
+          "change": "added",
+          "summary": "AGENTS.md:12 has 3 invisible Unicode tag characters"
+        }
+      ]
+    }
+  }
+}

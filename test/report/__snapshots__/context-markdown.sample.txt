@@ -1,0 +1,123 @@
+## Claude Code context · packages/api
+
+**Assumes:** claude\.instructionsMode = claude\-md\-or\-agents\-md \(default\), claude\.session = interactive \(default\), claude\.version = &gt;=2\.1\.277 \(default\)
+
+**Not visible:** managed CLAUDE\.md \(managed\); \~/\.claude\.json, \~/\.claude/CLAUDE\.md, \~/\.claude/rules, \~/\.claude/skills \(user\)
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | CLAUDE\.md | 1,204 | 301 |  |
+| 2 | ↳ @&#8203;AGENTS\.md | 6,880 | 1,720 | CLAUDE\.md |
+| 3 | packages/api/CLAUDE\.md | 412 | 103 |  |
+| 4? | \.claude/rules/testing\.md | 980 | 245 |  |
+| 5 | Skills listing (4 skills, metadata) | 1,310 | 328 |  |
+|  | **Total** | **10,786** | **≈ 2,697** |  |
+
+| Service | Detail |
+| :------ | :----- |
+| MCP, asks first | github · stdio · npx \-y @&#8203;modelcontextprotocol/server\-github@&#8203;1\.4\.0 \(pinned\) |
+| Hooks | PreToolUse Bash → scripts/hooks/guard\.sh **\(fails open\)** |
+
+### On demand
+
+| File | Size | When |
+| :--- | ---: | :--- |
+| \.claude/skills/deploy/SKILL\.md | body 9,402 bytes ≈ 2,351 | when the model picks it |
+| \.claude/skills/docs/SKILL\.md | body 1,200 bytes ≈ 300 | when the model picks it |
+| \.claude/skills/lint/SKILL\.md | body 1,500 bytes ≈ 375 | when the model picks it |
+| \.claude/skills/release/SKILL\.md | body 2,000 bytes ≈ 500 | when the model picks it |
+| \.claude/rules/api\.md | 900 bytes ≈ 225 | when Claude opens src/api/\*\* |
+| \.claude/agents/reviewer\.md | 1,500 bytes ≈ 375 | when the model picks it |
+| \.claude/commands/release\.md | 600 bytes ≈ 150 | when you run /release |
+
+### Skipped
+
+| File | Reason | Rule |
+| :--- | :----- | :--- |
+| \.mcp\.json › docs | &quot;url&quot; without &quot;type&quot; | [`mcp/url-without-type`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/mcp/url-without-type.md) |
+| packages/api/AGENTS\.md | a CLAUDE\.md on the path is read instead | [`instr/agents-md-ignored-by-claude`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md) |
+
+**Not read by Claude Code:** \.cursor/rules/api\.mdc
+
+## Codex context · packages/api
+
+**Assumes:** codex\.project\_doc\_max\_bytes = 32,768 \(rule option\)
+
+**Not visible:** \$CODEX\_HOME/AGENTS\.md, \~/\.agents/skills, \~/\.codex/config\.toml \(user\)
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | AGENTS\.md | 6,880 | 1,720 |  |
+| 2 | packages/api/AGENTS\.md **(cut at byte 25,888, line 812)** | 26,130 | 6,472 |  |
+|  | Skills listing (1 skill, metadata) | 240 | 60 |  |
+|  | **Total** | **33,250** | **≈ 8,252** |  |
+
+| Service | Detail |
+| :------ | :----- |
+| Hooks, asks first | Stop → node scripts/notify\.js |
+
+### On demand
+
+| File | Size | When |
+| :--- | ---: | :--- |
+| \.agents/skills/release\-notes/SKILL\.md | body 3,100 bytes ≈ 775 | when the model picks it |
+
+**Not read by Codex:** CLAUDE\.md
+
+### Incomplete
+
+| File | Problem |
+| :--- | :------ |
+| \.codex/config\.toml | not analyzed\: agentcheckup does not parse this format |
+
+## Cursor context · ./
+
+**Assumes:** cursor\.mode = agent \(default\), cursor\.thirdPartyConfigs = true \(default\)
+
+**Not visible:** Team rules \(team\)
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | AGENTS\.md | 6,880 | 1,720 |  |
+| 2 | CLAUDE\.md | 1,204 | 301 |  |
+|  | **Total** | **8,084** | **≈ 2,021** |  |
+
+| Service | Detail |
+| :------ | :----- |
+| MCP | browser · stdio · npx \-y @&#8203;acme/browser\-mcp **\(not pinned\)** |
+
+### On demand
+
+| File | Size | When |
+| :--- | ---: | :--- |
+| \.cursor/rules/api\.mdc | 1,100 bytes ≈ 275 | when Cursor opens src/api/\*\*/\*\.ts, src/routes/\*\* |
+
+### Skipped
+
+| File | Reason | Rule |
+| :--- | :----- | :--- |
+| \.cursor/rules/style\.md | only \.mdc files are read here | [`cursor/md-file-ignored`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/cursor/md-file-ignored.md) |
+
+## Files by agent
+
+| File | Claude Code | Codex | Cursor |
+| :--- | :--- | :--- | :--- |
+| \.agents/skills/release\-notes | — | listed | listed |
+| \.claude/skills/deploy | listed | — | listed |
+| \.cursor/rules/api\.mdc | — | — | on-path |
+| \.cursor/rules/style\.md | — | — | skipped |
+| \.mcp\.json | skipped | — | — |
+| AGENTS\.md | skipped | startup | startup |
+| CLAUDE\.md | startup | — | startup |
+| packages/api/AGENTS\.md | skipped | start-dir | on-path |
+| packages/web/AGENTS\.md | skipped | partial | on-path |
+
+_≈Tokens = characters ÷ 4._
+
+_? = unverified: neither documentation nor source code confirms it._

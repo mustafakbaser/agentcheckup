@@ -7,7 +7,8 @@ import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL } from '../core/meta.js';
 import type { Grade } from '../core/score.js';
 import { CATEGORIES, type Finding, type Severity } from '../core/types.js';
-import { forTerminal } from './sanitize.js';
+import { gateRows } from './gate.js';
+import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
   breakdown,
   displayWidth,
@@ -104,7 +105,12 @@ interface Context {
   readonly style: Style;
   readonly symbols: Symbols;
   readonly ascii: boolean;
+  /** The scan ran with `--baseline`: rows get a column that marks new findings. */
+  readonly baseline: boolean;
 }
+
+/** Marker for findings the baseline does not have; unchanged ones get blanks of equal width. */
+const NEW_MARKER = 'new';
 
 /** Sanitized single-line text, safe to write to a terminal. TAB becomes a space for alignment. */
 function clean(text: string, context: Context, max = MAX_MESSAGE_LENGTH): string {
@@ -167,7 +173,8 @@ function renderFile(
       .map((row) => displayWidth(row.message))
       .filter((width) => width <= MAX_ALIGNED_MESSAGE_WIDTH),
   );
-  const indent = ' '.repeat(2 + lineWidth + 1 + columnWidth + 2 + severityWidth + 2);
+  const markerWidth = context.baseline ? NEW_MARKER.length + 2 : 0;
+  const indent = ' '.repeat(2 + lineWidth + 1 + columnWidth + 2 + severityWidth + 2 + markerWidth);
 
   const lines = [style.underline(clean(path, context))];
   for (const row of rows) {
@@ -183,8 +190,15 @@ function renderFile(
       ) + ' '.repeat(severityWidth - row.severity.length);
     const message = finding.suppressed ? style.dim(row.message) : row.message;
     const padding = ' '.repeat(Math.max(0, messageWidth - displayWidth(row.message)));
+    let marker = '';
+    if (context.baseline) {
+      marker =
+        finding.baseline === 'new'
+          ? `${style.bold(NEW_MARKER)}  `
+          : ' '.repeat(NEW_MARKER.length + 2);
+    }
     lines.push(
-      `  ${style.dim(position)}  ${severity}  ${message}${padding}  ${style.gray(clean(finding.ruleId, context))}`,
+      `  ${style.dim(position)}  ${severity}  ${marker}${message}${padding}  ${style.gray(clean(finding.ruleId, context))}`,
     );
 
     if (finding.suppressed) {
@@ -269,6 +283,13 @@ function renderNotices(result: ScanResult, context: Context): string[] {
     );
   }
 
+  if (result.baseline !== undefined && !result.baseline.against.sameRuleset) {
+    lines.push(
+      `${mark} The baseline was written with ruleset ${clean(result.baseline.against.ruleset, context)}, ` +
+        'so findings from rules it did not run count as new.',
+    );
+  }
+
   for (const warning of result.configWarnings.slice(0, MAX_LISTED)) {
     lines.push(`${mark} ${clean(warning, context)}`);
   }
@@ -302,6 +323,39 @@ function renderRuleFailures(result: ScanResult, context: Context): string[] {
   }
   lines.push(`  This is a bug in agentcheckup. Please report it: ${REPOSITORY_URL}/issues`);
   return lines;
+}
+
+/** Security-relevant changes since the baseline that trip the gate: the reason for exit 1. */
+function renderGateHits(result: ScanResult, context: Context): string[] {
+  if (result.baseline === undefined) return [];
+  const rows = gateRows(result.baseline);
+  if (rows.length === 0) return [];
+  const { style, symbols } = context;
+  const lines = [
+    style.red(
+      style.bold(
+        `${symbols.fail} ${plural(rows.length, 'security-relevant change')} since the baseline need review`,
+      ),
+    ),
+  ];
+  for (const row of rows.slice(0, MAX_LISTED)) {
+    lines.push(`    ${style.bold(row.label)}: ${clean(row.hit.summary, context)}`);
+  }
+  if (rows.length > MAX_LISTED) {
+    lines.push(`    ${symbols.more} and ${rows.length - MAX_LISTED} more`);
+  }
+  return lines;
+}
+
+/** `2 new, 5 unchanged, 1 resolved since the baseline`. */
+function baselineLine(result: ScanResult, context: Context): string | undefined {
+  if (result.baseline === undefined) return undefined;
+  const { findings } = result.baseline;
+  const resolved = findings.resolved.length > 0 ? `, ${findings.resolved.length} resolved` : '';
+  return (
+    `${context.style.bold(`${findings.new} new`)}, ${findings.unchanged} unchanged` +
+    `${resolved} since the baseline`
+  );
 }
 
 function countsLine(result: ScanResult, context: Context): string | undefined {
@@ -359,6 +413,9 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     style: options.style,
     symbols: ascii ? ASCII_SYMBOLS : UNICODE_SYMBOLS,
     ascii,
+    baseline:
+      result.baseline !== undefined ||
+      result.findings.some((finding) => finding.baseline !== undefined),
   };
   const maxPerFile =
     options.maxPerFile !== undefined && Number.isFinite(options.maxPerFile)
@@ -377,13 +434,17 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
   if (notices.length > 0) blocks.push(notices);
   const failures = renderRuleFailures(result, context);
   if (failures.length > 0) blocks.push(failures);
+  const gate = renderGateHits(result, context);
+  if (gate.length > 0) blocks.push(gate);
 
   const summary = [
     countsLine(result, context),
     categoriesLine(result, context),
+    baselineLine(result, context),
     scoreLine(result, context),
   ].filter((line) => line !== undefined);
   blocks.push(summary);
 
-  return `${blocks.map((block) => block.join('\n')).join('\n\n')}\n`;
+  // Paths start lines here (the file headings), so a path must not read as a workflow command.
+  return guardWorkflowCommands(`${blocks.map((block) => block.join('\n')).join('\n\n')}\n`);
 }
