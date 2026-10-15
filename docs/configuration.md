@@ -70,9 +70,34 @@ Rules:
 - A directive that no longer suppresses anything is reported, so stale suppressions do not
   accumulate.
 - JSON files cannot hold comments. Use `overrides` for them.
-- `--untrusted` ignores all inline directives and the repository's configuration file. It also
-  reads agent configuration that the repository's `.gitignore` matches, because agents load
-  committed files whether or not they are ignored.
+- A directive applies to findings in its own file. That includes a file an instruction file
+  imports, such as a `README.md` that `CLAUDE.md` imports with `@README.md`.
+- `--untrusted` ignores all inline directives. See
+  [Scanning untrusted repositories](#scanning-untrusted-repositories).
+
+## Scanning untrusted repositories
+
+Use `--untrusted` for pull requests from forks and other third-party code. It ignores the
+repository's configuration file and all inline directives, so the code under review cannot turn
+checks off.
+
+It also does not let the repository's `.gitignore` hide agent configuration. Agents load
+committed files whether or not `.gitignore` names them, so a change could otherwise commit a
+`.mcp.json` with `git add -f`, list it in `.gitignore` and keep it out of the scan. With
+`--untrusted`, agent configuration directories such as `.claude/`, `.cursor/` and `.github/` are
+listed, and agent files such as `CLAUDE.md` and `.mcp.json` are read, even where `.gitignore`
+excludes them.
+
+### Limitations
+
+These stay hidden with `--untrusted` when `.gitignore` excludes them:
+
+- Directories that are not agent configuration directories, with everything below them. If
+  `.gitignore` excludes `packages/`, the scan does not see `packages/x/.claude/settings.json`.
+- Files that instruction files import. If `.gitignore` excludes `docs/`, the scan does not read
+  `docs/guide.md` for a `CLAUDE.md` that imports `@docs/guide.md`.
+
+To scan everything, add `--no-gitignore`.
 
 ## What each agent loads
 

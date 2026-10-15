@@ -10,11 +10,12 @@ import {
   type ImportEdge,
   ImportGraph,
   importRoots,
+  importsUncertainty,
   inHtmlComment,
-  isUndocumentedRoot,
   MAX_HOPS,
   targetedDialects,
   tooDeepImports,
+  uncertaintyNote,
 } from './import-graph.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
@@ -97,7 +98,7 @@ export const importDepthRule = defineRule({
     title: 'Import is nested deeper than the agent follows',
     rationale: [
       'Imported files can import other files, up to a fixed depth: Claude Code follows imports at most four hops from the file it loads, Gemini CLI five. A deeper import is not followed, so the file it names is not loaded.',
-      "agentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.",
+      "agentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. So is a chain that starts at a symlink such as `.claude/CLAUDE.md -> ../AGENTS.md` in another directory than its target: agentcheckup resolves its imports from the link's directory, which Claude Code's documentation does not confirm. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.",
       'Import deeply nested files directly from the top-level file.',
     ].join('\n\n'),
     category: 'loading',
@@ -109,6 +110,8 @@ export const importDepthRule = defineRule({
       SOURCES.geminiImports,
       INSTRUCTION_SOURCES.geminiImportSource,
       INSTRUCTION_SOURCES.claudeRuleImportsUndocumented,
+      INSTRUCTION_SOURCES.claudeSymlinkImportsUndocumented,
+      INSTRUCTION_SOURCES.geminiImportBaseSource,
       INSTRUCTION_SOURCES.claudeImportCyclesUndocumented,
     ],
     since: RULESET_VERSION,
@@ -131,18 +134,20 @@ export const importDepthRule = defineRule({
 
       for (const { root, file, reference, target } of tooDeepImports(graph, roots, dialect)) {
         if (!once(file, reference)) continue;
-        const undocumented = isUndocumentedRoot(root);
-        const message = `This import is ${formatInteger(maxHops + 1)} hops from ${quotePath(root.path)}. ${DIALECT_AGENT[dialect]} follows imports at most ${formatInteger(maxHops)} hops deep, so ${quotePath(target)} is not loaded.`;
+        const uncertainty = importsUncertainty(graph, root, dialect);
+        // The path the agent loads the root by: `CLAUDE.md` for `CLAUDE.md -> AGENTS.md`.
+        const from = graph.rootPath(root, dialect) ?? root.path;
+        const message = `This import is ${formatInteger(maxHops + 1)} hops from ${quotePath(from)}. ${DIALECT_AGENT[dialect]} follows imports at most ${formatInteger(maxHops)} hops deep, so ${quotePath(target)} is not loaded.`;
         context.report({
           artifact: file,
           span: reference.span,
           platforms,
-          ...(undocumented
-            ? {
+          ...(uncertainty === undefined
+            ? { message }
+            : {
                 severity: 'info' as const,
-                message: `${message} Claude Code's documentation does not say it expands imports in project rules.`,
-              }
-            : { message }),
+                message: `${message} ${uncertaintyNote(uncertainty)}`,
+              }),
         });
       }
 

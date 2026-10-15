@@ -118,6 +118,36 @@ describe('instr/import-outside-root', () => {
     ]);
   });
 
+  it('checks a file that CLAUDE.md links to, from the link', () => {
+    const text = '@/Users/alice/notes.md\n@../outside.md\n@../../up.md\n';
+    const scan = (link: string) =>
+      findings(
+        lint(
+          { 'AGENTS.md': text, [link]: text },
+          { rules, paths: GIT, symlinks: { [link]: 'AGENTS.md' } },
+        ),
+        RULE,
+      ).map((finding) => [finding.severity, finding.message]);
+    const absolute =
+      'Import "@/Users/alice/notes.md" uses an absolute path, which exists only on machines with the same directory layout. Claude Code also asks for approval before it loads files outside the working directory.';
+    const relative = (path: string) =>
+      `Import "@${path}" resolves outside the repository, so other clones and CI runners do not have that file. Claude Code also asks for approval before it loads files outside the working directory.`;
+    expect(scan('CLAUDE.md')).toEqual([
+      ['warn', absolute],
+      ['warn', relative('../outside.md')],
+      ['warn', relative('../../up.md')],
+    ]);
+    // From .claude/, `../outside.md` stays inside the repository. A relative import that still
+    // leaves it depends on where the link sits: information. The absolute path does not.
+    expect(scan('.claude/CLAUDE.md')).toEqual([
+      ['warn', absolute],
+      [
+        'info',
+        `${relative('../../up.md')} Claude Code reads this through a symlink in another directory than the file it points to, and its documentation does not say whether imports then resolve from the link's directory, as agentcheckup assumes, or from the target's.`,
+      ],
+    ]);
+  });
+
   it('does not run when neither agent is targeted', () => {
     const result = lint({ 'CLAUDE.md': '@/Users/a/b.md\n' }, { rules, targets: ['cursor'] });
     expect(findings(result, RULE)).toEqual([]);

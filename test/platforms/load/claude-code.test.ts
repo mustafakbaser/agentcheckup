@@ -424,6 +424,49 @@ describe('loadClaudeCode: imports', () => {
     expect(result.skipped).toEqual([]);
   });
 
+  it('follows the imports of AGENTS.md when CLAUDE.md is a symlink to it', () => {
+    const text = '@docs/guide.md\n@docs/missing.md\n';
+    const result = plan(
+      { 'AGENTS.md': text, 'CLAUDE.md': text, 'docs/guide.md': 'Guide.\n' },
+      { symlinks: { 'CLAUDE.md': 'AGENTS.md' }, imported: ['docs/guide.md'] },
+    );
+    expect(summary(result.entries)).toEqual([
+      '1 startup instructions CLAUDE.md',
+      '2 startup import docs/guide.md',
+    ]);
+    expect(entry(result, 'import:docs/guide.md')).toMatchObject({
+      via: ['CLAUDE.md'],
+      size: { bytes: 7, chars: 7, tokens: 2 },
+      certainty: 'documented',
+    });
+    // The skip names the file that holds the import, where the rule reports it.
+    expect(skips(result)).toEqual([
+      'import:AGENTS.md#docs/missing.md import-unresolved instr/import-unresolved',
+    ]);
+    expect(result.incomplete).toEqual([]);
+  });
+
+  it('resolves imports from a symlinked CLAUDE.md in another directory, as unverified', () => {
+    const text = '@notes.md\n@/etc/team/rules.md\n';
+    const result = plan(
+      { 'AGENTS.md': text, '.claude/CLAUDE.md': text, '.claude/notes.md': 'Notes.\n' },
+      { symlinks: { '.claude/CLAUDE.md': 'AGENTS.md' }, imported: ['.claude/notes.md'] },
+    );
+    expect(result.entries.map((item) => [item.id, item.realPath, item.certainty])).toEqual([
+      ['instructions:.claude/CLAUDE.md', 'AGENTS.md', 'documented'],
+      ['import:.claude/notes.md', '.claude/notes.md', 'unverified'],
+    ]);
+    // An absolute path names the same file wherever the link sits.
+    expect(result.skipped).toEqual([
+      expect.objectContaining({
+        id: 'import:AGENTS.md#/etc/team/rules.md',
+        code: 'import-outside-root',
+        ruleId: 'instr/import-outside-root',
+        certainty: 'documented',
+      }),
+    ]);
+  });
+
   it('expands imports of nested files with the same trigger and patterns', () => {
     const result = plan({
       'CLAUDE.md': 'Root.\n',

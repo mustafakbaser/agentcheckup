@@ -9,12 +9,13 @@
  * rules and the load plans could not size such a file or follow the imports inside it.
  *
  * The plan uses the import rules' own code (src/platforms/load/imports.ts): the same roots
- * (importRoots), the same extraction (ImportGraph.edges over the engine's Markdown parser, with a
- * budget of its own), the same resolution relative to the importing file, imports inside HTML comments skipped for
- * Claude Code, and the same hop limits (MAX_HOPS: 4 for Claude Code, 5 for Gemini CLI). It is a
- * breadth-first search, one hop per round, so when a cap stops the pass the files closest to the
- * instruction files are the ones that were read. Within a round targets are sorted, so the
- * result does not depend on timing.
+ * (importRoots, which include a file that a symlinked CLAUDE.md or GEMINI.md points to), the same
+ * extraction (ImportGraph.edges over the engine's Markdown parser, with a budget of its own), the
+ * same resolution relative to the importing file (or to the symlink it was loaded through),
+ * imports inside HTML comments skipped for Claude Code, and the same hop limits (MAX_HOPS: 4 for
+ * Claude Code, 5 for Gemini CLI). It is a breadth-first search, one hop per round, so when a cap
+ * stops the pass the files closest to the instruction files are the ones that were read. Within
+ * a round targets are sorted, so the result does not depend on timing.
  *
  * A target is read only when the walk listed it as a file (inside the root, not ignored, not
  * below an opaque directory, not a link whose target was not looked at), it is text by its name
@@ -55,6 +56,15 @@ interface Waiting {
   readonly hop: number;
 }
 
+export interface ImportPlannerOptions {
+  /**
+   * Import references the planner may visit, across all files and rounds, so a hostile
+   * repository cannot stall the walk. Past it, the pass ends after the targets already found.
+   * Default: the import graph's own cap, the one the import rules use.
+   */
+  readonly maxEdgeVisits?: number;
+}
+
 /**
  * Plans the import pass over the snapshot of a finished walk. Call `next()` for the targets to
  * read, report each with `done()`, and repeat until `next()` returns nothing.
@@ -74,7 +84,7 @@ export class ImportPlanner {
   /** Targets handed out by the last `next()`, and the searches waiting for each. */
   readonly #pending = new Map<string, Waiting[]>();
 
-  constructor(snapshot: Snapshot) {
+  constructor(snapshot: Snapshot, options: ImportPlannerOptions = {}) {
     this.#snapshot = snapshot;
     // The engine's own classification, aliasing and Markdown parser, so the plan sees the files
     // as the rules will; only the parse budget is the planner's own.
@@ -83,11 +93,10 @@ export class ImportPlanner {
       markdownLineBudget: IMPORT_MARKDOWN_LINE_BUDGET,
     });
     this.#index = new Map(analysis.index);
-    this.#graph = new ImportGraph({
-      snapshot,
-      index: this.#index,
-      markdown: analysis.markdown,
-    });
+    this.#graph = new ImportGraph(
+      { snapshot, index: this.#index, markdown: analysis.markdown },
+      options.maxEdgeVisits,
+    );
     this.#settled = new Set([
       ...snapshot.files.map((file) => file.path),
       ...snapshot.skipped.map((entry) => entry.path),

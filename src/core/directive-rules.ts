@@ -30,6 +30,7 @@ const MARKDOWN_KINDS_FOR_DIRECTIVES = [
   'windsurf-rule',
   'windsurf-legacy-rules',
   'cline-rule',
+  'imported-file',
 ] as const;
 
 const ALL_PLATFORMS = [

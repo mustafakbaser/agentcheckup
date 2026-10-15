@@ -1,6 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { type ArtifactKind, PLATFORM_IDS, type Severity } from '../../core/types.js';
-import { JSON_KINDS, MARKDOWN_KINDS } from '../../platforms/kinds.js';
+import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { codePointLabel, formatInteger, joinNames, quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
@@ -83,12 +83,12 @@ export const hiddenUnicodeRule = defineRule({
     title: 'File contains invisible or text-reordering Unicode characters',
     rationale: [
       'Unicode tag characters (U+E0000–U+E007F) mirror ASCII but render as nothing: editors, diffs and rendered Markdown do not show them, yet language models read them as text, so a file can carry instructions no reviewer sees ("ASCII smuggling"). Bidirectional controls (U+202A–U+202E, U+2066–U+2069) change the display order of text, so the reviewed text differs from the text the agent reads ("Trojan Source"). Zero-width characters and runs of variation selectors hide data the same way.',
-      'Tag characters and bidirectional controls are errors; bidirectional controls are warnings on a line with right-to-left script, where they have legitimate uses. Zero-width characters and variation selector runs are warnings. Not reported: a joiner inside an emoji sequence or a joining script, a zero width space between letters of a script written without spaces, a byte order mark at the start of the file, and subdivision flags such as England (U+1F3F4 followed by tag letters).',
+      'Tag characters and bidirectional controls are errors; bidirectional controls are warnings on a line with right-to-left script, where they have legitimate uses. Zero-width characters and variation selector runs are warnings. Not reported: a joiner inside an emoji sequence or a joining script, a zero width space between letters of a script written without spaces, a byte order mark at the start of the file, and subdivision flags such as England (U+1F3F4 followed by tag letters). Files that an instruction file imports with `@path`, such as a `README.md` that `CLAUDE.md` imports, are checked too: the agent loads their text with the file that imports them.',
       'Delete the characters. If they came from copy and paste, retype the affected text.',
     ].join('\n\n'),
     category: 'risk',
     severity: 'error',
-    appliesTo: [...MARKDOWN_KINDS, ...JSON_KINDS] as readonly ArtifactKind[],
+    appliesTo: [...MARKDOWN_OR_IMPORTED_KINDS, ...JSON_KINDS] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [
       RISK_SOURCES.asciiSmuggling,

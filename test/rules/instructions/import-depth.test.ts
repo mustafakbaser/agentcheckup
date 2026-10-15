@@ -77,6 +77,58 @@ describe('instr/import-depth', () => {
     ]);
   });
 
+  it('counts hops from a CLAUDE.md that is a symlink to AGENTS.md', () => {
+    // AGENTS.md (as CLAUDE.md) -> a.md -> b.md -> c.md -> d.md -> e.md: five hops.
+    const chain = (directory: string): Record<string, string> => ({
+      [`${directory}a.md`]: '@b.md\n',
+      [`${directory}b.md`]: '@c.md\n',
+      [`${directory}c.md`]: '@d.md\n',
+      [`${directory}d.md`]: '@e.md\n',
+      [`${directory}e.md`]: 'End.\n',
+    });
+    const imported = (directory: string): string[] =>
+      ['a', 'b', 'c', 'd', 'e'].map((name) => `${directory}${name}.md`);
+    const linked = (link: string, directory: string) =>
+      lint(
+        { 'AGENTS.md': '@a.md\n', [link]: '@a.md\n', ...chain(directory) },
+        {
+          rules,
+          targets: ['claude-code'],
+          symlinks: { [link]: 'AGENTS.md' },
+          imported: imported(directory),
+        },
+      );
+
+    expect(findings(linked('CLAUDE.md', ''), RULE)).toEqual([
+      expect.objectContaining({
+        severity: 'error',
+        path: 'd.md',
+        message:
+          'This import is 5 hops from "CLAUDE.md". Claude Code follows imports at most 4 hops deep, so "e.md" is not loaded.',
+      }),
+    ]);
+    // Through a link in another directory, the imports resolve from the link: information.
+    expect(findings(linked('.claude/CLAUDE.md', '.claude/'), RULE)).toEqual([
+      expect.objectContaining({
+        severity: 'info',
+        path: '.claude/d.md',
+        message:
+          'This import is 5 hops from ".claude/CLAUDE.md". Claude Code follows imports at most 4 hops deep, so ".claude/e.md" is not loaded. Claude Code reads this through a symlink in another directory than the file it points to, and its documentation does not say whether imports then resolve from the link\'s directory, as agentcheckup assumes, or from the target\'s.',
+      }),
+    ]);
+    // Four hops are fine.
+    const short = lint(
+      { 'AGENTS.md': '@b.md\n', 'CLAUDE.md': '@b.md\n', ...chain('') },
+      {
+        rules,
+        targets: ['claude-code'],
+        symlinks: { 'CLAUDE.md': 'AGENTS.md' },
+        imported: imported(''),
+      },
+    );
+    expect(findings(short, RULE)).toEqual([]);
+  });
+
   it('does not report a too-deep import of a missing file', () => {
     const result = lint(
       { ...CLAUDE_CHAIN, '.windsurfrules': '@docs/missing.md\n' },

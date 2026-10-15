@@ -12,12 +12,14 @@ import { scanSnapshot, scanWithContext } from '../../src/core/engine.js';
 import { PLATFORM_IDS, type Snapshot } from '../../src/core/types.js';
 import {
   IMPORT_MARKDOWN_LINE_BUDGET,
+  ImportPlanner,
   MAX_IMPORTED_BYTES,
   MAX_IMPORTED_FILES,
 } from '../../src/io/imports.js';
 import { walk } from '../../src/io/walk.js';
 import { MAX_MARKDOWN_LINES } from '../../src/parse/markdown.js';
 import { builtinRules } from '../../src/rules/index.js';
+import { snapshotFrom } from '../helpers/lint.js';
 import {
   canDenyPermissions,
   filePaths,
@@ -124,6 +126,56 @@ describe('walk: import pass', () => {
     );
     expect(cycle.map((finding) => [finding.path, finding.severity])).toEqual([['b.md', 'info']]);
   });
+
+  it.skipIf(!symlinksSupported)(
+    'follows the imports of AGENTS.md when CLAUDE.md or GEMINI.md is a symlink to it',
+    async () => {
+      const root = await makeTempDir();
+      await writeTree(root, {
+        'AGENTS.md': 'Read @docs/guide.md first.\n',
+        'docs/guide.md': 'Guide.\n',
+        'pkg/AGENTS.md': 'See @./notes.md\n',
+        'pkg/notes.md': 'Notes.\n',
+        'unrelated.md': 'Nobody imports this.\n',
+      });
+      await link(root, 'CLAUDE.md', 'AGENTS.md');
+      await link(root, 'pkg/GEMINI.md', 'AGENTS.md');
+
+      const snapshot = await walk(root);
+
+      expect(imported(snapshot)).toEqual(['docs/guide.md', 'pkg/notes.md']);
+      const result = scanWithContext(snapshot, { ...OPTIONS, agents: ['claude-code'] });
+      const plan = result.context.plans[0];
+      expect(plan?.entries.find((entry) => entry.id === 'import:docs/guide.md')).toMatchObject({
+        via: ['CLAUDE.md'],
+        size: { bytes: 7 },
+        certainty: 'documented',
+      });
+      expect(plan?.incomplete).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinksSupported)(
+    "resolves imports from a symlinked CLAUDE.md's own directory",
+    async () => {
+      const root = await makeTempDir();
+      await writeTree(root, {
+        'AGENTS.md': '@notes.md\n',
+        'notes.md': 'Next to AGENTS.md.\n',
+        '.claude/notes.md': 'Next to the link.\n',
+      });
+      await link(root, '.claude/CLAUDE.md', '../AGENTS.md');
+
+      const snapshot = await walk(root);
+
+      expect(imported(snapshot)).toEqual(['.claude/notes.md']);
+      const result = scanWithContext(snapshot, { ...OPTIONS, agents: ['claude-code'] });
+      expect(result.context.plans[0]?.entries.map((entry) => [entry.id, entry.certainty])).toEqual([
+        ['instructions:.claude/CLAUDE.md', 'documented'],
+        ['import:.claude/notes.md', 'unverified'],
+      ]);
+    },
+  );
 
   it('only follows imports of files the agents load, outside HTML comments', async () => {
     const root = await makeTempDir();
@@ -322,4 +374,64 @@ describe('walk: import pass', () => {
       expect(snapshot.skipped).toEqual([]);
     },
   );
+});
+
+describe('ImportPlanner: edge budget', () => {
+  const encoder = new TextEncoder();
+
+  /**
+   * Runs the planner as the walker does: `files` were read by the walk, `targets` exist and are
+   * read when the planner asks for them. Returns the targets of each round.
+   */
+  function rounds(
+    files: Record<string, string>,
+    targets: Record<string, string>,
+    maxEdgeVisits?: number,
+  ): string[][] {
+    const snapshot = snapshotFrom(files, { paths: Object.keys(targets) });
+    const planner = new ImportPlanner(
+      snapshot,
+      maxEdgeVisits === undefined ? {} : { maxEdgeVisits },
+    );
+    const asked: string[][] = [];
+    for (let next = planner.next(); next.length > 0; next = planner.next()) {
+      asked.push(next);
+      for (const path of next) {
+        planner.done(path, { path, bytes: encoder.encode(targets[path]), imported: true });
+      }
+    }
+    return asked;
+  }
+
+  // CLAUDE.md has one import, a.md two: three edge visits in two rounds.
+  const files = { 'CLAUDE.md': '@a.md\n' };
+  const targets = { 'a.md': '@b.md @c.md\n', 'b.md': 'B.\n', 'c.md': 'C.\n' };
+
+  it('reads every round within the budget', () => {
+    expect(rounds(files, targets)).toEqual([['a.md'], ['b.md', 'c.md']]);
+    expect(rounds(files, targets, 3)).toEqual([['a.md'], ['b.md', 'c.md']]);
+  });
+
+  it('stops before the round whose imports exceed the budget', () => {
+    expect(rounds(files, targets, 2)).toEqual([['a.md']]);
+    expect(rounds(files, targets, 0)).toEqual([]);
+  });
+
+  it('still reads what the round found before the budget ran out, and nothing after', () => {
+    // The roots expand in path order: CLAUDE.md fits, sub/CLAUDE.md does not.
+    const twoRoots = { 'CLAUDE.md': '@a.md\n', 'sub/CLAUDE.md': '@x.md @y.md\n' };
+    const more = { ...targets, 'sub/x.md': 'X.\n', 'sub/y.md': 'Y.\n' };
+    expect(rounds(twoRoots, more)).toEqual([
+      ['a.md', 'sub/x.md', 'sub/y.md'],
+      ['b.md', 'c.md'],
+    ]);
+    expect(rounds(twoRoots, more, 1)).toEqual([['a.md']]);
+  });
+
+  it('spends nothing on files without an @', () => {
+    expect(rounds({ 'CLAUDE.md': 'No imports.\n', 'AGENTS.md': 'x' }, {}, 0)).toEqual([]);
+    expect(
+      rounds({ 'CLAUDE.md': 'Plain.\n', 'pkg/CLAUDE.md': '@a.md\n' }, { 'pkg/a.md': 'A.\n' }, 1),
+    ).toEqual([['pkg/a.md']]);
+  });
 });

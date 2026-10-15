@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { analyze, runRules } from '../../../src/core/engine.js';
 import { partialRule } from '../../../src/rules/analysis/partial.js';
 import { formatInteger } from '../../../src/rules/shared/format.js';
-import { findings, lint } from '../../helpers/lint.js';
+import { findings, lint, snapshotFrom } from '../../helpers/lint.js';
 
 const ID = 'analysis/partial';
 
@@ -30,6 +31,31 @@ describe('analysis/partial', () => {
         .map((finding) => finding.message)
         .join(' '),
     ).toMatch(/not parsed|ignored|analyzed/);
+  });
+
+  it('reports imported files too, as info that does not count toward the score', () => {
+    const text = `# Readme\n\n${'Plain sentence about the project.\n'.repeat(6000)}`;
+    const result = lint(
+      { 'CLAUDE.md': '@README.md\n', 'README.md': text },
+      { rules: [partialRule], imported: ['README.md'] },
+    );
+    expect(findings(result, ID).map((finding) => [finding.path, finding.severity])).toEqual([
+      ['README.md', 'info'],
+    ]);
+    expect(result.score.artifacts.map((artifact) => artifact.path)).toEqual(['CLAUDE.md']);
+  });
+
+  it('parses agent configuration before the files it imports', () => {
+    // A.md sorts before CLAUDE.md, but the budget goes to CLAUDE.md first.
+    const files = {
+      'A.md': `${'a'.repeat(99)}\n`,
+      'CLAUDE.md': `@A.md\n${'c'.repeat(93)}\n`,
+    };
+    const analysis = analyze(snapshotFrom(files, { imported: ['A.md'] }), {
+      markdownBudget: 150,
+    });
+    const result = runRules(analysis, { rules: [partialRule] });
+    expect(findings(result, ID).map((finding) => finding.path)).toEqual(['A.md']);
   });
 });
 

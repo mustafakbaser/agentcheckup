@@ -48,6 +48,7 @@ import {
   type ClaudeFileOnPath,
   claudeFilesOnPath,
   claudeImportOutsideRoot,
+  claudeImportsUncertainty,
   filesWithFollowedImports,
   type ImportEdge,
   ImportGraph,
@@ -55,7 +56,6 @@ import {
   importsPastLimit,
   inHtmlComment,
   isClaudeAgentsMdLocation,
-  isUndocumentedRoot,
   looksLikeFilePath,
   MAX_HOPS,
   scanRootIsRepository,
@@ -615,8 +615,12 @@ class ClaudeLoader {
     const maxHops = MAX_HOPS.claude;
     const reach = this.#graph.reach([root.artifact], 'claude', maxHops);
     if (!this.#graph.hasBudget()) this.#incomplete.add(`import-budget:${root.path}`);
-    // Claude Code's documentation does not say it expands imports in project rules.
-    const certainty = isUndocumentedRoot(root.artifact) ? 'unverified' : root.certainty;
+    // Claude Code's documentation does not say it expands imports in project rules, nor whether
+    // imports in a file read through a symlink in another directory resolve from the link.
+    const uncertainty = claudeImportsUncertainty(root.artifact, root.path);
+    const certainty = uncertainty === undefined ? root.certainty : 'unverified';
+    // Where the link sits does not change the absolute and home imports of the file itself.
+    const ownCertainty = uncertainty === 'link' ? root.certainty : certainty;
     const child: Root = { ...root, certainty };
     const visited = new Set<Artifact>([root.artifact]);
     const stack: Frame[] = [this.#frame(root.artifact, root.path, [])];
@@ -628,7 +632,8 @@ class ClaudeLoader {
       }
       frame.next++;
       if (inHtmlComment(frame.doc, edge.reference)) continue;
-      this.#checkImport(frame.artifact, edge, certainty);
+      const own = frame.artifact === root.artifact && edge.reference.kind !== 'relative';
+      this.#checkImport(frame.artifact, edge, own ? ownCertainty : certainty);
       const { target } = edge;
       if (target === undefined) continue;
       const artifact = this.#view.index.get(target);
@@ -684,7 +689,7 @@ class ClaudeLoader {
       });
       return;
     }
-    const unresolved = unresolvedImport(this.#view.snapshot, file, edge, 'claude');
+    const unresolved = unresolvedImport(this.#graph, file, edge, 'claude');
     if (unresolved !== undefined) {
       this.#skip({
         role: 'import',

@@ -20,6 +20,8 @@ export interface SnapshotExtras {
   readonly gitignoredConfig?: readonly string[];
   /** Alias path -> real path, for files reached through symlinks. */
   readonly symlinks?: Readonly<Record<string, string>>;
+  /** Files the walker read only because an instruction file imports them (`imported`). */
+  readonly imported?: readonly string[];
   /** Default true, as in a normal walk. */
   readonly gitignoreApplied?: boolean;
 }
@@ -27,6 +29,7 @@ export interface SnapshotExtras {
 export function snapshotFrom(files: FileMap, extras: SnapshotExtras = {}): Snapshot {
   const extraPaths = extras.paths ?? [];
   const symlinks = extras.symlinks ?? {};
+  const imported = new Set(extras.imported ?? []);
   const sourceFiles: SourceFile[] = Object.entries(files)
     .map(([path, content]) => {
       const target = Object.hasOwn(symlinks, path) ? symlinks[path] : undefined;
@@ -34,6 +37,7 @@ export function snapshotFrom(files: FileMap, extras: SnapshotExtras = {}): Snaps
         path,
         bytes: typeof content === 'string' ? encoder.encode(content) : content,
         ...(target === undefined ? {} : { symlinkTarget: target }),
+        ...(imported.has(path) ? { imported: true } : {}),
       };
     })
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));

@@ -13,11 +13,21 @@
  * Only files that agentcheckup read (artifacts) can be followed. Imports of other files are
  * leaves; when such a file might itself import something, results that depend on it are marked
  * incomplete so callers can stay silent rather than guess.
+ *
+ * A file can be a root through a symlink: with `CLAUDE.md -> AGENTS.md`, Claude Code reads
+ * AGENTS.md as the CLAUDE.md (documented, code.claude.com/docs/en/memory: "Claude reads
+ * `CLAUDE.md` through the link") and expands its imports. Imports then resolve from the link's
+ * directory (see `ImportGraph.rootPath`). Gemini CLI's source does that: it reads the path it
+ * found and passes `path.dirname(filePath)` as the base (memoryDiscovery.ts). Claude Code's
+ * documentation says only that relative imports resolve from "the file containing the import";
+ * where the link and the file it points to sit in different directories, results that depend on
+ * that are marked uncertain (`importsUncertainty`).
  */
 import { dirnamePosix, joinRelative, pathStatus } from '../../core/paths.js';
 import type { Artifact, PlatformId, Snapshot } from '../../core/types.js';
 import { findImports } from '../../parse/imports.js';
 import type { ImportDialect, ImportReference, MarkdownDocument } from '../../parse/types.js';
+import { classify } from '../classify.js';
 import { skillDirectoryOf } from '../location.js';
 import { basename, inPayloadFolder, joinPath, selfAndAncestors } from '../paths.js';
 import type { LoadView } from './view.js';
@@ -71,6 +81,10 @@ export class ImportGraph {
   readonly snapshot: Snapshot;
   readonly #view: ImportView;
   readonly #edges = new Map<string, readonly ImportEdge[]>();
+  readonly #rootPaths: Record<ImportDialect, Map<Artifact, string | undefined>> = {
+    claude: new Map(),
+    gemini: new Map(),
+  };
   #budget: number;
 
   constructor(view: ImportView, maxEdgeVisits = MAX_EDGE_VISITS) {
@@ -84,13 +98,36 @@ export class ImportGraph {
     return this.#view.markdown(artifact);
   }
 
-  /** Imports in `artifact` as `dialect` reads them, in source order. */
+  /**
+   * The path through which `dialect`'s agent loads `artifact` by itself, expanding its imports:
+   * the artifact's own path, else the first of its aliases (symlinks that reach it, in code-point
+   * order) at a location the agent loads. Undefined when the agent reaches the file only through
+   * imports, or not at all. With `CLAUDE.md -> AGENTS.md` and no other CLAUDE file, it is
+   * `CLAUDE.md` for the AGENTS.md artifact.
+   *
+   * The file's relative imports resolve from this path's directory. A file loaded through links
+   * in several directories resolves them from the first one only.
+   */
+  rootPath(artifact: Artifact, dialect: ImportDialect): string | undefined {
+    const cache = this.#rootPaths[dialect];
+    if (cache.has(artifact)) return cache.get(artifact);
+    const found = [artifact.path, ...artifact.aliases].find((path) =>
+      isRootLocation(this, artifact, path, dialect),
+    );
+    cache.set(artifact, found);
+    return found;
+  }
+
+  /**
+   * Imports in `artifact` as `dialect` reads them, in source order. Relative ones resolve from
+   * the directory of its `rootPath`, or of its own path when it is not a root.
+   */
   edges(artifact: Artifact, dialect: ImportDialect): readonly ImportEdge[] {
     const key = `${dialect}\u0000${artifact.path}`;
     let edges = this.#edges.get(key);
     if (edges === undefined) {
       const references = findImports(artifact.decoded.text, this.markdown(artifact), dialect);
-      const directory = dirnamePosix(artifact.path);
+      const directory = dirnamePosix(this.rootPath(artifact, dialect) ?? artifact.path);
       edges = references.map((reference) => ({
         reference,
         target: reference.kind === 'relative' ? joinRelative(directory, reference.path) : undefined,
@@ -216,6 +253,18 @@ export function claudeFilesOnPath(graph: ImportGraph, directory: string): Claude
 }
 
 /**
+ * True when `path` is named exactly AGENTS.md, is not under `.agents/` and is not inside a skill:
+ * a place where Claude Code may read an AGENTS.md as a directory's instructions.
+ */
+function isClaudeAgentsMdPath(snapshot: Snapshot, path: string): boolean {
+  return (
+    basename(path) === 'AGENTS.md' &&
+    !underAgentsDirectory(path) &&
+    skillDirectoryOf(snapshot, path) === undefined
+  );
+}
+
+/**
  * True when `path`, which reaches `artifact`, is an AGENTS.md that Claude Code may read as a
  * directory's instructions: named exactly AGENTS.md, not under `.agents/` and not inside a skill.
  */
@@ -224,12 +273,7 @@ export function isClaudeAgentsMdLocation(
   artifact: Artifact,
   path: string = artifact.path,
 ): boolean {
-  return (
-    artifact.kind === 'agents-md' &&
-    basename(path) === 'AGENTS.md' &&
-    !underAgentsDirectory(path) &&
-    skillDirectoryOf(snapshot, path) === undefined
-  );
+  return artifact.kind === 'agents-md' && isClaudeAgentsMdPath(snapshot, path);
 }
 
 /** An AGENTS.md that Claude Code reads directly: no CLAUDE file on its path. */
@@ -240,43 +284,101 @@ export function isAgentsMdReadByClaude(graph: ImportGraph, artifact: Artifact): 
   );
 }
 
-/** Files each agent loads by itself and expands imports in. */
+/** The classification of `path`, one of the paths that reach `artifact`. */
+function kindAt(
+  artifact: Artifact,
+  path: string,
+): Pick<Artifact, 'kind' | 'caseMismatch'> | undefined {
+  // An imported file's own path classifies as nothing; its artifact knows it was imported.
+  return path === artifact.path ? artifact : classify(path);
+}
+
+/**
+ * True when `dialect`'s agent loads the file at `path`, which reaches `artifact`, by itself and
+ * expands its imports: a GEMINI.md for Gemini CLI; for Claude Code a CLAUDE.md, CLAUDE.local.md,
+ * `.claude/rules/` file, or an AGENTS.md without a CLAUDE file on its path.
+ */
+function isRootLocation(
+  graph: ImportGraph,
+  artifact: Artifact,
+  path: string,
+  dialect: ImportDialect,
+): boolean {
+  // Case variants (docs/claude.md) are reported by instr/filename-case and may be documents.
+  // Files in template and example folders resolve their imports in the projects they are
+  // copied into, not where they sit.
+  const classification = kindAt(artifact, path);
+  if (classification === undefined || classification.caseMismatch !== undefined) return false;
+  if (inPayloadFolder(path)) return false;
+  const { kind } = classification;
+  if (dialect === 'gemini') return kind === 'gemini-md';
+  if (kind === 'claude-md' || kind === 'claude-local-md' || kind === 'claude-rule') return true;
+  return (
+    kind === 'agents-md' &&
+    isClaudeAgentsMdPath(graph.snapshot, path) &&
+    claudeFilesOnPath(graph, agentsMdDirectory(path)).length === 0
+  );
+}
+
+/**
+ * Files each agent loads by itself and expands imports in, by their own path or through a
+ * symlink (see `ImportGraph.rootPath`). Sorted by path.
+ */
 export function importRoots(graph: ImportGraph, dialect: ImportDialect): Artifact[] {
   const roots: Artifact[] = [];
   for (const artifact of new Set(graph.index.values())) {
-    // Case variants (docs/claude.md) are reported by instr/filename-case and may be documents.
-    // Files in template and example folders resolve their imports in the projects they are
-    // copied into, not where they sit.
-    if (artifact.caseMismatch !== undefined || inPayloadFolder(artifact.path)) continue;
-    if (dialect === 'gemini') {
-      if (artifact.kind === 'gemini-md') roots.push(artifact);
-      continue;
-    }
-    if (
-      artifact.kind === 'claude-md' ||
-      artifact.kind === 'claude-local-md' ||
-      artifact.kind === 'claude-rule' ||
-      isAgentsMdReadByClaude(graph, artifact)
-    ) {
-      roots.push(artifact);
-    }
+    if (graph.rootPath(artifact, dialect) !== undefined) roots.push(artifact);
   }
   return roots.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/**
+ * Why the agent's handling of the imports reached from a root is not documented:
+ * - `project-rule`: the root is a project `.claude/rules/` file, and Claude Code's documentation
+ *   does not say it expands imports there.
+ * - `link`: Claude Code reads the root through a symlink in another directory than the file it
+ *   points to. Its documentation says relative imports resolve from "the file containing the
+ *   import", not whether that is the link or its target; agentcheckup resolves them from the link.
+ */
+export type ImportsUncertainty = 'project-rule' | 'link';
+
+/**
+ * Why Claude Code's handling of the imports of `artifact`, loaded at `path` (its own path or a
+ * symlink to it), is not documented; undefined when it is.
+ */
+export function claudeImportsUncertainty(
+  artifact: Artifact,
+  path: string,
+): ImportsUncertainty | undefined {
+  if (kindAt(artifact, path)?.kind === 'claude-rule') return 'project-rule';
+  // Through a link in its target's own directory, both readings name the same files.
+  if (dirnamePosix(path) !== dirnamePosix(artifact.realPath)) return 'link';
+  return undefined;
+}
+
+/**
+ * Why `dialect`'s handling of the imports reached from `root` is not documented; undefined when
+ * it is. Always undefined for Gemini CLI: its source resolves imports from the path it found.
+ */
+export function importsUncertainty(
+  graph: ImportGraph,
+  root: Artifact,
+  dialect: ImportDialect,
+): ImportsUncertainty | undefined {
+  if (dialect !== 'claude') return undefined;
+  return claudeImportsUncertainty(root, graph.rootPath(root, dialect) ?? root.path);
 }
 
 export interface ParsedFile {
   readonly artifact: Artifact;
   readonly hop: number;
   /**
-   * False when the agent reaches this file only through a project `.claude/rules/` file, whose
-   * import expansion is not documented.
+   * False when the agent reaches this file only through roots whose import handling is not
+   * documented (see `ImportsUncertainty`).
    */
   readonly documented: boolean;
-}
-
-/** A root whose import expansion is not documented: a project `.claude/rules/` file. */
-export function isUndocumentedRoot(artifact: Artifact): boolean {
-  return artifact.kind === 'claude-rule';
+  /** Why, when `documented` is false: `link` when a symlinked root reaches the file. */
+  readonly uncertainty?: ImportsUncertainty;
 }
 
 /**
@@ -287,19 +389,35 @@ export function filesWithFollowedImports(graph: ImportGraph, dialect: ImportDial
   const maxHops = MAX_HOPS[dialect];
   const roots = importRoots(graph, dialect);
   const { hops } = graph.reach(roots, dialect, maxHops);
-  const documentedRoots = roots.filter((root) => !isUndocumentedRoot(root));
+  const uncertainty = new Map(
+    roots.map((root) => [root, importsUncertainty(graph, root, dialect)]),
+  );
+  const documentedRoots = roots.filter((root) => uncertainty.get(root) === undefined);
+  const linkRoots = roots.filter((root) => uncertainty.get(root) === 'link');
   const documented =
     documentedRoots.length === roots.length
       ? hops
       : graph.reach(documentedRoots, dialect, maxHops).hops;
+  const viaLinks =
+    linkRoots.length === 0
+      ? undefined
+      : graph.reach([...documentedRoots, ...linkRoots], dialect, maxHops).hops;
+  const within = (reached: ReadonlyMap<Artifact, number> | undefined, artifact: Artifact) => {
+    const hop = reached?.get(artifact);
+    return hop !== undefined && hop < maxHops;
+  };
   const files: ParsedFile[] = [];
   for (const [artifact, hop] of hops) {
     if (hop >= maxHops) continue;
-    const documentedHop = documented.get(artifact);
+    if (within(documented, artifact)) {
+      files.push({ artifact, hop, documented: true });
+      continue;
+    }
     files.push({
       artifact,
       hop,
-      documented: documentedHop !== undefined && documentedHop < maxHops,
+      documented: false,
+      uncertainty: within(viaLinks, artifact) ? 'link' : 'project-rule',
     });
   }
   return files.sort((a, b) =>
@@ -369,11 +487,12 @@ export interface UnresolvedImport {
  * inside HTML comments for Claude Code first (see `inHtmlComment`).
  */
 export function unresolvedImport(
-  snapshot: Snapshot,
+  graph: ImportGraph,
   importer: Artifact,
   edge: ImportEdge,
   dialect: ImportDialect,
 ): UnresolvedImport | undefined {
+  const { snapshot } = graph;
   const { reference, target } = edge;
   if (reference.kind !== 'relative' || target === undefined) return undefined;
   const trimmed = withoutTrailingPunctuation(reference.path);
@@ -383,7 +502,9 @@ export function unresolvedImport(
   let path = reference.path;
   let withoutPunctuation: string | undefined;
   if (trimmed !== reference.path && trimmed !== '') {
-    const trimmedTarget = joinRelative(dirnamePosix(importer.path), trimmed);
+    // Resolved like the edge itself (see `ImportGraph.edges`).
+    const from = graph.rootPath(importer, dialect) ?? importer.path;
+    const trimmedTarget = joinRelative(dirnamePosix(from), trimmed);
     if (trimmedTarget !== undefined && pathStatus(snapshot, trimmedTarget) !== 'missing') {
       // Whether Claude Code keeps trailing punctuation in an import path is not documented;
       // Gemini CLI's parser keeps it (it reads up to the next whitespace).
@@ -445,9 +566,9 @@ export function tooDeepImports(
   dialect: ImportDialect,
 ): TooDeepImport[] {
   // Documented roots first, so a finding they share with a project rule keeps its severity.
-  const ordered = [...roots].sort(
-    (a, b) => Number(isUndocumentedRoot(a)) - Number(isUndocumentedRoot(b)),
-  );
+  const undocumented = (root: Artifact): number =>
+    Number(importsUncertainty(graph, root, dialect) !== undefined);
+  const ordered = [...roots].sort((a, b) => undocumented(a) - undocumented(b));
   const found: TooDeepImport[] = [];
   for (const root of ordered) {
     const reach = graph.reach([root], dialect, MAX_HOPS[dialect]);

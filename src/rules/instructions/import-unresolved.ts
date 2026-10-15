@@ -9,6 +9,7 @@ import {
   DIALECT_PLATFORM,
   filesWithFollowedImports,
   ImportGraph,
+  type ImportsUncertainty,
   inHtmlComment,
   targetedDialects,
   unresolvedImport,
@@ -23,8 +24,11 @@ interface Unresolved {
   readonly dialects: Set<ImportDialect>;
   /** Gemini only: the existing file the path names without its trailing punctuation. */
   readonly withoutPunctuation?: string;
-  /** Claude Code reaches this file only through a project rule, whose imports are undocumented. */
-  readonly ruleOnly: boolean;
+  /**
+   * Why Claude Code's handling of this import is not documented: it reaches the file only
+   * through a project rule, or through a symlink in another directory than its target.
+   */
+  readonly uncertainty: ImportsUncertainty | undefined;
 }
 
 function message(found: Unresolved): string {
@@ -37,8 +41,11 @@ function message(found: Unresolved): string {
   if (claude && gemini) {
     return `Imported file ${quotePath(found.path)} does not exist. Claude Code cannot load it, and Gemini CLI replaces the reference with an "Import failed" comment.`;
   }
-  if (claude && found.ruleOnly) {
+  if (claude && found.uncertainty === 'project-rule') {
     return `Imported file ${quotePath(found.path)} does not exist. If Claude Code expands imports in project rules, which its documentation does not say, it cannot load it.`;
+  }
+  if (claude && found.uncertainty === 'link') {
+    return `Imported file ${quotePath(found.path)} does not exist. Claude Code reads this through a symlink in another directory than the file it points to; if it resolves imports from the link's directory, which its documentation does not say, it cannot load it.`;
   }
   if (claude)
     return `Imported file ${quotePath(found.path)} does not exist, so Claude Code cannot load it.`;
@@ -51,7 +58,7 @@ export const importUnresolvedRule = defineRule({
     title: 'Imported file does not exist',
     rationale: [
       'Claude Code and Gemini CLI replace an `@path` import with the content of the file it names, resolved relative to the importing file. When that file does not exist, Claude Code has nothing to load, and Gemini CLI inserts an "Import failed" comment instead of the text.',
-      "Claude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.",
+      "Claude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. A file that a `CLAUDE.md` or `GEMINI.md` symlink points to is checked as that file, with imports resolved from the link's directory, as Gemini CLI does. Where the link sits in another directory than its target, Claude Code's documentation does not say which directory it uses, so findings that depend on it are information. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.",
       'Fix the path, or put a mention you do not want imported in backticks.',
     ].join('\n\n'),
     category: 'correctness',
@@ -63,22 +70,26 @@ export const importUnresolvedRule = defineRule({
       SOURCES.geminiImports,
       INSTRUCTION_SOURCES.geminiImportSource,
       INSTRUCTION_SOURCES.claudeRuleImportsUndocumented,
+      INSTRUCTION_SOURCES.claudeSymlinkImportsUndocumented,
+      INSTRUCTION_SOURCES.geminiImportBaseSource,
     ],
     since: RULESET_VERSION,
   },
   defaultOptions: undefined,
   check(context) {
     const graph = new ImportGraph(context);
-    const { snapshot } = context;
     const found = new Map<string, Unresolved>();
 
     for (const dialect of targetedDialects(context)) {
-      for (const { artifact, documented } of filesWithFollowedImports(graph, dialect)) {
+      for (const { artifact, documented, uncertainty } of filesWithFollowedImports(
+        graph,
+        dialect,
+      )) {
         const doc = graph.markdown(artifact);
         for (const edge of graph.edges(artifact, dialect)) {
           const { reference } = edge;
           if (dialect === 'claude' && inHtmlComment(doc, reference)) continue;
-          const unresolved = unresolvedImport(snapshot, artifact, edge, dialect);
+          const unresolved = unresolvedImport(graph, artifact, edge, dialect);
           if (unresolved === undefined) continue;
 
           const key = `${artifact.path}\u0000${String(reference.span.offset)}`;
@@ -92,7 +103,7 @@ export const importUnresolvedRule = defineRule({
             span: reference.span,
             path: unresolved.path,
             dialects: new Set([dialect]),
-            ruleOnly: dialect === 'claude' && !documented,
+            uncertainty: dialect === 'claude' && !documented ? uncertainty : undefined,
             ...(unresolved.withoutPunctuation === undefined
               ? {}
               : { withoutPunctuation: unresolved.withoutPunctuation }),
@@ -104,7 +115,8 @@ export const importUnresolvedRule = defineRule({
     const limiter = new FindingLimiter();
     for (const unresolved of found.values()) {
       if (!limiter.allow(unresolved.artifact.path)) continue;
-      const onlyUndocumented = unresolved.ruleOnly && !unresolved.dialects.has('gemini');
+      const onlyUndocumented =
+        unresolved.uncertainty !== undefined && !unresolved.dialects.has('gemini');
       context.report({
         artifact: unresolved.artifact,
         span: unresolved.span,

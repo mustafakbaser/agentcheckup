@@ -65,6 +65,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - An import in a project file that resolves outside the working directory needs approval once per project. If you decline, those imports stay disabled. [Memory][cc-memory]
 - Imported files load at launch, so imports organize a file but do not reduce its context cost. [Memory][cc-memory]
 - In an `AGENTS.md` read through the **Project instructions** setting, imports are expanded too. An import outside the working directory loads only if external imports were already approved for the project. [Memory][cc-memory]
+- A `CLAUDE.md` that is a symlink, such as `CLAUDE.md -> AGENTS.md`, is read through the link, so the target's imports are expanded as the `CLAUDE.md`'s. The docs do not say whether relative imports then resolve from the link's directory or from the target's; this matters only when the two differ, as in `.claude/CLAUDE.md -> ../AGENTS.md` (**Unverified**). agentcheckup resolves them from the link's directory, like Gemini CLI, and marks what depends on it as unverified. [Memory][cc-memory]
 
 ### Size limits and truncation
 
@@ -315,6 +316,7 @@ Google announced that from June 18, 2026, Gemini CLI stops serving requests for 
 
 - `@./file.md`, `@../file.md` and `@/absolute/path.md`. Imported files can import others, up to 5 levels by default. Circular imports are detected, `@` inside code spans and code blocks is ignored, and a missing file becomes an error comment. [Memory import processor][gemini-memport]
 - In the source, a path that starts with a letter, such as `@AGENTS.md`, is also an import. An import that resolves outside the project root (the nearest `.git`) is replaced by an "Import failed ... Path traversal attempt" comment. agentcheckup reports such imports. [source][gemini-src-import]
+- A `GEMINI.md` is read at the path where it was found, through symlinks, and its imports resolve from that path's directory, so a `GEMINI.md -> AGENTS.md` link resolves them from the link's directory. [source][gemini-src-discovery]
 
 ### Size limits and truncation
 
@@ -537,6 +539,7 @@ Facts marked "source" were read at these commits on 2026-10-14. Links point to t
 [gemini-config]: https://geminicli.com/docs/reference/configuration/
 [gemini-antigravity]: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/
 [gemini-src-import]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryImportProcessor.ts
+[gemini-src-discovery]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts
 [gemini-src-memorytool]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/tools/memoryTool.ts
 [gemini-src-config]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/config/config.ts
 [gemini-src-skills]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts

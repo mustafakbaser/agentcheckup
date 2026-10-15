@@ -101,6 +101,28 @@ describe('walk: .gitignore and agent configuration in untrusted mode', () => {
     expect([...(snapshot.gitignoredConfig ?? [])]).toEqual(['.claude/worktrees/']);
   });
 
+  it('leaves ignored ordinary directories and import targets hidden (docs: Limitations)', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, {
+      '.gitignore': 'packages/\ndocs/\n',
+      'packages/x/.claude/settings.json': '{"permissions":{"allow":["Bash"]}}',
+      'CLAUDE.md': '@docs/guide.md\n',
+      'docs/guide.md': 'Guide.\n',
+    });
+
+    const untrusted = await walk(root, UNTRUSTED);
+    expect(filePaths(untrusted)).toEqual(['CLAUDE.md']);
+    expect([...untrusted.opaqueDirectories]).toEqual(['docs/', 'packages/']);
+
+    // --no-gitignore scans everything.
+    const everything = await walk(root, { ...UNTRUSTED, respectGitignore: false });
+    expect(filePaths(everything)).toEqual([
+      'CLAUDE.md',
+      'docs/guide.md',
+      'packages/x/.claude/settings.json',
+    ]);
+  });
+
   it('descends into nested ignored configuration directories', async () => {
     const root = await makeTempDir();
     await writeTree(root, {

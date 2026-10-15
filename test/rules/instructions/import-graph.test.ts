@@ -8,6 +8,7 @@ import {
   claudeFilesOnPath,
   ImportGraph,
   importRoots,
+  importsUncertainty,
   isAgentsMdReadByClaude,
 } from '../../../src/rules/instructions/import-graph.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
@@ -141,5 +142,68 @@ describe('Claude Code roots', () => {
       ['a/CLAUDE.local.md', false],
       ['CLAUDE.md', true],
     ]);
+  });
+});
+
+describe('roots reached through a symlink', () => {
+  it('makes AGENTS.md a root when CLAUDE.md or GEMINI.md links to it', () => {
+    const { graph, byPath } = graphFor(
+      {
+        'AGENTS.md': '@docs/guide.md\n',
+        'CLAUDE.md': '@docs/guide.md\n',
+        'GEMINI.md': '@docs/guide.md\n',
+        'docs/guide.md': 'Guide.\n',
+      },
+      { symlinks: { 'CLAUDE.md': 'AGENTS.md', 'GEMINI.md': 'AGENTS.md' } },
+    );
+    const agents = byPath('AGENTS.md');
+    expect(agents.aliases).toEqual(['CLAUDE.md', 'GEMINI.md']);
+    // Claude Code reads AGENTS.md as the CLAUDE.md, and does not read it as AGENTS.md.
+    expect(isAgentsMdReadByClaude(graph, agents)).toBe(false);
+    expect(graph.rootPath(agents, 'claude')).toBe('CLAUDE.md');
+    expect(graph.rootPath(agents, 'gemini')).toBe('GEMINI.md');
+    expect(importRoots(graph, 'claude')).toEqual([agents]);
+    expect(importRoots(graph, 'gemini')).toEqual([agents]);
+    expect(graph.edges(agents, 'claude').map((edge) => edge.target)).toEqual(['docs/guide.md']);
+    // Next to its target, the link resolves imports as the target would: documented.
+    expect(importsUncertainty(graph, agents, 'claude')).toBeUndefined();
+  });
+
+  it('resolves imports from the directory of a link in another directory, as unverified', () => {
+    const { graph, byPath } = graphFor(
+      { 'AGENTS.md': '@notes.md\n', '.claude/CLAUDE.md': '@notes.md\n' },
+      { symlinks: { '.claude/CLAUDE.md': 'AGENTS.md' } },
+    );
+    const agents = byPath('AGENTS.md');
+    expect(graph.rootPath(agents, 'claude')).toBe('.claude/CLAUDE.md');
+    expect(graph.edges(agents, 'claude').map((edge) => edge.target)).toEqual(['.claude/notes.md']);
+    expect(importsUncertainty(graph, agents, 'claude')).toBe('link');
+    // Gemini CLI does not read .claude/CLAUDE.md: AGENTS.md is not a Gemini root at all.
+    expect(graph.rootPath(agents, 'gemini')).toBeUndefined();
+  });
+
+  it('keeps a file reached only through links Claude Code does not load out of the roots', () => {
+    const { graph, byPath } = graphFor(
+      {
+        'AGENTS.md': 'x',
+        'docs/claude.md': 'x',
+        'templates/app/CLAUDE.md': 'x',
+        'CLAUDE.md': 'Root.\n',
+      },
+      { symlinks: { 'docs/claude.md': 'AGENTS.md', 'templates/app/CLAUDE.md': 'AGENTS.md' } },
+    );
+    // A case variant and a template are not where Claude Code loads instructions from.
+    expect(graph.rootPath(byPath('AGENTS.md'), 'claude')).toBeUndefined();
+    expect(importRoots(graph, 'claude').map((artifact) => artifact.path)).toEqual(['CLAUDE.md']);
+  });
+
+  it('treats a project rule reached through a link like any project rule', () => {
+    const { graph, byPath } = graphFor(
+      { 'AGENTS.md': 'x', '.claude/rules/shared.md': 'x', 'CLAUDE.md': 'Root.\n' },
+      { symlinks: { '.claude/rules/shared.md': 'AGENTS.md' } },
+    );
+    const agents = byPath('AGENTS.md');
+    expect(graph.rootPath(agents, 'claude')).toBe('.claude/rules/shared.md');
+    expect(importsUncertainty(graph, agents, 'claude')).toBe('project-rule');
   });
 });

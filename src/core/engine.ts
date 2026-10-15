@@ -5,7 +5,7 @@ import { parseJson, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
 import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
 import { classifyFile, READERS } from '../platforms/classify.js';
-import { MARKDOWN_KINDS } from '../platforms/kinds.js';
+import { MARKDOWN_OR_IMPORTED_KINDS } from '../platforms/kinds.js';
 import {
   buildContextReport,
   checkContextWindow,
@@ -370,7 +370,8 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   const directivesByPath = new Map<string, { directive: Directive; used: boolean }[]>();
   if (trustDirectives) {
     for (const artifact of artifacts) {
-      if (!MARKDOWN_KINDS.has(artifact.kind)) continue;
+      // Directives apply to findings in their own file, imported files included.
+      if (!MARKDOWN_OR_IMPORTED_KINDS.has(artifact.kind)) continue;
       // A cheap substring test avoids parsing every file just to look for directives.
       if (!artifact.decoded.text.includes(`${DIRECTIVE_PREFIX}-disable`)) continue;
       const directives = collectDirectives(artifact, frontmatter(artifact), markdown(artifact));

@@ -35,7 +35,8 @@ Options
                            or security for all of them, or none
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
-      --untrusted          Ignore the repository's config and inline suppressions.
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration.
                            Use for pull requests from forks and third-party code.
       --no-gitignore       Also scan files excluded by .gitignore
       --show-suppressed    Include suppressed findings in stylish output
@@ -80,7 +81,8 @@ Options
                            or security for all of them, or none
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
-      --untrusted          Ignore the repository's config and inline suppressions
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration
       --no-gitignore       Also read files excluded by .gitignore
       --color, --no-color  Force or disable color
   -h, --help               Show this help

@@ -104,6 +104,61 @@ describe('instr/import-unresolved', () => {
     expect(findings(bridged, RULE).map((finding) => finding.path)).toEqual(['AGENTS.md']);
   });
 
+  it('checks AGENTS.md when CLAUDE.md is a symlink to it', () => {
+    const text = 'Use pnpm. Details: @docs/setup.md and @docs/style.md\n';
+    const linked = { symlinks: { 'CLAUDE.md': 'AGENTS.md' }, paths: ['docs/style.md'] };
+    const result = lint({ 'AGENTS.md': text, 'CLAUDE.md': text }, { rules, ...linked });
+    expect(findings(result, RULE)).toEqual([
+      expect.objectContaining({
+        severity: 'error',
+        path: 'AGENTS.md',
+        message: 'Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.',
+      }),
+    ]);
+    // Nothing to report once the file exists.
+    const fixed = lint(
+      { 'AGENTS.md': text, 'CLAUDE.md': text },
+      { rules, ...linked, paths: ['docs/setup.md', 'docs/style.md'] },
+    );
+    expect(findings(fixed, RULE)).toEqual([]);
+  });
+
+  it('reports imports read through a symlink in another directory as information', () => {
+    // Claude Code reads .claude/CLAUDE.md, a link to AGENTS.md. agentcheckup resolves its
+    // imports from .claude/, which Claude Code's documentation does not confirm.
+    const text = 'Details: @docs/setup.md\n';
+    const result = lint(
+      { 'AGENTS.md': text, '.claude/CLAUDE.md': text },
+      { rules, symlinks: { '.claude/CLAUDE.md': 'AGENTS.md' }, paths: ['docs/setup.md'] },
+    );
+    expect(findings(result, RULE)).toEqual([
+      expect.objectContaining({
+        severity: 'info',
+        path: 'AGENTS.md',
+        message:
+          'Imported file "docs/setup.md" does not exist. Claude Code reads this through a symlink in another directory than the file it points to; if it resolves imports from the link\'s directory, which its documentation does not say, it cannot load it.',
+      }),
+    ]);
+    // Present next to the link: nothing to report.
+    const present = lint(
+      { 'AGENTS.md': text, '.claude/CLAUDE.md': text },
+      { rules, symlinks: { '.claude/CLAUDE.md': 'AGENTS.md' }, paths: ['.claude/docs/setup.md'] },
+    );
+    expect(findings(present, RULE)).toEqual([]);
+  });
+
+  it('checks a file that GEMINI.md links to, from the link', () => {
+    const text = 'See @./missing.md\n';
+    const result = lint(
+      { 'AGENTS.md': text, 'GEMINI.md': text, 'CLAUDE.md': 'Root.\n' },
+      { rules, symlinks: { 'GEMINI.md': 'AGENTS.md' } },
+    );
+    expect(findings(result, RULE)).toEqual([
+      expect.objectContaining({ severity: 'error', path: 'AGENTS.md' }),
+    ]);
+    expect(result.findings[0]?.platforms).toEqual(['gemini']);
+  });
+
   it('merges the same token reported for both agents', () => {
     const result = lint(
       { 'GEMINI.md': '@./AGENTS.md\n', 'AGENTS.md': 'See @docs/missing.md\n' },

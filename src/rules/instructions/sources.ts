@@ -46,6 +46,20 @@ export const INSTRUCTION_SOURCES = {
     'Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)',
     'https://code.claude.com/docs/en/memory',
   ),
+  claudeSymlinkImportsUndocumented: {
+    title:
+      'Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)',
+    url: 'https://code.claude.com/docs/en/memory',
+    checked: '2026-10-15',
+    status: 'unverified',
+  },
+  geminiImportBaseSource: {
+    title:
+      "Gemini CLI source: memoryDiscovery.ts (reads each GEMINI.md at the path it found, through symlinks, and resolves its imports from that path's directory)",
+    url: 'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts',
+    checked: '2026-10-15',
+    status: 'verified',
+  },
   claudeImportCyclesUndocumented: unverified(
     'Claude Code: Memory (how import cycles are handled is not documented)',
     'https://code.claude.com/docs/en/memory',

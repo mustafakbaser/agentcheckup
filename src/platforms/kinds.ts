@@ -31,3 +31,14 @@ export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'mcp-json',
   'codex-hooks',
 ]);
+
+/**
+ * Markdown kinds plus `imported-file`: a file that an instruction file imports with `@path`
+ * (README.md, docs/guide.md), which Claude Code and Gemini CLI load with it. Their text reaches
+ * the model like the importing file's, so the checks for hidden text (risk/hidden-unicode,
+ * risk/hidden-comment), analysis/partial and inline suppression directives cover them too.
+ */
+export const MARKDOWN_OR_IMPORTED_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  ...MARKDOWN_KINDS,
+  'imported-file',
+]);

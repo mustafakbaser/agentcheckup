@@ -5,7 +5,10 @@
  */
 import type { RuleContext } from '../../core/types.js';
 import type { ImportDialect } from '../../parse/types.js';
-import { ImportGraph as LoadImportGraph } from '../../platforms/load/imports.js';
+import {
+  type ImportsUncertainty,
+  ImportGraph as LoadImportGraph,
+} from '../../platforms/load/imports.js';
 import { artifactIndex } from '../../platforms/load/view.js';
 
 export {
@@ -18,8 +21,8 @@ export {
   importRoots,
   importsPastLimit,
   inHtmlComment,
+  importsUncertainty,
   isAgentsMdReadByClaude,
-  isUndocumentedRoot,
   looksLikeFilePath,
   MAX_HOPS,
   scanRootIsRepository,
@@ -31,6 +34,7 @@ export {
 export type {
   ClaudeFileOnPath,
   ImportEdge,
+  ImportsUncertainty,
   ParsedFile,
   Reach,
   TooDeepImport,
@@ -41,6 +45,16 @@ export const DIALECT_AGENT: Readonly<Record<ImportDialect, string>> = {
   claude: 'Claude Code',
   gemini: 'Gemini CLI',
 };
+
+/**
+ * The sentence a finding that rests on undocumented import handling ends with; such findings
+ * are information.
+ */
+export function uncertaintyNote(uncertainty: ImportsUncertainty): string {
+  return uncertainty === 'project-rule'
+    ? "Claude Code's documentation does not say it expands imports in project rules."
+    : "Claude Code reads this through a symlink in another directory than the file it points to, and its documentation does not say whether imports then resolve from the link's directory, as agentcheckup assumes, or from the target's.";
+}
 
 export type GraphContext = Pick<
   RuleContext<unknown>,

@@ -894,7 +894,7 @@
     {
       "id": "analysis/partial",
       "title": "File was only partly analyzed",
-      "rationale": "agentcheckup limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.\n\nRules do not check the skipped parts, so findings there can be missing. This notice never affects the score.\n\nAn instruction file this large is costly for agents too: Codex reads at most 32 KiB of `AGENTS.md` files, and Claude Code recommends `CLAUDE.md` files under 200 lines. Split the file or move reference material out of it.",
+      "rationale": "agentcheckup limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.\n\nRules do not check the skipped parts, so findings there can be missing. This notice never affects the score. Files that an instruction file imports with `@path`, such as a `README.md`, are checked too; they are parsed after the agent configuration, so a large imported file does not take the budget the configuration needs.\n\nAn instruction file this large is costly for agents too: Codex reads at most 32 KiB of `AGENTS.md` files, and Claude Code recommends `CLAUDE.md` files under 200 lines. Split the file or move reference material out of it.",
       "category": "clarity",
       "severity": "info",
       "appliesTo": [
@@ -914,7 +914,8 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ],
       "platforms": [
         "claude-code",
@@ -1059,7 +1060,8 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ],
       "platforms": [
         "claude-code",
@@ -1103,7 +1105,8 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ],
       "platforms": [
         "claude-code",
@@ -1147,7 +1150,8 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ],
       "platforms": [
         "claude-code",
@@ -1644,7 +1648,7 @@
     {
       "id": "instr/import-depth",
       "title": "Import is nested deeper than the agent follows",
-      "rationale": "Imported files can import other files, up to a fixed depth: Claude Code follows imports at most four hops from the file it loads, Gemini CLI five. A deeper import is not followed, so the file it names is not loaded.\n\nagentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.\n\nImport deeply nested files directly from the top-level file.",
+      "rationale": "Imported files can import other files, up to a fixed depth: Claude Code follows imports at most four hops from the file it loads, Gemini CLI five. A deeper import is not followed, so the file it names is not loaded.\n\nagentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. So is a chain that starts at a symlink such as `.claude/CLAUDE.md -> ../AGENTS.md` in another directory than its target: agentcheckup resolves its imports from the link's directory, which Claude Code's documentation does not confirm. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.\n\nImport deeply nested files directly from the top-level file.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -1684,6 +1688,18 @@
           "status": "unverified"
         },
         {
+          "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-15",
+          "status": "unverified"
+        },
+        {
+          "title": "Gemini CLI source: memoryDiscovery.ts (reads each GEMINI.md at the path it found, through symlinks, and resolves its imports from that path's directory)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts",
+          "checked": "2026-10-15",
+          "status": "verified"
+        },
+        {
           "title": "Claude Code: Memory (how import cycles are handled is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
           "checked": "2026-10-14",
@@ -1695,7 +1711,7 @@
     {
       "id": "instr/import-outside-root",
       "title": "Import points outside the repository",
-      "rationale": "An `@path` import of an absolute path, a `~/` path or a relative path that leaves the repository names a file that other clones and CI runners do not have. Claude Code also asks for approval before it loads imports outside the working directory, and loads none of them if you decline. Gemini CLI never loads an import outside the project root (the nearest directory with `.git`) and inserts an \"Import failed ... Path traversal attempt\" comment instead; that case is an error.\n\nClaude Code's documentation suggests `~/` imports for personal instructions, so those are information only, and imports in `CLAUDE.local.md` are not reported. Relative imports are checked only when a `.git` entry shows where the repository ends: at the scanned directory for Claude Code, at or above the file for Gemini CLI. Imports reached only through `.claude/rules/` files are information, because Claude Code's documentation does not say it expands imports there.\n\nCopy shared instructions into the repository and import them with a relative path.",
+      "rationale": "An `@path` import of an absolute path, a `~/` path or a relative path that leaves the repository names a file that other clones and CI runners do not have. Claude Code also asks for approval before it loads imports outside the working directory, and loads none of them if you decline. Gemini CLI never loads an import outside the project root (the nearest directory with `.git`) and inserts an \"Import failed ... Path traversal attempt\" comment instead; that case is an error.\n\nClaude Code's documentation suggests `~/` imports for personal instructions, so those are information only, and imports in `CLAUDE.local.md` are not reported. Relative imports are checked only when a `.git` entry shows where the repository ends: at the scanned directory for Claude Code, at or above the file for Gemini CLI. Imports reached only through `.claude/rules/` files are information, because Claude Code's documentation does not say it expands imports there. A file that a `CLAUDE.md` or `GEMINI.md` symlink points to is checked as that file, with imports resolved from the link's directory, as Gemini CLI does. Where the link sits in another directory than its target, Claude Code's documentation does not say which directory it uses, so findings that depend on it are information.\n\nCopy shared instructions into the repository and import them with a relative path.",
       "category": "portability",
       "severity": "warn",
       "appliesTo": [
@@ -1733,6 +1749,18 @@
           "url": "https://code.claude.com/docs/en/memory",
           "checked": "2026-10-14",
           "status": "unverified"
+        },
+        {
+          "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-15",
+          "status": "unverified"
+        },
+        {
+          "title": "Gemini CLI source: memoryDiscovery.ts (reads each GEMINI.md at the path it found, through symlinks, and resolves its imports from that path's directory)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts",
+          "checked": "2026-10-15",
+          "status": "verified"
         }
       ],
       "since": "2026.10"
@@ -1740,7 +1768,7 @@
     {
       "id": "instr/import-unresolved",
       "title": "Imported file does not exist",
-      "rationale": "Claude Code and Gemini CLI replace an `@path` import with the content of the file it names, resolved relative to the importing file. When that file does not exist, Claude Code has nothing to load, and Gemini CLI inserts an \"Import failed\" comment instead of the text.\n\nClaude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.\n\nFix the path, or put a mention you do not want imported in backticks.",
+      "rationale": "Claude Code and Gemini CLI replace an `@path` import with the content of the file it names, resolved relative to the importing file. When that file does not exist, Claude Code has nothing to load, and Gemini CLI inserts an \"Import failed\" comment instead of the text.\n\nClaude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. A file that a `CLAUDE.md` or `GEMINI.md` symlink points to is checked as that file, with imports resolved from the link's directory, as Gemini CLI does. Where the link sits in another directory than its target, Claude Code's documentation does not say which directory it uses, so findings that depend on it are information. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.\n\nFix the path, or put a mention you do not want imported in backticks.",
       "category": "correctness",
       "severity": "error",
       "appliesTo": [
@@ -1778,6 +1806,18 @@
           "url": "https://code.claude.com/docs/en/memory",
           "checked": "2026-10-14",
           "status": "unverified"
+        },
+        {
+          "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
+          "url": "https://code.claude.com/docs/en/memory",
+          "checked": "2026-10-15",
+          "status": "unverified"
+        },
+        {
+          "title": "Gemini CLI source: memoryDiscovery.ts (reads each GEMINI.md at the path it found, through symlinks, and resolves its imports from that path's directory)",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts",
+          "checked": "2026-10-15",
+          "status": "verified"
         }
       ],
       "since": "2026.10"
@@ -2337,7 +2377,7 @@
     {
       "id": "risk/hidden-comment",
       "title": "HTML comment hides instructions for the agent from human readers",
-      "rationale": "An HTML comment does not show in rendered Markdown, on GitHub or in most editors, but it is still part of the file. Codex passes `AGENTS.md` to the model as written, comments included, and the other agents do not document removing comments; only Claude Code documents removing block-level HTML comments, from `CLAUDE.md`. Instructions in a comment therefore reach the agent while a reviewer of the rendered file never sees them.\n\nThis rule reports comments that read as instructions for an AI agent: they address the agent (\"Note for AI agents: …\"), try to override its instructions (\"ignore all previous instructions\"), or ask it to hide something from the user. Short comments, agentcheckup directives and text that is not English prose are not reported.\n\nMove instructions you intend into visible text, or delete them.",
+      "rationale": "An HTML comment does not show in rendered Markdown, on GitHub or in most editors, but it is still part of the file. Codex passes `AGENTS.md` to the model as written, comments included, and the other agents do not document removing comments; only Claude Code documents removing block-level HTML comments, from `CLAUDE.md`. Instructions in a comment therefore reach the agent while a reviewer of the rendered file never sees them.\n\nThis rule reports comments that read as instructions for an AI agent: they address the agent (\"Note for AI agents: …\"), try to override its instructions (\"ignore all previous instructions\"), or ask it to hide something from the user. Short comments, agentcheckup directives and text that is not English prose are not reported. Files that an instruction file imports with `@path` are checked too, because the agent loads them with the file that imports them.\n\nMove instructions you intend into visible text, or delete them.",
       "category": "risk",
       "severity": "info",
       "appliesTo": [
@@ -2357,7 +2397,8 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
-        "cline-rule"
+        "cline-rule",
+        "imported-file"
       ],
       "platforms": [
         "claude-code",
@@ -2405,7 +2446,7 @@
     {
       "id": "risk/hidden-unicode",
       "title": "File contains invisible or text-reordering Unicode characters",
-      "rationale": "Unicode tag characters (U+E0000–U+E007F) mirror ASCII but render as nothing: editors, diffs and rendered Markdown do not show them, yet language models read them as text, so a file can carry instructions no reviewer sees (\"ASCII smuggling\"). Bidirectional controls (U+202A–U+202E, U+2066–U+2069) change the display order of text, so the reviewed text differs from the text the agent reads (\"Trojan Source\"). Zero-width characters and runs of variation selectors hide data the same way.\n\nTag characters and bidirectional controls are errors; bidirectional controls are warnings on a line with right-to-left script, where they have legitimate uses. Zero-width characters and variation selector runs are warnings. Not reported: a joiner inside an emoji sequence or a joining script, a zero width space between letters of a script written without spaces, a byte order mark at the start of the file, and subdivision flags such as England (U+1F3F4 followed by tag letters).\n\nDelete the characters. If they came from copy and paste, retype the affected text.",
+      "rationale": "Unicode tag characters (U+E0000–U+E007F) mirror ASCII but render as nothing: editors, diffs and rendered Markdown do not show them, yet language models read them as text, so a file can carry instructions no reviewer sees (\"ASCII smuggling\"). Bidirectional controls (U+202A–U+202E, U+2066–U+2069) change the display order of text, so the reviewed text differs from the text the agent reads (\"Trojan Source\"). Zero-width characters and runs of variation selectors hide data the same way.\n\nTag characters and bidirectional controls are errors; bidirectional controls are warnings on a line with right-to-left script, where they have legitimate uses. Zero-width characters and variation selector runs are warnings. Not reported: a joiner inside an emoji sequence or a joining script, a zero width space between letters of a script written without spaces, a byte order mark at the start of the file, and subdivision flags such as England (U+1F3F4 followed by tag letters). Files that an instruction file imports with `@path`, such as a `README.md` that `CLAUDE.md` imports, are checked too: the agent loads their text with the file that imports them.\n\nDelete the characters. If they came from copy and paste, retype the affected text.",
       "category": "risk",
       "severity": "error",
       "appliesTo": [
@@ -2426,6 +2467,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "imported-file",
         "claude-settings",
         "claude-plugin-manifest",
         "cursor-hooks",
