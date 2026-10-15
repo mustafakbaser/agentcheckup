@@ -124,6 +124,9 @@ export interface PermissionItem extends ItemBase {
 export interface EnvItem extends ItemBase {
   readonly key: string;
   readonly class: 'endpoint' | 'credential' | 'tls' | 'code-exec' | 'other';
-  /** For `endpoint` only: the URL origin. Never set for other classes. */
+  /**
+   * For `endpoint`, the URL origin. For `tls`, the value when it is an on/off switch (0, 1, true,
+   * false, yes, no). Never set otherwise: other values may be secrets.
+   */
   readonly shown?: string;
 }

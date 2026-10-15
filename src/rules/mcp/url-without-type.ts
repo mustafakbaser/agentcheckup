@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { urlWithoutType } from '../../platforms/mcp.js';
 import { defineRule } from '../define.js';
-import { at, FileFindings, keySpanOf, own } from '../json/access.js';
+import { at, FileFindings, keySpanOf } from '../json/access.js';
 import { quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { isClaudeMcpConfig, mcpServers } from './servers.js';
@@ -30,9 +31,7 @@ export const urlWithoutTypeRule = defineRule({
         context.report(descriptor);
       }, 'servers with a "url" but no "type"');
       for (const server of mcpServers(artifact, doc)) {
-        const { config } = server;
-        if (typeof own(config, 'url') !== 'string') continue;
-        if (own(config, 'type') !== undefined || own(config, 'command') !== undefined) continue;
+        if (!urlWithoutType(server.config)) continue;
         findings.report({
           artifact,
           ...at(keySpanOf(doc, server.path)),

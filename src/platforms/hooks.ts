@@ -194,11 +194,26 @@ export function hookEvents(doc: ParsedJson, platform: HookPlatform): HookEvent[]
 
 export interface HookHandler {
   readonly event: string;
+  /** False when the platform does not fire `event`, so the handler never runs. */
+  readonly known: boolean;
+  /**
+   * The object that holds the matcher: the `{ "matcher", "hooks" }` group in Claude Code, Codex
+   * and Gemini CLI, the handler itself in Cursor.
+   */
+  readonly group: JsonObject;
   readonly handler: JsonObject;
   /** Path of the handler object. */
   readonly path: JsonPath;
   /** `type`, with Cursor's default of "command" applied. */
   readonly type: string | undefined;
+}
+
+export interface HookHandlerOptions {
+  /**
+   * Also list handlers under event names the platform does not fire, with `known: false`. The
+   * security inventory lists them; rules about how a hook runs leave them out. Default false.
+   */
+  readonly includeUnknown?: boolean;
 }
 
 /**
@@ -207,21 +222,29 @@ export interface HookHandler {
  * Claude Code, Codex and Gemini CLI nest handlers as `hooks.<Event>[i].hooks[j]`; Cursor lists
  * them directly as `hooks.<event>[i]`.
  */
-export function hookHandlers(doc: ParsedJson, platform: HookPlatform): HookHandler[] {
-  const known = HOOK_EVENTS[platform];
+export function hookHandlers(
+  doc: ParsedJson,
+  platform: HookPlatform,
+  options: HookHandlerOptions = {},
+): HookHandler[] {
+  const fired = HOOK_EVENTS[platform];
   return eventHandlers(
-    hookEvents(doc, platform).filter((event) => known.includes(event.name)),
+    hookEvents(doc, platform).filter(
+      (event) => options.includeUnknown === true || fired.includes(event.name),
+    ),
     platform,
   );
 }
 
 /**
  * The handlers declared under `events`, in order, whether or not the platform fires those events.
- * Same shapes as {@link hookHandlers}.
+ * Same shapes as {@link hookHandlers}; `known` tells whether the platform fires the event.
  */
 export function eventHandlers(events: readonly HookEvent[], platform: HookPlatform): HookHandler[] {
+  const fired = HOOK_EVENTS[platform];
   const out: HookHandler[] = [];
   for (const event of events) {
+    const known = fired.includes(event.name);
     if (!Array.isArray(event.entries)) continue;
     event.entries.forEach((entry: unknown, i) => {
       if (!isObject(entry)) return;
@@ -229,6 +252,8 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
         const type = own(entry, 'type');
         out.push({
           event: event.name,
+          known,
+          group: entry,
           handler: entry,
           path: [...event.path, i],
           type: typeof type === 'string' ? type : 'command',
@@ -242,6 +267,8 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
         const type = own(handler, 'type');
         out.push({
           event: event.name,
+          known,
+          group: entry,
           handler,
           path: [...event.path, i, 'hooks', j],
           type: typeof type === 'string' ? type : undefined,
@@ -286,4 +313,48 @@ export function hookInventoryIds(
     seen.set(base, occurrence);
     return occurrence === 1 ? base : `${base}:${String(occurrence)}`;
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Failure behavior
+// ---------------------------------------------------------------------------------------------
+
+/** Events whose hooks can stop a tool call before it runs. */
+export const TOOL_GATES: Readonly<Record<HookPlatform, ReadonlySet<string>>> = {
+  'claude-code': new Set(['PreToolUse']),
+  codex: new Set(['PreToolUse']),
+  cursor: new Set(['preToolUse', 'beforeShellExecution', 'beforeMCPExecution', 'beforeReadFile']),
+  gemini: new Set(['BeforeTool']),
+};
+
+/**
+ * True when a crash or a failure to start (in all but Gemini CLI also a timeout) of this handler
+ * lets the action proceed: Claude Code command and HTTP hooks without `"onFailure": "block"` that
+ * are not async, Cursor command hooks without `"failClosed": true`, and every Codex and Gemini
+ * CLI command hook. hooks/fails-open cites the sources.
+ */
+export function failsOpen(
+  platform: HookPlatform,
+  type: string | undefined,
+  handler: JsonObject,
+): boolean {
+  switch (platform) {
+    case 'claude-code':
+      return (
+        (type === 'command' || type === 'http') &&
+        own(handler, 'onFailure') !== 'block' &&
+        own(handler, 'async') !== true &&
+        own(handler, 'asyncRewake') !== true
+      );
+    case 'cursor':
+      return type === 'command' && own(handler, 'failClosed') !== true;
+    case 'codex':
+    case 'gemini':
+      return type === 'command';
+  }
+}
+
+/** A tool-gating hook that lets the tool call proceed when it fails, as hooks/fails-open reports. */
+export function gateFailsOpen(platform: HookPlatform, hook: HookHandler): boolean {
+  return TOOL_GATES[platform].has(hook.event) && failsOpen(platform, hook.type, hook.handler);
 }

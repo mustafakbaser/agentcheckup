@@ -1,9 +1,8 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { IGNORED_MODES } from '../../platforms/permissions.js';
 import { defineRule } from '../define.js';
 import { at, isObject, own, ownObject, spanOf } from '../json/access.js';
 import { SOURCES } from '../sources.js';
-
-const IGNORED_MODES: ReadonlySet<string> = new Set(['auto', 'bypassPermissions']);
 
 export const ignoredPermissionModeRule = defineRule({
   meta: {

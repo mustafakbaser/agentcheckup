@@ -743,6 +743,23 @@ describe('gate: env', () => {
     expect(summaries.join('\n')).not.toContain('sk-ant-secret');
   });
 
+  it('shows a TLS switch that turns certificate checks off', () => {
+    const before = report({
+      inventory: { env: [env('NODE_TLS_REJECT_UNAUTHORIZED', 'tls', { shown: '1' })] },
+    });
+    const after = report({
+      inventory: {
+        env: [env('NODE_TLS_REJECT_UNAUTHORIZED', 'tls', { shown: '0', digest: 'changed' })],
+      },
+    });
+    expect(hits(before, after).map((hit) => [hit.change, hit.summary])).toEqual([
+      [
+        'changed',
+        'Changed env override NODE_TLS_REJECT_UNAUTHORIZED → 0 changes TLS certificate checks',
+      ],
+    ]);
+  });
+
   it('reports a changed endpoint', () => {
     const before = report({ inventory: { env: [env('HTTPS_PROXY', 'endpoint')] } });
     const after = report({

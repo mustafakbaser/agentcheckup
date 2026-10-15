@@ -1,49 +1,21 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { joinRelative, normalizeRelative, pathStatus } from '../../core/paths.js';
+import { normalizeRelative, pathStatus } from '../../core/paths.js';
 import type { Snapshot } from '../../core/types.js';
-import { defineRule } from '../define.js';
 import {
-  at,
-  FileFindings,
-  type JsonObject,
-  type JsonPath,
-  own,
-  projectRootOf,
-  spanOf,
-} from '../json/access.js';
+  hookCommandSyntax,
+  resolveScript as resolve,
+  scriptCandidate as candidate,
+} from '../../platforms/hook-command.js';
+import { defineRule } from '../define.js';
+import { at, FileFindings, type JsonObject, own, projectRootOf, spanOf } from '../json/access.js';
 import { quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
-import {
-  type CommandSyntax,
-  firstWords,
-  isInterpreter,
-  ROOT,
-  scriptWord,
-  type Word,
-} from './command.js';
 import type { HookPlatform } from './events.js';
 import { HOOK_SOURCES } from './sources.js';
 import { hookHandlers, hookPlatformOf } from './walk.js';
 
 /** Handlers examined per file; bounds the work on hostile input. */
 const MAX_HANDLERS = 500;
-
-function resolve(
-  word: Word,
-  platform: HookPlatform,
-  root: string,
-): { path: string; plain: boolean } | undefined {
-  const text = word.text;
-  if (text.startsWith(ROOT)) {
-    if (text.charAt(1) !== '/') return undefined;
-    const path = joinRelative(root, text.slice(2));
-    return path === undefined ? undefined : { path, plain: false };
-  }
-  // Codex runs hooks in the session's working directory, which may be any subdirectory.
-  if (platform === 'codex' || text.startsWith('/') || text.includes('\\')) return undefined;
-  const path = joinRelative(root, text);
-  return path === undefined ? undefined : { path, plain: true };
-}
 
 interface BelowIndex {
   /** Root-relative paths (directories without their trailing `/`) by last segment. */
@@ -152,47 +124,6 @@ function consequence(platform: HookPlatform, handler: JsonObject, event: string)
   }
 }
 
-interface Candidate {
-  readonly word: Word;
-  readonly path: JsonPath;
-}
-
-/** The script word of a hook and the JSON path of the string it came from. */
-function candidate(
-  handler: JsonObject,
-  path: JsonPath,
-  syntax: CommandSyntax,
-): Candidate | undefined {
-  const command = own(handler, 'command');
-  if (typeof command !== 'string') return undefined;
-  const args = own(handler, 'args');
-  if (!Array.isArray(args)) {
-    const word = scriptWord(firstWords(command, syntax));
-    return word === undefined ? undefined : { word, path: [...path, 'command'] };
-  }
-  // Claude Code exec form: `command` is the executable, run without a shell.
-  const placeholder = (text: string): Word => {
-    for (const variable of syntax.rootVariables) {
-      const token = `\${${variable}}`;
-      if (text.startsWith(token)) {
-        const rest = text.slice(token.length);
-        return { text: ROOT + rest, resolvable: !rest.includes('$') };
-      }
-    }
-    return { text, resolvable: !text.includes('$') && !text.startsWith('~') };
-  };
-  if (isInterpreter(command)) {
-    const first: unknown = args[0];
-    if (typeof first !== 'string' || first.startsWith('-')) return undefined;
-    const word = placeholder(first);
-    return word.resolvable ? { word, path: [...path, 'args', 0] } : undefined;
-  }
-  const word = placeholder(command);
-  return word.resolvable && word.text.includes('/')
-    ? { word, path: [...path, 'command'] }
-    : undefined;
-}
-
 export const scriptMissingRule = defineRule({
   meta: {
     id: 'hooks/script-missing',
@@ -226,16 +157,7 @@ export const scriptMissingRule = defineRule({
         context.report(descriptor);
       }, 'hooks with a missing script');
       const root = projectRootOf(artifact);
-      const syntax: CommandSyntax = {
-        rootVariables:
-          platform === 'claude-code'
-            ? ['CLAUDE_PROJECT_DIR']
-            : platform === 'cursor'
-              ? ['CURSOR_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']
-              : [],
-        gitTopLevel:
-          platform === 'codex' && root === '' && pathStatus(context.snapshot, '.git') === 'exists',
-      };
+      const syntax = hookCommandSyntax(context.snapshot, platform, root);
       for (const { event, handler, path, type } of hookHandlers(doc, platform).slice(
         0,
         MAX_HANDLERS,

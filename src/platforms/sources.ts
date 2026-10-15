@@ -7,10 +7,10 @@ import type { RuleSource } from '../core/types.js';
  */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -30,6 +30,21 @@ export const SOURCES = {
     'https://code.claude.com/docs/en/memory',
   ),
   claudeSettings: verified('Claude Code: Settings', 'https://code.claude.com/docs/en/settings'),
+  claudeSettingsReference: verified(
+    'Claude Code: All settings',
+    'https://code.claude.com/docs/en/settings-reference',
+    '2026-10-15',
+  ),
+  claudeEnvVars: verified(
+    'Claude Code: Environment variables',
+    'https://code.claude.com/docs/en/env-vars',
+    '2026-10-15',
+  ),
+  claudeNetworkConfig: verified(
+    'Claude Code: Enterprise network configuration',
+    'https://code.claude.com/docs/en/network-config',
+    '2026-10-15',
+  ),
   claudeHooks: verified('Claude Code: Hooks', 'https://code.claude.com/docs/en/hooks'),
   claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp'),
   claudeSubagents: verified('Claude Code: Subagents', 'https://code.claude.com/docs/en/sub-agents'),
@@ -128,6 +143,16 @@ export const SOURCES = {
   ),
   clineRules: verified('Cline: Rules', 'https://docs.cline.bot/customization/cline-rules'),
   agentsMd: verified('AGENTS.md open format', 'https://agents.md/'),
+  nodeCliEnv: verified(
+    'Node.js: Command-line API, environment variables',
+    'https://nodejs.org/api/cli.html',
+    '2026-10-15',
+  ),
+  ldSo: verified(
+    'ld.so(8): Linux manual page',
+    'https://man7.org/linux/man-pages/man8/ld.so.8.html',
+    '2026-10-15',
+  ),
   unicodeTagSmuggling: verified(
     'Unicode Technical Standard #39: Security mechanisms',
     'https://www.unicode.org/reports/tr39/',

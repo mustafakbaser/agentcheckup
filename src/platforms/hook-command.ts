@@ -4,6 +4,10 @@
  * (other variables, command substitution, globs, `~`) makes the word unresolvable, and callers
  * then report nothing.
  */
+import { joinRelative, pathStatus } from '../core/paths.js';
+import type { Snapshot } from '../core/types.js';
+import { type JsonObject, type JsonPath, own } from '../parse/json-access.js';
+import type { HookPlatform } from './hooks.js';
 import { basename } from './paths.js';
 
 /** Marks "the project root" at the start of a resolved word. */
@@ -179,4 +183,94 @@ export function scriptWord(words: readonly Word[]): Word | undefined {
     return script.text.includes('/') || hasScriptExtension(script.text) ? script : undefined;
   }
   return first.text.includes('/') ? first : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The script a hook runs
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * How a platform's hook commands name the project root: `$CLAUDE_PROJECT_DIR` in Claude Code,
+ * `$CURSOR_PROJECT_DIR` (or the Claude variable) in Cursor, and `$(git rev-parse --show-toplevel)`
+ * in a `.codex/hooks.json` at the root of a git checkout.
+ */
+export function hookCommandSyntax(
+  snapshot: Snapshot,
+  platform: HookPlatform,
+  root: string,
+): CommandSyntax {
+  return {
+    rootVariables:
+      platform === 'claude-code'
+        ? ['CLAUDE_PROJECT_DIR']
+        : platform === 'cursor'
+          ? ['CURSOR_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']
+          : [],
+    gitTopLevel: platform === 'codex' && root === '' && pathStatus(snapshot, '.git') === 'exists',
+  };
+}
+
+export interface ScriptCandidate {
+  readonly word: Word;
+  /** JSON path of the string the word came from. */
+  readonly path: JsonPath;
+}
+
+/** The script word of a hook handler and the JSON path of the string it came from. */
+export function scriptCandidate(
+  handler: JsonObject,
+  path: JsonPath,
+  syntax: CommandSyntax,
+): ScriptCandidate | undefined {
+  const command = own(handler, 'command');
+  if (typeof command !== 'string') return undefined;
+  const args = own(handler, 'args');
+  if (!Array.isArray(args)) {
+    const word = scriptWord(firstWords(command, syntax));
+    return word === undefined ? undefined : { word, path: [...path, 'command'] };
+  }
+  // Claude Code exec form: `command` is the executable, run without a shell.
+  const placeholder = (text: string): Word => {
+    for (const variable of syntax.rootVariables) {
+      const token = `\${${variable}}`;
+      if (text.startsWith(token)) {
+        const rest = text.slice(token.length);
+        return { text: ROOT + rest, resolvable: !rest.includes('$') };
+      }
+    }
+    return { text, resolvable: !text.includes('$') && !text.startsWith('~') };
+  };
+  if (isInterpreter(command)) {
+    const first: unknown = args[0];
+    if (typeof first !== 'string' || first.startsWith('-')) return undefined;
+    const word = placeholder(first);
+    return word.resolvable ? { word, path: [...path, 'args', 0] } : undefined;
+  }
+  const word = placeholder(command);
+  return word.resolvable && word.text.includes('/')
+    ? { word, path: [...path, 'command'] }
+    : undefined;
+}
+
+/**
+ * The root-relative path a script word names. `plain` is true for a relative path without a
+ * root variable, which Cursor resolves against the project root and Claude Code against the
+ * session's working directory. Undefined for absolute paths, Windows paths, paths that leave the
+ * scan root, and relative paths in Codex, which runs hooks in the session's working directory.
+ */
+export function resolveScript(
+  word: Word,
+  platform: HookPlatform,
+  root: string,
+): { path: string; plain: boolean } | undefined {
+  const text = word.text;
+  if (text.startsWith(ROOT)) {
+    if (text.charAt(1) !== '/') return undefined;
+    const path = joinRelative(root, text.slice(2));
+    return path === undefined ? undefined : { path, plain: false };
+  }
+  // Codex runs hooks in the session's working directory, which may be any subdirectory.
+  if (platform === 'codex' || text.startsWith('/') || text.includes('\\')) return undefined;
+  const path = joinRelative(root, text);
+  return path === undefined ? undefined : { path, plain: true };
 }

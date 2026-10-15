@@ -1,34 +1,10 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { failsOpen, TOOL_GATES } from '../../platforms/hooks.js';
 import { defineRule } from '../define.js';
-import { at, FileFindings, type JsonObject, own, spanOf } from '../json/access.js';
+import { at, FileFindings, spanOf } from '../json/access.js';
 import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
 import { hookHandlers, hookPlatformOf } from './walk.js';
-
-/** Events whose hooks can stop a tool call before it runs. */
-const TOOL_GATES: Readonly<Record<HookPlatform, ReadonlySet<string>>> = {
-  'claude-code': new Set(['PreToolUse']),
-  codex: new Set(['PreToolUse']),
-  cursor: new Set(['preToolUse', 'beforeShellExecution', 'beforeMCPExecution', 'beforeReadFile']),
-  gemini: new Set(['BeforeTool']),
-};
-
-function failsOpen(platform: HookPlatform, type: string | undefined, handler: JsonObject): boolean {
-  switch (platform) {
-    case 'claude-code':
-      return (
-        (type === 'command' || type === 'http') &&
-        own(handler, 'onFailure') !== 'block' &&
-        own(handler, 'async') !== true &&
-        own(handler, 'asyncRewake') !== true
-      );
-    case 'cursor':
-      return type === 'command' && own(handler, 'failClosed') !== true;
-    case 'codex':
-    case 'gemini':
-      return type === 'command';
-  }
-}
 
 function describe(platform: HookPlatform, event: string): string {
   switch (platform) {

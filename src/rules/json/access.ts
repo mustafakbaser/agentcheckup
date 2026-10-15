@@ -2,10 +2,11 @@
  * Helpers for rules over values from `context.json()`. The generic accessors live in
  * src/parse/json-access.ts and are re-exported here.
  */
-import type { Artifact, ReportDescriptor, Span } from '../../core/types.js';
-import { dirnamePosix } from '../../core/paths.js';
+import type { ReportDescriptor, Span } from '../../core/types.js';
 import type { JsonPath } from '../../parse/json-access.js';
 import { formatInteger, quote } from '../shared/format.js';
+
+export { projectRootOf } from '../../platforms/paths.js';
 
 export {
   collectStrings,
@@ -31,14 +32,6 @@ export function pathLabel(path: JsonPath): string {
     else out += `[${quote(segment)}]`;
   }
   return out;
-}
-
-/**
- * The directory that owns a configuration directory: `a/.claude/settings.json` -> `a`,
- * `.cursor/hooks.json` -> `` (the scan root).
- */
-export function projectRootOf(artifact: Artifact): string {
-  return dirnamePosix(dirnamePosix(artifact.path));
 }
 
 /** `{ span }` when known, `{}` otherwise (the finding then points at the whole file). */

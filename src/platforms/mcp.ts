@@ -63,3 +63,15 @@ export function isClaudeMcpConfig(snapshot: Snapshot, artifact: Artifact): boole
   const plugin = pluginRootOf(snapshot, artifact.path);
   return plugin === undefined || plugin.markers.includes('.claude-plugin');
 }
+
+/**
+ * True for a server entry with a `url` but neither `type` nor `command`. Claude Code reads such an
+ * entry as a stdio server, reports a configuration error and skips it (mcp/url-without-type).
+ */
+export function urlWithoutType(config: JsonObject): boolean {
+  return (
+    typeof own(config, 'url') === 'string' &&
+    own(config, 'type') === undefined &&
+    own(config, 'command') === undefined
+  );
+}

@@ -782,7 +782,7 @@ function envSummary(item: EnvItem, change: GateHit['change']): string {
     case 'credential':
       return `${head} sets a credential (value not shown)`;
     case 'tls':
-      return `${head} changes TLS certificate checks`;
+      return `${head}${item.shown === undefined ? '' : ` → ${text(item.shown)}`} changes TLS certificate checks`;
     case 'code-exec':
       return `${head} can run code`;
     case 'other':

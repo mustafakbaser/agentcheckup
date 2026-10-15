@@ -55,6 +55,14 @@ export function indexArtifacts(artifacts: readonly Artifact[]): Map<string, Arti
   return index;
 }
 
+/**
+ * The directory that owns a configuration directory: `a/.claude/settings.json` -> `a`,
+ * `.cursor/hooks.json` -> `` (the scan root).
+ */
+export function projectRootOf(artifact: Artifact): string {
+  return dirnamePosix(dirnamePosix(artifact.path));
+}
+
 /** Relative POSIX path from directory `from` to the file `to`, both relative to the scan root. */
 export function relativePath(from: string, to: string): string {
   const fromParts = from === '' ? [] : from.split('/');
