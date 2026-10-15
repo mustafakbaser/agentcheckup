@@ -1,21 +1,21 @@
 import { compareStrings } from '../../core/compare.js';
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix, pathStatus } from '../../core/paths.js';
+import { dirnamePosix } from '../../core/paths.js';
 import { lineText, positionAt } from '../../core/text.js';
 import { skillDirectoryOf } from '../../platforms/location.js';
-import type { Artifact, RelatedLocation, Snapshot, Span } from '../../core/types.js';
+import type { Artifact, RelatedLocation, Span } from '../../core/types.js';
+import {
+  CODEX_DEFAULT_MAX_BYTES,
+  CODEX_FILE_NAMES,
+  type CodexChainFile,
+  codexChain,
+} from '../../platforms/load/codex-chain.js';
+import { viewOf } from '../../platforms/load/view.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
-import { codexSeesBlank, textOffsetAtByte } from './codex.js';
+import { textOffsetAtByte } from './codex.js';
 import { formatInteger, plural, quotePath } from '../shared/format.js';
-import {
-  basename,
-  indexArtifacts,
-  inPayloadFolder,
-  joinPath,
-  nearestGitRoot,
-  selfAndAncestors,
-} from './helpers.js';
+import { basename, inPayloadFolder } from './helpers.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
 export interface CodexSizeBudgetOptions {
@@ -23,38 +23,24 @@ export interface CodexSizeBudgetOptions {
   readonly maxBytes: number;
 }
 
-const OVERRIDE_NAME = 'AGENTS.override.md';
-const AGENTS_NAME = 'AGENTS.md';
 /** Bounds the related locations listed on one finding. */
 const MAX_RELATED = 20;
 
-interface ChainFile {
-  /** The path Codex opens (may be a symlink alias of `artifact`). */
-  readonly path: string;
-  readonly artifact: Artifact;
-  readonly size: number;
-}
-
 interface Truncation {
-  readonly file: ChainFile;
+  readonly file: CodexChainFile;
   /** Bytes of this file that Codex reads. */
   readonly cut: number;
   /** Bytes of every non-empty file up to and including this one. */
   readonly total: number;
-  readonly before: readonly ChainFile[];
-  readonly dropped: Map<string, ChainFile>;
+  readonly before: readonly CodexChainFile[];
+  readonly dropped: Map<string, CodexChainFile>;
 }
 
 interface NearLimit {
-  readonly file: ChainFile;
+  readonly file: CodexChainFile;
   readonly total: number;
-  readonly before: readonly ChainFile[];
+  readonly before: readonly CodexChainFile[];
 }
-
-type Selection =
-  | { readonly kind: 'file'; readonly file: ChainFile }
-  | { readonly kind: 'none' }
-  | { readonly kind: 'unknown' };
 
 function maxBytesOption(options: CodexSizeBudgetOptions): number {
   const value: unknown = options.maxBytes;
@@ -62,34 +48,6 @@ function maxBytesOption(options: CodexSizeBudgetOptions): number {
     throw new Error(`Option "maxBytes" must be a positive integer, got ${JSON.stringify(value)}.`);
   }
   return value;
-}
-
-/**
- * The file Codex reads in `directory`: the first of AGENTS.override.md and AGENTS.md that exists
- * as a file, even when it is empty. A candidate that exists but was not read (gitignored, too
- * large) or might exist makes the choice unknown.
- */
-function selectFile(
-  snapshot: Snapshot,
-  index: ReadonlyMap<string, Artifact>,
-  directory: string,
-): Selection {
-  for (const name of [OVERRIDE_NAME, AGENTS_NAME]) {
-    const path = joinPath(directory, name);
-    const artifact = index.get(path);
-    if (artifact !== undefined) {
-      return { kind: 'file', file: { path, artifact, size: artifact.file.bytes.length } };
-    }
-    if (pathStatus(snapshot, path) !== 'missing') return { kind: 'unknown' };
-  }
-  return { kind: 'none' };
-}
-
-/** Directories from `root` down to `directory`, inclusive. */
-function chainDirectories(root: string, directory: string): string[] {
-  const upward = selfAndAncestors(directory);
-  const end = upward.indexOf(root);
-  return upward.slice(0, end === -1 ? upward.length : end + 1).reverse();
 }
 
 function filesAbove(count: number): string {
@@ -126,16 +84,15 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
     ],
     since: RULESET_VERSION,
   },
-  defaultOptions: { maxBytes: 32_768 },
+  defaultOptions: { maxBytes: CODEX_DEFAULT_MAX_BYTES },
   check(context) {
     const maxBytes = maxBytesOption(context.options);
-    const { snapshot } = context;
-    const index = indexArtifacts(context.allArtifacts);
+    const view = viewOf(context);
+    const { snapshot, index } = view;
 
     const directories = new Set<string>();
     for (const path of index.keys()) {
-      const name = basename(path);
-      if (name !== OVERRIDE_NAME && name !== AGENTS_NAME) continue;
+      if (!CODEX_FILE_NAMES.includes(basename(path))) continue;
       const directory = dirnamePosix(path);
       // Nobody runs Codex inside .codex/, .github/ or .claude/; files there are templates. An
       // AGENTS.md inside a skill folder is the skill's reference document.
@@ -144,71 +101,43 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
       directories.add(directory);
     }
 
-    const blankCache = new Map<Artifact, boolean>();
-    const isBlankFile = (artifact: Artifact): boolean => {
-      let blank = blankCache.get(artifact);
-      if (blank === undefined) {
-        blank = codexSeesBlank(artifact.file.bytes);
-        blankCache.set(artifact, blank);
-      }
-      return blank;
-    };
-
     const truncations = new Map<string, Truncation>();
     const nearLimits = new Map<string, NearLimit>();
 
     for (const directory of [...directories].sort(compareStrings)) {
-      // Without a project root marker Codex reads only the working directory's file.
-      const root = nearestGitRoot(snapshot, directory) ?? directory;
-      let remaining = maxBytes;
-      let total = 0;
-      const before: ChainFile[] = [];
-      let truncation: Truncation | undefined;
-
-      for (const dir of chainDirectories(root, directory)) {
-        const selection = selectFile(snapshot, index, dir);
-        if (selection.kind === 'unknown') break;
-        if (selection.kind === 'none') continue;
-        const { file } = selection;
-        if (isBlankFile(file.artifact)) continue;
-
-        if (remaining === 0 && truncation !== undefined) {
-          truncation.dropped.set(file.path, file);
+      const chain = codexChain(view, directory, { maxBytes });
+      const before: CodexChainFile[] = [];
+      for (const file of chain.files) {
+        if (file.status === 'read') {
+          const total = file.offset + file.size;
+          if (
+            total * 5 >= maxBytes * 4 &&
+            file.offset * 5 < maxBytes * 4 &&
+            !nearLimits.has(file.path)
+          ) {
+            nearLimits.set(file.path, { file, total, before: [...before] });
+          }
+          before.push(file);
           continue;
         }
-        if (file.size > remaining) {
-          const key = `${file.path}\u0000${String(remaining)}`;
-          truncation = truncations.get(key);
-          if (truncation === undefined) {
-            truncation = {
-              file,
-              cut: remaining,
-              total: total + file.size,
-              before: [...before],
-              dropped: new Map(),
-            };
-            truncations.set(key, truncation);
-          }
-          // Codex keeps the first `remaining` bytes. When those are only whitespace it skips the
-          // file and the budget carries over to the next one.
-          if (remaining === 0 || !codexSeesBlank(file.artifact.file.bytes.subarray(0, remaining))) {
-            remaining = 0;
-          }
-          continue;
+        if (file.status !== 'cut' && file.status !== 'cut-blank') continue;
+        // Chains that share this prefix cut the same file at the same byte: one finding, listing
+        // the files each of them drops.
+        const key = `${file.path}\u0000${String(file.cutAt)}`;
+        let truncation = truncations.get(key);
+        if (truncation === undefined) {
+          truncation = {
+            file,
+            cut: file.cutAt,
+            total: file.offset + file.size,
+            before: [...before],
+            dropped: new Map(),
+          };
+          truncations.set(key, truncation);
         }
-
-        const previous = total;
-        remaining -= file.size;
-        total += file.size;
-        truncation = undefined;
-        if (
-          total * 5 >= maxBytes * 4 &&
-          previous * 5 < maxBytes * 4 &&
-          !nearLimits.has(file.path)
-        ) {
-          nearLimits.set(file.path, { file, total, before: [...before] });
+        if (file.status === 'cut') {
+          for (const later of chain.dropped) truncation.dropped.set(later.path, later);
         }
-        before.push(file);
       }
     }
 
