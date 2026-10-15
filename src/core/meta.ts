@@ -4,8 +4,8 @@
  * The tool name appears in config file names, inline directives, SARIF output and docs URLs.
  * Everything that depends on the name reads it from here, so a rename touches one file.
  */
-export const TOOL_NAME = 'agentcheck';
-export const REPOSITORY_URL = 'https://github.com/mustafakbaser/agentcheck';
+export const TOOL_NAME = 'agentcheckup';
+export const REPOSITORY_URL = 'https://github.com/mustafakbaser/agentcheckup';
 export const CONFIG_FILE_NAME = `${TOOL_NAME}.config.json`;
 export const DIRECTIVE_PREFIX = TOOL_NAME;
 

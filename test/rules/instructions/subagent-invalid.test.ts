@@ -146,7 +146,7 @@ describe('instr/subagent-invalid', () => {
     });
   });
 
-  it('does not claim Claude Code rejects frontmatter that only exceeds agentcheck limits', () => {
+  it('does not claim Claude Code rejects frontmatter that only exceeds agentcheckup limits', () => {
     const huge = `---\nname: reviewer\ndescription: ${'x'.repeat(70_000)}\n---\n`;
     expect(run(huge)).toEqual([]);
   });

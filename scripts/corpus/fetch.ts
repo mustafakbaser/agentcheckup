@@ -6,7 +6,7 @@
  * For every repository in corpus/repos.json, at its pinned commit:
  * 1. the recursive git tree (`tree.json`), the full path list used for existence checks;
  * 2. the text of every symlink the walk reaches (`links.json`), to resolve them inside the tree;
- * 3. only the blobs the agentcheck walker would read: paths `classify()` accepts, outside
+ * 3. only the blobs the agentcheckup walker would read: paths `classify()` accepts, outside
  *    hard-excluded directories, at most 1 MiB each (`files/<path>`, listed in `files.json`).
  *
  * Every blob is verified against its git object id. Resumable: anything already cached and

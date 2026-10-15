@@ -41,9 +41,9 @@ Rename the key to an event the agent fires.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line hooks/unknown-event -- reason -->
+<!-- agentcheckup-disable-next-line hooks/unknown-event -- reason -->
 ```

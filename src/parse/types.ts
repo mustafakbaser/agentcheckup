@@ -69,7 +69,7 @@ export interface HtmlComment {
 /**
  * How much of a Markdown document was analyzed. The parser bounds the cost of hostile or very
  * large files (see src/parse/markdown-guard.ts); when it does, rules see fewer constructs, and
- * agentcheck says so instead of silently reporting less.
+ * agentcheckup says so instead of silently reporting less.
  */
 export interface MarkdownAnalysis {
   /** False when any limit below applied. */

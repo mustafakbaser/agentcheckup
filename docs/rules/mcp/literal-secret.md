@@ -56,9 +56,9 @@ Revoke and rotate the credential; deleting it from the file does not remove it f
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line mcp/literal-secret -- reason -->
+<!-- agentcheckup-disable-next-line mcp/literal-secret -- reason -->
 ```

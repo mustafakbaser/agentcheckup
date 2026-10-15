@@ -5,10 +5,10 @@
     {
       "tool": {
         "driver": {
-          "name": "agentcheck",
+          "name": "agentcheckup",
           "version": "1.4.0",
           "semanticVersion": "1.4.0",
-          "informationUri": "https://github.com/mustafakbaser/agentcheck",
+          "informationUri": "https://github.com/mustafakbaser/agentcheckup",
           "rules": [
             {
               "id": "budget/file-too-large",
@@ -19,10 +19,10 @@
               "fullDescription": {
                 "text": "Large files crowd out the conversation. Codex truncates AGENTS.md at 32 KiB."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md",
               "help": {
-                "text": "Large files crowd out the conversation. Codex truncates AGENTS.md at 32 KiB.\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md",
-                "markdown": "**Instruction file exceeds the size budget**\n\nLarge files crowd out the conversation. **Codex** truncates `AGENTS.md` at 32 KiB.\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md)"
+                "text": "Large files crowd out the conversation. Codex truncates AGENTS.md at 32 KiB.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md",
+                "markdown": "**Instruction file exceeds the size budget**\n\nLarge files crowd out the conversation. **Codex** truncates `AGENTS.md` at 32 KiB.\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md)"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -44,10 +44,10 @@
               "fullDescription": {
                 "text": "Why clarity/missing-overview matters. See the docs (https://example.com/clarity/missing-overview)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/clarity/missing-overview.md",
               "help": {
-                "text": "Why clarity/missing-overview matters. See the docs (https://example.com/clarity/missing-overview).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md",
-                "markdown": "**File has no project overview**\n\nWhy `clarity/missing-overview` matters. See [the docs](https://example.com/clarity/missing-overview).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/clarity/missing-overview.md)"
+                "text": "Why clarity/missing-overview matters. See the docs (https://example.com/clarity/missing-overview).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/clarity/missing-overview.md",
+                "markdown": "**File has no project overview**\n\nWhy `clarity/missing-overview` matters. See [the docs](https://example.com/clarity/missing-overview).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/clarity/missing-overview.md)"
               },
               "defaultConfiguration": {
                 "level": "note"
@@ -69,10 +69,10 @@
               "fullDescription": {
                 "text": "Why cursor/conflicting-activation matters. See the docs (https://example.com/cursor/conflicting-activation)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/cursor/conflicting-activation.md",
               "help": {
-                "text": "Why cursor/conflicting-activation matters. See the docs (https://example.com/cursor/conflicting-activation).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md",
-                "markdown": "**Rule sets both alwaysApply and globs**\n\nWhy `cursor/conflicting-activation` matters. See [the docs](https://example.com/cursor/conflicting-activation).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/cursor/conflicting-activation.md)"
+                "text": "Why cursor/conflicting-activation matters. See the docs (https://example.com/cursor/conflicting-activation).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/cursor/conflicting-activation.md",
+                "markdown": "**Rule sets both alwaysApply and globs**\n\nWhy `cursor/conflicting-activation` matters. See [the docs](https://example.com/cursor/conflicting-activation).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/cursor/conflicting-activation.md)"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -93,10 +93,10 @@
               "fullDescription": {
                 "text": "Why directive/unused matters. See the docs (https://example.com/directive/unused)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/directive/unused.md",
               "help": {
-                "text": "Why directive/unused matters. See the docs (https://example.com/directive/unused).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md",
-                "markdown": "**Suppression directive does not suppress anything**\n\nWhy `directive/unused` matters. See [the docs](https://example.com/directive/unused).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/directive/unused.md)"
+                "text": "Why directive/unused matters. See the docs (https://example.com/directive/unused).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/directive/unused.md",
+                "markdown": "**Suppression directive does not suppress anything**\n\nWhy `directive/unused` matters. See [the docs](https://example.com/directive/unused).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/directive/unused.md)"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -118,10 +118,10 @@
               "fullDescription": {
                 "text": "Claude Code silently skips @path imports that do not resolve, so the instructions in them never load. See memory imports (https://docs.anthropic.com/en/docs/claude-code/memory#imports)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md",
               "help": {
-                "text": "Claude Code silently skips @path imports that do not resolve, so the instructions in them never load. See memory imports (https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md",
-                "markdown": "**Imported file does not exist**\n\nClaude Code silently skips `@path` imports that do not resolve, so the instructions in them never load. See [memory imports](https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md)"
+                "text": "Claude Code silently skips @path imports that do not resolve, so the instructions in them never load. See memory imports (https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md",
+                "markdown": "**Imported file does not exist**\n\nClaude Code silently skips `@path` imports that do not resolve, so the instructions in them never load. See [memory imports](https://docs.anthropic.com/en/docs/claude-code/memory#imports).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md)"
               },
               "defaultConfiguration": {
                 "level": "error"
@@ -142,10 +142,10 @@
               "fullDescription": {
                 "text": "Why portability/claude-only-import matters. See the docs (https://example.com/portability/claude-only-import)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/portability/claude-only-import.md",
               "help": {
-                "text": "Why portability/claude-only-import matters. See the docs (https://example.com/portability/claude-only-import).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md",
-                "markdown": "**@import syntax is specific to Claude Code**\n\nWhy `portability/claude-only-import` matters. See [the docs](https://example.com/portability/claude-only-import).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/portability/claude-only-import.md)"
+                "text": "Why portability/claude-only-import matters. See the docs (https://example.com/portability/claude-only-import).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/portability/claude-only-import.md",
+                "markdown": "**@import syntax is specific to Claude Code**\n\nWhy `portability/claude-only-import` matters. See [the docs](https://example.com/portability/claude-only-import).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/portability/claude-only-import.md)"
               },
               "defaultConfiguration": {
                 "level": "note"
@@ -167,10 +167,10 @@
               "fullDescription": {
                 "text": "Why risk/hidden-unicode matters. See the docs (https://example.com/risk/hidden-unicode)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/hidden-unicode.md",
               "help": {
-                "text": "Why risk/hidden-unicode matters. See the docs (https://example.com/risk/hidden-unicode).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md",
-                "markdown": "**Instructions contain invisible Unicode**\n\nWhy `risk/hidden-unicode` matters. See [the docs](https://example.com/risk/hidden-unicode).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md)"
+                "text": "Why risk/hidden-unicode matters. See the docs (https://example.com/risk/hidden-unicode).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/hidden-unicode.md",
+                "markdown": "**Instructions contain invisible Unicode**\n\nWhy `risk/hidden-unicode` matters. See [the docs](https://example.com/risk/hidden-unicode).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/hidden-unicode.md)"
               },
               "defaultConfiguration": {
                 "level": "error"
@@ -199,10 +199,10 @@
               "fullDescription": {
                 "text": "Why risk/remote-script matters. See the docs (https://example.com/risk/remote-script)."
               },
-              "helpUri": "https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md",
+              "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/remote-script.md",
               "help": {
-                "text": "Why risk/remote-script matters. See the docs (https://example.com/risk/remote-script).\n\nDocumentation: https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md",
-                "markdown": "**Instructions pipe a remote script into a shell**\n\nWhy `risk/remote-script` matters. See [the docs](https://example.com/risk/remote-script).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/remote-script.md)"
+                "text": "Why risk/remote-script matters. See the docs (https://example.com/risk/remote-script).\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/remote-script.md",
+                "markdown": "**Instructions pipe a remote script into a shell**\n\nWhy `risk/remote-script` matters. See [the docs](https://example.com/risk/remote-script).\n\n**Sources**\n\n- [Claude Code memory documentation](https://docs.anthropic.com/en/docs/claude-code/memory) (checked 2026-10-01)\n\n[Rule documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/remote-script.md)"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -221,12 +221,12 @@
         }
       },
       "automationDetails": {
-        "id": "agentcheck/"
+        "id": "agentcheckup/"
       },
       "originalUriBaseIds": {
         "%SRCROOT%": {
           "description": {
-            "text": "The directory agentcheck scanned."
+            "text": "The directory agentcheckup scanned."
           }
         }
       },
@@ -344,7 +344,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "1a2b3c4d5e6f70:1"
+            "agentcheckup/v1": "1a2b3c4d5e6f70:1"
           }
         },
         {
@@ -371,7 +371,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "2b3c4d5e6f7081:1"
+            "agentcheckup/v1": "2b3c4d5e6f7081:1"
           }
         },
         {
@@ -398,7 +398,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "3c4d5e6f708192:1"
+            "agentcheckup/v1": "3c4d5e6f708192:1"
           }
         },
         {
@@ -425,7 +425,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "4d5e6f708192a3:1"
+            "agentcheckup/v1": "4d5e6f708192a3:1"
           },
           "suppressions": [
             {
@@ -458,7 +458,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "5e6f708192a3b4:1"
+            "agentcheckup/v1": "5e6f708192a3b4:1"
           }
         },
         {
@@ -499,7 +499,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "6f708192a3b4c5:1"
+            "agentcheckup/v1": "6f708192a3b4c5:1"
           }
         },
         {
@@ -600,7 +600,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "708192a3b4c5d6:1"
+            "agentcheckup/v1": "708192a3b4c5d6:1"
           }
         },
         {
@@ -627,7 +627,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheck/v1": "8192a3b4c5d6e7:1"
+            "agentcheckup/v1": "8192a3b4c5d6e7:1"
           },
           "suppressions": [
             {

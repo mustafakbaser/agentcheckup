@@ -32,7 +32,7 @@ export default defineConfig(
       reportUnusedDisableDirectives: 'error',
     },
     rules: {
-      // agentcheck runs every rule over untrusted text: catastrophic backtracking is a security bug.
+      // agentcheckup runs every rule over untrusted text: catastrophic backtracking is a security bug.
       'regexp/no-super-linear-backtracking': 'error',
       'regexp/no-super-linear-move': 'error',
       'regexp/no-misleading-unicode-character': 'error',

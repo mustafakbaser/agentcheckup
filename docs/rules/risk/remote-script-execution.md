@@ -36,9 +36,9 @@ Pin the download to a version and checksum, or install from a package manager or
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line risk/remote-script-execution -- reason -->
+<!-- agentcheckup-disable-next-line risk/remote-script-execution -- reason -->
 ```

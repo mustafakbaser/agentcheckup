@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        agentcheck rules are backed by evidence: official documentation or the agent's source code.
-        Opinions about style belong in an `info` rule at most. See [ADR 0004](https://github.com/mustafakbaser/agentcheck/blob/main/docs/adr/0004-evidence-backed-rules.md).
+        agentcheckup rules are backed by evidence: official documentation or the agent's source code.
+        Opinions about style belong in an `info` rule at most. See [ADR 0004](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/adr/0004-evidence-backed-rules.md).
   - type: textarea
     id: problem
     attributes:

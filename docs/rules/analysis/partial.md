@@ -15,7 +15,7 @@ File was only partly analyzed.
 
 ## Why
 
-agentcheck limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.
+agentcheckup limits the time and memory it spends on each file, because the Markdown parser it uses can take tens of seconds on a small crafted file. It analyzes at most the first 131,072 characters and 8,192 lines of a file, and fewer when the scan-wide budget runs low. Past a cost estimate it also skips list, block quote and setext heading structure, simplifies deeply nested lines, and ignores inline formatting in the most expensive paragraphs.
 
 Rules do not check the skipped parts, so findings there can be missing. This notice never affects the score.
 
@@ -23,7 +23,7 @@ An instruction file this large is costly for agents too: Codex reads at most 32 
 
 ## Evidence
 
-- [ADR 0003: Treat scanned repositories as hostile](https://github.com/mustafakbaser/agentcheck/blob/main/docs/adr/0003-treat-scanned-repositories-as-hostile.md), verified, checked 2026-10-14
+- [ADR 0003: Treat scanned repositories as hostile](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/adr/0003-treat-scanned-repositories-as-hostile.md), verified, checked 2026-10-14
 
 ## Configuration
 
@@ -35,9 +35,9 @@ An instruction file this large is costly for agents too: Codex reads at most 32 
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line analysis/partial -- reason -->
+<!-- agentcheckup-disable-next-line analysis/partial -- reason -->
 ```

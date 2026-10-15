@@ -10,7 +10,7 @@ export type Tree = Readonly<Record<string, string | Uint8Array>>;
 /** Temporary directories created by a test file; remove them with `removeTempDirs` in afterEach. */
 const created: string[] = [];
 
-export async function makeTempDir(prefix = 'agentcheck-io-'): Promise<string> {
+export async function makeTempDir(prefix = 'agentcheckup-io-'): Promise<string> {
   const dir = await mkdtemp(path.join(os.tmpdir(), prefix));
   created.push(dir);
   return dir;
@@ -44,7 +44,7 @@ export async function link(root: string, linkPath: string, target: string): Prom
 }
 
 async function probeSymlinks(): Promise<boolean> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentcheck-probe-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentcheckup-probe-'));
   try {
     await writeFile(path.join(dir, 'target'), '');
     await symlink('target', path.join(dir, 'link'));
@@ -73,7 +73,7 @@ export function makeFifo(filePath: string): boolean {
 
 async function probeFifo(): Promise<boolean> {
   if (isWindows) return false;
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentcheck-probe-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentcheckup-probe-'));
   try {
     return makeFifo(path.join(dir, 'fifo'));
   } finally {

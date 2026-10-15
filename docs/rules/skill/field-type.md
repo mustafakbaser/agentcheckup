@@ -37,9 +37,9 @@ Use the types from the specification, and quote values that YAML would read as n
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/field-type -- reason -->
+<!-- agentcheckup-disable-next-line skill/field-type -- reason -->
 ```

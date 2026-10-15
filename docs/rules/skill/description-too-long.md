@@ -37,9 +37,9 @@ Put the key use case first and move details into the body.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/description-too-long -- reason -->
+<!-- agentcheckup-disable-next-line skill/description-too-long -- reason -->
 ```

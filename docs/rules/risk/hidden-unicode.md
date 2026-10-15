@@ -39,9 +39,9 @@ Delete the characters. If they came from copy and paste, retype the affected tex
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line risk/hidden-unicode -- reason -->
+<!-- agentcheckup-disable-next-line risk/hidden-unicode -- reason -->
 ```

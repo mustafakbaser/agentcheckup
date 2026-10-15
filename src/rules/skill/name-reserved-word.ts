@@ -99,7 +99,7 @@ export const nameReservedWordRule = defineRule({
     title: 'Skill name uses a reserved word or name',
     rationale: `The Claude API and claude.ai upload reject a skill whose \`name\` contains the reserved words \`anthropic\` or \`claude\`. This matters only for skills that are installed or uploaded on their own, so it is not reported for skills in an agent's skills directory or in a plugin.
 
-Claude Code reserves names for skills synced from claude.ai. Outside a plugin, a skill directory or frontmatter \`name\` that is \`anthropic-skills\` or starts with \`anthropic-skills:\` does not load, and Claude Code skips a skill directory named \`synced\`, in any letter case, in its enterprise, personal and project skills directories. Of these, agentcheck sees only the project's \`.claude/skills\` at the scan root, so it checks \`synced\` there and not in nested \`.claude/skills\` directories.
+Claude Code reserves names for skills synced from claude.ai. Outside a plugin, a skill directory or frontmatter \`name\` that is \`anthropic-skills\` or starts with \`anthropic-skills:\` does not load, and Claude Code skips a skill directory named \`synced\`, in any letter case, in its enterprise, personal and project skills directories. Of these, agentcheckup sees only the project's \`.claude/skills\` at the scan root, so it checks \`synced\` there and not in nested \`.claude/skills\` directories.
 
 Choose a name without these words.`,
     category: 'portability',

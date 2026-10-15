@@ -46,7 +46,7 @@ function linkDestination(url: string): string {
   );
 }
 
-/** `[![agent config: 92/100](badge)](link)`, linking to agentcheck unless told otherwise. */
+/** `[![agent config: 92/100](badge)](link)`, linking to agentcheckup unless told otherwise. */
 export function badgeMarkdown(result: ScanResult, linkUrl: string = REPOSITORY_URL): string {
   return `[![${LABEL}: ${badgeMessage(result)}](${badgeUrl(result)})](${linkDestination(linkUrl)})`;
 }

@@ -60,7 +60,7 @@ export function formatGithub(result: ScanResult): string {
     lines.push(
       command(
         'error',
-        [['title', forWorkflowProperty('agentcheck internal error')]],
+        [['title', forWorkflowProperty('agentcheckup internal error')]],
         forWorkflowCommand(
           `Rule ${failure.ruleId} failed to run, so results are incomplete: ${failure.message}`,
         ),

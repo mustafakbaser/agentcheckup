@@ -175,14 +175,14 @@ describe('skill/frontmatter-invalid', () => {
     ]);
   });
 
-  it('reports frontmatter beyond agentcheck limits as info only', () => {
+  it('reports frontmatter beyond agentcheckup limits as info only', () => {
     const text = `---\nname: deploy\ndescription: ${'x'.repeat(70_000)}\n---\n`;
     expect(check(text)).toEqual([
       {
         severity: 'info',
         platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'],
         message:
-          'agentcheck did not check this frontmatter: Frontmatter is 70,027 characters; the limit is 65,536.',
+          'agentcheckup did not check this frontmatter: Frontmatter is 70,027 characters; the limit is 65,536.',
         range: range(1, 1, 4, 4),
       },
     ]);

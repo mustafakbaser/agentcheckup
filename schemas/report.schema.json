@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/report.schema.json",
-  "title": "agentcheck JSON report",
-  "description": "Output of `agentcheck --format json`. Positions are 1-based; columns count UTF-16 code units. Paths are POSIX and relative to the scan root. Strings are data from the scanned repository: treat them as untrusted.",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/report.schema.json",
+  "title": "agentcheckup JSON report",
+  "description": "Output of `agentcheckup --format json`. Positions are 1-based; columns count UTF-16 code units. Paths are POSIX and relative to the scan root. Strings are data from the scanned repository: treat them as untrusted.",
   "type": "object",
   "additionalProperties": false,
   "required": [

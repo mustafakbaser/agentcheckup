@@ -118,7 +118,7 @@ describe('YAML helpers', () => {
     expect(describeValue({ a: 1 })).toBe('a mapping');
   });
 
-  it('ignores agentcheck limit codes and trims messages', () => {
+  it('ignores agentcheckup limit codes and trims messages', () => {
     const span = { offset: 0, length: 1 };
     expect(yamlSyntaxError([])).toBeUndefined();
     expect(yamlSyntaxError([{ code: 'too-large', message: 'x', span }])).toBeUndefined();

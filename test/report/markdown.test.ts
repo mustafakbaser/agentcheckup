@@ -65,10 +65,10 @@ describe('formatMarkdown', () => {
 
   it('heads with the score and grade', () => {
     expect(formatMarkdown(richResult).split('\n')[0]).toBe(
-      '## agentcheck: agent config score 49/100 (F)',
+      '## agentcheckup: agent config score 49/100 (F)',
     );
     expect(formatMarkdown(emptyResult).split('\n')[0]).toBe(
-      '## agentcheck: no agent configuration files found',
+      '## agentcheckup: no agent configuration files found',
     );
   });
 
@@ -84,7 +84,7 @@ describe('formatMarkdown', () => {
       'info',
     ]);
     expect(rows[1]).toBe(
-      '| CLAUDE\\.md:3 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md) | Imported file docs/missing\\.md does not exist\\. |',
+      '| CLAUDE\\.md:3 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md) | Imported file docs/missing\\.md does not exist\\. |',
     );
   });
 
@@ -98,7 +98,7 @@ describe('formatMarkdown', () => {
     const output = formatMarkdown(richResult, { maxFindings: 2 });
     expect(tableRows(output)).toHaveLength(2);
     expect(output).toContain(
-      'Showing 2 of 6 findings, most severe first. Run `npx agentcheck` locally for the full report.',
+      'Showing 2 of 6 findings, most severe first. Run `npx agentcheckup` locally for the full report.',
     );
     const none = formatMarkdown(richResult, { maxFindings: 0 });
     expect(none).not.toContain('| Location |');

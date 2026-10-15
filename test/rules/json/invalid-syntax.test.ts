@@ -119,7 +119,7 @@ describe('json/invalid-syntax', () => {
     );
   });
 
-  it("does not report valid files or agentcheck's own parser limits", () => {
+  it("does not report valid files or agentcheckup's own parser limits", () => {
     const deep = `${'['.repeat(600)}${']'.repeat(600)}`;
     expect(
       run({

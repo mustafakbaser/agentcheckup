@@ -42,7 +42,7 @@ export const CATEGORIES = [
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
-/** Every file kind agentcheck understands. See src/platforms/classify.ts for the path patterns. */
+/** Every file kind agentcheckup understands. See src/platforms/classify.ts for the path patterns. */
 export const ARTIFACT_KINDS = [
   'agents-md',
   'agents-override-md',

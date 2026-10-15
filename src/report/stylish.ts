@@ -300,7 +300,7 @@ function renderRuleFailures(result: ScanResult, context: Context): string[] {
   if (failures.length > MAX_LISTED) {
     lines.push(`    ${symbols.more} and ${failures.length - MAX_LISTED} more`);
   }
-  lines.push(`  This is a bug in agentcheck. Please report it: ${REPOSITORY_URL}/issues`);
+  lines.push(`  This is a bug in agentcheckup. Please report it: ${REPOSITORY_URL}/issues`);
   return lines;
 }
 

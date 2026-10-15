@@ -17,7 +17,7 @@ Instruction file name has the wrong letter case.
 
 Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.
 
-Windsurf's Cascade agent documents both `AGENTS.md` and `agents.md`, so agentcheck does not report `agents.md` for Windsurf; other spellings, such as `Agents.md`, are reported.
+Windsurf's Cascade agent documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Windsurf; other spellings, such as `Agents.md`, are reported.
 
 Rename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.
 
@@ -38,9 +38,9 @@ Rename the file to the exact name if it holds agent instructions, or to a differ
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/filename-case -- reason -->
+<!-- agentcheckup-disable-next-line instr/filename-case -- reason -->
 ```

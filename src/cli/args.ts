@@ -92,7 +92,7 @@ export function parseCommand(argv: readonly string[]): Command {
   if (first === 'explain') {
     const [ruleId, ...extra] = rest;
     if (ruleId === undefined || extra.length > 0) {
-      throw new UsageError('Usage: agentcheck explain <rule-id>');
+      throw new UsageError('Usage: agentcheckup explain <rule-id>');
     }
     return { kind: 'explain', ruleId };
   }

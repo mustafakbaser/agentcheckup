@@ -15,13 +15,13 @@ Suppression directive names a rule that does not exist.
 
 ## Why
 
-agentcheck has no rule with this id, so the directive suppresses nothing for it. Rules the same directive names correctly are still suppressed.
+agentcheckup has no rule with this id, so the directive suppresses nothing for it. Rules the same directive names correctly are still suppressed.
 
 Check the id against the rule catalog; usually it is misspelled.
 
 ## Evidence
 
-- [agentcheck inline suppression directives](https://github.com/mustafakbaser/agentcheck/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
+- [agentcheckup inline suppression directives](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
 
 ## Configuration
 
@@ -33,9 +33,9 @@ Check the id against the rule catalog; usually it is misspelled.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line directive/unknown-rule -- reason -->
+<!-- agentcheckup-disable-next-line directive/unknown-rule -- reason -->
 ```

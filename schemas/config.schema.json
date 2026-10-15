@@ -1,6 +1,6 @@
 {
-  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/config.schema.json",
-  "title": "agentcheck configuration",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/config.schema.json",
+  "title": "agentcheckup configuration",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,

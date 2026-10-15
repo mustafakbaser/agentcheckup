@@ -1,17 +1,17 @@
-# agentcheck
+# agentcheckup
 
-**Does your coding agent actually read that?**
+**A checkup for your coding agent setup. Does your agent actually read that?**
 
-[![CI](https://github.com/mustafakbaser/agentcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafakbaser/agentcheck/actions/workflows/ci.yml)
+[![CI](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-agentcheck checks `AGENTS.md`, `CLAUDE.md`, `SKILL.md`, Cursor rules, Copilot instructions,
+agentcheckup checks `AGENTS.md`, `CLAUDE.md`, `SKILL.md`, Cursor rules, Copilot instructions,
 MCP servers and hooks against how Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI,
 Windsurf and Cline actually load them. Every rule cites the documentation or source code it is
 based on.
 
 ```sh
-npx agentcheck
+npx agentcheckup
 ```
 
 No configuration, no API key, no network requests, no telemetry. Node.js 22.12 or newer.
@@ -38,7 +38,7 @@ Agent config score 75/100 (C) · ruleset 2026.10
 ## What it catches
 
 Agents rarely tell you when they skip part of your configuration. These are some of the
-problems agentcheck reports, each backed by the agent's documentation or source:
+problems agentcheckup reports, each backed by the agent's documentation or source:
 
 - **[Codex stops reading `AGENTS.md` at 32 KiB](docs/rules/instr/codex-size-budget.md)**, counted
   across every `AGENTS.md` from the repository root down to the working directory. The rest is
@@ -71,10 +71,10 @@ all of them.
 ### Locally
 
 ```sh
-npx agentcheck                      # scan the current directory
-npx agentcheck path/to/repo         # scan another directory
-npx agentcheck --targets claude-code,codex   # only check the agents you use
-npx agentcheck explain instr/codex-size-budget
+npx agentcheckup                      # scan the current directory
+npx agentcheckup path/to/repo         # scan another directory
+npx agentcheckup --targets claude-code,codex   # only check the agents you use
+npx agentcheckup explain instr/codex-size-budget
 ```
 
 Exit codes: `0` no findings at or above `--fail-on` (default `error`), `1` findings or a score
@@ -85,12 +85,12 @@ below `--min-score`, `2` invalid arguments or configuration, `3` internal error.
 Annotations on the pull request, no extra permissions:
 
 ```yaml
-name: agentcheck
+name: agentcheckup
 on: pull_request
 permissions:
   contents: read
 jobs:
-  agentcheck:
+  agentcheckup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,19 +100,19 @@ jobs:
         with:
           node-version: 24
       # Run from outside the checkout so a package committed to the repository cannot shadow
-      # agentcheck. --untrusted ignores the repository's own config and suppressions.
-      - run: npx --yes agentcheck@0 "$GITHUB_WORKSPACE" --untrusted --format github
+      # agentcheckup. --untrusted ignores the repository's own config and suppressions.
+      - run: npx --yes agentcheckup@0 "$GITHUB_WORKSPACE" --untrusted --format github
         working-directory: ${{ runner.temp }}
 ```
 
 For GitHub code scanning, write SARIF instead and upload it:
 
 ```yaml
-- run: npx --yes agentcheck@0 "$GITHUB_WORKSPACE" --untrusted --format sarif --output "$GITHUB_WORKSPACE/agentcheck.sarif" --fail-on none
+- run: npx --yes agentcheckup@0 "$GITHUB_WORKSPACE" --untrusted --format sarif --output "$GITHUB_WORKSPACE/agentcheckup.sarif" --fail-on none
   working-directory: ${{ runner.temp }}
 - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
   with:
-    sarif_file: agentcheck.sarif
+    sarif_file: agentcheckup.sarif
 ```
 
 The upload step needs `security-events: write`.
@@ -120,7 +120,7 @@ The upload step needs `security-events: write`.
 ### In a Git hook
 
 ```sh
-npx agentcheck --fail-on error
+npx agentcheckup --fail-on error
 ```
 
 works in any pre-commit hook manager. The scan takes well under a second on most repositories.
@@ -128,7 +128,7 @@ works in any pre-commit hook manager. The scan takes well under a second on most
 ### From code
 
 ```ts
-import { scan } from 'agentcheck';
+import { scan } from 'agentcheckup';
 
 const result = await scan('.', { targets: ['claude-code', 'codex'] });
 console.log(result.score.score, result.findings.length);
@@ -139,12 +139,12 @@ The API is not stable before 1.0. The JSON report follows
 
 ## Configuration
 
-agentcheck works without configuration. To choose agents or change rule severities, add
-`agentcheck.config.json`:
+agentcheckup works without configuration. To choose agents or change rule severities, add
+`agentcheckup.config.json`:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/config.schema.json",
   "targets": ["claude-code", "codex", "cursor"],
   "rules": {
     "instr/claude-md-too-long": ["warn", { "maxLines": 300 }]
@@ -156,7 +156,7 @@ agentcheck works without configuration. To choose agents or change rule severiti
 Suppress a single finding with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/import-unresolved -- generated during the docs build -->
+<!-- agentcheckup-disable-next-line instr/import-unresolved -- generated during the docs build -->
 ```
 
 See [configuration](docs/configuration.md) for all options.
@@ -176,20 +176,20 @@ Before release, every rule was run against 80 public repositories with agent con
 
 ## Score
 
-agentcheck reports a score from 0 to 100. Each file starts at 100 and loses 40 points per error
+agentcheckup reports a score from 0 to 100. Each file starts at 100 and loses 40 points per error
 and 8 per warning; the repository score weights the worst file, so many clean files cannot hide
 one broken file. A risk error caps the score at 49. [How the score works](docs/scoring.md)
 explains the formula and why.
 
 ```sh
-npx agentcheck --format badge
+npx agentcheckup --format badge
 ```
 
 prints Markdown for a badge.
 
 ## Security
 
-agentcheck is built to run on repositories you do not trust:
+agentcheckup is built to run on repositories you do not trust:
 
 - It never executes code from the scanned repository and makes no network requests.
 - It never reads outside the directory you point it at. Symlinks and imports that leave it are
@@ -203,7 +203,7 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Status
 
-agentcheck is in early development. Rule set `2026.10` covers static checks only. Behavioral
+agentcheckup is in early development. Rule set `2026.10` covers static checks only. Behavioral
 probes that run agents, and hook generation, are deliberately out of scope until they can be
 done safely; see [ADR 0006](docs/adr/0006-scope-for-the-first-release.md).
 

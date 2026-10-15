@@ -25,7 +25,7 @@ import {
 
 afterEach(removeTempDirs);
 
-const SECRET = 'AGENTCHECK_RACE_SECRET_92b1f0';
+const SECRET = 'AGENTCHECKUP_RACE_SECRET_92b1f0';
 
 /** Runs `swap` the first time `trigger` is offered to isCandidate; only `wanted` is a candidate. */
 function swapWhen(trigger: string, swap: () => void, wanted = trigger): WalkOptions {
@@ -42,7 +42,7 @@ function swapWhen(trigger: string, swap: () => void, wanted = trigger): WalkOpti
 }
 
 async function outsideSecret(): Promise<string> {
-  const outside = await makeTempDir('agentcheck-outside-');
+  const outside = await makeTempDir('agentcheckup-outside-');
   await writeTree(outside, { 'secret.md': SECRET });
   return path.join(outside, 'secret.md');
 }

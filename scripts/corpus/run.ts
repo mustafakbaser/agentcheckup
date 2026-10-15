@@ -10,7 +10,7 @@
  *   npx tsx scripts/corpus/run.ts --only owner/name   scan some repositories and print their
  *                                                     findings instead (writes nothing)
  *
- * Each repository is scanned the way `agentcheck --untrusted` scans a checkout: the Snapshot is
+ * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
  * suppress findings.
  *

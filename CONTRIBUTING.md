@@ -1,4 +1,4 @@
-# Contributing to agentcheck
+# Contributing to agentcheckup
 
 Thanks for helping. The most valuable contributions, in order:
 
@@ -6,7 +6,7 @@ Thanks for helping. The most valuable contributions, in order:
 2. **Evidence** that an agent loads a file differently than a rule assumes: a documentation link,
    a source code reference, or a reproduction.
 3. **New rules** backed by that kind of evidence.
-4. Fixes and features from the [issue tracker](https://github.com/mustafakbaser/agentcheck/issues).
+4. Fixes and features from the [issue tracker](https://github.com/mustafakbaser/agentcheckup/issues).
 
 For anything larger than a small fix, open an issue or discussion first so we can agree on the
 approach before you write code.
@@ -16,8 +16,8 @@ approach before you write code.
 You need Node.js 22.12 or newer and pnpm 12.
 
 ```sh
-git clone https://github.com/mustafakbaser/agentcheck.git
-cd agentcheck
+git clone https://github.com/mustafakbaser/agentcheckup.git
+cd agentcheckup
 corepack enable          # or: npm install --global pnpm@12
 pnpm install
 pnpm check               # format, lint, types, tests, build: what CI runs
@@ -53,7 +53,7 @@ src/
 this. The boundary keeps the core usable in a browser or editor, and keeps file access in one
 reviewed place. The reasoning is in [docs/adr](docs/adr/README.md).
 
-agentcheck scans repositories that may be hostile. When you touch parsing, file access or
+agentcheckup scans repositories that may be hostile. When you touch parsing, file access or
 output, read [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md) first.
 
 ## Adding a rule

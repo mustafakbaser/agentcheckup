@@ -169,7 +169,7 @@ const MATCHERS: readonly Matcher[] = [
 ];
 
 /**
- * Classifies a POSIX path relative to the scan root. Returns undefined for files agentcheck
+ * Classifies a POSIX path relative to the scan root. Returns undefined for files agentcheckup
  * does not read. Matching is case-insensitive so that `Agents.md` is found and can be flagged.
  */
 export function classify(path: string): Classification | undefined {

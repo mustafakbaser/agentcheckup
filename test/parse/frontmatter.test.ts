@@ -63,14 +63,14 @@ describe('delimiters', () => {
   it('never evaluates ---js frontmatter', () => {
     const text = [
       '---js',
-      '(globalThis.agentcheckPwned = true)',
-      'module.exports = { name: (() => { globalThis.agentcheckPwned = true; return "x" })() }',
+      '(globalThis.agentcheckupPwned = true)',
+      'module.exports = { name: (() => { globalThis.agentcheckupPwned = true; return "x" })() }',
       '---',
       'body',
     ].join('\n');
     const result = parseFrontmatter(text);
     expect(result.kind).toBe('unsupported');
-    expect((globalThis as Record<string, unknown>)['agentcheckPwned']).toBeUndefined();
+    expect((globalThis as Record<string, unknown>)['agentcheckupPwned']).toBeUndefined();
   });
 
   it('accepts trailing whitespace on both delimiter lines', () => {

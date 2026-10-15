@@ -35,9 +35,9 @@ Start the file with the `---` line, add the missing field, and fix the name or t
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/subagent-invalid -- reason -->
+<!-- agentcheckup-disable-next-line instr/subagent-invalid -- reason -->
 ```

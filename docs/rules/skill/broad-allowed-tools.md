@@ -37,9 +37,9 @@ Scope each rule to the commands the skill needs, such as `Bash(git status *)`, o
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/broad-allowed-tools -- reason -->
+<!-- agentcheckup-disable-next-line skill/broad-allowed-tools -- reason -->
 ```

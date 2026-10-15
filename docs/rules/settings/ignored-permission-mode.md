@@ -33,9 +33,9 @@ Set the mode in `~/.claude/settings.json` or managed settings, or pass `--permis
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line settings/ignored-permission-mode -- reason -->
+<!-- agentcheckup-disable-next-line settings/ignored-permission-mode -- reason -->
 ```

@@ -5,7 +5,7 @@ export type PathStatus = 'exists' | 'missing' | 'unknown';
 /**
  * Whether a root-relative POSIX path exists in the scanned tree.
  *
- * "unknown" means the path is inside a directory agentcheck did not list (node_modules,
+ * "unknown" means the path is inside a directory agentcheckup did not list (node_modules,
  * gitignored, too deep, unreadable). Rules must not report "missing file" for unknown paths:
  * the file may well exist.
  */

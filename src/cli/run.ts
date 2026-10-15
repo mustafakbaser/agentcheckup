@@ -50,7 +50,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
-      io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "agentcheck --help" for usage.\n`);
+      io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "agentcheckup --help" for usage.\n`);
       return EXIT.usage;
     }
     if (error instanceof ConfigError || error instanceof WalkError) {
@@ -59,7 +59,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     }
     io.stderr(
       `Internal error: ${forTerminal(errorMessage(error))}\n` +
-        'Please report it at https://github.com/mustafakbaser/agentcheck/issues\n',
+        'Please report it at https://github.com/mustafakbaser/agentcheckup/issues\n',
     );
     return EXIT.internal;
   }
@@ -166,7 +166,7 @@ function listRulesText(): string {
   const lines = rules.map(
     (meta) => `${meta.id.padEnd(width)}  ${meta.severity.padEnd(5)}  ${meta.title}`,
   );
-  return `${lines.join('\n')}\n\n${rules.length} rules. Run "agentcheck explain <rule-id>" for details.\n`;
+  return `${lines.join('\n')}\n\n${rules.length} rules. Run "agentcheckup explain <rule-id>" for details.\n`;
 }
 
 function listRulesJson(): string {
@@ -176,7 +176,7 @@ function listRulesJson(): string {
 function explain(ruleId: string, io: Io): ExitCode {
   const meta = allRuleMeta().find((candidate) => candidate.id === ruleId);
   if (!meta) {
-    io.stderr(`Unknown rule "${forTerminal(ruleId)}". Run "agentcheck rules" to list rules.\n`);
+    io.stderr(`Unknown rule "${forTerminal(ruleId)}". Run "agentcheckup rules" to list rules.\n`);
     return EXIT.usage;
   }
   const sources = meta.sources

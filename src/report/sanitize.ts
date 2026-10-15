@@ -5,7 +5,7 @@
  * frontmatter values, symlink targets, configuration warnings, even rule-failure messages. That
  * text ends up in terminals, GitHub Actions logs, annotations, PR comments, job summaries and
  * code scanning. Every untrusted string must pass through the sanitizer of the channel it is
- * written to, at the point where it is written. Rule metadata ships with agentcheck and is
+ * written to, at the point where it is written. Rule metadata ships with agentcheckup and is
  * trusted, but goes through the same functions: it costs nothing and removes a class of mistakes.
  *
  * All channels share one neutralization policy (`neutralize`):

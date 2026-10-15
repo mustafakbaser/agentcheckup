@@ -15,9 +15,9 @@ Windsurf rule file exceeds Cascade's 12,000-character limit.
 
 ## Why
 
-Cascade, the older agent in Windsurf (now Devin Desktop), limits each workspace rule file in `.devin/rules/` or `.windsurf/rules/` to 12,000 characters; agentcheck applies the same limit to the legacy `.windsurfrules`. The documentation does not say whether a longer file is cut off or rejected, and the default Devin Local agent documents no limit, so this is information only.
+Cascade, the older agent in Windsurf (now Devin Desktop), limits each workspace rule file in `.devin/rules/` or `.windsurf/rules/` to 12,000 characters; agentcheckup applies the same limit to the legacy `.windsurfrules`. The documentation does not say whether a longer file is cut off or rejected, and the default Devin Local agent documents no limit, so this is information only.
 
-agentcheck counts Unicode characters after the frontmatter, with a CRLF line break as one character, so it reports only files that are over the limit however you count.
+agentcheckup counts Unicode characters after the frontmatter, with a CRLF line break as one character, so it reports only files that are over the limit however you count.
 
 Split the rule into several rule files with their own activation modes, or move reference material into files the rule points to.
 
@@ -36,9 +36,9 @@ Split the rule into several rule files with their own activation modes, or move 
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/windsurf-rule-too-long -- reason -->
+<!-- agentcheckup-disable-next-line instr/windsurf-rule-too-long -- reason -->
 ```

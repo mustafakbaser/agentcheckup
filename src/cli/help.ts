@@ -31,6 +31,6 @@ Exit codes
   2  Invalid arguments or configuration
   3  Internal error (a rule or the scanner crashed)
 
-agentcheck makes no network requests and collects no telemetry.
+agentcheckup makes no network requests and collects no telemetry.
 Docs: ${REPOSITORY_URL}#readme
 `;

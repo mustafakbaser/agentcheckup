@@ -17,7 +17,7 @@ Imported file does not exist.
 
 Claude Code and Gemini CLI replace an `@path` import with the content of the file it names, resolved relative to the importing file. When that file does not exist, Claude Code has nothing to load, and Gemini CLI inserts an "Import failed" comment instead of the text.
 
-Claude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheck also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. To skip mentions such as `@octocat`, agentcheck reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheck did not list, such as `node_modules`, are never reported.
+Claude Code expands imports in `CLAUDE.md`, `CLAUDE.local.md` and any `AGENTS.md` it reads; agentcheckup also checks `.claude/rules/` files, although Claude Code's documentation does not mention imports there, and reports what it finds there as information. Gemini CLI expands imports in `GEMINI.md`. To skip mentions such as `@octocat`, agentcheckup reports only paths that start with `./` or `../` or end in a file extension (for Gemini CLI also dotfiles and `@README`). Gemini CLI keeps trailing punctuation, so `@./guide.md.` fails even when `guide.md` exists. Paths in directories agentcheckup did not list, such as `node_modules`, are never reported.
 
 Fix the path, or put a mention you do not want imported in backticks.
 
@@ -38,9 +38,9 @@ Fix the path, or put a mention you do not want imported in backticks.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/import-unresolved -- reason -->
+<!-- agentcheckup-disable-next-line instr/import-unresolved -- reason -->
 ```

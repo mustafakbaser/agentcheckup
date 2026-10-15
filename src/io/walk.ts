@@ -1,5 +1,5 @@
 /**
- * The filesystem walker: the only code in agentcheck that lists directories and reads files of the
+ * The filesystem walker: the only code in agentcheckup that lists directories and reads files of the
  * scanned tree, which may be a hostile repository. Guarantees:
  *
  * - Nothing outside the scan root is read, listed or even stat-ed through a symlink.

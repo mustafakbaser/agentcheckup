@@ -55,7 +55,7 @@ describe('formatJson', () => {
   it('pretty-prints with two spaces and a trailing newline', () => {
     const output = formatJson(cleanResult);
     expect(
-      output.startsWith('{\n  "schemaVersion": 1,\n  "tool": {\n    "name": "agentcheck",'),
+      output.startsWith('{\n  "schemaVersion": 1,\n  "tool": {\n    "name": "agentcheckup",'),
     ).toBe(true);
     expect(output.endsWith('}\n')).toBe(true);
   });

@@ -29,7 +29,7 @@ export interface PluginRoot {
   readonly root: string;
   /** Manifest directory names found there, e.g. `.claude-plugin`, sorted. */
   readonly markers: readonly string[];
-  /** Agents among those markers that agentcheck models, sorted. */
+  /** Agents among those markers that agentcheckup models, sorted. */
   readonly platforms: readonly PlatformId[];
 }
 

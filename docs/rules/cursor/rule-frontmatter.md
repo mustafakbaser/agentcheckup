@@ -17,7 +17,7 @@ Cursor rule frontmatter field is unknown or has the wrong type.
 
 Three frontmatter fields configure a Cursor rule: `description` (text), `globs` (comma-separated glob patterns) and `alwaysApply` (`true` or `false`). Together they decide whether the rule is always included, attached to matching files, picked by the agent from its description, or included only when @-mentioned. A quoted `"true"` is not a boolean, and a field with another name does nothing. When that name is another tool's scoping field, such as `paths` or `applyTo`, the rule does not apply when you expect.
 
-A `globs` YAML list is not documented and other unknown fields are harmless, so both are information only. Unquoted globs such as `globs: *.ts` are not valid YAML, and how Cursor reads them is not documented, so agentcheck checks only frontmatter that parses as YAML.
+A `globs` YAML list is not documented and other unknown fields are harmless, so both are information only. Unquoted globs such as `globs: *.ts` are not valid YAML, and how Cursor reads them is not documented, so agentcheckup checks only frontmatter that parses as YAML.
 
 Rename the field to `description`, `globs` or `alwaysApply`, and write `alwaysApply: true` without quotes.
 
@@ -35,9 +35,9 @@ Rename the field to `description`, `globs` or `alwaysApply`, and write `alwaysAp
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line cursor/rule-frontmatter -- reason -->
+<!-- agentcheckup-disable-next-line cursor/rule-frontmatter -- reason -->
 ```

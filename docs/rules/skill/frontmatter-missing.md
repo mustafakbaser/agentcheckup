@@ -36,9 +36,9 @@ Start the file with `---`, add `name` and `description`, and close the block wit
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/frontmatter-missing -- reason -->
+<!-- agentcheckup-disable-next-line skill/frontmatter-missing -- reason -->
 ```

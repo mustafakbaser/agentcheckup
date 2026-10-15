@@ -1,7 +1,7 @@
 import type { ParseIssue } from '../../parse/types.js';
 
 /**
- * Parse issues that come from agentcheck's own safety limits rather than from YAML syntax. An
+ * Parse issues that come from agentcheckup's own safety limits rather than from YAML syntax. An
  * agent's parser may accept such a block, so rules must not claim the agent rejects it.
  */
 const PARSER_LIMIT_CODES: ReadonlySet<string> = new Set([

@@ -35,9 +35,9 @@ Rename `globs` or `applyTo` to `paths`, fix the YAML, and escape a literal brack
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/claude-rule-frontmatter -- reason -->
+<!-- agentcheckup-disable-next-line instr/claude-rule-frontmatter -- reason -->
 ```

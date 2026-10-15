@@ -83,7 +83,7 @@ describe('risk/hidden-comment', () => {
   it('does not report maintainer notes, directives, short comments or code', () => {
     const files = {
       'AGENTS.md': [
-        '<!-- agentcheck-disable-next-line risk/hidden-remote -- documented install step for CI -->',
+        '<!-- agentcheckup-disable-next-line risk/hidden-remote -- documented install step for CI -->',
         '<!-- TODO: fix -->',
         '<!-- Keep this list sorted alphabetically and in sync with src/config.ts please -->',
         '<!-- START doctoc generated TOC please keep comment here to allow auto update -->',

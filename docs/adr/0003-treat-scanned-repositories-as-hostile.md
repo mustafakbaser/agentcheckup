@@ -5,7 +5,7 @@
 
 ## Context
 
-agentcheck is most useful on repositories the user did not write: a cloned skill collection, a
+agentcheckup is most useful on repositories the user did not write: a cloned skill collection, a
 pull request from a fork, a dependency's agent configuration. Its output lands in terminals, CI
 logs, pull request comments and GitHub code scanning. The review identified concrete attacks:
 
@@ -22,7 +22,7 @@ logs, pull request comments and GitHub code scanning. The review identified conc
 
 ## Decision
 
-- agentcheck never executes anything from the scanned repository: no JavaScript config files, no
+- agentcheckup never executes anything from the scanned repository: no JavaScript config files, no
   plugins loaded from the target, no hook scripts, no `git` subprocess.
 - All file access goes through `src/io`. It never follows a symlink or import out of the scan
   root, never opens special files, caps file size, file count, depth and total bytes, and opens

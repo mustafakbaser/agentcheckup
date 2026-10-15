@@ -40,9 +40,9 @@ Quote values that contain `: ` or start with a YAML indicator such as `[`, `{`, 
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/frontmatter-invalid -- reason -->
+<!-- agentcheckup-disable-next-line skill/frontmatter-invalid -- reason -->
 ```

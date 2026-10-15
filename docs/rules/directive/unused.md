@@ -19,7 +19,7 @@ None of the rules the directive names reports a finding where it applies, so it 
 
 ## Evidence
 
-- [agentcheck inline suppression directives](https://github.com/mustafakbaser/agentcheck/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
+- [agentcheckup inline suppression directives](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
 
 ## Configuration
 
@@ -31,9 +31,9 @@ None of the rules the directive names reports a finding where it applies, so it 
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line directive/unused -- reason -->
+<!-- agentcheckup-disable-next-line directive/unused -- reason -->
 ```

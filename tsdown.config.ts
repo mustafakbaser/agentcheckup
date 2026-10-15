@@ -11,7 +11,7 @@ export default defineConfig({
   platform: 'node',
   target: 'node22.12',
   // Every runtime dependency lives in devDependencies and is bundled, so the published
-  // package has zero dependencies: `npx agentcheck` installs one tarball and nothing can
+  // package has zero dependencies: `npx agentcheckup` installs one tarball and nothing can
   // change underneath a user between releases.
   // jsonc-parser's default entry is a UMD build that loads its own modules with runtime
   // require() calls, which break once bundled. Its ESM build is statically analyzable.

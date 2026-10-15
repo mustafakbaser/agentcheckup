@@ -19,7 +19,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "agentcheck",
+      "package-name": "agentcheckup",
       "extra-files": ["src/core/version.ts"]
     }
   }

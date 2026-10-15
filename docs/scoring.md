@@ -1,6 +1,6 @@
 # How the score works
 
-agentcheck reports a score from 0 to 100 and a letter grade. The score summarizes the findings;
+agentcheckup reports a score from 0 to 100 and a letter grade. The score summarizes the findings;
 the findings are what you act on. This page documents score formula **version 1**. The formula
 version is included in every JSON and SARIF report, and any change to it is announced in the
 changelog.
@@ -8,7 +8,7 @@ changelog.
 ## Formula
 
 1. Only unsuppressed `error` and `warn` findings count. `info` findings never change the score.
-2. Each file agentcheck recognizes starts at 100. It loses **40 points per error** and **8 points
+2. Each file agentcheckup recognizes starts at 100. It loses **40 points per error** and **8 points
    per warning**, down to a minimum of 0.
 3. The repository score blends the average file with the worst file:
 
@@ -17,7 +17,7 @@ changelog.
    ```
 
 4. If any `risk` finding has severity `error`, the score is capped at **49**.
-5. If there are no agent configuration files, there is no score. agentcheck reports
+5. If there are no agent configuration files, there is no score. agentcheckup reports
    "No agent configuration files found" and exits 0.
 
 | Grade | Score  |
@@ -63,8 +63,8 @@ must not read as "safe". Risk findings can only lower or cap the score, and the 
 ## Badge
 
 ```sh
-npx agentcheck --format badge
+npx agentcheckup --format badge
 ```
 
-prints Markdown for a static [shields.io](https://shields.io) badge. agentcheck runs no badge
+prints Markdown for a static [shields.io](https://shields.io) badge. agentcheckup runs no badge
 server and makes no network requests.

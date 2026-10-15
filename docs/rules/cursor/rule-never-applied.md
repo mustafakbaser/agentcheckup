@@ -35,9 +35,9 @@ Add `alwaysApply: true`, `globs` or a `description`, or set `alwaysApply: false`
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line cursor/rule-never-applied -- reason -->
+<!-- agentcheckup-disable-next-line cursor/rule-never-applied -- reason -->
 ```

@@ -92,7 +92,7 @@ for (const pkg of packages) {
 
 await writeFile(
   join(root, 'THIRD_PARTY_NOTICES.md'),
-  `# Third-party notices\n\nagentcheck bundles the following packages. Their licenses follow.\n\n${sections.join('\n\n')}\n`,
+  `# Third-party notices\n\nagentcheckup bundles the following packages. Their licenses follow.\n\n${sections.join('\n\n')}\n`,
   'utf8',
 );
 process.stdout.write(`THIRD_PARTY_NOTICES.md: ${packages.length} bundled packages\n`);

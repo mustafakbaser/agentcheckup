@@ -97,7 +97,7 @@ export const importDepthRule = defineRule({
     title: 'Import is nested deeper than the agent follows',
     rationale: [
       'Imported files can import other files, up to a fixed depth: Claude Code follows imports at most four hops from the file it loads, Gemini CLI five. A deeper import is not followed, so the file it names is not loaded.',
-      "agentcheck follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.",
+      "agentcheckup follows imports only through files it read, such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.claude/rules/` files, and does not report a chain that passes through a file it did not read. A chain that starts at a `.claude/rules/` file is information, because Claude Code's documentation does not say it expands imports there. It also reports import cycles as information: the import that closes a cycle names a file that is already loaded, so it adds no new instructions. Gemini CLI documents that it detects cycles; Claude Code does not document how it handles them.",
       'Import deeply nested files directly from the top-level file.',
     ].join('\n\n'),
     category: 'loading',

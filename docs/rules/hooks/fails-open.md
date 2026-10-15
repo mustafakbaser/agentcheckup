@@ -36,9 +36,9 @@ This is documented behavior, so the finding is advice. To fail closed, set `"onF
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line hooks/fails-open -- reason -->
+<!-- agentcheckup-disable-next-line hooks/fails-open -- reason -->
 ```

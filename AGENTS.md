@@ -1,4 +1,4 @@
-# agentcheck
+# agentcheckup
 
 TypeScript CLI that lints coding-agent configuration files. Node.js >= 22.12, pnpm 12, ESM only.
 

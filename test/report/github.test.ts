@@ -75,10 +75,10 @@ describe('formatGithub', () => {
 
   it('reports rule failures as error annotations', () => {
     expect(lines(formatGithub(richResult)).at(-1)).toBe(
-      "::error title=agentcheck internal error::Rule mcp/unknown-server-field failed to run, so results are incomplete: Cannot read properties of undefined (reading 'type')",
+      "::error title=agentcheckup internal error::Rule mcp/unknown-server-field failed to run, so results are incomplete: Cannot read properties of undefined (reading 'type')",
     );
     expect(lines(formatGithub(hostileResult)).at(-1)).toBe(
-      '::error title=agentcheck internal error::Rule risk/crashy failed to run, so results are incomplete: boom%0A::error::fake<U+001B>[2J',
+      '::error title=agentcheckup internal error::Rule risk/crashy failed to run, so results are incomplete: boom%0A::error::fake<U+001B>[2J',
     );
   });
 });

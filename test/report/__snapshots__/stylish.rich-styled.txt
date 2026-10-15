@@ -27,7 +27,7 @@
 
 <red><b>✖ 1 rule failed to run. Results are incomplete.</b></red>
     <b>mcp/unknown-server-field</b>: Cannot read properties of undefined (reading 'type')
-  This is a bug in agentcheck. Please report it: https://github.com/mustafakbaser/agentcheck/issues
+  This is a bug in agentcheckup. Please report it: https://github.com/mustafakbaser/agentcheckup/issues
 
 <red><b>✖ 6 problems (2 errors, 2 warnings, 2 infos)</b></red><dim> · 2 suppressed</dim>
   <dim>loading 1 warning · budget 1 warning · portability 1 info · correctness 1 error · risk 1 error · clarity 1 info</dim>

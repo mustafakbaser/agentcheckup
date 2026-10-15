@@ -8,7 +8,7 @@ import { walk, type WalkOptions } from './io/walk.js';
 import { builtinRules } from './rules/index.js';
 
 export interface ScanDirectoryOptions {
-  /** Parsed contents of an agentcheck config file. */
+  /** Parsed contents of an agentcheckup config file. */
   readonly config?: unknown;
   readonly targets?: readonly PlatformId[];
   /** Honor inline suppression directives. Default true. */

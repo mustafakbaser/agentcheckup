@@ -1,5 +1,5 @@
 /**
- * Builds the `Snapshot` agentcheck's walker would produce for a corpus repository, from the cache
+ * Builds the `Snapshot` agentcheckup's walker would produce for a corpus repository, from the cache
  * written by fetch.ts: the walk is replayed over the git tree (virtual-walk.ts) and file bytes
  * come from the cache, verified against their git object ids.
  */

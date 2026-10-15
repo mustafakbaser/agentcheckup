@@ -1,5 +1,5 @@
 {
-  "name": "agentcheck",
+  "name": "agentcheckup",
   "version": "0.0.0",
   "description": "Lint AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules and MCP configs against how coding agents actually load them.",
   "keywords": [
@@ -14,11 +14,11 @@
     "linter",
     "sarif"
   ],
-  "homepage": "https://github.com/mustafakbaser/agentcheck#readme",
-  "bugs": "https://github.com/mustafakbaser/agentcheck/issues",
+  "homepage": "https://github.com/mustafakbaser/agentcheckup#readme",
+  "bugs": "https://github.com/mustafakbaser/agentcheckup/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mustafakbaser/agentcheck.git"
+    "url": "git+https://github.com/mustafakbaser/agentcheckup.git"
   },
   "license": "MIT",
   "author": "Mustafa Kürşad BAŞER (https://github.com/mustafakbaser)",
@@ -32,7 +32,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "agentcheck": "./dist/cli.js"
+    "agentcheckup": "./dist/cli.js"
   },
   "files": [
     "dist",

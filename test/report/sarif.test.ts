@@ -70,12 +70,12 @@ describe('formatSarif', () => {
     expect(log.runs).toHaveLength(1);
     const { driver } = log.runs[0].tool;
     expect(driver).toMatchObject({
-      name: 'agentcheck',
+      name: 'agentcheckup',
       version: '1.4.0',
       semanticVersion: '1.4.0',
-      informationUri: 'https://github.com/mustafakbaser/agentcheck',
+      informationUri: 'https://github.com/mustafakbaser/agentcheckup',
     });
-    expect(log.runs[0].automationDetails).toEqual({ id: 'agentcheck/' });
+    expect(log.runs[0].automationDetails).toEqual({ id: 'agentcheckup/' });
     expect(log.runs[0].columnKind).toBe('utf16CodeUnits');
     expect(log.runs[0].properties).toEqual({
       score: 49,
@@ -88,8 +88,8 @@ describe('formatSarif', () => {
   });
 
   it('omits semanticVersion when the version is not SemVer', () => {
-    const driver = run({ ...cleanResult, tool: { name: 'agentcheck', version: 'dev build' } }).tool
-      .driver;
+    const driver = run({ ...cleanResult, tool: { name: 'agentcheckup', version: 'dev build' } })
+      .tool.driver;
     expect(driver.version).toBe('dev build');
     expect(driver).not.toHaveProperty('semanticVersion');
   });

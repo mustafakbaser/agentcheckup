@@ -177,7 +177,7 @@ describe('inline directives', () => {
 
   it('suppresses the next line when a reason is given', () => {
     const result = lint(
-      { 'AGENTS.md': at('<!-- agentcheck-disable-next-line test/every-file -- intentional -->') },
+      { 'AGENTS.md': at('<!-- agentcheckup-disable-next-line test/every-file -- intentional -->') },
       { rules: [everyFile] },
     );
     expect(result.findings).toHaveLength(1);
@@ -188,7 +188,7 @@ describe('inline directives', () => {
 
   it('reports and ignores a directive without a reason', () => {
     const result = lint(
-      { 'AGENTS.md': at('<!-- agentcheck-disable-next-line test/every-file -->') },
+      { 'AGENTS.md': at('<!-- agentcheckup-disable-next-line test/every-file -->') },
       { rules: [everyFile] },
     );
     expect(result.findings.map((finding) => finding.ruleId).sort()).toEqual([
@@ -200,8 +200,8 @@ describe('inline directives', () => {
   it('reports unknown rule ids and unused directives', () => {
     const result = lint(
       {
-        'AGENTS.md': '<!-- agentcheck-disable-next-line test/nope -- r -->\nfine\n',
-        'CLAUDE.md': '<!-- agentcheck-disable-file test/every-file -- r -->\n',
+        'AGENTS.md': '<!-- agentcheckup-disable-next-line test/nope -- r -->\nfine\n',
+        'CLAUDE.md': '<!-- agentcheckup-disable-file test/every-file -- r -->\n',
       },
       { rules: [everyFile], targets: ['claude-code'] },
     );
@@ -212,14 +212,14 @@ describe('inline directives', () => {
 
   it('supports file scope and YAML comments in frontmatter', () => {
     const skill =
-      '---\nname: x\n# agentcheck-disable-file test/every-file -- generated\n---\nbad\n';
+      '---\nname: x\n# agentcheckup-disable-file test/every-file -- generated\n---\nbad\n';
     const result = lint({ 'skills/x/SKILL.md': skill }, { rules: [everyFile] });
     expect(result.findings.every((finding) => finding.suppressed)).toBe(true);
   });
 
   it('ignores directives in untrusted mode', () => {
     const result = lint(
-      { 'AGENTS.md': at('<!-- agentcheck-disable-next-line test/every-file -- r -->') },
+      { 'AGENTS.md': at('<!-- agentcheckup-disable-next-line test/every-file -- r -->') },
       { rules: [everyFile], trustDirectives: false },
     );
     expect(result.findings.filter((finding) => finding.suppressed)).toEqual([]);
@@ -229,7 +229,7 @@ describe('inline directives', () => {
     const result = lint(
       {
         'AGENTS.md':
-          '```md\n<!-- agentcheck-disable-file test/every-file -- example -->\n```\nbad\n',
+          '```md\n<!-- agentcheckup-disable-file test/every-file -- example -->\n```\nbad\n',
       },
       { rules: [everyFile] },
     );

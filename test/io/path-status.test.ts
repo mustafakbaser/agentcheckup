@@ -88,7 +88,7 @@ describe('pathStatus on a walked tree', () => {
     'handles linked, looping and unresolvable directories',
     async () => {
       const root = await makeTempDir();
-      const outside = await makeTempDir('agentcheck-outside-');
+      const outside = await makeTempDir('agentcheckup-outside-');
       await writeTree(outside, { 'skills/x/SKILL.md': 'outside' });
       await writeTree(root, { '.agents/skills/x/SKILL.md': 'inside', 'sub/AGENTS.md': 'x' });
       await link(root, '.claude/skills', '../.agents/skills');

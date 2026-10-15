@@ -18,7 +18,7 @@ import {
 
 afterEach(removeTempDirs);
 
-const NAME = 'agentcheck.config.json';
+const NAME = 'agentcheckup.config.json';
 
 describe('readConfigFile', () => {
   it('reads a regular file in the root as UTF-8 without a BOM', async () => {

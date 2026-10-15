@@ -37,9 +37,9 @@ const MAX_NOTIFICATION_LOCATIONS = 100;
 const MAX_DESCRIPTION = 1024;
 const MAX_NAME = 255;
 /** `partialFingerprints` key. Versioned: a new fingerprint algorithm gets a new key. */
-export const FINGERPRINT_KEY = 'agentcheck/v1';
+export const FINGERPRINT_KEY = 'agentcheckup/v1';
 /** Category for `runAutomationDetails.id`: `<category>/<run id>` with an empty run id. */
-const AUTOMATION_ID = 'agentcheck/';
+const AUTOMATION_ID = 'agentcheckup/';
 const SRCROOT = '%SRCROOT%';
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[\da-z.-]+)?(?:\+[\da-z.-]+)?$/i;
 
@@ -380,7 +380,7 @@ export function toSarif(result: ScanResult): SarifLog {
       {
         tool: {
           driver: {
-            name: nonEmpty(forSarifText(result.tool.name), 'agentcheck'),
+            name: nonEmpty(forSarifText(result.tool.name), 'agentcheckup'),
             version,
             ...(SEMVER.test(version) ? { semanticVersion: version } : {}),
             informationUri: REPOSITORY_URL,
@@ -390,7 +390,7 @@ export function toSarif(result: ScanResult): SarifLog {
         automationDetails: { id: AUTOMATION_ID },
         // SARIF §3.14.14: the absolute URI may be omitted, here to keep local paths private.
         originalUriBaseIds: {
-          [SRCROOT]: { description: { text: 'The directory agentcheck scanned.' } },
+          [SRCROOT]: { description: { text: 'The directory agentcheckup scanned.' } },
         },
         invocations: [
           {

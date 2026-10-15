@@ -3,7 +3,7 @@ import { CONFIG_FILE_NAME } from './meta.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from './types.js';
 
 /**
- * User configuration, read from `agentcheck.config.json`. JSON only: agentcheck never executes
+ * User configuration, read from `agentcheckup.config.json`. JSON only: agentcheckup never executes
  * code from the repository it scans, so JS/TS config files are deliberately unsupported.
  *
  * The validator is hand-written (the schema is small, and a validation library would be most of

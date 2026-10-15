@@ -1,5 +1,5 @@
 name: Bug report
-description: agentcheck crashed, hung, or behaved incorrectly (not a false positive).
+description: agentcheckup crashed, hung, or behaved incorrectly (not a false positive).
 labels: [bug]
 body:
   - type: textarea
@@ -25,8 +25,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: agentcheck version
-      placeholder: Output of `npx agentcheck --version`
+      label: agentcheckup version
+      placeholder: Output of `npx agentcheckup --version`
     validations:
       required: true
   - type: input

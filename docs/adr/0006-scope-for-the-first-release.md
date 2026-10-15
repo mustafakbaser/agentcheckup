@@ -21,7 +21,7 @@ findings:
 
 ## Decision
 
-The first release ships static analysis only: `agentcheck [path]` with terminal, JSON, SARIF,
+The first release ships static analysis only: `agentcheckup [path]` with terminal, JSON, SARIF,
 GitHub annotation and Markdown output, a configuration file, inline suppressions, a score and a
 badge URL. It makes no network calls and has no telemetry.
 

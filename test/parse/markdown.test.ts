@@ -149,9 +149,9 @@ describe('HTML comments', () => {
   });
 
   it('sees directive comments inside block quotes', () => {
-    const text = '> <!-- agentcheck-disable-file x -- y -->\n';
+    const text = '> <!-- agentcheckup-disable-file x -- y -->\n';
     expect(parse(text).htmlComments.map((c) => slice(text, c.span))).toEqual([
-      '<!-- agentcheck-disable-file x -- y -->',
+      '<!-- agentcheckup-disable-file x -- y -->',
     ]);
   });
 });

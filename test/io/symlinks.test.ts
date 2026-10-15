@@ -286,8 +286,8 @@ describeSymlinks('walk: symlink loops', () => {
 
 describeSymlinks('walk: symlinks that cannot be followed', () => {
   it('never reads a target outside the root, through any kind of link', async () => {
-    const outside = await makeTempDir('agentcheck-outside-');
-    const secret = 'AGENTCHECK_FAKE_SECRET_7f3a9c2e51d84b06';
+    const outside = await makeTempDir('agentcheckup-outside-');
+    const secret = 'AGENTCHECKUP_FAKE_SECRET_7f3a9c2e51d84b06';
     await writeTree(outside, {
       'secret.md': secret,
       'skills/evil/SKILL.md': secret,
@@ -336,7 +336,7 @@ describeSymlinks('walk: symlinks that cannot be followed', () => {
 
   it('classifies outside targets without checking whether they exist', async () => {
     const root = await makeTempDir();
-    const missing = path.join(path.parse(root).root, 'agentcheck-does-not-exist', 'AGENTS.md');
+    const missing = path.join(path.parse(root).root, 'agentcheckup-does-not-exist', 'AGENTS.md');
     await link(root, 'AGENTS.md', missing);
     const snapshot = await walk(root);
     expect(snapshot.unresolvedSymlinks).toEqual([

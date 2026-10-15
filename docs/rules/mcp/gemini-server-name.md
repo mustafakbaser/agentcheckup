@@ -35,9 +35,9 @@ Use hyphens instead, for example `my-server`.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line mcp/gemini-server-name -- reason -->
+<!-- agentcheckup-disable-next-line mcp/gemini-server-name -- reason -->
 ```

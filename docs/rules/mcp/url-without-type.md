@@ -34,9 +34,9 @@ Add `"type": "http"`, or `"sse"` or `"ws"` to match the server.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line mcp/url-without-type -- reason -->
+<!-- agentcheckup-disable-next-line mcp/url-without-type -- reason -->
 ```

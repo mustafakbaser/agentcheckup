@@ -215,7 +215,7 @@ export const vagueDirectiveRule = defineRule({
     title: 'Instruction is generic advice that says nothing about the project',
     rationale: [
       'Sentences such as "Follow best practices" or "Write clean code" tell an agent nothing about this project. Claude Code\'s documentation asks for instructions concrete enough to verify ("Use 2-space indentation" instead of "Format code properly"). Windsurf\'s says generic rules like "write good code" are already in Cascade\'s training data, and Cursor\'s says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.',
-      'agentcheck reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.',
+      'agentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.',
       'Replace it with the specific command, convention or path you mean, or delete it.',
     ].join('\n\n'),
     category: 'clarity',

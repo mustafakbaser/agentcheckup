@@ -1,6 +1,6 @@
 # Real-world corpus
 
-agentcheck is only credible if it stays quiet on configurations that work. This directory pins
+agentcheckup is only credible if it stays quiet on configurations that work. This directory pins
 80 public GitHub repositories that ship agent configuration (skill collections, plugin
 marketplaces, and well-known projects with `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, Copilot
 instructions, `.mcp.json` and hooks, including monorepos with nested `AGENTS.md`). The harness
@@ -86,7 +86,7 @@ never executes, imports or renders anything from it, and never runs `git` in it.
 with `execFile` and an argument array (no shell); GraphQL variables travel in a JSON request
 body. Tree paths are checked component by component before anything is written, so a hostile
 path cannot escape the cache directory. Text that ends up in `REPORT.md` or `results.json` goes
-through agentcheck's own output sanitizers (`forMarkdown`, `forJsonOutput`).
+through agentcheckup's own output sanitizers (`forMarkdown`, `forJsonOutput`).
 
 ## Licensing
 

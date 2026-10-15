@@ -78,7 +78,7 @@ describe('resolveSymlink', () => {
 
   it.skipIf(!symlinksSupported)('stops a nested link that leaves the root', async () => {
     const root = await makeTempDir();
-    const outside = await makeTempDir('agentcheck-outside-');
+    const outside = await makeTempDir('agentcheckup-outside-');
     await link(root, 'out-abs', outside);
     await link(root, 'out-rel', '../..');
     const roots = await rootsOf(root);

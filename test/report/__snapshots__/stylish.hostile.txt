@@ -21,7 +21,7 @@ notes⏎::stop-commands::x/AGENTS.md
 
 ✖ 1 rule failed to run. Results are incomplete.
     risk/crashy: boom⏎::error::fake<U+001B>[2J
-  This is a bug in agentcheck. Please report it: https://github.com/mustafakbaser/agentcheck/issues
+  This is a bug in agentcheckup. Please report it: https://github.com/mustafakbaser/agentcheckup/issues
 
 ✖ 10 problems (3 errors, 7 warnings, 0 infos) · 1 suppressed
   budget 6 warnings · correctness 2 errors, 1 warning · risk 1 error

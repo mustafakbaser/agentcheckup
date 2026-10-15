@@ -1,6 +1,6 @@
 # Security Policy
 
-agentcheck reads files from repositories you may not control. We treat every
+agentcheckup reads files from repositories you may not control. We treat every
 scanned file as untrusted input, and we treat security reports as our highest
 priority.
 
@@ -18,14 +18,14 @@ Once `1.0.0` ships, the latest major and the previous major receive security fix
 **Please do not open a public issue for security problems.**
 
 Use GitHub's private vulnerability reporting:
-[Report a vulnerability](https://github.com/mustafakbaser/agentcheck/security/advisories/new).
+[Report a vulnerability](https://github.com/mustafakbaser/agentcheckup/security/advisories/new).
 
 If that is unavailable, email **info@mustafabaser.net** with the subject line
-`[agentcheck security]`.
+`[agentcheckup security]`.
 
 Please include:
 
-- The agentcheck version (`npx agentcheck --version`) and your Node.js version
+- The agentcheckup version (`npx agentcheckup --version`) and your Node.js version
 - A minimal reproduction, ideally a small repository or file
 - The impact you observed and the impact you believe is possible
 
@@ -53,7 +53,7 @@ In scope:
 
 Out of scope:
 
-- Security problems _inside_ the configuration files agentcheck scans. Reporting
-  those is agentcheck's job; please open a normal issue if a rule misses one.
-- Issues that require an already compromised machine or a malicious agentcheck
+- Security problems _inside_ the configuration files agentcheckup scans. Reporting
+  those is agentcheckup's job; please open a normal issue if a rule misses one.
+- Issues that require an already compromised machine or a malicious agentcheckup
   configuration file that you wrote yourself

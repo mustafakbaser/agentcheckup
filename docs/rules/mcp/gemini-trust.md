@@ -33,9 +33,9 @@ Remove `trust`, or allow only the specific tools you need with the server's `inc
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line mcp/gemini-trust -- reason -->
+<!-- agentcheckup-disable-next-line mcp/gemini-trust -- reason -->
 ```

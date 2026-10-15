@@ -28,7 +28,7 @@ interface Problem {
   readonly span: Span;
 }
 
-/** Errors that come from agentcheck's own resource limits, not from the YAML itself. */
+/** Errors that come from agentcheckup's own resource limits, not from the YAML itself. */
 const LIMIT_CODES: ReadonlySet<string> = new Set([
   'too-large',
   'too-deep',
@@ -154,7 +154,7 @@ function invalidProblem(
   if (first === undefined) return undefined;
   if (LIMIT_CODES.has(first.code)) {
     return {
-      message: `agentcheck did not check this frontmatter: ${reason(first)}.`,
+      message: `agentcheckup did not check this frontmatter: ${reason(first)}.`,
       impacts: impactsOn(SKILL_PLATFORMS, 'info', 'distribution'),
       span: first.span,
     };

@@ -163,7 +163,7 @@ describe('instr/import-unresolved', () => {
       expect(findings(result, RULE)).toEqual([]);
     });
 
-    it('a target inside a directory agentcheck did not list', () => {
+    it('a target inside a directory agentcheckup did not list', () => {
       const result = lint(
         { 'CLAUDE.md': '@node_modules/pkg/README.md\n' },
         { rules, opaqueDirectories: ['node_modules/'] },

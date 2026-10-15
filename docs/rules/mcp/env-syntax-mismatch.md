@@ -40,9 +40,9 @@ Rewrite the reference in the syntax of the agent that reads the file.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line mcp/env-syntax-mismatch -- reason -->
+<!-- agentcheckup-disable-next-line mcp/env-syntax-mismatch -- reason -->
 ```

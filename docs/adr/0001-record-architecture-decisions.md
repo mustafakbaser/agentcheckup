@@ -5,7 +5,7 @@
 
 ## Context
 
-agentcheck is maintained in the open. Contributors need to know why the code looks the way it
+agentcheckup is maintained in the open. Contributors need to know why the code looks the way it
 does before they change it, and the maintainer needs a place to write down trade-offs that a
 commit message is too small for.
 

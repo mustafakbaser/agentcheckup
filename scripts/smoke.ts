@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const work = await mkdtemp(join(tmpdir(), 'agentcheck-smoke-'));
+const work = await mkdtemp(join(tmpdir(), 'agentcheckup-smoke-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function fail(message: string): never {

@@ -11,7 +11,7 @@ import { JSON_SOURCES } from './sources.js';
 type IssueKind = 'comment' | 'trailing-comma' | 'limit' | 'other';
 
 /**
- * Limits of agentcheck's own parser, not syntax errors: agents' `JSON.parse` accepts such files.
+ * Limits of agentcheckup's own parser, not syntax errors: agents' `JSON.parse` accepts such files.
  * An unterminated comment (`unexpected-end-of-comment`) is a real error and stays `other`.
  */
 const LIMIT_CODES: ReadonlySet<string> = new Set([
@@ -92,8 +92,8 @@ export const invalidSyntaxRule = defineRule({
     title: 'Configuration file is not valid JSON',
     rationale: [
       'Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses.',
-      'Gemini CLI removes comments from `settings.json` before parsing, and agentcheck reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.',
-      'The finding points at the first syntax error. Fix it and run agentcheck again.',
+      'Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.',
+      'The finding points at the first syntax error. Fix it and run agentcheckup again.',
     ].join('\n\n'),
     category: 'loading',
     severity: 'error',

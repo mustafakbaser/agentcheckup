@@ -40,9 +40,9 @@ Keep extension fields in skills that only their agents load, and move your own d
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/non-portable-field -- reason -->
+<!-- agentcheckup-disable-next-line skill/non-portable-field -- reason -->
 ```

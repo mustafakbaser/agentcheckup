@@ -84,7 +84,7 @@ export const hiddenCommentRule = defineRule({
     title: 'HTML comment hides instructions for the agent from human readers',
     rationale: [
       'An HTML comment does not show in rendered Markdown, on GitHub or in most editors, but it is still part of the file. Codex passes `AGENTS.md` to the model as written, comments included, and the other agents do not document removing comments; only Claude Code documents removing block-level HTML comments, from `CLAUDE.md`. Instructions in a comment therefore reach the agent while a reviewer of the rendered file never sees them.',
-      'This rule reports comments that read as instructions for an AI agent: they address the agent ("Note for AI agents: …"), try to override its instructions ("ignore all previous instructions"), or ask it to hide something from the user. Short comments, agentcheck directives and text that is not English prose are not reported.',
+      'This rule reports comments that read as instructions for an AI agent: they address the agent ("Note for AI agents: …"), try to override its instructions ("ignore all previous instructions"), or ask it to hide something from the user. Short comments, agentcheckup directives and text that is not English prose are not reported.',
       'Move instructions you intend into visible text, or delete them.',
     ].join('\n\n'),
     category: 'risk',

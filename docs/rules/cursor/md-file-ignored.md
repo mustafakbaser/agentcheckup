@@ -36,9 +36,9 @@ Rename the file to `.mdc` and add frontmatter, or move plain Markdown instructio
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line cursor/md-file-ignored -- reason -->
+<!-- agentcheckup-disable-next-line cursor/md-file-ignored -- reason -->
 ```

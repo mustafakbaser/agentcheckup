@@ -38,9 +38,9 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/description-quality -- reason -->
+<!-- agentcheckup-disable-next-line skill/description-quality -- reason -->
 ```

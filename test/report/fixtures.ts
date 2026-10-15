@@ -136,7 +136,7 @@ export function makeResult(input: ResultInput = {}): ScanResult {
   const score = input.score ?? { score: null, grade: null, capped: false };
   return {
     schemaVersion: 1,
-    tool: { name: 'agentcheck', version: '1.4.0' },
+    tool: { name: 'agentcheckup', version: '1.4.0' },
     ruleset: '2026.10',
     targets: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
     artifacts,

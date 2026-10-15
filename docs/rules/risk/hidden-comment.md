@@ -17,7 +17,7 @@ HTML comment hides instructions for the agent from human readers.
 
 An HTML comment does not show in rendered Markdown, on GitHub or in most editors, but it is still part of the file. Codex passes `AGENTS.md` to the model as written, comments included, and the other agents do not document removing comments; only Claude Code documents removing block-level HTML comments, from `CLAUDE.md`. Instructions in a comment therefore reach the agent while a reviewer of the rendered file never sees them.
 
-This rule reports comments that read as instructions for an AI agent: they address the agent ("Note for AI agents: …"), try to override its instructions ("ignore all previous instructions"), or ask it to hide something from the user. Short comments, agentcheck directives and text that is not English prose are not reported.
+This rule reports comments that read as instructions for an AI agent: they address the agent ("Note for AI agents: …"), try to override its instructions ("ignore all previous instructions"), or ask it to hide something from the user. Short comments, agentcheckup directives and text that is not English prose are not reported.
 
 Move instructions you intend into visible text, or delete them.
 
@@ -39,9 +39,9 @@ Move instructions you intend into visible text, or delete them.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line risk/hidden-comment -- reason -->
+<!-- agentcheckup-disable-next-line risk/hidden-comment -- reason -->
 ```

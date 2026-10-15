@@ -36,9 +36,9 @@ describe('shieldsSegment', () => {
 });
 
 describe('badgeMarkdown', () => {
-  it('links to agentcheck by default', () => {
+  it('links to agentcheckup by default', () => {
     expect(badgeMarkdown(richResult)).toBe(
-      '[![agent config: 49/100](https://img.shields.io/badge/agent_config-49%2F100-red)](https://github.com/mustafakbaser/agentcheck)',
+      '[![agent config: 49/100](https://img.shields.io/badge/agent_config-49%2F100-red)](https://github.com/mustafakbaser/agentcheckup)',
     );
   });
 

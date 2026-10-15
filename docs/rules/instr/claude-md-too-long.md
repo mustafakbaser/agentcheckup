@@ -33,9 +33,9 @@ Moving text into `@path` imports does not help: imported files load at launch to
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/claude-md-too-long -- reason -->
+<!-- agentcheckup-disable-next-line instr/claude-md-too-long -- reason -->
 ```

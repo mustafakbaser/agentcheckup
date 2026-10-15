@@ -111,7 +111,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
     title: 'AGENTS.md files exceed the Codex size limit',
     rationale: [
       "Codex reads one instruction file per directory, from the project root down to the working directory: `AGENTS.override.md` if it exists, otherwise `AGENTS.md`. It reads at most `project_doc_max_bytes` (32,768 bytes by default) across the whole chain: the file that crosses the limit is cut at that byte, and later files are dropped. Whitespace-only files and the global `~/.codex/AGENTS.md` do not count. Codex's configuration pages call the key a per-file limit; the `AGENTS.md` page and the source code apply it to the chain.",
-      "agentcheck starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheck judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.",
+      "agentcheckup starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheckup judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.",
       'Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes`, set the `maxBytes` option to the same value.',
     ].join('\n\n'),
     category: 'budget',

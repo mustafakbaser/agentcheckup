@@ -17,7 +17,7 @@ Skill name uses a reserved word or name.
 
 The Claude API and claude.ai upload reject a skill whose `name` contains the reserved words `anthropic` or `claude`. This matters only for skills that are installed or uploaded on their own, so it is not reported for skills in an agent's skills directory or in a plugin.
 
-Claude Code reserves names for skills synced from claude.ai. Outside a plugin, a skill directory or frontmatter `name` that is `anthropic-skills` or starts with `anthropic-skills:` does not load, and Claude Code skips a skill directory named `synced`, in any letter case, in its enterprise, personal and project skills directories. Of these, agentcheck sees only the project's `.claude/skills` at the scan root, so it checks `synced` there and not in nested `.claude/skills` directories.
+Claude Code reserves names for skills synced from claude.ai. Outside a plugin, a skill directory or frontmatter `name` that is `anthropic-skills` or starts with `anthropic-skills:` does not load, and Claude Code skips a skill directory named `synced`, in any letter case, in its enterprise, personal and project skills directories. Of these, agentcheckup sees only the project's `.claude/skills` at the scan root, so it checks `synced` there and not in nested `.claude/skills` directories.
 
 Choose a name without these words.
 
@@ -38,9 +38,9 @@ Choose a name without these words.
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line skill/name-reserved-word -- reason -->
+<!-- agentcheckup-disable-next-line skill/name-reserved-word -- reason -->
 ```

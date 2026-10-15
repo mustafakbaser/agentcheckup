@@ -39,7 +39,7 @@ jobs:
     # environment; no npm token exists anywhere. See docs/maintainers/releasing.md.
     environment:
       name: npm
-      url: https://www.npmjs.com/package/agentcheck
+      url: https://www.npmjs.com/package/agentcheckup
     permissions:
       contents: write # upload the tarball to the GitHub release
       id-token: write # npm trusted publishing and provenance (OIDC)

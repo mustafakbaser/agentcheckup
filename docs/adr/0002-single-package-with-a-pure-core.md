@@ -15,7 +15,7 @@ Action are all on the roadmap.
 
 ## Decision
 
-- Ship one npm package, `agentcheck`, ESM only, Node.js >= 22.12.
+- Ship one npm package, `agentcheckup`, ESM only, Node.js >= 22.12.
 - Keep a hard boundary inside it. `src/core`, `src/parse`, `src/platforms`, `src/rules` and
   `src/report` are pure: they take bytes and return data. ESLint forbids file system, process
   and network imports in those directories. Only `src/io` touches the disk and only `src/cli`
@@ -24,7 +24,7 @@ Action are all on the roadmap.
   development dependencies so they are bundled, which gives the published package zero
   dependencies. Third-party licenses are reproduced in `THIRD_PARTY_NOTICES.md`.
 - Use no CLI framework (`node:util` `parseArgs`) and no color library (an injected style
-  interface), to keep `npx agentcheck` fast to install and start.
+  interface), to keep `npx agentcheckup` fast to install and start.
 
 ## Consequences
 

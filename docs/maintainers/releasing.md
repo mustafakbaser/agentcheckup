@@ -21,16 +21,18 @@ Before 1.0.0, breaking changes bump the minor version and features bump the patc
 Do these once, in this order. They need the maintainer's npm and GitHub accounts, so they are
 not automated.
 
-1. **Choose the npm name.** npm refuses names that differ from an existing package only by
-   punctuation. `agent-check` exists, so publishing `agentcheck` may be rejected. Confirm the
-   name before the first publish; the name is defined in `package.json` and `src/core/meta.ts`.
+1. **Reserve the npm name early.** npm refuses new names that differ from an existing package
+   only by punctuation, which is why the project is not called `agentcheck` (`agent-check`
+   exists). On 2026-10-15 `agentcheckup` and every punctuation variant of it were free. Publish
+   the placeholder in step 3 soon, so nobody takes the name first. The name is defined in
+   `package.json` and `src/core/meta.ts`.
 2. **Secure the accounts.** Use a passkey or hardware key for npm and GitHub two-factor
    authentication.
 3. **Create the package.** Trusted publishing can only be configured for a package that exists.
    Publish a `0.0.0` placeholder manually from a clean checkout:
    `npm publish --access public` with a minimal `package.json` that has the same name.
 4. **Configure trusted publishing** on npmjs.com for the package: GitHub Actions, repository
-   `mustafakbaser/agentcheck`, workflow `release.yml`, environment `npm`.
+   `mustafakbaser/agentcheckup`, workflow `release.yml`, environment `npm`.
 5. **Lock down publishing.** In the package settings, require two-factor authentication and
    disallow tokens.
 6. **Protect the environment.** In GitHub, Settings, Environments, create `npm` with yourself as
@@ -48,7 +50,7 @@ not automated.
     the command line:
 
     ```sh
-    gh api -X PUT repos/mustafakbaser/agentcheck/actions/permissions/workflow \
+    gh api -X PUT repos/mustafakbaser/agentcheckup/actions/permissions/workflow \
       -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
     ```
 

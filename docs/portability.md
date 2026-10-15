@@ -118,10 +118,10 @@ description: Deploy the web app to staging or production. Use when the user asks
 ---
 ```
 
-- `name`: 1 to 64 lowercase letters, digits and hyphens, with no leading, trailing or double hyphens, equal to the folder name. Cursor, VS Code and Cline require the match, and VS Code skips a skill with an invalid name without an error. agentcheck reports names that break these rules. [Specification][skills-spec], [Cursor][cursor-skills], [VS Code][vscode-skills], [Cline][cline-skills]
+- `name`: 1 to 64 lowercase letters, digits and hyphens, with no leading, trailing or double hyphens, equal to the folder name. Cursor, VS Code and Cline require the match, and VS Code skips a skill with an invalid name without an error. agentcheckup reports names that break these rules. [Specification][skills-spec], [Cursor][cursor-skills], [VS Code][vscode-skills], [Cline][cline-skills]
 - `description`: at most 1,024 characters; Codex, Cursor and Copilot require it. Put the trigger words first. Claude Code cuts the listing text at 1,536 characters, and Codex shortens descriptions when its skill list runs out of budget. [Specification][skills-spec], [Codex parser][codex-src-skill-parser], [Cursor][cursor-skills], [Copilot][gh-skills-howto], [Claude Code][cc-skills], [Codex][codex-skills]
 - Other fields in the specification: `license`, `compatibility` (up to 500 characters), `metadata` (string values) and `allowed-tools` (experimental; support varies). [Specification][skills-spec]
-- Fields outside the specification, such as `when_to_use`, `argument-hint` or `hooks`, are agent-specific. Claude Code accepts them, but claude.ai uploads, the Skills API and skill packaging reject them with a hard error. agentcheck reports them. [Claude Code][cc-skills]
+- Fields outside the specification, such as `when_to_use`, `argument-hint` or `hooks`, are agent-specific. Claude Code accepts them, but claude.ai uploads, the Skills API and skill packaging reject them with a hard error. agentcheckup reports them. [Claude Code][cc-skills]
 - `` !`command` `` lines are a Claude Code feature: Claude Code runs them before the model sees the skill. claude.ai chat and the API do not run them, and the other agents do not document the syntax. [Claude Code][cc-skills]
 
 ## MCP servers
@@ -141,10 +141,10 @@ No MCP file is read by all seven agents. Keep `.mcp.json` as the source and gene
 | Cline               | User settings only                            | `"type": "streamableHttp"`, `"url"` | Not documented                                                           | [Cline][cline-mcp]                                       |
 
 - Claude Code, Copilot CLI and VS Code read `.mcp.json` directly, and Devin Local imports it by default. How Devin Local treats Claude Code-style `${VAR}` references in an imported file is not documented (**Unverified**). [Claude Code][cc-mcp], [Copilot CLI][gh-cli-mcp], [VS Code][vscode-mcp-ref], [Devin Local][devin-cli-import]
-- Set `"type"` on every remote server. Claude Code skips an entry with `url` and no `type`, and Cline falls back to legacy SSE. agentcheck reports a missing `type` in `.mcp.json`. [Claude Code][cc-mcp], [Cline][cline-mcp]
-- Rewrite variable references for each file: `${API_KEY}` in `.mcp.json` becomes `${env:API_KEY}` in `.cursor/mcp.json`. The agents document different syntaxes, as the table shows. agentcheck reports `${env:NAME}` and Cursor variables such as `${workspaceFolder}` in `.mcp.json` and `.gemini/settings.json`. [Claude Code][cc-mcp], [Cursor][cursor-mcp]
+- Set `"type"` on every remote server. Claude Code skips an entry with `url` and no `type`, and Cline falls back to legacy SSE. agentcheckup reports a missing `type` in `.mcp.json`. [Claude Code][cc-mcp], [Cline][cline-mcp]
+- Rewrite variable references for each file: `${API_KEY}` in `.mcp.json` becomes `${env:API_KEY}` in `.cursor/mcp.json`. The agents document different syntaxes, as the table shows. agentcheckup reports `${env:NAME}` and Cursor variables such as `${workspaceFolder}` in `.mcp.json` and `.gemini/settings.json`. [Claude Code][cc-mcp], [Cursor][cursor-mcp]
 - Copilot cloud agent takes MCP servers from repository settings, not from a file. Each entry needs `tools`, and secrets must be named `COPILOT_MCP_*`. [Cloud agent][gh-cloud-mcp]
-- In Gemini CLI, keep `_` out of server names and leave `trust: true` out of shared settings. agentcheck reports both. [Gemini CLI][gemini-mcp]
+- In Gemini CLI, keep `_` out of server names and leave `trust: true` out of shared settings. agentcheckup reports both. [Gemini CLI][gemini-mcp]
 
 ## Hooks
 
@@ -162,9 +162,9 @@ There is no shared hooks format. Keep the logic in scripts under version control
 | Cline          | Plugin in JavaScript or TypeScript | Return `{ skip: true, reason }` from `beforeTool` | Continues                                             | Continues                                              | 3 seconds per call | [Cline][cline-plugins]                               |
 
 - To block, exit 2 and write the reason to stderr. Every script-based agent in the table treats exit 2 as a block on events that can be blocked; in Copilot those are `preToolUse` and `permissionRequest`. Codex does not block on exit 2 in `PreToolUse` when stderr is empty. [Claude Code][cc-hooks], [Codex][codex-src-pretooluse], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref], [Gemini CLI][gemini-hooks], [Devin Local][devin-cli-hooks], [Cascade][devin-hooks]
-- To fail closed, catch errors inside the script and exit 2 yourself. A timeout is outside the script's control: Claude Code, Codex, Cursor and Copilot let the tool call proceed when a hook times out, unless you opt in to failing closed where the agent allows it. agentcheck reports tool-gating hooks that fail open. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref]
-- Convert timeouts: Gemini CLI counts milliseconds, the others count seconds. agentcheck reports likely unit mix-ups. [Gemini CLI][gemini-hooks]
-- Event names differ: `PreToolUse` (Claude Code, Codex, Devin Local), `preToolUse` (Cursor, Copilot), `BeforeTool` (Gemini CLI), `pre_run_command` and its siblings (Cascade), `beforeTool` (Cline). So do tool names: the shell tool is `Bash` in Claude Code and Codex, `Shell` in Cursor, `bash` in Copilot hooks with camelCase event names, `run_shell_command` in Gemini CLI and `exec` in Devin Local. agentcheck reports event names an agent does not fire. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks-claude], [Copilot][gh-hooks-ref], [Gemini CLI hooks reference][gemini-hooks-ref], [Devin Local][devin-cli-hook-events], [Cascade][devin-hooks], [Cline][cline-plugins]
+- To fail closed, catch errors inside the script and exit 2 yourself. A timeout is outside the script's control: Claude Code, Codex, Cursor and Copilot let the tool call proceed when a hook times out, unless you opt in to failing closed where the agent allows it. agentcheckup reports tool-gating hooks that fail open. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref]
+- Convert timeouts: Gemini CLI counts milliseconds, the others count seconds. agentcheckup reports likely unit mix-ups. [Gemini CLI][gemini-hooks]
+- Event names differ: `PreToolUse` (Claude Code, Codex, Devin Local), `preToolUse` (Cursor, Copilot), `BeforeTool` (Gemini CLI), `pre_run_command` and its siblings (Cascade), `beforeTool` (Cline). So do tool names: the shell tool is `Bash` in Claude Code and Codex, `Shell` in Cursor, `bash` in Copilot hooks with camelCase event names, `run_shell_command` in Gemini CLI and `exec` in Devin Local. agentcheckup reports event names an agent does not fire. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks-claude], [Copilot][gh-hooks-ref], [Gemini CLI hooks reference][gemini-hooks-ref], [Devin Local][devin-cli-hook-events], [Cascade][devin-hooks], [Cline][cline-plugins]
 - Cursor and Devin Local load Claude Code's hooks from `.claude/settings.json` by default, Copilot CLI loads them too, and VS Code loads them when `chat.useClaudeHooks` is on. Test the hook in each agent: Cursor maps `Bash` to `Shell`, VS Code ignores the matcher, Devin matches its own tool names, and Copilot denies the tool call when a `PreToolUse` command hook crashes. [Cursor][cursor-hooks-claude], [Devin Local][devin-cli-hooks], [Copilot][gh-hooks-ref], [VS Code][vscode-hooks]
 - Expect a review step for committed hooks. Codex runs a hook only after each user trusts it in `/hooks`, Gemini CLI warns about changed project hooks, Cursor runs project hooks only in trusted workspaces, and interactive Claude Code waits for the workspace trust dialog. [Codex][codex-hooks], [Gemini CLI][gemini-hooks], [Cursor][cursor-hooks], [Claude Code][cc-hooks]
 
@@ -180,7 +180,7 @@ There is no shared hooks format. Keep the logic in scripts under version control
 | Devin Local | `/hooks`, and **Open customizations** for rules, skills, hooks and MCP servers   | [Hooks][devin-cli-hooks], [Devin Local][devin-local]                                      |
 | Cline       | The Rules and Skills panels; `cline config`                                      | [Rules][cline-rules], [Config][cline-config]                                              |
 
-Run `npx agentcheck` in the repository to check these files. [Known gotchas](platforms.md#known-gotchas) marks the problems it reports.
+Run `npx agentcheckup` in the repository to check these files. [Known gotchas](platforms.md#known-gotchas) marks the problems it reports.
 
 [cc-memory]: https://code.claude.com/docs/en/memory
 [cc-skills]: https://code.claude.com/docs/en/skills

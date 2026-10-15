@@ -10,7 +10,7 @@
  *   "Import failed" comment and imports outside the project root are rejected
  *   (geminicli.com/docs/reference/memport, memoryImportProcessor.ts).
  *
- * Only files that agentcheck read (artifacts) can be followed. Imports of other files are
+ * Only files that agentcheckup read (artifacts) can be followed. Imports of other files are
  * leaves; when such a file might itself import something, results that depend on it are marked
  * incomplete so rules can stay silent rather than guess.
  */

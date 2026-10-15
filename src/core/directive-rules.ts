@@ -2,12 +2,12 @@ import { RULESET_VERSION } from './meta.js';
 import type { RuleMeta } from './types.js';
 
 /**
- * Findings about agentcheck's own inline directives. The engine reports these; they are not
+ * Findings about agentcheckup's own inline directives. The engine reports these; they are not
  * runnable rules, but they have stable ids, docs pages and SARIF entries like any other rule.
  */
 const SOURCE = {
-  title: 'agentcheck inline suppression directives',
-  url: 'https://github.com/mustafakbaser/agentcheck/blob/main/docs/configuration.md#inline-suppressions',
+  title: 'agentcheckup inline suppression directives',
+  url: 'https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions',
   checked: '2026-10-14',
   status: 'verified',
 } as const;
@@ -46,7 +46,7 @@ export const DIRECTIVE_MISSING_REASON: RuleMeta = {
   id: 'directive/missing-reason',
   title: 'Suppression directive has no rule id or no reason',
   rationale: [
-    'An inline directive such as `<!-- agentcheck-disable-next-line instr/import-unresolved -- generated file -->` must name the rules it disables and give a reason after ` -- `. A directive without either has no effect.',
+    'An inline directive such as `<!-- agentcheckup-disable-next-line instr/import-unresolved -- generated file -->` must name the rules it disables and give a reason after ` -- `. A directive without either has no effect.',
     'Add the rule ids and a short reason.',
   ].join('\n\n'),
   category: 'correctness',
@@ -74,7 +74,7 @@ export const DIRECTIVE_UNKNOWN_RULE: RuleMeta = {
   id: 'directive/unknown-rule',
   title: 'Suppression directive names a rule that does not exist',
   rationale: [
-    'agentcheck has no rule with this id, so the directive suppresses nothing for it. Rules the same directive names correctly are still suppressed.',
+    'agentcheckup has no rule with this id, so the directive suppresses nothing for it. Rules the same directive names correctly are still suppressed.',
     'Check the id against the rule catalog; usually it is misspelled.',
   ].join('\n\n'),
   category: 'correctness',

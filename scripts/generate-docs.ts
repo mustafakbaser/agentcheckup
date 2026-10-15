@@ -75,7 +75,7 @@ Set the rule to \`"off"\`, \`"info"\`, \`"warn"\` or \`"error"\` in \`${CONFIG_F
 suppress one occurrence with a reason:
 
 \`\`\`markdown
-<!-- agentcheck-disable-next-line ${meta.id} -- reason -->
+<!-- agentcheckup-disable-next-line ${meta.id} -- reason -->
 \`\`\`
 `;
 }
@@ -113,8 +113,8 @@ outputs.set(
   join('schemas', 'config.schema.json'),
   `${JSON.stringify(
     {
-      $id: 'https://raw.githubusercontent.com/mustafakbaser/agentcheck/main/schemas/config.schema.json',
-      title: 'agentcheck configuration',
+      $id: 'https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/config.schema.json',
+      title: 'agentcheckup configuration',
       ...CONFIG_JSON_SCHEMA,
     },
     null,

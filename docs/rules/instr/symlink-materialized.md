@@ -34,9 +34,9 @@ For `CLAUDE.md`, replace the symlink with a file that contains the import `@AGEN
 }
 ```
 
-Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheckup.config.json`, or
 suppress one occurrence with a reason:
 
 ```markdown
-<!-- agentcheck-disable-next-line instr/symlink-materialized -- reason -->
+<!-- agentcheckup-disable-next-line instr/symlink-materialized -- reason -->
 ```

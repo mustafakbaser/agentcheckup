@@ -31,7 +31,7 @@ function capture(cwd = process.cwd(), env: Record<string, string> = {}): Capture
 
 let work: string;
 beforeEach(async () => {
-  work = await mkdtemp(join(tmpdir(), 'agentcheck-cli-'));
+  work = await mkdtemp(join(tmpdir(), 'agentcheckup-cli-'));
 });
 afterEach(async () => {
   await rm(work, { recursive: true, force: true });
@@ -41,7 +41,7 @@ describe('run', () => {
   it('prints help and version', async () => {
     const help = capture();
     expect(await run(['--help'], help)).toBe(EXIT.ok);
-    expect(help.out.join('')).toContain('Usage: agentcheck [path] [options]');
+    expect(help.out.join('')).toContain('Usage: agentcheckup [path] [options]');
 
     const version = capture();
     expect(await run(['--version'], version)).toBe(EXIT.ok);
@@ -52,7 +52,7 @@ describe('run', () => {
     const io = capture();
     expect(await run(['--format', 'xml'], io)).toBe(EXIT.usage);
     expect(io.err.join('')).toContain('--format must be one of');
-    expect(io.err.join('')).toContain('agentcheck --help');
+    expect(io.err.join('')).toContain('agentcheckup --help');
   });
 
   it('returns 2 when the path does not exist', async () => {
@@ -92,14 +92,14 @@ describe('run', () => {
     ).toBe(EXIT.findings);
   });
 
-  it('loads agentcheck.config.json and rejects invalid configs', async () => {
+  it('loads agentcheckup.config.json and rejects invalid configs', async () => {
     await writeFile(join(work, 'AGENTS.md'), '# Project\n\nUse pnpm.\n');
-    await writeFile(join(work, 'agentcheck.config.json'), '{"targets": ["vim"]}');
+    await writeFile(join(work, 'agentcheckup.config.json'), '{"targets": ["vim"]}');
     const io = capture(work);
     expect(await run([], io)).toBe(EXIT.usage);
-    expect(io.err.join('')).toContain('agentcheck.config.json');
+    expect(io.err.join('')).toContain('agentcheckup.config.json');
 
-    await writeFile(join(work, 'agentcheck.config.json'), '{ not json');
+    await writeFile(join(work, 'agentcheckup.config.json'), '{ not json');
     const broken = capture(work);
     expect(await run([], broken)).toBe(EXIT.usage);
     expect(broken.err.join('')).toContain('not valid JSON');

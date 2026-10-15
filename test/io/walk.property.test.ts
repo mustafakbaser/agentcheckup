@@ -18,7 +18,7 @@ import {
 
 afterEach(removeTempDirs);
 
-const SECRET = 'AGENTCHECK_PROPERTY_SECRET_c41d9e';
+const SECRET = 'AGENTCHECKUP_PROPERTY_SECRET_c41d9e';
 const OUTSIDE = '<outside>';
 const ROOT = '<root>';
 
@@ -187,7 +187,7 @@ function isSorted(values: readonly string[]): boolean {
 }
 
 it('yields well-formed, consistent snapshots and no outside content on random trees', async () => {
-  const outside = await makeTempDir('agentcheck-outside-');
+  const outside = await makeTempDir('agentcheckup-outside-');
   await writeTree(outside, { 'secret.md': SECRET, 'AGENTS.md': SECRET });
 
   await fc.assert(

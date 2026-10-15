@@ -11,8 +11,8 @@ export const DEFAULT_CONFIG_MAX_BYTES = 256 * 1024;
  * Reads the config file `fileName` directly inside `root`. Returns undefined when it does not
  * exist; throws an Error when it is a symlink, not a regular file, too large, or unreadable.
  *
- * A config changes what agentcheck reports (it can disable rules), and the repository may be
- * hostile, so it must be a regular file that lives in the root: a symlink could make agentcheck
+ * A config changes what agentcheckup reports (it can disable rules), and the repository may be
+ * hostile, so it must be a regular file that lives in the root: a symlink could make agentcheckup
  * read a file from elsewhere on the machine and echo parts of it back in parse errors.
  */
 export async function readConfigFile(
