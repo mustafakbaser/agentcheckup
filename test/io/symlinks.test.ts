@@ -24,6 +24,10 @@ afterEach(removeTempDirs);
 /** On macOS the temp dir is under /var, a symlink to /private/var. */
 const tmpdirIsAliased = (await realpath(os.tmpdir())) !== path.resolve(os.tmpdir());
 
+/** Link text as the walker reports it: forward slashes on every platform. */
+const reportedLinkText = (text: string): string =>
+  process.platform === 'win32' ? text.replaceAll('\\', '/') : text;
+
 const describeSymlinks = describe.skipIf(!symlinksSupported);
 
 describeSymlinks('walk: symlinks inside the root', () => {
@@ -326,7 +330,7 @@ describeSymlinks('walk: symlinks that cannot be followed', () => {
       snapshot.unresolvedSymlinks.map((entry) => `${entry.path}/`),
     );
     expect(snapshot.unresolvedSymlinks.find((entry) => entry.path === 'AGENTS.md')?.target).toBe(
-      path.join(outside, 'secret.md'),
+      reportedLinkText(path.join(outside, 'secret.md')),
     );
   });
 
@@ -336,7 +340,7 @@ describeSymlinks('walk: symlinks that cannot be followed', () => {
     await link(root, 'AGENTS.md', missing);
     const snapshot = await walk(root);
     expect(snapshot.unresolvedSymlinks).toEqual([
-      { path: 'AGENTS.md', target: missing, problem: 'outside-root' },
+      { path: 'AGENTS.md', target: reportedLinkText(missing), problem: 'outside-root' },
     ]);
   });
 
