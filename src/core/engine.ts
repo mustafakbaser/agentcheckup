@@ -24,6 +24,7 @@ import {
   type AnyRule,
   type Artifact,
   type Finding,
+  type ParseServices,
   PLATFORM_IDS,
   type PlatformId,
   type ReportDescriptor,
@@ -53,8 +54,8 @@ export const SCAN_MARKDOWN_BUDGET = 16 * 1024 * 1024;
  */
 export const SCAN_MARKDOWN_LINE_BUDGET = 600_000;
 
-export interface ScanOptions {
-  readonly rules: readonly AnyRule[];
+/** Options {@link analyze} reads: which files count, which platforms are targeted, the budget. */
+export interface AnalyzeOptions {
   /** Overrides {@link SCAN_MARKDOWN_BUDGET}, in characters. */
   readonly markdownBudget?: number;
   /** Overrides {@link SCAN_MARKDOWN_LINE_BUDGET}, in lines. */
@@ -62,8 +63,42 @@ export interface ScanOptions {
   readonly config?: ResolvedConfig;
   /** Overrides `config.targets`. Defaults to every supported platform. */
   readonly targets?: readonly PlatformId[];
+}
+
+/** Options {@link runRules} reads. Configuration and targets come from the {@link Analysis}. */
+export interface RunRulesOptions {
+  readonly rules: readonly AnyRule[];
   /** Honor inline suppression directives. False in `--untrusted` mode. Default true. */
   readonly trustDirectives?: boolean;
+}
+
+export interface ScanOptions extends AnalyzeOptions, RunRulesOptions {}
+
+/**
+ * One scan's view of a snapshot: its classified, decoded artifacts and lazy parsers cached per
+ * artifact. Built by {@link analyze}; {@link runRules} runs the rules over it, and code that needs
+ * the same parses after the rules (load plans, the inventory) reads them from here.
+ *
+ * Use one Analysis for one scan. Its Markdown parser spends the scan-wide budget
+ * ({@link SCAN_MARKDOWN_BUDGET}, {@link SCAN_MARKDOWN_LINE_BUDGET}) in the order files are first
+ * parsed, so findings stay the same only if the rules parse first. A file parsed after the budget
+ * ran out is analyzed partially or not at all: check `markdown(artifact).analysis` before relying
+ * on it.
+ */
+export interface Analysis extends ParseServices {
+  readonly snapshot: Snapshot;
+  readonly config: ResolvedConfig;
+  readonly targets: ReadonlySet<PlatformId>;
+  /** {@link targets}, sorted by code point. */
+  readonly targetList: readonly PlatformId[];
+  /** Sorted by path. See {@link buildArtifacts}. */
+  readonly artifacts: readonly Artifact[];
+  /** Artifact by every path that reaches it: its own path, and each symlink alias. */
+  readonly index: ReadonlyMap<string, Artifact>;
+  // Redeclared as properties: the parsers are closures, safe to pass around without `this`.
+  readonly frontmatter: ParseServices['frontmatter'];
+  readonly markdown: ParseServices['markdown'];
+  readonly json: ParseServices['json'];
 }
 
 export interface ArtifactSummary {
@@ -166,17 +201,23 @@ function memoize<T>(compute: (artifact: Artifact) => T): (artifact: Artifact) =>
   };
 }
 
-/** Runs every applicable rule over a snapshot. Pure: no I/O, deterministic output. */
-export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResult {
-  const config = options.config ?? EMPTY_CONFIG;
-  const targetList = [...new Set(options.targets ?? config.targets ?? PLATFORM_IDS)].sort(
-    compareStrings,
-  );
-  const targets: ReadonlySet<PlatformId> = new Set(targetList);
-  const trustDirectives = options.trustDirectives ?? true;
+/** Artifact by path, then by each alias that no artifact owns as its own path. */
+function indexArtifacts(artifacts: readonly Artifact[]): Map<string, Artifact> {
+  const index = new Map<string, Artifact>();
+  for (const artifact of artifacts) index.set(artifact.path, artifact);
+  for (const artifact of artifacts) {
+    for (const alias of artifact.aliases) if (!index.has(alias)) index.set(alias, artifact);
+  }
+  return index;
+}
 
-  const artifacts = buildArtifacts(snapshot, config);
-
+/**
+ * Lazy parsers cached per artifact. Markdown parsing spends one shared budget of characters and
+ * lines, in the order files are first parsed.
+ */
+function createParseServices(
+  options: AnalyzeOptions,
+): Pick<Analysis, 'frontmatter' | 'markdown' | 'json'> {
   const frontmatter = memoize<FrontmatterResult>((a) => parseFrontmatter(a.decoded.text));
   let markdownBudget = options.markdownBudget ?? SCAN_MARKDOWN_BUDGET;
   let lineBudget = options.markdownLineBudget ?? SCAN_MARKDOWN_LINE_BUDGET;
@@ -199,6 +240,35 @@ export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResu
       ? parseJsonWithComments(a.decoded.text)
       : parseJson(a.decoded.text),
   );
+  return { frontmatter, markdown, json };
+}
+
+/**
+ * Decodes and classifies a snapshot's files and sets up the parsers. Parses nothing yet: each
+ * file is parsed when something first asks for it. Pure: no I/O.
+ */
+export function analyze(snapshot: Snapshot, options: AnalyzeOptions = {}): Analysis {
+  const config = options.config ?? EMPTY_CONFIG;
+  const targetList = [...new Set(options.targets ?? config.targets ?? PLATFORM_IDS)].sort(
+    compareStrings,
+  );
+  const artifacts = buildArtifacts(snapshot, config);
+  return {
+    snapshot,
+    config,
+    targets: new Set(targetList),
+    targetList,
+    artifacts,
+    index: indexArtifacts(artifacts),
+    ...createParseServices(options),
+  };
+}
+
+/** Runs every applicable rule over an analysis. Pure: no I/O, deterministic output. */
+export function runRules(analysis: Analysis, options: RunRulesOptions): ScanResult {
+  const { snapshot, config, targets, targetList, artifacts, frontmatter, markdown, json } =
+    analysis;
+  const trustDirectives = options.trustDirectives ?? true;
 
   const pending: PendingFinding[] = [];
   const ruleFailures: RuleFailure[] = [];
@@ -420,6 +490,11 @@ export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResu
     ruleFailures,
     configWarnings,
   };
+}
+
+/** Runs every applicable rule over a snapshot. Pure: no I/O, deterministic output. */
+export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResult {
+  return runRules(analyze(snapshot, options), options);
 }
 
 /** Number of lines that start before `offset` (binary search over sorted line starts). */

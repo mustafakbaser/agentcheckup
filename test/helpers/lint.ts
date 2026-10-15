@@ -1,5 +1,5 @@
 import { resolveConfig } from '../../src/core/config.js';
-import { scanSnapshot, type ScanResult } from '../../src/core/engine.js';
+import { analyze, runRules, type ScanOptions, type ScanResult } from '../../src/core/engine.js';
 import type { AnyRule, Finding, PlatformId, Snapshot, SourceFile } from '../../src/core/types.js';
 
 export type FileMap = Readonly<Record<string, string | Uint8Array>>;
@@ -60,13 +60,24 @@ export interface LintOptions extends SnapshotExtras {
   readonly trustDirectives?: boolean;
 }
 
-export function lint(files: FileMap, options: LintOptions): ScanResult {
-  return scanSnapshot(snapshotFrom(files, options), {
+/** The engine options `lint()` scans with. */
+export function scanOptionsFrom(options: LintOptions): ScanOptions {
+  return {
     rules: options.rules,
     ...(options.targets ? { targets: options.targets } : {}),
     ...(options.config === undefined ? {} : { config: resolveConfig(options.config) }),
     ...(options.trustDirectives === undefined ? {} : { trustDirectives: options.trustDirectives }),
-  });
+  };
+}
+
+/**
+ * Scans in-memory files. Goes through `analyze` and `runRules`, the split that `scanSnapshot`
+ * composes and that load plans reuse, so every rule test exercises it. test/core/analyze.test.ts
+ * checks that both paths give the same result.
+ */
+export function lint(files: FileMap, options: LintOptions): ScanResult {
+  const scanOptions = scanOptionsFrom(options);
+  return runRules(analyze(snapshotFrom(files, options), scanOptions), scanOptions);
 }
 
 /** Active (unsuppressed) findings, optionally for one rule, in a compact comparable shape. */
