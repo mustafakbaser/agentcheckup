@@ -34,12 +34,26 @@ export interface FileIdentity {
 }
 
 /**
- * Whether two identities name the same file. `ino` is compared exactly; `dev` as an unsigned
- * 64-bit value, because on Windows the same volume can come back signed from one stat call and
- * unsigned from another (nodejs/node#16496). Nothing else is relaxed.
+ * Whether two identities name the same file.
+ *
+ * - `ino` is always compared exactly: on Windows it is the volume's 64-bit file ID.
+ * - `dev` is compared as an unsigned 64-bit value, because on Windows the same volume can come
+ *   back signed from one stat call and unsigned from another (nodejs/node#16496).
+ * - On Windows only, a `dev` of 0 on either side is treated as unknown. libuv's path-based stat
+ *   (the GetFileInformationByName fast path) reports `st_dev` as 0 while the handle-based fstat
+ *   reports the volume serial number, for the same file (libuv/libuv#4844 and reports such as
+ *   affaan-m/ECC#3041). The 64-bit file ID still has to match, so a swapped file is still caught.
  */
-export function sameFile(a: FileIdentity, b: FileIdentity): boolean {
-  return a.ino === b.ino && BigInt.asUintN(64, a.dev) === BigInt.asUintN(64, b.dev);
+export function sameFile(
+  a: FileIdentity,
+  b: FileIdentity,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (a.ino !== b.ino) return false;
+  const devA = BigInt.asUintN(64, a.dev);
+  const devB = BigInt.asUintN(64, b.dev);
+  if (devA === devB) return true;
+  return platform === 'win32' && (devA === 0n || devB === 0n);
 }
 
 export type ReadOutcome =

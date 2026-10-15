@@ -104,3 +104,16 @@ describe('readRegularFile', () => {
     expect(outcome).toMatchObject({ ok: false, reason: 'unreadable' });
   });
 });
+
+describe('sameFile: Windows path-based stat reports dev 0', () => {
+  it('treats dev 0 as unknown on Windows only, and still requires the same file ID', () => {
+    const handle = { dev: 3_212_617_455n, ino: 844_424_930_132_009n };
+    const pathStat = { dev: 0n, ino: 844_424_930_132_009n };
+    expect(sameFile(pathStat, handle, 'win32')).toBe(true);
+    expect(sameFile(handle, pathStat, 'win32')).toBe(true);
+    expect(sameFile(pathStat, { ...handle, ino: handle.ino + 1n }, 'win32')).toBe(false);
+    expect(sameFile(pathStat, handle, 'linux')).toBe(false);
+    expect(sameFile(pathStat, handle, 'darwin')).toBe(false);
+    expect(sameFile({ dev: 5n, ino: 1n }, { dev: 6n, ino: 1n }, 'win32')).toBe(false);
+  });
+});
