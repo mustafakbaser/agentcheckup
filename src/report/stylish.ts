@@ -344,7 +344,7 @@ function renderGateHits(result: ScanResult, context: Context): string[] {
   const lines = [
     style.red(
       style.bold(
-        `${symbols.fail} ${plural(rows.length, 'security-relevant change')} since the baseline need review`,
+        `${symbols.fail} ${plural(rows.length, 'security-relevant change')} since the baseline ${rows.length === 1 ? 'needs' : 'need'} review`,
       ),
     ),
   ];

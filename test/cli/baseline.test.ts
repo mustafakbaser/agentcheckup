@@ -146,7 +146,9 @@ describe('--baseline round trip', () => {
 
     const stylish = capture(work);
     expect(await run(args, stylish)).toBe(EXIT.findings);
-    expect(stylish.output()).toContain('1 security-relevant change since the baseline need review');
+    expect(stylish.output()).toContain(
+      '1 security-relevant change since the baseline needs review',
+    );
     expect(stylish.output()).toMatch(/0 new, \d+ unchanged since the baseline/);
 
     const markdown = capture(work);
