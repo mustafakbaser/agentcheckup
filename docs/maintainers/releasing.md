@@ -60,6 +60,12 @@ not automated.
      -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
    ```
 
+## Keeping rules current
+
+Rules cite documentation and source code that change. A weekly workflow compares every cited
+source with a committed baseline and opens a `source-drift` issue when one changes or cannot be
+fetched. [Source drift](source-drift.md) explains how to handle those issues.
+
 ## Dependency updates
 
 Dependabot proposes updates weekly with a 7-day cooldown, matching `minimumReleaseAge` in

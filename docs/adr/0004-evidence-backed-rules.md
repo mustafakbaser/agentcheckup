@@ -33,5 +33,7 @@ Google One users on 18 June 2026.
 - The rule catalog grows more slowly than an opinion-based one.
 - Each rule's message can say exactly what will happen ("Codex stops reading here") instead of
   what is recommended.
-- Sources need re-checking; a scheduled job will diff the cited documentation and open an issue
-  when it changes.
+- Sources need re-checking. A weekly workflow fetches every cited source outside this
+  repository, compares a hash of its normalized content with a committed baseline, and opens an
+  issue when a source changes or cannot be fetched. A maintainer then re-reads the source and
+  updates the rule or its `checked` date. See [source drift](../maintainers/source-drift.md).
