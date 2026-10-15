@@ -1,0 +1,50 @@
+<!-- Generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
+
+# `skill/name-format`
+
+Skill name does not follow the Agent Skills naming rules.
+
+|            |                                            |
+| ---------- | ------------------------------------------ |
+| Severity   | `error`                                    |
+| Category   | `correctness`                              |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot |
+| Applies to | `skill`                                    |
+| Fixable    | No                                         |
+| Since      | 2026.10                                    |
+
+## Why
+
+The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in `name`, with no hyphen at the start or end and no `--`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, `<` or `>`, so typing the name does not invoke the skill.
+
+For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject a name that breaks these rules, and claude.ai upload rejects one with other characters or more than 64. skills-ref accepts non-ASCII lowercase letters, but the packager accepts only `a-z`, `0-9` and `-`.
+
+Rename the skill to lowercase ASCII words joined by single hyphens, and rename its directory to match.
+
+## Evidence
+
+- [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
+- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
+- [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
+- [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
+- [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
+- [Claude API: Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), verified, checked 2026-10-14
+- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
+
+## Configuration
+
+```json
+{
+  "rules": {
+    "skill/name-format": "off"
+  }
+}
+```
+
+Set the rule to `"off"`, `"info"`, `"warn"` or `"error"` in `agentcheck.config.json`, or
+suppress one occurrence with a reason:
+
+```markdown
+<!-- agentcheck-disable-next-line skill/name-format -- reason -->
+```
