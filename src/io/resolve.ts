@@ -1,4 +1,4 @@
-import type { Stats } from 'node:fs';
+import type { BigIntStats, Stats } from 'node:fs';
 import { lstat, readlink } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -23,8 +23,8 @@ export type SymlinkResolution =
       readonly realPath: string;
       /** POSIX, relative to the root; `''` for the root itself. */
       readonly relativePath: string;
-      /** lstat of `realPath` (never a symlink). */
-      readonly stats: Stats;
+      /** lstat of `realPath` (never a symlink), with the exact identity readRegularFile needs. */
+      readonly stats: BigIntStats;
     }
   | { readonly kind: 'outside' }
   | { readonly kind: 'broken' };
@@ -91,7 +91,8 @@ export async function resolveSymlink(
   const relativePath = relativeInsideRoot(roots.real, current);
   if (relativePath === undefined) return OUTSIDE;
   try {
-    return { kind: 'inside', realPath: current, relativePath, stats: await lstat(current) };
+    const stats = await lstat(current, { bigint: true });
+    return { kind: 'inside', realPath: current, relativePath, stats };
   } catch {
     return BROKEN;
   }

@@ -1,4 +1,4 @@
-import type { Stats } from 'node:fs';
+import type { BigIntStats } from 'node:fs';
 import { lstat } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -25,9 +25,10 @@ export async function readConfigFile(
     throw new RangeError(`maxBytes must be a non-negative integer, got ${String(maxBytes)}`);
   }
   const filePath = path.join(root, fileName);
-  let stats: Stats;
+  let stats: BigIntStats;
   try {
-    stats = await lstat(filePath);
+    // bigint: the identity readRegularFile checks the opened file against (see FileIdentity).
+    stats = await lstat(filePath, { bigint: true });
   } catch (error) {
     const code = errorCode(error);
     if (code === 'ENOENT' || code === 'ENOTDIR') return undefined;
@@ -37,7 +38,8 @@ export async function readConfigFile(
     throw new Error(`Refusing to read ${fileName}: it is a symbolic link, not a regular file`);
   }
   if (!stats.isFile()) throw new Error(`Refusing to read ${fileName}: it is not a regular file`);
-  if (stats.size > maxBytes) throw tooLarge(fileName, stats.size, maxBytes);
+  const size = Number(stats.size);
+  if (size > maxBytes) throw tooLarge(fileName, size, maxBytes);
 
   const outcome = await readRegularFile(filePath, stats, maxBytes);
   if (outcome.ok) return new TextDecoder('utf-8').decode(outcome.bytes);

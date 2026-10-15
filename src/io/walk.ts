@@ -13,7 +13,7 @@
  * File reads detect swaps (see readRegularFile), but Node.js has no openat()/O_DIRECTORY-based
  * listing, so a racing directory swap could expose names from outside the root.
  */
-import type { Dirent, Stats } from 'node:fs';
+import type { BigIntStats, Dirent } from 'node:fs';
 import { lstat, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -550,17 +550,19 @@ class Walker {
     maxBytes: number,
   ): Promise<ControlFile> {
     const filePath = path.join(directory.realPath, name);
-    let stats: Stats;
+    let stats: BigIntStats;
     try {
-      stats = await lstat(filePath);
+      // bigint: the identity readRegularFile checks the opened file against (see FileIdentity).
+      stats = await lstat(filePath, { bigint: true });
     } catch {
       return ABSENT;
     }
     if (stats.isDirectory()) return ABSENT;
     if (!stats.isFile()) return SKIPPED;
     const relativePath = joinRelative(directory.relativePath, name);
-    if (stats.size > maxBytes) {
-      this.#skip(relativePath, 'too-large', stats.size);
+    const size = Number(stats.size);
+    if (size > maxBytes) {
+      this.#skip(relativePath, 'too-large', size);
       return SKIPPED;
     }
     const outcome = await readRegularFile(filePath, stats, maxBytes);
@@ -746,19 +748,24 @@ class Walker {
    * Reads `location.realPath`, which the caller has lstat-ed as the regular file `stats`, unless
    * `readAhead` already holds the outcome of reading it (with maxFileBytes as the only limit).
    */
-  async #readCandidate(location: Location, stats: Stats, readAhead?: ReadOutcome): Promise<void> {
+  async #readCandidate(
+    location: Location,
+    stats: BigIntStats,
+    readAhead?: ReadOutcome,
+  ): Promise<void> {
     const { relativePath } = location;
     const { maxFileBytes, maxTotalBytes } = this.#settings;
-    if (stats.size > maxFileBytes) {
-      this.#skip(relativePath, 'too-large', stats.size);
+    const size = Number(stats.size);
+    if (size > maxFileBytes) {
+      this.#skip(relativePath, 'too-large', size);
       return;
     }
     if (this.#reuseContent(location)) return;
     // A candidate that does not fit the remaining budget is skipped, but smaller ones after it
     // are still read.
     const remaining = maxTotalBytes - this.#bytesRead;
-    if (stats.size > remaining) {
-      this.#skip(relativePath, 'byte-limit', stats.size);
+    if (size > remaining) {
+      this.#skip(relativePath, 'byte-limit', size);
       return;
     }
     const outcome =

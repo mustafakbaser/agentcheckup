@@ -5,7 +5,7 @@
  * path (symlink, or file below a symlinked directory) no longer counts against maxTotalBytes.
  * Do not optimize this file. When the walk's semantics change on purpose, change both.
  */
-import type { Dirent, Stats } from 'node:fs';
+import type { BigIntStats, Dirent } from 'node:fs';
 import { lstat, opendir, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -406,17 +406,19 @@ class Walker {
     maxBytes: number,
   ): Promise<ControlFile> {
     const filePath = path.join(directory.realPath, name);
-    let stats: Stats;
+    let stats: BigIntStats;
     try {
-      stats = await lstat(filePath);
+      // bigint: the identity readRegularFile checks the opened file against (see FileIdentity).
+      stats = await lstat(filePath, { bigint: true });
     } catch {
       return ABSENT;
     }
     if (stats.isDirectory()) return ABSENT;
     if (!stats.isFile()) return SKIPPED;
     const relativePath = joinRelative(directory.relativePath, name);
-    if (stats.size > maxBytes) {
-      this.#skip(relativePath, 'too-large', stats.size);
+    const size = Number(stats.size);
+    if (size > maxBytes) {
+      this.#skip(relativePath, 'too-large', size);
       return SKIPPED;
     }
     const outcome = await readRegularFile(filePath, stats, maxBytes);
@@ -535,9 +537,9 @@ class Walker {
     const { relativePath } = location;
     this.#paths.add(relativePath);
     if (!this.#settings.isCandidate(relativePath)) return;
-    let stats: Stats;
+    let stats: BigIntStats;
     try {
-      stats = await lstat(location.realPath);
+      stats = await lstat(location.realPath, { bigint: true });
     } catch {
       this.#skip(relativePath, 'unreadable');
       return;
@@ -589,18 +591,19 @@ class Walker {
   }
 
   /** Reads `location.realPath`, which the caller has lstat-ed as the regular file `stats`. */
-  async #readCandidate(location: Location, stats: Stats): Promise<void> {
+  async #readCandidate(location: Location, stats: BigIntStats): Promise<void> {
     const { relativePath, realRelativePath } = location;
     const { maxFileBytes, maxTotalBytes } = this.#settings;
-    if (stats.size > maxFileBytes) {
-      this.#skip(relativePath, 'too-large', stats.size);
+    const size = Number(stats.size);
+    if (size > maxFileBytes) {
+      this.#skip(relativePath, 'too-large', size);
       return;
     }
     // A candidate that does not fit the remaining budget is skipped, but smaller ones after it
     // are still read.
     const remaining = maxTotalBytes - this.#bytesRead;
-    if (stats.size > remaining) {
-      this.#skip(relativePath, 'byte-limit', stats.size);
+    if (size > remaining) {
+      this.#skip(relativePath, 'byte-limit', size);
       return;
     }
     const limit = Math.min(maxFileBytes, remaining);

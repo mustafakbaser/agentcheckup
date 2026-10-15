@@ -4,7 +4,7 @@
  * Nothing here decides what ends up in the snapshot; the walker consumes results in its own
  * deterministic order.
  */
-import type { Dir, Dirent, Stats } from 'node:fs';
+import type { BigIntStats, Dir, Dirent } from 'node:fs';
 import { lstat, opendir } from 'node:fs/promises';
 
 import { type ReadOutcome, readRegularFile } from './safe-read.js';
@@ -80,16 +80,17 @@ export type FileProbe =
   | { readonly kind: 'missing' }
   | { readonly kind: 'not-a-file'; readonly special: boolean }
   /** `outcome` is absent when the file was not read (only lstat-ed). */
-  | { readonly kind: 'file'; readonly stats: Stats; readonly outcome?: ReadOutcome };
+  | { readonly kind: 'file'; readonly stats: BigIntStats; readonly outcome?: ReadOutcome };
 
 /**
  * lstat `realPath` and, when `readUpTo` is given and the file is a regular file of at most that
  * size, read it with readRegularFile (same open flags and identity check). Never throws.
  */
 export async function probeFile(realPath: string, readUpTo?: number): Promise<FileProbe> {
-  let stats: Stats;
+  let stats: BigIntStats;
   try {
-    stats = await lstat(realPath);
+    // bigint: the identity readRegularFile checks the opened file against (see FileIdentity).
+    stats = await lstat(realPath, { bigint: true });
   } catch {
     return { kind: 'missing' };
   }
@@ -97,6 +98,6 @@ export async function probeFile(realPath: string, readUpTo?: number): Promise<Fi
   if (!stats.isFile()) {
     return { kind: 'not-a-file', special: !stats.isDirectory() && !stats.isSymbolicLink() };
   }
-  if (readUpTo === undefined || stats.size > readUpTo) return { kind: 'file', stats };
+  if (readUpTo === undefined || Number(stats.size) > readUpTo) return { kind: 'file', stats };
   return { kind: 'file', stats, outcome: await readRegularFile(realPath, stats, readUpTo) };
 }

@@ -1,4 +1,4 @@
-import { constants } from 'node:fs';
+import { type BigIntStats, constants } from 'node:fs';
 import { type FileHandle, open } from 'node:fs/promises';
 
 import { errorCode } from './paths.js';
@@ -23,10 +23,23 @@ export const SAFE_OPEN_FLAGS =
   optionalFlag('O_NONBLOCK') |
   optionalFlag('O_NOCTTY');
 
-/** Identity of the file that was checked with lstat before opening it. */
+/**
+ * Identity of the file that was checked with lstat before opening it, as bigints: capture it with
+ * `lstat(path, { bigint: true })`. As JS numbers, Windows' 64-bit file IDs lose precision
+ * (nodejs/node#12115), so two different files could look alike, or one file unlike itself.
+ */
 export interface FileIdentity {
-  readonly dev: number;
-  readonly ino: number;
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
+/**
+ * Whether two identities name the same file. `ino` is compared exactly; `dev` as an unsigned
+ * 64-bit value, because on Windows the same volume can come back signed from one stat call and
+ * unsigned from another (nodejs/node#16496). Nothing else is relaxed.
+ */
+export function sameFile(a: FileIdentity, b: FileIdentity): boolean {
+  return a.ino === b.ino && BigInt.asUintN(64, a.dev) === BigInt.asUintN(64, b.dev);
 }
 
 export type ReadOutcome =
@@ -56,14 +69,13 @@ export async function readRegularFile(
     return unreadable(error);
   }
   try {
-    const stats = await handle.stat();
+    const stats: BigIntStats = await handle.stat({ bigint: true });
     if (stats.isDirectory()) return { ok: false, reason: 'unreadable' };
     if (!stats.isFile()) return { ok: false, reason: 'special-file' };
-    if (stats.dev !== expected.dev || stats.ino !== expected.ino) {
-      return { ok: false, reason: 'unreadable' };
-    }
-    if (stats.size > maxBytes) return { ok: false, reason: 'too-large', size: stats.size };
-    return { ok: true, bytes: await readUpTo(handle, stats.size) };
+    if (!sameFile(stats, expected)) return { ok: false, reason: 'unreadable' };
+    const size = Number(stats.size);
+    if (size > maxBytes) return { ok: false, reason: 'too-large', size };
+    return { ok: true, bytes: await readUpTo(handle, size) };
   } catch (error) {
     return unreadable(error);
   } finally {
