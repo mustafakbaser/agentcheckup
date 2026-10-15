@@ -9,12 +9,13 @@ const PURE_MODULES = [
   'src/core/**',
   'src/parse/**',
   'src/platforms/**',
+  'src/inventory/**',
   'src/rules/**',
   'src/report/**',
 ];
 
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'test/fixtures/']),
+  globalIgnores(['dist/', 'coverage/', 'test/fixtures/', '.claude/worktrees/']),
 
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,

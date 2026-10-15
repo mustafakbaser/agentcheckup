@@ -40,3 +40,6 @@ THIRD_PARTY_NOTICES.md
 # aggregate statistics only, no public rankings of other projects)
 corpus/results.json
 corpus/REPORT.md
+
+# Git worktrees created by coding agents (Claude Code default location)
+.claude/worktrees/
