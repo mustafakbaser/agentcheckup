@@ -1,0 +1,8 @@
+{
+  // Codex reads this with a strict JSON parser
+  "hooks": {
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "npm run lint" }] },
+    ]
+  }
+}

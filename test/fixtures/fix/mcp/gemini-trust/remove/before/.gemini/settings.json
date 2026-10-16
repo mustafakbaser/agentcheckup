@@ -1,0 +1,15 @@
+{
+  // Servers the whole team uses
+  "mcpServers": {
+    "search": {
+      "command": "uvx",
+      "trust": true,
+      "args": ["acme-search-mcp==1.4.0"]
+    },
+    "docs": {
+      "httpUrl": "https://docs.acme-tools.dev/mcp",
+      "trust": true
+    },
+    "files": { "command": "npx", "args": ["-y", "@acme/files-mcp@2.0.1"], "trust": true }
+  }
+}

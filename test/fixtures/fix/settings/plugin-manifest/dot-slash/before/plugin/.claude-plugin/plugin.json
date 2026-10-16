@@ -1,0 +1,5 @@
+{
+  "name": "deploy-tools",
+  "version": "1.2.0",
+  "commands": ["commands/deploy.md", "./commands/rollback.md"]
+}

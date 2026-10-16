@@ -10,7 +10,7 @@ Claude Code ignores this permission mode in project settings.
 | Category   | `loading`         |
 | Platforms  | Claude Code       |
 | Applies to | `claude-settings` |
-| Fixable    | No                |
+| Fixable    | Yes, `review`     |
 | Since      | 2026.10           |
 
 ## Why

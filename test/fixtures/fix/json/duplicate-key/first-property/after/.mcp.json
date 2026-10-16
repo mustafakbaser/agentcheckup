@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "docs": {
+      "type": "http",
+      "url": "https://docs.acme-tools.dev/mcp"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.0.0"]
+    }
+  }
+}

@@ -30,6 +30,10 @@ const COMMAND_KINDS: readonly ArtifactKind[] = [
 /** Findings per file; a file with more lines like this gets one summary finding. */
 export const MAX_REMOTE_FINDINGS = 20;
 
+/** The manual step: no fix, because only the author knows which version to trust. */
+const GUIDANCE =
+  'download the script to a file, pin it to a version or checksum (for example with sha256sum -c) and run that file, or install the tool from a package manager';
+
 function transport(match: RemoteExecution): string {
   return match.url.toLowerCase().startsWith('http://')
     ? ' Over http://, anyone on the network path can also replace the script.'
@@ -115,6 +119,7 @@ export const remoteScriptExecutionRule = defineRule({
             ...at(spanOf(doc, command.path)),
             message: describeCommand(match, command.what),
             platforms: readers,
+            guidance: GUIDANCE,
           });
         }
         continue;
@@ -142,6 +147,7 @@ export const remoteScriptExecutionRule = defineRule({
           span: { offset: match.offset, length: match.length },
           message: describeRemoteExecution(match),
           platforms: readers,
+          guidance: GUIDANCE,
         });
       }
       if (firstSkipped !== undefined) {

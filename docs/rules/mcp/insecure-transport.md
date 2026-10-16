@@ -10,7 +10,7 @@ MCP server uses an unencrypted connection to another host.
 | Category   | `risk`                                                                |
 | Platforms  | Claude Code, Cursor, Gemini CLI                                       |
 | Applies to | `mcp-json`, `claude-plugin-manifest`, `cursor-mcp`, `gemini-settings` |
-| Fixable    | No                                                                    |
+| Fixable    | Yes, `review`                                                         |
 | Since      | 2026.10                                                               |
 
 ## Why

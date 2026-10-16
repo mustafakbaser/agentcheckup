@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      { "command": "npx @acme/command-policy@3.1.0 check", "failClosed": true },
+      { "command": "npx @acme/secret-scan@1.2.0", "failClosed": true }
+    ]
+  }
+}

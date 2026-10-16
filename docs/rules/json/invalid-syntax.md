@@ -10,7 +10,7 @@ Configuration file is not valid JSON.
 | Category   | `loading`                                                                                                               |
 | Platforms  | Claude Code, Codex, Cursor, Gemini CLI                                                                                  |
 | Applies to | `claude-settings`, `claude-plugin-manifest`, `mcp-json`, `cursor-mcp`, `cursor-hooks`, `codex-hooks`, `gemini-settings` |
-| Fixable    | No                                                                                                                      |
+| Fixable    | Yes, `review`                                                                                                           |
 | Since      | 2026.10                                                                                                                 |
 
 ## Why

@@ -10,7 +10,7 @@ Plugin manifest has an invalid name or component path.
 | Category   | `loading`                |
 | Platforms  | Claude Code              |
 | Applies to | `claude-plugin-manifest` |
-| Fixable    | No                       |
+| Fixable    | Yes, `safe` or `review`  |
 | Since      | 2026.10                  |
 
 ## Why

@@ -10,7 +10,7 @@ Gemini CLI MCP server is trusted and skips tool confirmations.
 | Category   | `risk`            |
 | Platforms  | Gemini CLI        |
 | Applies to | `gemini-settings` |
-| Fixable    | No                |
+| Fixable    | Yes, `review`     |
 | Since      | 2026.10           |
 
 ## Why

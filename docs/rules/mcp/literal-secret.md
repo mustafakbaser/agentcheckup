@@ -10,7 +10,7 @@ Configuration file contains a literal credential.
 | Category   | `risk`                                                                                                                  |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                 |
 | Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks` |
-| Fixable    | No                                                                                                                      |
+| Fixable    | Yes, `review`                                                                                                           |
 | Since      | 2026.10                                                                                                                 |
 
 ## Why

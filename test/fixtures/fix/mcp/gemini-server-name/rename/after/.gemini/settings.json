@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "acme-search": { "command": "uvx", "args": ["acme-search-mcp==1.4.0"] },
+    "docs-server": { "httpUrl": "https://docs.acme-tools.dev/mcp" }
+  }
+}

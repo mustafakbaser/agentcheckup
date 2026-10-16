@@ -1,10 +1,54 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { jsonInsertProperty, jsonReplaceValue } from '../../fix/edits.js';
 import { failsOpen, TOOL_GATES } from '../../platforms/hooks.js';
 import { defineRule } from '../define.js';
-import { at, FileFindings, spanOf } from '../json/access.js';
+import { at, FileFindings, type JsonObject, type JsonPath, own, spanOf } from '../json/access.js';
+import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
 import { hookHandlers, hookPlatformOf } from './walk.js';
+
+const ID = 'hooks/fails-open';
+
+/** The setting that makes a hook fail closed, where the agent has one. */
+const FAIL_CLOSED: Readonly<Partial<Record<HookPlatform, { key: string; value: string | true }>>> =
+  {
+    'claude-code': { key: 'onFailure', value: 'block' },
+    cursor: { key: 'failClosed', value: true },
+  };
+
+function fixFor(
+  artifact: Artifact,
+  platform: HookPlatform,
+  event: string,
+  handler: JsonObject,
+  path: JsonPath,
+): Fix | undefined {
+  const setting = FAIL_CLOSED[platform];
+  if (setting === undefined) return undefined;
+  const change =
+    own(handler, setting.key) === undefined
+      ? jsonInsertProperty(artifact, path, setting.key, setting.value)
+      : jsonReplaceValue(artifact, [...path, setting.key], setting.value);
+  if (change === undefined) return undefined;
+  const written = `"${setting.key}": ${JSON.stringify(setting.value)}`;
+  const notes =
+    platform === 'claude-code'
+      ? [
+          `If this ${event} hook crashes, cannot start or times out, Claude Code blocks the tool call. Claude Code before v2.1.295 ignores "onFailure".`,
+        ]
+      : [
+          `If this ${event} hook crashes, times out or exits with an error, Cursor blocks the action.`,
+        ];
+  return {
+    id: `${ID}#${setting.key}`,
+    class: 'review',
+    title: `Set ${written} on this ${event} hook`,
+    changes: [change],
+    notes,
+  };
+}
 
 function describe(platform: HookPlatform, event: string): string {
   switch (platform) {
@@ -21,7 +65,7 @@ function describe(platform: HookPlatform, event: string): string {
 
 export const failsOpenRule = defineRule({
   meta: {
-    id: 'hooks/fails-open',
+    id: ID,
     title: 'Tool-gating hook lets the tool call proceed when it fails',
     rationale: [
       'Hooks on events such as `PreToolUse` (Claude Code, Codex), `beforeShellExecution` (Cursor) and `BeforeTool` (Gemini CLI) can block a tool call, so they are used to enforce policies. By default all four agents fail open: when such a hook crashes or cannot start, the tool call proceeds as if the hook had allowed it. Claude Code, Codex and Cursor also let it proceed when the hook times out. A policy hook with a broken path or a slow dependency therefore protects nothing.',
@@ -33,6 +77,11 @@ export const failsOpenRule = defineRule({
     platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
     sources: [SOURCES.claudeHooks, SOURCES.cursorHooks, SOURCES.codexHooks, SOURCES.geminiHooks],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Sets "onFailure": "block" on the Claude Code hook or "failClosed": true on the Cursor hook. Codex and Gemini CLI have no such setting, so their scripts must be changed by hand.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -44,14 +93,21 @@ export const failsOpenRule = defineRule({
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'hooks that fail open');
+      const canEdit = editable(artifact);
       for (const { event, handler, path, type } of hookHandlers(doc, platform)) {
         if (!TOOL_GATES[platform].has(event) || !failsOpen(platform, type, handler)) continue;
         const field = type === 'http' ? 'url' : 'command';
+        const fix = canEdit ? fixFor(artifact, platform, event, handler, path) : undefined;
+        // Codex and Gemini CLI: the message already says what to change in the script.
         findings.report({
           artifact,
           ...at(spanOf(doc, [...path, field]) ?? spanOf(doc, path)),
           message: describe(platform, event),
           platforms: [platform],
+          ...(fix === undefined ? {} : { fix }),
+          ...(canEdit || FAIL_CLOSED[platform] === undefined
+            ? {}
+            : { guidance: sharedFileGuidance(artifact) }),
         });
       }
       findings.finish();

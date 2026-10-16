@@ -1,15 +1,33 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { type Artifact, type ArtifactKind, PLATFORM_IDS } from '../../core/types.js';
+import { type Artifact, type ArtifactKind, type Fix, PLATFORM_IDS } from '../../core/types.js';
+import { replaceSpan } from '../../fix/edits.js';
 import { JSON_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
-import { at, collectStrings, type JsonPath, pathLabel, spanOf } from '../json/access.js';
+import {
+  at,
+  collectStrings,
+  type JsonPath,
+  type ParsedJson,
+  pathLabel,
+  spanOf,
+} from '../json/access.js';
+import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { formatInteger } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
-import { findSecret } from './secrets.js';
+import { findSecret, type SecretMatch } from './secrets.js';
 import { MCP_SOURCES } from './sources.js';
+
+const ID = 'mcp/literal-secret';
 
 /** Findings per file before the rule stops reporting. */
 export const MAX_SECRET_FINDINGS = 20;
+
+/**
+ * Printed before and after a credential fix (`Fix.warning`). A warning also marks the fix as one
+ * that handles a credential: reports redact every span its edits replace.
+ */
+export const ROTATION_WARNING =
+  'Revoke and rotate this credential now. Editing the file does not remove it from git history.';
 
 const ENV_NAME = /^[a-z_]\w{0,63}$/i;
 
@@ -19,8 +37,21 @@ function variableName(path: JsonPath, fallback: string): string {
   return parent === 'env' && typeof last === 'string' && ENV_NAME.test(last) ? last : fallback;
 }
 
-function fix(artifact: Artifact, path: JsonPath, fallback: string): string {
-  const name = variableName(path, fallback);
+/** Server fields in which Claude Code and Cursor expand variable references. */
+const EXPANDED_FIELDS: ReadonlySet<string> = new Set(['command', 'args', 'env', 'url', 'headers']);
+
+/**
+ * The field of an inline MCP server entry that `path` lies in, or undefined outside one:
+ * `mcpServers.<name>.<field>…`, and `mcpServers[i].<name>.<field>…` in a plugin manifest.
+ */
+function serverField(artifact: Artifact, path: JsonPath): string | undefined {
+  if (path[0] !== 'mcpServers') return undefined;
+  const field =
+    artifact.kind === 'claude-plugin-manifest' && typeof path[1] === 'number' ? path[3] : path[2];
+  return typeof field === 'string' ? field : undefined;
+}
+
+function remedy(artifact: Artifact, path: JsonPath, name: string): string {
   const inServer = path[0] === 'mcpServers';
   if (artifact.kind === 'mcp-json' || (artifact.kind === 'claude-plugin-manifest' && inServer)) {
     return 'reference it as "${' + name + '}"';
@@ -34,9 +65,85 @@ function fix(artifact: Artifact, path: JsonPath, fallback: string): string {
   return 'read it from the environment';
 }
 
+function isNameChar(code: number): boolean {
+  return (
+    (code >= 0x30 && code <= 0x39) ||
+    (code >= 0x41 && code <= 0x5a) ||
+    (code >= 0x61 && code <= 0x7a) ||
+    code === 0x5f
+  );
+}
+
+/**
+ * The variable reference that replaces the token, in the syntax of the agent that reads the
+ * file, or undefined where the agent expands no variables: outside server entries, and in Claude
+ * Code and Cursor outside the fields they expand. `next` is the character after the token.
+ */
+function reference(
+  artifact: Artifact,
+  path: JsonPath,
+  name: string,
+  next: number,
+): string | undefined {
+  if (artifact.kind === 'gemini-settings') {
+    // Gemini CLI expands variables in every string of settings.json, `$NAME` and `${NAME}`.
+    return isNameChar(next) ? '${' + name + '}' : '$' + name;
+  }
+  const field = serverField(artifact, path);
+  if (field === undefined || !EXPANDED_FIELDS.has(field)) return undefined;
+  if (artifact.kind === 'mcp-json' || artifact.kind === 'claude-plugin-manifest') {
+    return '${' + name + '}';
+  }
+  if (artifact.kind === 'cursor-mcp') return '${env:' + name + '}';
+  return undefined;
+}
+
+/**
+ * A fix that replaces exactly the token's characters with a variable reference. Only the token
+ * span changes, so the edit's span is the credential itself: fix reports redact it wherever it
+ * appears. Undefined when the string holds another credential, or when an escape sequence comes
+ * before the token, so its offset in the file is not its offset in the value.
+ */
+function fixFor(
+  artifact: Artifact,
+  doc: ParsedJson,
+  path: JsonPath,
+  value: string,
+  secret: SecretMatch,
+): Fix | undefined {
+  const end = secret.start + secret.length;
+  if (findSecret(value.slice(end)) !== undefined) return undefined;
+  const span = doc.valueSpan(path);
+  if (span === undefined) return undefined;
+  const { text } = artifact.decoded;
+  const raw = text.slice(span.offset + 1, span.offset + span.length - 1);
+  if (text.charAt(span.offset) !== '"' || raw.slice(0, end).includes('\\')) return undefined;
+  const offset = span.offset + 1 + secret.start;
+  if (text.slice(offset, offset + secret.length) !== value.slice(secret.start, end)) {
+    return undefined;
+  }
+  const name = variableName(path, secret.variable);
+  const replacement = reference(artifact, path, name, value.charCodeAt(end));
+  if (replacement === undefined) return undefined;
+  const notes = [`Set ${name} in the environment of everyone who uses this configuration.`];
+  if (artifact.kind === 'mcp-json' || artifact.kind === 'claude-plugin-manifest') {
+    notes.push(
+      `Claude Code does not load the server configuration when ${name} is not set; write "\${${name}:-}" to allow an empty value.`,
+    );
+  }
+  return {
+    id: `${ID}#reference`,
+    class: 'review',
+    title: `Replace the literal ${secret.vendor} with ${replacement}`,
+    changes: [replaceSpan(artifact, { offset, length: secret.length }, replacement)],
+    notes,
+    warning: ROTATION_WARNING,
+  };
+}
+
 export const literalSecretRule = defineRule({
   meta: {
-    id: 'mcp/literal-secret',
+    id: ID,
     title: 'Configuration file contains a literal credential',
     rationale: [
       'MCP configurations, settings and hook files are committed with the project, so a token written into one is readable by everyone who can read the repository, its forks and its history. Keys exposed in public GitHub repositories have been used within two minutes. `claude plugin validate` also warns about header values that look like literal credentials.',
@@ -72,12 +179,18 @@ export const literalSecretRule = defineRule({
       MCP_SOURCES.gitleaksRules,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
       const doc = context.json(artifact);
       if (!doc.ok) continue;
+      const canEdit = editable(artifact);
       let reported = 0;
       for (const { path, value } of collectStrings(doc.value)) {
         if (reported === MAX_SECRET_FINDINGS) break;
@@ -86,16 +199,20 @@ export const literalSecretRule = defineRule({
         reported++;
         const token = value.slice(secret.start, secret.start + secret.length);
         const shown = `("${token.slice(0, 4)}…", ${formatInteger(token.length)} characters)`;
-        const remedy = fix(artifact, path, secret.variable);
+        const name = variableName(path, secret.variable);
+        const fix = canEdit ? fixFor(artifact, doc, path, value, secret) : undefined;
+        const guidance = canEdit ? undefined : sharedFileGuidance(artifact);
         context.report({
           artifact,
           ...at(spanOf(doc, path)),
           // An access key ID alone grants nothing, so it is a warning and never caps the score.
           ...(secret.identifier ? { severity: 'warn' as const } : {}),
           message: secret.identifier
-            ? `${pathLabel(path)} holds a literal ${secret.vendor} ${shown}. The ID alone does not grant access, but it identifies the account, and its secret key is often committed next to it. Check that the secret key is not in the repository, then ${remedy}.`
-            : `${pathLabel(path)} holds a literal ${secret.vendor} ${shown} that anyone who can read this file can copy. Revoke and rotate it, then ${remedy}.`,
+            ? `${pathLabel(path)} holds a literal ${secret.vendor} ${shown}. The ID alone does not grant access, but it identifies the account, and its secret key is often committed next to it. Check that the secret key is not in the repository, then ${remedy(artifact, path, name)}.`
+            : `${pathLabel(path)} holds a literal ${secret.vendor} ${shown} that anyone who can read this file can copy. Revoke and rotate it, then ${remedy(artifact, path, name)}.`,
           platforms: artifact.readers,
+          ...(fix === undefined ? {} : { fix }),
+          ...(guidance === undefined ? {} : { guidance }),
         });
       }
     }

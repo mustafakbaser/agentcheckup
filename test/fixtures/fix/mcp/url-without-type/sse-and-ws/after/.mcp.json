@@ -1,0 +1,9 @@
+{
+    "mcpServers": {
+        "events": {
+            "type": "sse",
+            "url": "https://events.acme-tools.dev/v2/sse/"
+        },
+        "live": {"type": "ws", "url": "wss://live.acme-tools.dev/socket"}
+    }
+}

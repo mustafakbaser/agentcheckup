@@ -1,0 +1,5 @@
+{
+  "enabledMcpjsonServers": ["github", "docs"],
+  "disabledMcpjsonServers": ["legacy"],
+  "permissions": { "allow": ["Bash(npm test)"] }
+}

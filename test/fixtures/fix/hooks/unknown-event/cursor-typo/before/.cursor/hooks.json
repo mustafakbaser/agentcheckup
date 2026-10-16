@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdti": [{ "command": "npm run format" }]
+  }
+}

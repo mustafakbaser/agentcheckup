@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "docs": {
+      "url": "https://docs.acme-tools.dev/mcp"
+    },
+    "files": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2025.8.21", "."] }
+  }
+}

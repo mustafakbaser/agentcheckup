@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": ["Bash(npm test)"],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "claude-sonnet-4-5"
+}

@@ -1,0 +1,10 @@
+{
+  // MCP servers for this project
+  "mcpServers": {
+    "docs": {
+      "url": "https://docs.acme-tools.dev/mcp" // remote docs server
+    },
+    /* "old": { "command": "old-server" }, */
+    "files": { /* local */ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2025.8.21", "."] }
+  }
+}

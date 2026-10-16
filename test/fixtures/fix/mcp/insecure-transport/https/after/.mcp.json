@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "api": { "type": "http", "url": "https://api.acme-tools.dev:8443/mcp" },
+    "local": { "type": "http", "url": "http://localhost:3000/mcp" }
+  }
+}

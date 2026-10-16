@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "matcher": "write_file",
+        "hooks": [{ "type": "command", "command": "npm run format", "timeout": 30000 }]
+      }
+    ]
+  }
+}

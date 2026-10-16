@@ -134,6 +134,8 @@ export const hiddenCommentRule = defineRule({
           span: comment.span,
           message: `HTML comment hides instructions for the agent from rendered Markdown: ${quote(body)}. ${who}`,
           platforms: readers,
+          guidance:
+            'move instructions you intend into visible text; delete the comment if you did not write it, and check who added it',
         });
       }
     }

@@ -1,0 +1,8 @@
+{
+  // Shared settings for the team
+  "general": {
+    "vimMode": false // the last one wins
+  },
+  /* tools */
+  "tools": { "sandbox": false }
+}

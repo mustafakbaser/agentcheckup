@@ -10,7 +10,7 @@ Hook event name is not one the agent fires.
 | Category   | `loading`                                                           |
 | Platforms  | Claude Code, Codex, Cursor, Gemini CLI                              |
 | Applies to | `claude-settings`, `codex-hooks`, `cursor-hooks`, `gemini-settings` |
-| Fixable    | No                                                                  |
+| Fixable    | Yes, `review`                                                       |
 | Since      | 2026.10                                                             |
 
 ## Why

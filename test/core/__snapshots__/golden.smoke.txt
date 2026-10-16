@@ -158,7 +158,28 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "15500b3f20e0ba:1"
+      "fingerprint": "15500b3f20e0ba:1",
+      "fix": {
+        "id": "mcp/url-without-type#http",
+        "class": "review",
+        "title": "Add \"type\": \"http\" to MCP server \"docs\"",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": ".mcp.json",
+            "edits": [
+              {
+                "offset": 40,
+                "length": 0,
+                "text": "\"type\": \"http\",\n      "
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "Claude Code will offer to start MCP server \"docs\"; `claude -p` starts it without asking."
+        ]
+      }
     },
     {
       "ruleId": "instr/agents-md-ignored-by-claude",
@@ -1151,7 +1172,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Deletes the earlier key and its value, which JSON.parse ignores, so the configuration agents read does not change. Not offered when the deletion would remove a comment."
+      }
     },
     {
       "id": "json/invalid-syntax",
@@ -1224,7 +1251,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Deletes the trailing commas and comments (in Gemini CLI settings, which allow comments, only the trailing commas) when they are the only syntax errors. Other syntax errors are left to you."
+      }
     },
     {
       "id": "mcp/env-syntax-mismatch",
@@ -1279,7 +1312,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Rewrites every reference in the string in the syntax of the agent that reads the file: \"${NAME}\" for Claude Code, \"$NAME\" for Gemini CLI. Not offered for Cursor built-ins such as \"${workspaceFolder}\", which the other agents do not have, or for a file that other paths link to."
+      }
     },
     {
       "id": "mcp/insecure-transport",
@@ -1324,7 +1363,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Changes http:// to https:// and ws:// to wss:// in the server URL. Moving off the deprecated SSE transport is left to you."
+      }
     },
     {
       "id": "mcp/literal-secret",
@@ -1484,7 +1529,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces only the token with a variable reference in the syntax of the agent that reads the file: \"${NAME}\" in .mcp.json and plugin servers, \"${env:NAME}\" in .cursor/mcp.json, \"$NAME\" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential."
+      }
     },
     {
       "id": "mcp/url-without-type",
@@ -1513,7 +1564,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Adds \"type\" as the first property of the server: \"ws\" for ws:// and wss:// URLs, \"sse\" when the path ends in /sse, otherwise \"http\". Always a review fix, because it lets Claude Code start the server."
+      }
     },
     {
       "id": "risk/hidden-comment",
@@ -1658,7 +1715,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Deletes every run of tag characters and zero-width characters in the file, and every variation selector after a run's first. Bidirectional controls are left to you, because right-to-left text can need them."
+      }
     },
     {
       "id": "risk/remote-script-execution",

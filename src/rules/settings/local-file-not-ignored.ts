@@ -2,6 +2,7 @@ import { RULESET_VERSION } from '../../core/meta.js';
 import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
 import { defineRule } from '../define.js';
+import { shellSafePath } from '../json/fix-support.js';
 import { SOURCES } from '../sources.js';
 
 interface InstructionDirectories {
@@ -33,6 +34,19 @@ function agentsMdDependsOnIt(directory: string, index: InstructionDirectories): 
     if (index.claudeMd.has(current)) return false;
     if (current === '') return true;
   }
+}
+
+/**
+ * The manual step. There is no fix: the walk does not read `.gitignore` files as text a fix
+ * could edit, and a scan of the fixed copy in memory does not apply them, so a fix could never be
+ * verified. agentcheckup never runs git, so the `git rm --cached` step is printed for the user;
+ * only for a path a shell reads as one word, so the printed command cannot run anything else.
+ */
+function guidanceFor(path: string): string {
+  const untrack = shellSafePath(path)
+    ? `git rm --cached ${path}`
+    : 'git rm --cached on the file (quote its path)';
+  return `add the line "CLAUDE.local.md" to the root .gitignore (it matches the file in every directory); if git already tracks the file, also run ${untrack}`;
 }
 
 export const localFileNotIgnoredRule = defineRule({
@@ -67,6 +81,7 @@ export const localFileNotIgnoredRule = defineRule({
       context.report({
         artifact,
         message: `CLAUDE.local.md is not covered by any .gitignore in this repository. Once it is committed, Claude Code loads these personal instructions for everyone in the project${agents}; add it to .gitignore.`,
+        guidance: guidanceFor(artifact.path),
       });
     }
   },

@@ -10,7 +10,7 @@ Gemini CLI MCP server name contains an underscore.
 | Category   | `correctness`     |
 | Platforms  | Gemini CLI        |
 | Applies to | `gemini-settings` |
-| Fixable    | No                |
+| Fixable    | Yes, `review`     |
 | Since      | 2026.10           |
 
 ## Why

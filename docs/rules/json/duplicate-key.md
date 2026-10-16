@@ -10,7 +10,7 @@ JSON object repeats a key.
 | Category   | `correctness`                                                                                                           |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                 |
 | Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks` |
-| Fixable    | No                                                                                                                      |
+| Fixable    | Yes, `safe`                                                                                                             |
 | Since      | 2026.10                                                                                                                 |
 
 ## Why

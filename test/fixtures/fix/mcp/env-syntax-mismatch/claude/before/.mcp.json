@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.0.0", "--token", "${env:GITHUB_TOKEN}"],
+      "env": { "API_KEY": "$API_KEY" }
+    },
+    "api": {
+      "type": "http",
+      "url": "https://api.acme-tools.dev/%TENANT_ID%/mcp",
+      "headers": { "Authorization": "Bearer $API_TOKEN", "X-Org": "${env:ORG}" }
+    }
+  }
+}

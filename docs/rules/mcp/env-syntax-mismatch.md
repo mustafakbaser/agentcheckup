@@ -10,7 +10,7 @@ MCP configuration uses another agent's variable syntax.
 | Category   | `portability`                                           |
 | Platforms  | Claude Code, Gemini CLI                                 |
 | Applies to | `mcp-json`, `claude-plugin-manifest`, `gemini-settings` |
-| Fixable    | No                                                      |
+| Fixable    | Yes, `review`                                           |
 | Since      | 2026.10                                                 |
 
 ## Why

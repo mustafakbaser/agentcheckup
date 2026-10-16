@@ -1,7 +1,9 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { joinRelative, pathStatus } from '../../core/paths.js';
-import type { Severity, Span } from '../../core/types.js';
+import type { Artifact, Fix, Severity, Span } from '../../core/types.js';
+import { jsonReplaceValue } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
+import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import {
   at,
   FileFindings,
@@ -49,6 +51,38 @@ interface Problem {
   readonly span: Span | undefined;
   readonly severity: Severity;
   readonly message: string;
+  readonly fix?: Fix;
+}
+
+const ID = 'settings/plugin-manifest';
+
+/** Manifest keys whose components start processes: hooks, MCP and LSP servers, monitors. */
+const PROCESS_KEYS: readonly JsonPath[] = [
+  ['hooks'],
+  ['mcpServers'],
+  ['lspServers'],
+  ['monitors'],
+  ['experimental', 'monitors'],
+];
+
+/** Files Claude Code loads from a plugin by default, whose components start processes. */
+const PROCESS_FILES = ['hooks/hooks.json', '.mcp.json', '.lsp.json'];
+
+/**
+ * Whether the plugin can start a process once its manifest is valid: an invalid manifest keeps
+ * the whole plugin from installing, so fixing it activates everything the plugin declares. Such
+ * fixes are `review` (ADR 0008); unknown paths count as present.
+ */
+function startsProcesses(
+  root: JsonObject,
+  pluginRoot: string,
+  status: (path: string) => string,
+): boolean {
+  if (PROCESS_KEYS.some((path) => valueAt(root, path) !== undefined)) return true;
+  return PROCESS_FILES.some((file) => {
+    const path = joinRelative(pluginRoot, file);
+    return path === undefined || status(path) !== 'missing';
+  });
 }
 
 /** A description of the first character a plugin name may not contain, or undefined. */
@@ -115,7 +149,77 @@ function kebab(name: string): string {
   return out.endsWith('-') ? out.slice(0, -1) : out;
 }
 
-function checkName(doc: ParsedJson, root: JsonObject, problems: Problem[]): void {
+/** True for names of printable ASCII only. */
+function isAscii(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x20 || code > 0x7e) return false;
+  }
+  return true;
+}
+
+function renameFix(artifact: Artifact, name: string): Fix | undefined {
+  const renamed = kebab(name);
+  if (!isAscii(name) || !KEBAB.test(renamed) || isReservedName(renamed)) return undefined;
+  const change = jsonReplaceValue(artifact, ['name'], renamed);
+  if (change === undefined) return undefined;
+  return {
+    id: `${ID}#kebab-name`,
+    class: 'review',
+    title: `Rename the plugin from ${quote(name)} to ${quote(renamed)}`,
+    changes: [change],
+    notes: [
+      `Claude Code namespaces the plugin's commands and skills by its name, so /${name}:… becomes /${renamed}:…; update documentation and marketplace entries that use the old name.`,
+    ],
+  };
+}
+
+/** The `./` the manifest needs in front of a relative path that otherwise resolves. */
+function prefixFix(
+  artifact: Artifact,
+  entry: PathEntry,
+  component: string,
+  pluginRoot: string,
+  status: (path: string) => string,
+  review: boolean,
+): Fix | undefined {
+  const { value } = entry;
+  if (
+    value === '' ||
+    value.startsWith('/') ||
+    value.startsWith('~') ||
+    value.includes('\\') ||
+    value.includes('://') ||
+    value.split('/').includes('..')
+  ) {
+    return undefined;
+  }
+  const prefixed = `./${value}`;
+  const resolved = joinRelative(pluginRoot, prefixed);
+  if (resolved === undefined || status(resolved) !== 'exists') return undefined;
+  const change = jsonReplaceValue(artifact, entry.path, prefixed);
+  if (change === undefined) return undefined;
+  return {
+    id: `${ID}#dot-slash`,
+    class: review ? 'review' : 'safe',
+    title: `Write ${quote(prefixed)} in "${component}"`,
+    changes: [change],
+    ...(review
+      ? {
+          notes: [
+            'The manifest becomes valid, so Claude Code installs the plugin with every hook and server it declares.',
+          ],
+        }
+      : {}),
+  };
+}
+
+function checkName(
+  artifact: Artifact | undefined,
+  doc: ParsedJson,
+  root: JsonObject,
+  problems: Problem[],
+): void {
   const span = spanOf(doc, ['name']);
   const name = own(root, 'name');
   if (name === undefined) {
@@ -146,10 +250,12 @@ function checkName(doc: ParsedJson, root: JsonObject, problems: Problem[]): void
     return;
   }
   if (!KEBAB.test(name)) {
+    const fix = artifact === undefined ? undefined : renameFix(artifact, name);
     problems.push({
       span,
       severity: 'warn',
       message: `Plugin name ${quote(name)} is not kebab-case, and "claude plugin validate" warns about it. Use lowercase words joined by hyphens, such as ${quote(kebab(name) || 'my-plugin')}.`,
+      ...(fix === undefined ? {} : { fix }),
     });
   }
   if (isReservedName(name)) {
@@ -227,7 +333,7 @@ function checkPath(
 
 export const pluginManifestRule = defineRule({
   meta: {
-    id: 'settings/plugin-manifest',
+    id: ID,
     title: 'Plugin manifest has an invalid name or component path',
     rationale: [
       '`name` is the only required field in `.claude-plugin/plugin.json`. Without it, or with spaces, `@`, `:`, path separators, control or bidirectional characters in it, the manifest is invalid and the plugin cannot be installed. A `homepage` that does not parse as a URL makes the plugin fail to load. Every component path must start with `./`, stay inside the plugin directory and exist, or the manifest fails validation or the component does not load. `skills` also accepts `"."`, and `mcpServers` an `https://` bundle URL.',
@@ -240,6 +346,11 @@ export const pluginManifestRule = defineRule({
     platforms: ['claude-code'],
     sources: [SOURCES.claudePlugins, JSON_SOURCES.claudePluginTroubleshooting],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe', 'review'],
+      summary:
+        'Adds the missing "./" in front of a component path that exists (a review fix when the plugin declares hooks or servers, which then load), and renames a plugin whose name is not kebab-case (review). Other problems are left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -255,8 +366,9 @@ export const pluginManifestRule = defineRule({
         });
         continue;
       }
+      const canEdit = editable(artifact);
       const problems: Problem[] = [];
-      checkName(doc, root, problems);
+      checkName(canEdit ? artifact : undefined, doc, root, problems);
 
       const homepage = own(root, 'homepage');
       if (typeof homepage === 'string' && !URL.canParse(homepage)) {
@@ -269,10 +381,20 @@ export const pluginManifestRule = defineRule({
 
       const pluginRoot = projectRootOf(artifact);
       const status = (path: string): string => pathStatus(context.snapshot, path);
+      const review = startsProcesses(root, pluginRoot, status);
       for (const [keyPath, component] of COMPONENTS) {
         for (const entry of pathEntries(valueAt(root, keyPath), keyPath, component)) {
           const problem = checkPath(entry, component, pluginRoot, status);
-          if (problem !== undefined) problems.push({ ...problem, span: spanOf(doc, entry.path) });
+          if (problem === undefined) continue;
+          const fix =
+            canEdit && !entry.value.startsWith('./')
+              ? prefixFix(artifact, entry, component, pluginRoot, status, review)
+              : undefined;
+          problems.push({
+            ...problem,
+            span: spanOf(doc, entry.path),
+            ...(fix === undefined ? {} : { fix }),
+          });
         }
       }
 
@@ -285,6 +407,8 @@ export const pluginManifestRule = defineRule({
           ...at(problem.span),
           severity: problem.severity,
           message: problem.message,
+          ...(problem.fix === undefined ? {} : { fix: problem.fix }),
+          ...(canEdit ? {} : { guidance: sharedFileGuidance(artifact) }),
         });
       }
       findings.finish();

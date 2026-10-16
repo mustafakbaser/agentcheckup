@@ -1,7 +1,16 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { type ArtifactKind, PLATFORM_IDS, type Severity } from '../../core/types.js';
+import {
+  type Artifact,
+  type ArtifactKind,
+  type Fix,
+  PLATFORM_IDS,
+  type Severity,
+  type Span,
+} from '../../core/types.js';
+import { replaceSpan } from '../../fix/edits.js';
 import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
+import { editable, mergeEdits, sharedFileGuidance } from '../json/fix-support.js';
 import { codePointLabel, formatInteger, joinNames, quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { RISK_SOURCES } from './sources.js';
@@ -77,9 +86,72 @@ function describe(run: HiddenRun): string {
 
 const RANK: Readonly<Record<Severity, number>> = { info: 0, warn: 1, error: 2 };
 
+const ID = 'risk/hidden-unicode';
+
+/** Most runs one fix deletes; a file with more is left to the user. */
+export const MAX_DELETED_RUNS = 1000;
+
+const BIDI_GUIDANCE =
+  'delete the bidirectional controls by hand unless right-to-left text on this line needs them, and check that the line reads the same afterwards';
+
+/**
+ * What the fix deletes from a run: the whole run, except that a run of variation selectors keeps
+ * its first selector, which may belong to the character before it (an emoji's U+FE0F).
+ */
+function deletion(text: string, run: HiddenRun): Span {
+  if (run.kind !== 'selector') return run.span;
+  const first = text.codePointAt(run.span.offset) ?? 0;
+  const size = first > 0xffff ? 2 : 1;
+  return { offset: run.span.offset + size, length: run.span.length - size };
+}
+
+/**
+ * One fix for the whole file, carried by every finding it resolves: deletes every run of tag
+ * characters, zero-width characters and surplus variation selectors. Bidirectional controls stay,
+ * as they can be legitimate in right-to-left text. Undefined when there is nothing to delete,
+ * too much, or a bidirectional finding past the cap would surface once the summary is gone and
+ * keep the fix from verifying.
+ */
+function deletionFix(artifact: Artifact): Fix | undefined {
+  const { text } = artifact.decoded;
+  const spans: Span[] = [];
+  // An object, so the flow analysis sees the callback's writes.
+  const seen = { runs: 0, bidi: 0, bidiPastCap: false };
+  scanHidden(text, (run) => {
+    seen.runs++;
+    if (run.kind === 'bidi') {
+      seen.bidi++;
+      if (seen.runs > MAX_HIDDEN_FINDINGS) seen.bidiPastCap = true;
+      return;
+    }
+    if (spans.length <= MAX_DELETED_RUNS) spans.push(deletion(text, run));
+  });
+  const { bidi } = seen;
+  if (spans.length === 0 || spans.length > MAX_DELETED_RUNS || seen.bidiPastCap) return undefined;
+  const change = mergeEdits(
+    artifact,
+    spans.map((span) => replaceSpan(artifact, span, '')),
+  );
+  if (change === undefined) return undefined;
+  return {
+    id: `${ID}#delete`,
+    class: 'review',
+    title: `Delete ${plural(spans.length, 'run', 'runs')} of invisible characters`,
+    changes: [change],
+    notes: [
+      'Text the characters spelled or split joins up again: check that each changed line reads as intended.',
+      ...(bidi === 0
+        ? []
+        : [
+            `${plural(bidi, 'line', 'lines')} with bidirectional controls ${bidi === 1 ? 'is' : 'are'} left for you to check.`,
+          ]),
+    ],
+  };
+}
+
 export const hiddenUnicodeRule = defineRule({
   meta: {
-    id: 'risk/hidden-unicode',
+    id: ID,
     title: 'File contains invisible or text-reordering Unicode characters',
     rationale: [
       'Unicode tag characters (U+E0000–U+E007F) mirror ASCII but render as nothing: editors, diffs and rendered Markdown do not show them, yet language models read them as text, so a file can carry instructions no reviewer sees ("ASCII smuggling"). Bidirectional controls (U+202A–U+202E, U+2066–U+2069) change the display order of text, so the reviewed text differs from the text the agent reads ("Trojan Source"). Zero-width characters and runs of variation selectors hide data the same way.',
@@ -98,6 +170,11 @@ export const hiddenUnicodeRule = defineRule({
       RISK_SOURCES.variationSelectorSmuggling,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        "Deletes every run of tag characters and zero-width characters in the file, and every variation selector after a run's first. Bidirectional controls are left to you, because right-to-left text can need them.",
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -105,17 +182,27 @@ export const hiddenUnicodeRule = defineRule({
       const readers = artifact.readers.filter((platform) => context.targets.has(platform));
       if (readers.length === 0) continue;
 
+      const canEdit = editable(artifact);
+      const fix = canEdit ? deletionFix(artifact) : undefined;
       let reported = 0;
       let extra: { first: HiddenRun; count: number; severity: Severity } | undefined;
       scanHidden(artifact.decoded.text, (run) => {
         if (reported < MAX_HIDDEN_FINDINGS) {
           reported++;
+          const guidance =
+            run.kind === 'bidi'
+              ? BIDI_GUIDANCE
+              : canEdit
+                ? undefined
+                : sharedFileGuidance(artifact);
           context.report({
             artifact,
             span: run.span,
             severity: run.severity,
             message: describe(run),
             platforms: readers,
+            ...(fix === undefined || run.kind === 'bidi' ? {} : { fix }),
+            ...(guidance === undefined ? {} : { guidance }),
           });
           return;
         }
@@ -130,6 +217,8 @@ export const hiddenUnicodeRule = defineRule({
           severity: extra.severity,
           message: `Only the first ${formatInteger(MAX_HIDDEN_FINDINGS)} runs of invisible characters in this file are listed; ${formatInteger(extra.count)} more from here on ${extra.count === 1 ? 'is' : 'are'} not.`,
           platforms: readers,
+          // The fix removes every run past the cap, so the summary goes too.
+          ...(fix === undefined ? {} : { fix }),
         });
       }
     }

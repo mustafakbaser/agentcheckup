@@ -1,0 +1,5 @@
+{
+  "enableAllProjectMcpServers": true,
+  "disabledMcpjsonServers": ["legacy"],
+  "permissions": { "allow": ["Bash(npm test)"] }
+}

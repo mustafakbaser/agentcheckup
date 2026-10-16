@@ -1,0 +1,9 @@
+{
+	"name": "deploy-tools",
+	"mcpServers": {
+		"deploy": {
+			"type": "http",
+			"url": "https://deploy.acme-tools.dev/mcp"
+		}
+	}
+}

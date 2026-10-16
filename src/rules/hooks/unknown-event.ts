@@ -1,13 +1,18 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { jsonRenameKey } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
 import { codexMisplacedEvents } from '../../platforms/hooks.js';
 import { at, FileFindings, keySpanOf } from '../json/access.js';
+import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { HOOK_EVENTS, HOOK_PLATFORMS, type HookPlatform } from './events.js';
 import { PLATFORM_LABEL } from './platform-text.js';
 import { HOOK_SOURCES } from './sources.js';
-import { hookEvents, hookPlatformOf } from './walk.js';
+import { type HookEvent, hookEvents, hookPlatformOf } from './walk.js';
+
+const ID = 'hooks/unknown-event';
 
 const CONSEQUENCE: Readonly<Record<HookPlatform, string>> = {
   'claude-code': 'Claude Code skips these hooks with a Settings Warning.',
@@ -33,20 +38,31 @@ function distance(a: string, b: string): number {
   return previous[b.length] ?? Number.POSITIVE_INFINITY;
 }
 
-export function describeUnknownEvent(platform: HookPlatform, name: string): string {
+interface UnknownEvent {
+  readonly message: string;
+  /** The event the message names as the intended one, if any. */
+  readonly suggestion?: string;
+}
+
+function unknownEvent(platform: HookPlatform, name: string): UnknownEvent {
   const label = PLATFORM_LABEL[platform];
   const events = HOOK_EVENTS[platform];
   const consequence = CONSEQUENCE[platform];
   const lower = name.toLowerCase();
   const spelled = events.find((event) => event.toLowerCase() === lower);
   if (spelled !== undefined) {
-    return `${quote(name)} is not a ${label} hook event; it is spelled ${quote(spelled)}. ${consequence}`;
+    return {
+      message: `${quote(name)} is not a ${label} hook event; it is spelled ${quote(spelled)}. ${consequence}`,
+      suggestion: spelled,
+    };
   }
   const owner = HOOK_PLATFORMS.find(
     (other) => other !== platform && HOOK_EVENTS[other].includes(name),
   );
   if (owner !== undefined) {
-    return `${quote(name)} is a ${PLATFORM_LABEL[owner]} hook event, not a ${label} one. ${consequence}`;
+    return {
+      message: `${quote(name)} is a ${PLATFORM_LABEL[owner]} hook event, not a ${label} one. ${consequence}`,
+    };
   }
   let nearest: string | undefined;
   let best = 3;
@@ -58,12 +74,36 @@ export function describeUnknownEvent(platform: HookPlatform, name: string): stri
     }
   }
   const hint = nearest === undefined ? '' : ` (did you mean ${quote(nearest)}?)`;
-  return `${quote(name)} is not a ${label} hook event${hint}. ${consequence}`;
+  return {
+    message: `${quote(name)} is not a ${label} hook event${hint}. ${consequence}`,
+    ...(nearest === undefined ? {} : { suggestion: nearest }),
+  };
+}
+
+export function describeUnknownEvent(platform: HookPlatform, name: string): string {
+  return unknownEvent(platform, name).message;
+}
+
+function fixFor(
+  artifact: Artifact,
+  platform: HookPlatform,
+  event: HookEvent,
+  suggestion: string,
+): Fix | undefined {
+  const change = jsonRenameKey(artifact, event.path, suggestion);
+  if (change === undefined) return undefined;
+  return {
+    id: `${ID}#rename`,
+    class: 'review',
+    title: `Rename hook event ${quote(event.name)} to ${quote(suggestion)}`,
+    changes: [change],
+    notes: [`${PLATFORM_LABEL[platform]} starts running the hooks under this event.`],
+  };
 }
 
 export const unknownEventRule = defineRule({
   meta: {
-    id: 'hooks/unknown-event',
+    id: ID,
     title: 'Hook event name is not one the agent fires',
     rationale: [
       'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.',
@@ -84,6 +124,11 @@ export const unknownEventRule = defineRule({
       HOOK_SOURCES.geminiHookRegistry,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Renames the key to the event the message names: the same name in the right case, or the event within two edits of it. Always a review fix, because the hooks under it start to run. Not offered when the file already has that event.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -96,13 +141,28 @@ export const unknownEventRule = defineRule({
         context.report(descriptor);
       }, 'unknown hook event names');
       const known = new Set(HOOK_EVENTS[platform]);
+      const canEdit = editable(artifact);
+      const declared = new Set(hookEvents(doc, platform).map((event) => event.name));
       for (const event of hookEvents(doc, platform)) {
         if (known.has(event.name)) continue;
+        const { message, suggestion } = unknownEvent(platform, event.name);
+        const taken = suggestion !== undefined && declared.has(suggestion);
+        const fix =
+          canEdit && suggestion !== undefined && !taken
+            ? fixFor(artifact, platform, event, suggestion)
+            : undefined;
+        const guidance = !canEdit
+          ? sharedFileGuidance(artifact)
+          : taken
+            ? `move these hooks into the existing ${quote(suggestion)} entry`
+            : undefined;
         findings.report({
           artifact,
           ...at(keySpanOf(doc, event.path)),
-          message: describeUnknownEvent(platform, event.name),
+          message,
           platforms: [platform],
+          ...(fix === undefined ? {} : { fix }),
+          ...(guidance === undefined ? {} : { guidance }),
         });
       }
       for (const { name: key, path } of platform === 'codex' ? codexMisplacedEvents(doc) : []) {
@@ -111,6 +171,7 @@ export const unknownEventRule = defineRule({
           ...at(keySpanOf(doc, path)),
           message: `Event ${quote(key)} is outside the "hooks" object. Codex allows only "description" and "hooks" at the top level, so it skips the whole file and none of its hooks run.`,
           platforms: [platform],
+          guidance: `move ${quote(key)} and its hooks into the top-level "hooks" object`,
         });
       }
       findings.finish();

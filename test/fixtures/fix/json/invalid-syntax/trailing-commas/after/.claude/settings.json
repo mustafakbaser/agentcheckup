@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run lint)"
+    ]
+  },
+  "model": "claude-sonnet-4-5"
+}

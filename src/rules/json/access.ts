@@ -73,8 +73,11 @@ export class FileFindings {
   finish(): void {
     const first = this.#first;
     if (first === undefined) return;
+    // The summary stands for many findings, so the first omitted one's fix and manual step
+    // would resolve only part of it.
+    const { fix: _fix, guidance: _guidance, ...rest } = first;
     this.#report({
-      ...first,
+      ...rest,
       message: `Only the first ${formatInteger(MAX_FINDINGS_PER_FILE)} ${this.#what} in this file are listed; ${formatInteger(this.#omitted)} more from here on ${this.#omitted === 1 ? 'is' : 'are'} not.`,
     });
   }

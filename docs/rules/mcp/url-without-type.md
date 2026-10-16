@@ -10,7 +10,7 @@ MCP server has a "url" but no "type".
 | Category   | `loading`                            |
 | Platforms  | Claude Code                          |
 | Applies to | `mcp-json`, `claude-plugin-manifest` |
-| Fixable    | No                                   |
+| Fixable    | Yes, `review`                        |
 | Since      | 2026.10                              |
 
 ## Why

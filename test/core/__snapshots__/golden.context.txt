@@ -396,7 +396,28 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "02ecb83c21f9de:1"
+      "fingerprint": "02ecb83c21f9de:1",
+      "fix": {
+        "id": "hooks/fails-open#onFailure",
+        "class": "review",
+        "title": "Set \"onFailure\": \"block\" on this PreToolUse hook",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": ".claude/settings.json",
+            "edits": [
+              {
+                "offset": 417,
+                "length": 0,
+                "text": ", \"onFailure\": \"block\""
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "If this PreToolUse hook crashes, cannot start or times out, Claude Code blocks the tool call. Claude Code before v2.1.295 ignores \"onFailure\"."
+        ]
+      }
     },
     {
       "ruleId": "hooks/unknown-event",
@@ -484,7 +505,28 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "114e41178fdd23:1"
+      "fingerprint": "114e41178fdd23:1",
+      "fix": {
+        "id": "hooks/fails-open#failClosed",
+        "class": "review",
+        "title": "Set \"failClosed\": true on this beforeShellExecution hook",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": ".cursor/hooks.json",
+            "edits": [
+              {
+                "offset": 93,
+                "length": 0,
+                "text": ", \"failClosed\": true"
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "If this beforeShellExecution hook crashes, times out or exits with an error, Cursor blocks the action."
+        ]
+      }
     },
     {
       "ruleId": "cursor/rule-never-applied",
@@ -600,7 +642,28 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "15500b3f20e0ba:1"
+      "fingerprint": "15500b3f20e0ba:1",
+      "fix": {
+        "id": "mcp/url-without-type#http",
+        "class": "review",
+        "title": "Add \"type\": \"http\" to MCP server \"docs\"",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": ".mcp.json",
+            "edits": [
+              {
+                "offset": 349,
+                "length": 0,
+                "text": "\"type\": \"http\",\n      "
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "Claude Code will offer to start MCP server \"docs\"; `claude -p` starts it without asking."
+        ]
+      }
     },
     {
       "ruleId": "instr/agents-md-ignored-by-claude",
@@ -1301,7 +1364,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Sets \"onFailure\": \"block\" on the Claude Code hook or \"failClosed\": true on the Cursor hook. Codex and Gemini CLI have no such setting, so their scripts must be changed by hand."
+      }
     },
     {
       "id": "hooks/script-missing",
@@ -1403,7 +1472,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Rewrites the number in the unit the agent reads: divided by 1,000 and rounded up for Claude Code, Codex and Cursor, multiplied by 1,000 for Gemini CLI. Only the number changes."
+      }
     },
     {
       "id": "hooks/unknown-event",
@@ -1467,7 +1542,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Renames the key to the event the message names: the same name in the right case, or the event within two edits of it. Always a review fix, because the hooks under it start to run. Not offered when the file already has that event."
+      }
     },
     {
       "id": "instr/agents-md-ignored-by-claude",
@@ -2095,7 +2176,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Deletes the earlier key and its value, which JSON.parse ignores, so the configuration agents read does not change. Not offered when the deletion would remove a comment."
+      }
     },
     {
       "id": "json/invalid-syntax",
@@ -2168,7 +2255,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Deletes the trailing commas and comments (in Gemini CLI settings, which allow comments, only the trailing commas) when they are the only syntax errors. Other syntax errors are left to you."
+      }
     },
     {
       "id": "mcp/env-syntax-mismatch",
@@ -2223,7 +2316,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Rewrites every reference in the string in the syntax of the agent that reads the file: \"${NAME}\" for Claude Code, \"$NAME\" for Gemini CLI. Not offered for Cursor built-ins such as \"${workspaceFolder}\", which the other agents do not have, or for a file that other paths link to."
+      }
     },
     {
       "id": "mcp/insecure-transport",
@@ -2268,7 +2367,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Changes http:// to https:// and ws:// to wss:// in the server URL. Moving off the deprecated SSE transport is left to you."
+      }
     },
     {
       "id": "mcp/literal-secret",
@@ -2428,7 +2533,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces only the token with a variable reference in the syntax of the agent that reads the file: \"${NAME}\" in .mcp.json and plugin servers, \"${env:NAME}\" in .cursor/mcp.json, \"$NAME\" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential."
+      }
     },
     {
       "id": "mcp/url-without-type",
@@ -2457,7 +2568,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Adds \"type\" as the first property of the server: \"ws\" for ws:// and wss:// URLs, \"sse\" when the path ends in /sse, otherwise \"http\". Always a review fix, because it lets Claude Code start the server."
+      }
     },
     {
       "id": "risk/hidden-comment",
@@ -2602,7 +2719,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Deletes every run of tag characters and zero-width characters in the file, and every variation selector after a run's first. Bidirectional controls are left to you, because right-to-left text can need them."
+      }
     },
     {
       "id": "risk/remote-script-execution",
@@ -2687,7 +2810,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces \"enableAllProjectMcpServers\": true with \"enabledMcpjsonServers\" listing the servers the project's .mcp.json declares today, so later additions need approval. Not offered when the file already has such a list or .mcp.json cannot be read."
+      }
     },
     {
       "id": "settings/ignored-permission-mode",
@@ -2709,7 +2838,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Removes \"defaultMode\" from the project or local settings. A review fix: Claude Code before v2.1.257 applied \"bypassPermissions\" from these files."
+      }
     },
     {
       "id": "skill/body-too-long",

@@ -58,6 +58,8 @@ export const partialRule = defineRule({
       context.report({
         artifact,
         message: `To bound parsing time, ${parts.join(', ')}. Rules did not check the skipped parts.`,
+        guidance:
+          'split the file or move reference material into separate files that it links to, so every part is checked',
       });
     }
   },

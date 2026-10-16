@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "live": {
+      "url": "wss://live.acme-tools.dev/socket"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  // Comments are fine here: Gemini CLI strips them.
+  "general": { "vimMode": true },
+  "tools": {
+    "sandbox": false, // no sandbox on CI
+  },
+}

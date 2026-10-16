@@ -8,7 +8,7 @@ import {
 } from '../../platforms/hook-command.js';
 import { defineRule } from '../define.js';
 import { at, FileFindings, type JsonObject, own, projectRootOf, spanOf } from '../json/access.js';
-import { quote } from '../shared/format.js';
+import { quote, quotePath } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
 import { HOOK_SOURCES } from './sources.js';
@@ -180,6 +180,7 @@ export const scriptMissingRule = defineRule({
           ...at(spanOf(doc, found.path)),
           message: `Hook runs ${quote(resolved.path)}, which does not exist. ${consequence(platform, handler, event)}`,
           platforms: [platform],
+          guidance: `create ${quotePath(resolved.path)}, correct the path in the hook command, or remove the hook`,
         });
       }
       findings.finish();

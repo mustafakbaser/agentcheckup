@@ -1,9 +1,14 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { jsonReplaceValue } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
-import { at, FileFindings, keySpanOf, own, spanOf } from '../json/access.js';
+import { at, FileFindings, type JsonPath, keySpanOf, own, spanOf } from '../json/access.js';
+import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { isClaudeMcpConfig, mcpPlatform, mcpServers } from './servers.js';
+
+const ID = 'mcp/insecure-transport';
 
 /** Loopback destinations, where unencrypted traffic never leaves the machine. */
 export function isLoopbackHost(hostname: string): boolean {
@@ -35,9 +40,34 @@ export function insecureHost(value: string): { scheme: string; host: string } | 
   return { scheme, host: hostname };
 }
 
+/** Replaces the scheme of the URL at `path` with `secure` (`https://` or `wss://`). */
+function secureFix(
+  artifact: Artifact,
+  server: string,
+  path: JsonPath,
+  value: string,
+  secure: string,
+): Fix | undefined {
+  const scheme = value.indexOf('://');
+  if (scheme === -1) return undefined;
+  const lead = value.length - value.trimStart().length;
+  const url = `${value.slice(0, lead)}${secure}${value.slice(scheme + 3)}`;
+  const change = jsonReplaceValue(artifact, path, url);
+  if (change === undefined) return undefined;
+  return {
+    id: `${ID}#${secure === 'wss://' ? 'wss' : 'https'}`,
+    class: 'review',
+    title: `Connect to MCP server ${quote(server)} over ${secure}`,
+    changes: [change],
+    notes: [
+      `Check that the server accepts ${secure} at this address; a port that serves only plain ${secure === 'wss://' ? 'ws://' : 'http://'} fails the connection.`,
+    ],
+  };
+}
+
 export const insecureTransportRule = defineRule({
   meta: {
-    id: 'mcp/insecure-transport',
+    id: ID,
     title: 'MCP server uses an unencrypted connection to another host',
     rationale: [
       'An `http://` or `ws://` URL sends every tool call, result and header, including `Authorization` tokens, in clear text. Anyone on the network path, for example on a shared Wi-Fi network, can read the traffic and change tool results, which the agent then trusts. `claude plugin validate` also warns about `http://` and `ws://` URLs to hosts other than loopback.',
@@ -50,6 +80,11 @@ export const insecureTransportRule = defineRule({
     platforms: ['claude-code', 'cursor', 'gemini'],
     sources: [SOURCES.claudePlugins, SOURCES.claudeMcp, SOURCES.cursorMcp, SOURCES.geminiMcp],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Changes http:// to https:// and ws:// to wss:// in the server URL. Moving off the deprecated SSE transport is left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -58,6 +93,7 @@ export const insecureTransportRule = defineRule({
       if (platform === undefined || !context.targets.has(platform)) continue;
       const doc = context.json(artifact);
       if (!doc.ok) continue;
+      const canEdit = editable(artifact);
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'findings about MCP transports');
@@ -68,11 +104,15 @@ export const insecureTransportRule = defineRule({
           const insecure = insecureHost(value);
           if (insecure === undefined) continue;
           const secure = insecure.scheme === 'ws' ? 'wss://' : 'https://';
+          const path = [...server.path, field];
+          const fix = canEdit ? secureFix(artifact, server.name, path, value, secure) : undefined;
           findings.report({
             artifact,
-            ...at(spanOf(doc, [...server.path, field])),
+            ...at(spanOf(doc, path)),
             message: `MCP server ${quote(server.name)} connects to ${quote(insecure.host)} over unencrypted ${insecure.scheme}://, so anyone on the network path can read and change its traffic, including credentials in headers. Use ${secure}.`,
             platforms: [platform],
+            ...(fix === undefined ? {} : { fix }),
+            ...(canEdit ? {} : { guidance: sharedFileGuidance(artifact) }),
           });
         }
         if (
@@ -86,6 +126,8 @@ export const insecureTransportRule = defineRule({
             severity: 'info',
             message: `MCP server ${quote(server.name)} uses the SSE transport, which Claude Code has deprecated. Use "type": "http" if the server supports Streamable HTTP.`,
             platforms: [platform],
+            guidance:
+              'check whether the server offers a Streamable HTTP endpoint (often /mcp), then set "type": "http" and point "url" at it',
           });
         }
       }

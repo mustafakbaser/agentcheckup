@@ -1,0 +1,10 @@
+{
+  // Team MCP servers
+  "mcpServers": {
+    "search": {
+      "command": "uvx",
+      "args": ["acme-search-mcp==1.4.0"],
+      "env": { "OPENAI_API_KEY": "{{SECRET:openai}}" }
+    }
+  }
+}

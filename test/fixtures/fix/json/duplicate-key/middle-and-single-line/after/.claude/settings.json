@@ -1,0 +1,9 @@
+{
+  "model": "claude-sonnet-4-5",
+  "permissions": {
+    "deny": ["Read(.env)"],
+    "ask": ["Bash(git push:*)"],
+    "allow": ["Bash(npm test)", "Bash(npm run lint)"]
+  },
+  "env": { "DEBUG": "0" }
+}

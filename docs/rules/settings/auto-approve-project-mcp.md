@@ -10,7 +10,7 @@ Settings approve every project MCP server automatically.
 | Category   | `risk`            |
 | Platforms  | Claude Code       |
 | Applies to | `claude-settings` |
-| Fixable    | No                |
+| Fixable    | Yes, `review`     |
 | Since      | 2026.10           |
 
 ## Why
