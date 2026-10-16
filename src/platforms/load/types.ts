@@ -7,7 +7,7 @@
  * cover the repository only: managed, user, global and account scopes are listed in `hidden`,
  * never read (ADR 0003).
  */
-import type { ArtifactKind, PlatformId, RuleSource } from '../../core/types.js';
+import type { ArtifactKind, FixClass, PlatformId, RuleSource } from '../../core/types.js';
 
 /** Agents with a load model, in PLATFORM_IDS order. Other platforms are added one at a time. */
 export const CONTEXT_AGENTS = [
@@ -180,6 +180,16 @@ export interface SkippedLoad {
    * src/platforms/load/consistency.ts lists every case.
    */
   readonly ruleId?: string;
+  /**
+   * What the agent would receive if it loaded the file, so a report can say what the skip
+   * costs. Absent when the loader cannot tell, as for MCP servers and hooks.
+   */
+  readonly size?: Size;
+  /**
+   * The class of the fix on the finding with the same `ruleId` and `path`, set when plans are
+   * assembled. Absent when no unsuppressed finding of that rule carries a fix.
+   */
+  readonly fix?: FixClass;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
 }

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { rebaseResult, stripPathBase } from '../../src/core/rebase.js';
 import type { ScanResult } from '../../src/core/engine.js';
+import type { FileChange, Fix } from '../../src/core/types.js';
 import { withContext } from '../helpers/context.js';
 import { richResult as rich } from '../report/fixtures.js';
+import { hostileResult } from '../report/hostile.js';
 
 const full = withContext(rich);
+
+/** Every path a fix changes, in its alternatives too. */
+function fixPaths(fix: Fix | undefined): string[] {
+  if (fix === undefined) return [];
+  const paths = (change: FileChange): string[] =>
+    change.kind === 'rename' ? [change.from, change.to] : [change.path];
+  return [...fix.changes.flatMap(paths), ...(fix.alternatives ?? []).flatMap(fixPaths)];
+}
 
 describe('rebaseResult', () => {
   it('returns the same object for an empty prefix', () => {
@@ -19,6 +29,7 @@ describe('rebaseResult', () => {
       ...rebased.findings.flatMap((finding) => [
         finding.path,
         ...finding.related.map((related) => related.path),
+        ...fixPaths(finding.fix),
       ]),
       ...rebased.score.artifacts.map((artifact) => artifact.path),
       ...rebased.skipped.map((entry) => entry.path),
@@ -100,6 +111,28 @@ describe('rebaseResult', () => {
         ids.has(hit.id) || hit.id.startsWith('perm:repo/') || hit.id.startsWith('env:repo/'),
       ).toBe(true);
     }
+  });
+
+  it('rebases the paths a fix changes, in alternatives too, and leaves its text alone', () => {
+    const fixed = hostileResult.findings.find((finding) => finding.fix?.alternatives);
+    const rebased = rebaseResult(hostileResult, 'repo').findings.find(
+      (finding) => finding.fingerprint === fixed?.fingerprint && finding.fix?.alternatives,
+    );
+    expect(fixPaths(fixed?.fix)).toHaveLength(5);
+    expect(fixPaths(rebased?.fix)).toEqual(fixPaths(fixed?.fix).map((path) => `repo/${path}`));
+    const text = (fix: Fix | undefined) => [
+      fix?.id,
+      fix?.title,
+      fix?.notes,
+      fix?.warning,
+      fix?.changes.map((change) =>
+        change.kind === 'edit' ? change.edits : change.kind === 'create' ? change.text : undefined,
+      ),
+      fix?.alternatives?.map((alternative) => alternative.title),
+    ];
+    expect(text(rebased?.fix)).toEqual(text(fixed?.fix));
+    expect(rebased?.guidance).toBe(fixed?.guidance);
+    expect(stripPathBase(rebaseResult(hostileResult, 'repo'))).toEqual(hostileResult);
   });
 
   it('leaves text that is not a repository path alone', () => {

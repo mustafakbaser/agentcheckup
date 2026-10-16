@@ -21,6 +21,7 @@ export {
   formatJson,
   toJsonBaseline,
   toJsonContext,
+  toJsonFix,
   toJsonInventory,
   toJsonReport,
 } from './json.js';

@@ -461,6 +461,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
       platforms: descriptor.platforms ?? meta.platforms,
       fingerprint: fingerprint(meta.id, artifact, descriptor.span, range.start.line),
       ...(descriptor.fix ? { fix: descriptor.fix } : {}),
+      ...(descriptor.guidance === undefined ? {} : { guidance: descriptor.guidance }),
       ...(suppressed ? { suppressed } : {}),
     });
   }

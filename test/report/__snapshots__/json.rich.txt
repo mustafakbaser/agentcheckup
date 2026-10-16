@@ -72,13 +72,20 @@
       ],
       "fingerprint": "1a2b3c4d5e6f70:1",
       "fix": {
-        "description": "Remove `globs`",
-        "safety": "safe",
-        "edits": [
+        "id": "cursor/conflicting-activation#remove-globs",
+        "class": "safe",
+        "title": "Remove `globs`",
+        "changes": [
           {
-            "offset": 4,
-            "length": 14,
-            "text": ""
+            "kind": "edit",
+            "path": ".cursor/rules/style.mdc",
+            "edits": [
+              {
+                "offset": 4,
+                "length": 14,
+                "text": ""
+              }
+            ]
           }
         ]
       }
@@ -451,7 +458,12 @@
         }
       ],
       "since": "2026.10",
-      "fixable": "safe"
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Removes `globs`, which `alwaysApply: true` overrides."
+      }
     },
     {
       "id": "directive/unused",

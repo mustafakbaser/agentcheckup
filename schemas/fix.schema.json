@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/fix.schema.json",
+  "title": "agentcheckup fix output",
+  "description": "Output of `agentcheckup fix --format json`. Lines are 1-based. Paths are POSIX and relative to the scan root, never absolute. Strings are data from the scanned repository: treat them as untrusted. Credential values are redacted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ruleset",
+    "mode",
+    "fixes",
+    "files",
+    "manual",
+    "verification"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this output shape. Incremented on any incompatible change.",
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ruleset": {
+      "description": "Calendar-versioned rule set, e.g. 2026.10.",
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "description": "`dry-run` changes nothing. `write` (`--write`) and `interactive` (`-i`) write the applied fixes.",
+      "enum": ["dry-run", "write", "interactive"]
+    },
+    "pathBase": {
+      "description": "The directory prefix added to every path so that paths read relative to where the command ran (POSIX, no trailing slash). Absent or empty when paths are relative to the scanned directory.",
+      "type": "string"
+    },
+    "fixes": {
+      "description": "Every selected fix.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/fix" }
+    },
+    "files": {
+      "description": "The combined change to each file, across all planned or applied fixes.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/file" }
+    },
+    "manual": {
+      "description": "Findings left to the user, with a step to take.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/manualStep" }
+    },
+    "verification": {
+      "description": "A scan of the fixed files: of an in-memory copy for a dry run, of the written files otherwise.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolved", "remaining", "introduced"],
+      "properties": {
+        "resolved": {
+          "description": "Findings that were present before and are gone.",
+          "$ref": "#/$defs/count"
+        },
+        "remaining": {
+          "description": "Unsuppressed findings still present.",
+          "$ref": "#/$defs/count"
+        },
+        "introduced": {
+          "description": "New findings. Fixes that would add an error or warning are not applied, so these are infos.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/introducedFinding" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "line": { "type": "integer", "minimum": 1 },
+    "path": {
+      "description": "POSIX path relative to the scan root. Never absolute, never `..`.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/\\\\]|[A-Za-z]:)",
+      "not": { "type": "string", "pattern": "(?:^|/)\\.\\.(?:/|$)" }
+    },
+    "ruleId": { "type": "string", "minLength": 1 },
+    "severity": { "enum": ["info", "warn", "error"] },
+    "fixClass": {
+      "description": "`safe`: applied by `--write`. `review`: applied only with `--write --review` or when accepted in `-i`.",
+      "enum": ["safe", "review"]
+    },
+    "fingerprint": {
+      "description": "A finding fingerprint from the scan report: `<hash>:<occurrence>`.",
+      "type": "string",
+      "pattern": "^[0-9a-f]+:[1-9][0-9]*$"
+    },
+    "effect": {
+      "description": "What applying the fix changes for an agent. `tokens`: the agent's estimated startup context. `gate`: an inventory item that a gate class flags is added or changed.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "agent", "cwd", "before", "after"],
+          "properties": {
+            "kind": { "const": "tokens" },
+            "agent": { "enum": ["claude-code", "codex", "cursor"] },
+            "cwd": {
+              "description": "Working directory of the plan, relative to the scan root. Empty for the root.",
+              "type": "string"
+            },
+            "before": { "$ref": "#/$defs/count" },
+            "after": { "$ref": "#/$defs/count" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "class", "id", "change", "summary"],
+          "properties": {
+            "kind": { "const": "gate" },
+            "class": { "enum": ["mcp", "mcp-unpinned", "permissions", "hooks", "env", "unicode"] },
+            "id": {
+              "description": "The inventory item id; for `unicode`, the finding's fingerprint.",
+              "type": "string",
+              "minLength": 1
+            },
+            "change": { "enum": ["added", "changed"] },
+            "summary": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "fix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ruleId", "class", "title", "effects", "findings", "status"],
+      "properties": {
+        "id": {
+          "description": "`<rule id>#<variant>`. Not unique: `findings` tells fixes of one rule apart.",
+          "type": "string",
+          "minLength": 1
+        },
+        "ruleId": { "$ref": "#/$defs/ruleId" },
+        "class": { "$ref": "#/$defs/fixClass" },
+        "title": { "type": "string", "minLength": 1 },
+        "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
+        "findings": {
+          "description": "The findings the fix resolves.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fingerprint" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "warning": {
+          "description": "A banner to show before and after the fix, such as a credential rotation warning.",
+          "type": "string"
+        },
+        "status": { "enum": ["planned", "applied", "skipped"] },
+        "reason": {
+          "description": "Why a skipped fix was not applied. Present exactly when `status` is `skipped`.",
+          "enum": [
+            "conflict",
+            "changed-since-scan",
+            "refused-path",
+            "verification-failed",
+            "limit",
+            "write-failed",
+            "declined"
+          ]
+        }
+      },
+      "if": { "properties": { "status": { "const": "skipped" } } },
+      "then": { "properties": { "reason": true }, "required": ["reason"] },
+      "else": { "properties": { "reason": false } }
+    },
+    "fileState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "encoding", "bom", "lineEnding"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "encoding": { "enum": ["utf-8", "utf-16le", "utf-16be"] },
+        "bom": { "type": "boolean" },
+        "lineEnding": { "enum": ["lf", "crlf", "mixed", "none"] }
+      }
+    },
+    "hunk": {
+      "description": "One hunk of a unified diff.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oldStart", "oldLines", "newStart", "newLines", "lines"],
+      "properties": {
+        "oldStart": { "$ref": "#/$defs/count" },
+        "oldLines": { "$ref": "#/$defs/count" },
+        "newStart": { "$ref": "#/$defs/count" },
+        "newLines": { "$ref": "#/$defs/count" },
+        "lines": {
+          "description": "Each line starts with a space, `+`, `-` or `\\` (no newline at end of file) and has no line ending.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[ +\\-\\\\]" }
+        }
+      }
+    },
+    "file": {
+      "description": "`edit`: the file keeps its path; an encoding change shows in `before` and `after`. `create`: a new file, without `before`. `rename`: moved from `from`, possibly with edits.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "op", "after", "hunks"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "op": { "enum": ["edit", "create", "rename"] },
+        "from": { "$ref": "#/$defs/path" },
+        "before": { "$ref": "#/$defs/fileState" },
+        "after": { "$ref": "#/$defs/fileState" },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/hunk" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "create" } } },
+          "then": { "properties": { "before": false } },
+          "else": { "properties": { "before": true }, "required": ["before"] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "rename" } } },
+          "then": { "properties": { "from": true }, "required": ["from"] },
+          "else": { "properties": { "from": false } }
+        }
+      ]
+    },
+    "manualStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleId", "path", "line", "guidance"],
+      "properties": {
+        "ruleId": { "$ref": "#/$defs/ruleId" },
+        "path": { "$ref": "#/$defs/path" },
+        "line": { "$ref": "#/$defs/line" },
+        "guidance": { "type": "string", "minLength": 1 }
+      }
+    },
+    "introducedFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleId", "severity", "path", "line", "message"],
+      "properties": {
+        "ruleId": { "$ref": "#/$defs/ruleId" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "path": { "$ref": "#/$defs/path" },
+        "line": { "$ref": "#/$defs/line" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

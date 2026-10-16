@@ -197,6 +197,10 @@
         "range": { "$ref": "#/$defs/range" }
       }
     },
+    "fixClass": {
+      "description": "`safe`: deterministic, one correct form, applied by `agentcheckup fix --write`. `review`: applied only with `--write --review` or when accepted in `-i`. A finding without a fix needs a manual change.",
+      "enum": ["safe", "review"]
+    },
     "textEdit": {
       "type": "object",
       "additionalProperties": false,
@@ -211,14 +215,86 @@
         "text": { "type": "string" }
       }
     },
+    "fileChange": {
+      "description": "One change to one file. `edit`: text edits to an existing file. `create`: a new file; the path must not exist. `rename`: moves a file and never overwrites. `encoding`: re-encodes the file as UTF-8 without a byte order mark.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "edits"],
+          "properties": {
+            "kind": { "const": "edit" },
+            "path": { "$ref": "#/$defs/path" },
+            "edits": {
+              "description": "Offsets index the text before this change. Edits do not overlap.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/textEdit" },
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "text"],
+          "properties": {
+            "kind": { "const": "create" },
+            "path": { "$ref": "#/$defs/path" },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "from", "to"],
+          "properties": {
+            "kind": { "const": "rename" },
+            "from": { "$ref": "#/$defs/path" },
+            "to": { "$ref": "#/$defs/path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "to", "bom"],
+          "properties": {
+            "kind": { "const": "encoding" },
+            "path": { "$ref": "#/$defs/path" },
+            "to": { "const": "utf-8" },
+            "bom": { "const": false }
+          }
+        }
+      ]
+    },
     "fix": {
+      "description": "A repair for the finding. Preview it with `agentcheckup fix`.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["description", "safety", "edits"],
+      "required": ["id", "class", "title", "changes"],
       "properties": {
-        "description": { "type": "string" },
-        "safety": { "enum": ["safe", "suggestion"] },
-        "edits": { "type": "array", "items": { "$ref": "#/$defs/textEdit" } }
+        "id": {
+          "description": "`<rule id>#<variant>`, stable across runs.",
+          "type": "string",
+          "minLength": 1
+        },
+        "class": { "$ref": "#/$defs/fixClass" },
+        "title": { "type": "string", "minLength": 1 },
+        "changes": {
+          "description": "Applied in order. A change after a rename names the file by its new path.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fileChange" },
+          "minItems": 1
+        },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "warning": {
+          "description": "A banner to show before and after the fix.",
+          "type": "string"
+        },
+        "alternatives": {
+          "description": "Other fixes for the same finding, offered by `agentcheckup fix -i`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fix" }
+        }
       }
     },
     "suppression": {
@@ -263,6 +339,10 @@
           "pattern": "^[0-9a-f]+:[1-9][0-9]*$"
         },
         "fix": { "$ref": "#/$defs/fix" },
+        "guidance": {
+          "description": "A manual step that the message does not already state.",
+          "type": "string"
+        },
         "suppressed": { "$ref": "#/$defs/suppression" },
         "baseline": {
           "description": "Set when the scan ran with `--baseline`: `new` when no baseline finding is left to match the fingerprint, otherwise `unchanged`.",
@@ -387,7 +467,21 @@
           "minItems": 1
         },
         "since": { "description": "Rule set version that introduced the rule.", "type": "string" },
-        "fixable": { "enum": ["safe", "suggestion"] }
+        "fix": {
+          "description": "Present when the rule can attach a fix: the classes its fixes may have, and what they do.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classes", "summary"],
+          "properties": {
+            "classes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/fixClass" },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "summary": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "skippedEntry": {
@@ -580,6 +674,14 @@
           "description": "The loading rule whose finding reports this skip. Absent only for `not-read`.",
           "type": "string",
           "minLength": 1
+        },
+        "size": {
+          "description": "What the agent would receive if it loaded the file.",
+          "$ref": "#/$defs/size"
+        },
+        "fix": {
+          "description": "The class of the fix on the finding of `ruleId` on `path`, when it has one.",
+          "$ref": "#/$defs/fixClass"
         },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "$ref": "#/$defs/sourceKeys" }

@@ -54,7 +54,7 @@ export const RULES = {
     title: 'Rule sets both alwaysApply and globs',
     appliesTo: ['cursor-rule'],
     platforms: ['cursor'],
-    fixable: 'safe',
+    fix: { classes: ['safe'], summary: 'Removes `globs`, which `alwaysApply: true` overrides.' },
   }),
   hiddenUnicode: rule('risk/hidden-unicode', 'risk', 'error', {
     title: 'Instructions contain invisible Unicode',
@@ -206,9 +206,16 @@ export const richResult: ScanResult = makeResult({
         range: at(2, 1, 2, 18),
         fingerprint: '1a2b3c4d5e6f70:1',
         fix: {
-          description: 'Remove `globs`',
-          safety: 'safe',
-          edits: [{ offset: 4, length: 14, text: '' }],
+          id: 'cursor/conflicting-activation#remove-globs',
+          class: 'safe',
+          title: 'Remove `globs`',
+          changes: [
+            {
+              kind: 'edit',
+              path: '.cursor/rules/style.mdc',
+              edits: [{ offset: 4, length: 14, text: '' }],
+            },
+          ],
         },
       },
     ),

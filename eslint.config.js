@@ -12,6 +12,7 @@ const PURE_MODULES = [
   'src/inventory/**',
   'src/rules/**',
   'src/report/**',
+  'src/fix/**',
 ];
 
 export default defineConfig(

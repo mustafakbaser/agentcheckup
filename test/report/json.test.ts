@@ -37,6 +37,7 @@ import {
   sampleContext,
   sampleInventory,
   shuffleReport,
+  size,
   skip,
   withContext,
   withHostileContext,
@@ -316,6 +317,56 @@ describe('formatJson with inventory, context and baseline', () => {
       ]),
     );
     expect(chain.plans[0]?.entries[0]?.via).toEqual(['z.md', 'CLAUDE.md']);
+  });
+
+  it('writes the size and fix class of a skipped load', () => {
+    const context = contextResult.context!;
+    const sized: ScanResult = {
+      ...contextResult,
+      context: {
+        ...context,
+        plans: context.plans.map((item, index) =>
+          index === 0
+            ? {
+                ...item,
+                skipped: item.skipped.map((entry) => ({
+                  ...entry,
+                  size: size(788),
+                  fix: 'review' as const,
+                })),
+              }
+            : item,
+        ),
+      },
+    };
+    const output = formatJson(sized);
+    const parsed = JSON.parse(output) as ScanResult;
+    expectValid(parsed);
+    expect(parsed).toEqual(sized);
+    const skipped = parsed.context?.plans[0]?.skipped.find((entry) => entry.ruleId);
+    expect(skipped && Object.keys(skipped)).toEqual([
+      'id',
+      'role',
+      'path',
+      'name',
+      'code',
+      'ruleId',
+      'size',
+      'fix',
+      'certainty',
+      'evidence',
+    ]);
+    for (const mutate of [
+      (entry: Record<string, unknown>) => (entry['fix'] = 'manual'),
+      (entry: Record<string, unknown>) => (entry['size'] = { bytes: 1 }),
+    ]) {
+      const value = JSON.parse(output) as Record<string, unknown>;
+      mutate(
+        (value as unknown as { context: { plans: { skipped: Record<string, unknown>[] }[] } })
+          .context.plans[0]!.skipped[0]!,
+      );
+      expect(validate(value)).toBe(false);
+    }
   });
 
   it('drops runtime-only properties from the new structures', () => {

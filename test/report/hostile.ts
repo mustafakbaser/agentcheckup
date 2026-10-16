@@ -93,6 +93,33 @@ export const hostileResult: ScanResult = makeResult({
     }),
     finding(evilRule, 'notes\n::stop-commands::x/AGENTS.md', HOSTILE_ALL, {
       range: at(6, 1, 6, 2),
+      guidance: HOSTILE_ALL,
+      fix: {
+        id: `${evilRule.id}#${HOSTILE.tags}`,
+        class: 'review',
+        title: HOSTILE_ALL,
+        changes: [
+          {
+            kind: 'edit',
+            path: 'notes\n::stop-commands::x/AGENTS.md',
+            edits: [{ offset: 0, length: 1, text: HOSTILE_ALL }],
+          },
+          { kind: 'create', path: 'new\u001b[2J/CLAUDE.md', text: HOSTILE_ALL },
+          { kind: 'rename', from: 'link\u202E.md', to: '.cursor/rules/link\u202E.mdc' },
+        ],
+        notes: [HOSTILE.osc8Link, HOSTILE.stopCommands],
+        warning: HOSTILE.addMask,
+        alternatives: [
+          {
+            id: `${evilRule.id}#${HOSTILE.bidiOverride}`,
+            class: 'safe',
+            title: HOSTILE.clearScreen,
+            changes: [
+              { kind: 'encoding', path: 'docs/AGENTS\u202Edm.md', to: 'utf-8', bom: false },
+            ],
+          },
+        ],
+      },
     }),
     finding(RULES.fileTooLarge, 'notes\n::stop-commands::x/AGENTS.md', HOSTILE.tablePipes, {
       range: at(7, 1, 7, 2),

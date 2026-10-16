@@ -26,18 +26,20 @@ const PLATFORM_NAMES: Record<string, string> = {
   cline: 'Cline',
 };
 
+/** The "Fixable" row: the classes of fix the rule can attach, from `meta.fix`. */
+function fixable(meta: RuleMeta): string {
+  const classes = meta.fix?.classes ?? [];
+  if (classes.length === 0) return 'No';
+  return `Yes, ${classes.map((name) => `\`${name}\``).join(' or ')}`;
+}
+
 function rulePage(meta: RuleMeta): string {
   const sources = meta.sources
     .map(
       (source) => `- [${source.title}](${source.url}), ${source.status}, checked ${source.checked}`,
     )
     .join('\n');
-  const fix =
-    meta.fixable === undefined
-      ? 'No'
-      : meta.fixable === 'safe'
-        ? 'Yes, safe automatic fix'
-        : 'Suggestion only';
+  const fix = fixable(meta);
   return `<!-- Generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
 
 # \`${meta.id}\`

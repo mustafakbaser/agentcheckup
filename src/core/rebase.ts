@@ -1,5 +1,6 @@
 import type { BaselineDiff, ItemDiff } from './baseline-types.js';
 import type { ScanResult } from './engine.js';
+import type { FileChange, Fix } from './types.js';
 import type { Inventory } from '../inventory/types.js';
 import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
 
@@ -12,15 +13,16 @@ import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
  * where they ran the command. The CLI therefore rebases onto the working directory when
  * scanning a subdirectory; otherwise alerts would land on the wrong files.
  *
- * Rebased: finding, artifact, skipped and symlink paths; load-plan working directories, entry,
- * skip and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files;
+ * Rebased: finding, artifact, skipped and symlink paths; the paths a finding's fix changes
+ * (`path`, `from` and `to`, in alternatives too); load-plan working directories, entry, skip
+ * and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files;
  * baseline paths. Ids that embed a path (`<kind>:<path>…`: plan entries, skips, inventory
  * items, `inventoryId`, baseline id lists and gate hits other than `unicode`) get the prefix
  * after their kind, so they keep matching `<kind>:${path}`. Not rebased, because they are text
  * as written rather than repository paths: `patterns` (globs), hook `script` and `command`, MCP
- * `command` and `args`, hidden-scope locations, limit labels, and summaries. A limit subject is
- * always a path (a group of files uses its working directory, `''` at the root), so it is
- * rebased like one.
+ * `command` and `args`, hidden-scope locations, limit labels, summaries, and the titles, notes
+ * and text of fixes. A limit subject is always a path (a group of files uses its working
+ * directory, `''` at the root), so it is rebased like one.
  */
 export function rebaseResult(result: ScanResult, prefix: string): ScanResult {
   if (prefix === '' || prefix === '.') return result;
@@ -69,6 +71,22 @@ function mapIncomplete(entry: string, map: PathMap): string {
     if (entry.startsWith(`${tag}:`)) return `${tag}:${map(entry.slice(tag.length + 1))}`;
   }
   return map(entry);
+}
+
+function mapChange(change: FileChange, map: PathMap): FileChange {
+  return change.kind === 'rename'
+    ? { ...change, from: map(change.from), to: map(change.to) }
+    : { ...change, path: map(change.path) };
+}
+
+function mapFix(fix: Fix, map: PathMap): Fix {
+  return {
+    ...fix,
+    changes: fix.changes.map((change) => mapChange(change, map)),
+    ...(fix.alternatives === undefined
+      ? {}
+      : { alternatives: fix.alternatives.map((alternative) => mapFix(alternative, map)) }),
+  };
 }
 
 function mapPlan(plan: LoadPlan, map: PathMap): LoadPlan {
@@ -164,6 +182,7 @@ function mapPaths(result: ScanResult, map: PathMap): ScanResult {
       ...finding,
       path: map(finding.path),
       related: finding.related.map((related) => ({ ...related, path: map(related.path) })),
+      ...(finding.fix === undefined ? {} : { fix: mapFix(finding.fix, map) }),
     })),
     score: {
       ...result.score,

@@ -25,7 +25,9 @@ import {
   CATEGORIES,
   PLATFORM_IDS,
   type Category,
+  type FileChange,
   type Finding,
+  type Fix,
   type PlatformId,
   type Position,
   type Range,
@@ -66,6 +68,42 @@ function range(value: Range): Range {
   return { start: position(value.start), end: position(value.end) };
 }
 
+function fileChange(value: FileChange): FileChange {
+  switch (value.kind) {
+    case 'edit':
+      return {
+        kind: 'edit',
+        path: value.path,
+        edits: value.edits.map((edit) => ({
+          offset: edit.offset,
+          length: edit.length,
+          text: edit.text,
+        })),
+      };
+    case 'create':
+      return { kind: 'create', path: value.path, text: value.text };
+    case 'rename':
+      return { kind: 'rename', from: value.from, to: value.to };
+    case 'encoding':
+      return { kind: 'encoding', path: value.path, to: value.to, bom: value.bom };
+  }
+}
+
+/** A canonical copy of a fix. Changes, notes and alternatives keep their order: it is data. */
+export function toJsonFix(value: Fix): Fix {
+  return {
+    id: value.id,
+    class: value.class,
+    title: value.title,
+    changes: value.changes.map(fileChange),
+    ...(value.notes === undefined ? {} : { notes: [...value.notes] }),
+    ...(value.warning === undefined ? {} : { warning: value.warning }),
+    ...(value.alternatives === undefined
+      ? {}
+      : { alternatives: value.alternatives.map(toJsonFix) }),
+  };
+}
+
 function finding(value: Finding): Finding {
   return {
     ruleId: value.ruleId,
@@ -81,19 +119,8 @@ function finding(value: Finding): Finding {
     })),
     platforms: [...value.platforms],
     fingerprint: value.fingerprint,
-    ...(value.fix
-      ? {
-          fix: {
-            description: value.fix.description,
-            safety: value.fix.safety,
-            edits: value.fix.edits.map((edit) => ({
-              offset: edit.offset,
-              length: edit.length,
-              text: edit.text,
-            })),
-          },
-        }
-      : {}),
+    ...(value.fix === undefined ? {} : { fix: toJsonFix(value.fix) }),
+    ...(value.guidance === undefined ? {} : { guidance: value.guidance }),
     ...(value.suppressed
       ? { suppressed: { kind: value.suppressed.kind, reason: value.suppressed.reason } }
       : {}),
@@ -134,7 +161,9 @@ function rule(value: RuleMeta): RuleMeta {
     platforms: [...value.platforms],
     sources: [source(first), ...rest.map(source)],
     since: value.since,
-    ...(value.fixable ? { fixable: value.fixable } : {}),
+    ...(value.fix === undefined
+      ? {}
+      : { fix: { classes: [...value.fix.classes], summary: value.fix.summary } }),
   };
 }
 
@@ -255,6 +284,8 @@ function skippedLoad(value: SkippedLoad): SkippedLoad {
     ...(value.name === undefined ? {} : { name: value.name }),
     code: value.code,
     ...(value.ruleId === undefined ? {} : { ruleId: value.ruleId }),
+    ...(value.size === undefined ? {} : { size: size(value.size) }),
+    ...(value.fix === undefined ? {} : { fix: value.fix }),
     certainty: value.certainty,
     evidence: sortedStrings(value.evidence),
   };
