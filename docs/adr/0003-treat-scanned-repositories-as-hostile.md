@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-10-14
+- Related: [0008](0008-write-fixes-to-the-scanned-repository.md) sets the rules for writing
+  fixes to a scanned repository
 
 ## Context
 

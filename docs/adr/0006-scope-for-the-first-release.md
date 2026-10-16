@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-10-14
+- Amended by: [0008](0008-write-fixes-to-the-scanned-repository.md), which adds
+  `agentcheckup fix` to the first release
 
 ## Context
 

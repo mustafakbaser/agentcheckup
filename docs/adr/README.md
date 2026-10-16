@@ -12,5 +12,6 @@ changed by adding a new record that supersedes the old one, never by editing his
 | [0005](0005-scoring.md)                               | A score that cannot be padded or gamed cheaply                 | Accepted |
 | [0006](0006-scope-for-the-first-release.md)           | Scope for the first release                                    | Accepted |
 | [0007](0007-model-what-each-agent-loads.md)           | Model what each agent loads and gate security-relevant changes | Accepted |
+| [0008](0008-write-fixes-to-the-scanned-repository.md) | Write fixes to the scanned repository                          | Accepted |
 
 New records use [the template](template.md).
