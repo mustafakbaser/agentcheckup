@@ -39,15 +39,27 @@ describeSymlinks('walk: symlinks inside the root', () => {
 
     const snapshot = await walk(root);
 
+    const identity = expect.any(Object) as unknown;
     expect(snapshot.files).toEqual([
       {
         path: '.github/copilot-instructions.md',
         bytes: expect.any(Uint8Array) as unknown,
         symlinkTarget: 'AGENTS.md',
+        identity,
       },
-      { path: 'AGENTS.md', bytes: expect.any(Uint8Array) as unknown },
-      { path: 'CLAUDE.md', bytes: expect.any(Uint8Array) as unknown, symlinkTarget: 'AGENTS.md' },
+      { path: 'AGENTS.md', bytes: expect.any(Uint8Array) as unknown, identity },
+      {
+        path: 'CLAUDE.md',
+        bytes: expect.any(Uint8Array) as unknown,
+        symlinkTarget: 'AGENTS.md',
+        identity,
+      },
     ]);
+    // An alias carries the identity of the real file it was read from.
+    const [viaGithub, real, viaClaude] = snapshot.files.map((file) => file.identity);
+    expect(real).toBeDefined();
+    expect(viaGithub).toEqual(real);
+    expect(viaClaude).toEqual(real);
     expect(textOf(snapshot, 'CLAUDE.md')).toBe('# shared instructions');
     expect(snapshot.paths.has('CLAUDE.md')).toBe(true);
     expect(snapshot.unresolvedSymlinks).toEqual([]);

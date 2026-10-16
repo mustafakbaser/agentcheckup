@@ -3,6 +3,7 @@
  * import are read after the walk, as far as agents follow imports, within the caps and never from
  * outside the root.
  */
+import { createHash } from 'node:crypto';
 import { chmod } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -346,6 +347,10 @@ describe('walk: import pass', () => {
         bytes: new TextEncoder().encode('inside'),
         symlinkTarget: 'docs/real.md',
         imported: true,
+        identity: expect.objectContaining({
+          // SHA-256 of "inside".
+          sha256: createHash('sha256').update('inside').digest('hex'),
+        }) as unknown,
       },
     ]);
     expect(serializeSnapshot(snapshot)).not.toContain('OUTSIDE_SECRET');

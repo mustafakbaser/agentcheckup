@@ -52,8 +52,15 @@ describe('sameFile', () => {
 describe('readRegularFile', () => {
   it('reads the whole file', async () => {
     const filePath = await fileWith('hello');
-    const outcome = await readRegularFile(filePath, await lstat(filePath, { bigint: true }), 100);
-    expect(outcome).toEqual({ ok: true, bytes: new Uint8Array(Buffer.from('hello')) });
+    const stats = await lstat(filePath, { bigint: true });
+    const outcome = await readRegularFile(filePath, stats, 100);
+    expect(outcome).toEqual({
+      ok: true,
+      bytes: new Uint8Array(Buffer.from('hello')),
+      identity: { dev: expect.any(BigInt) as unknown, ino: stats.ino },
+    });
+    // The identity of the opened handle names the lstat-ed file.
+    expect(outcome.ok && sameFile(outcome.identity, stats)).toBe(true);
   });
 
   it('re-checks the size on the opened file', async () => {

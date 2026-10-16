@@ -46,9 +46,9 @@ const FILE_MODE = 0o666;
 /**
  * Errors that mean a directory cannot be opened or synced here, as on Windows (EISDIR, EPERM)
  * and on some file systems (EINVAL, ENOTSUP). The report is in place by then; only the extra
- * durability of its directory entry is lost.
+ * durability of its directory entry is lost. Shared with src/io/write-fix.ts.
  */
-const NO_DIRECTORY_SYNC: ReadonlySet<string> = new Set([
+export const NO_DIRECTORY_SYNC: ReadonlySet<string> = new Set([
   'EISDIR',
   'EINVAL',
   'ENOTSUP',

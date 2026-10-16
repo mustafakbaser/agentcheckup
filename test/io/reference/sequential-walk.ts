@@ -7,6 +7,7 @@
  * import pass reads one target at a time in the order of the shared ImportPlanner, which decides
  * what to read without I/O.
  */
+import { createHash } from 'node:crypto';
 import type { BigIntStats, Dirent } from 'node:fs';
 import { lstat, opendir, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
@@ -17,6 +18,7 @@ import type {
   SkipReason,
   Snapshot,
   SourceFile,
+  SourceIdentity,
   SymlinkProblem,
   UnresolvedSymlink,
 } from '../../../src/core/types.js';
@@ -40,7 +42,7 @@ import {
 import { ImportPlanner, MAX_IMPORTED_BYTES, MAX_IMPORTED_FILES } from '../../../src/io/imports.js';
 import { errorCode, joinRelative, sanitizeLinkText } from '../../../src/io/paths.js';
 import { resolveSymlink, type ScanRoots } from '../../../src/io/resolve.js';
-import { readRegularFile } from '../../../src/io/safe-read.js';
+import { type FileIdentity, readRegularFile } from '../../../src/io/safe-read.js';
 import {
   isOpaqueSubmodule,
   MAX_GITMODULES_BYTES,
@@ -251,7 +253,10 @@ class Walker {
   #entriesSeen = 0;
   #bytesRead = 0;
   /** What reading each real file gave, for the import pass (which never reads a file twice). */
-  readonly #contents = new Map<string, { bytes: Uint8Array } | { binarySize: number }>();
+  readonly #contents = new Map<
+    string,
+    { bytes: Uint8Array; identity: SourceIdentity } | { binarySize: number }
+  >();
   #importedFiles = 0;
   #importedBytes = 0;
   #stopped = false;
@@ -672,13 +677,14 @@ class Walker {
       this.#skip(relativePath, 'binary', bytes.length);
       return;
     }
-    this.#contents.set(location.realPath, { bytes });
+    const identity = identityOf(outcome.identity, bytes);
+    this.#contents.set(location.realPath, { bytes, identity });
     // Reached through a symlink (the file itself or a parent directory): name the real file, so
     // the engine can treat the alias and the file as one artifact.
     this.#files.push(
       realRelativePath === relativePath
-        ? { path: relativePath, bytes }
-        : { path: relativePath, bytes, symlinkTarget: realRelativePath },
+        ? { path: relativePath, bytes, identity }
+        : { path: relativePath, bytes, symlinkTarget: realRelativePath, identity },
     );
   }
 
@@ -705,18 +711,18 @@ class Walker {
       return undefined;
     }
     const real = resolution.relativePath;
-    const fileOf = (bytes: Uint8Array): SourceFile => {
+    const fileOf = (bytes: Uint8Array, identity: SourceIdentity): SourceFile => {
       const file: SourceFile =
         real === relativePath
-          ? { path: relativePath, bytes, imported: true }
-          : { path: relativePath, bytes, symlinkTarget: real, imported: true };
+          ? { path: relativePath, bytes, imported: true, identity }
+          : { path: relativePath, bytes, symlinkTarget: real, imported: true, identity };
       this.#files.push(file);
       return file;
     };
     const known = this.#contents.get(resolution.realPath);
     if (known !== undefined) {
       this.#importedFiles += 1;
-      if ('bytes' in known) return fileOf(known.bytes);
+      if ('bytes' in known) return fileOf(known.bytes, known.identity);
       this.#skip(relativePath, 'binary', known.binarySize);
       return undefined;
     }
@@ -757,8 +763,9 @@ class Walker {
       this.#skip(relativePath, 'binary', bytes.length);
       return undefined;
     }
-    this.#contents.set(resolution.realPath, { bytes });
-    return fileOf(bytes);
+    const identity = identityOf(outcome.identity, bytes);
+    this.#contents.set(resolution.realPath, { bytes, identity });
+    return fileOf(bytes, identity);
   }
 
   /**
@@ -782,4 +789,12 @@ class Walker {
       size === undefined ? { path: relativePath, reason } : { path: relativePath, reason, size },
     );
   }
+}
+
+function identityOf(file: FileIdentity, bytes: Uint8Array): SourceIdentity {
+  return {
+    dev: file.dev,
+    ino: file.ino,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
 }

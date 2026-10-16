@@ -57,7 +57,11 @@ export function sameFile(
 }
 
 export type ReadOutcome =
-  | { readonly ok: true; readonly bytes: Uint8Array }
+  /**
+   * `identity` comes from the fstat of the opened handle, which on Windows also reports the
+   * volume serial number that a path-based lstat may leave at 0 (see {@link sameFile}).
+   */
+  | { readonly ok: true; readonly bytes: Uint8Array; readonly identity: FileIdentity }
   | { readonly ok: false; readonly reason: 'too-large'; readonly size: number }
   | { readonly ok: false; readonly reason: 'special-file' }
   | { readonly ok: false; readonly reason: 'unreadable'; readonly code?: string };
@@ -89,7 +93,11 @@ export async function readRegularFile(
     if (!sameFile(stats, expected)) return { ok: false, reason: 'unreadable' };
     const size = Number(stats.size);
     if (size > maxBytes) return { ok: false, reason: 'too-large', size };
-    return { ok: true, bytes: await readUpTo(handle, size) };
+    return {
+      ok: true,
+      bytes: await readUpTo(handle, size),
+      identity: { dev: stats.dev, ino: stats.ino },
+    };
   } catch (error) {
     return unreadable(error);
   } finally {

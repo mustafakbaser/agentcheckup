@@ -85,12 +85,14 @@ export const fifosSupported = await probeFifo();
 
 /**
  * Serializes a snapshot so that file contents appear as text: Uint8Array becomes its latin1
- * string (every byte maps to one character), Set becomes an array.
+ * string (every byte maps to one character), Set becomes an array, and a bigint (the device and
+ * inode of `SourceFile.identity`) its decimal digits.
  */
 export function serializeSnapshot(snapshot: Snapshot): string {
   return JSON.stringify(snapshot, (_key, value: unknown) => {
     if (value instanceof Uint8Array) return Buffer.from(value).toString('latin1');
     if (value instanceof Set) return [...(value as Set<unknown>)];
+    if (typeof value === 'bigint') return value.toString();
     return value;
   });
 }

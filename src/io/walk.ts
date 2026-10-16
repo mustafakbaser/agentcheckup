@@ -13,6 +13,7 @@
  * File reads detect swaps (see readRegularFile), but Node.js has no openat()/O_DIRECTORY-based
  * listing, so a racing directory swap could expose names from outside the root.
  */
+import { createHash } from 'node:crypto';
 import type { BigIntStats, Dirent } from 'node:fs';
 import { lstat, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
@@ -23,6 +24,7 @@ import type {
   SkipReason,
   Snapshot,
   SourceFile,
+  SourceIdentity,
   SymlinkProblem,
   UnresolvedSymlink,
 } from '../core/types.js';
@@ -47,7 +49,7 @@ import { ImportPlanner, MAX_IMPORTED_BYTES, MAX_IMPORTED_FILES } from './imports
 import { errorCode, joinRelative, sanitizeLinkText } from './paths.js';
 import { type FileProbe, Limiter, type Listing, probeFile, readListing } from './prefetch.js';
 import { resolveSymlink, type ScanRoots } from './resolve.js';
-import { type ReadOutcome, readRegularFile } from './safe-read.js';
+import { type FileIdentity, type ReadOutcome, readRegularFile } from './safe-read.js';
 import { isOpaqueSubmodule, MAX_GITMODULES_BYTES, parseGitmodules } from './submodules.js';
 
 /** Re-exported for existing importers; the policy helpers live in filters.ts. */
@@ -101,6 +103,7 @@ export class WalkError extends Error {
  *
  * - `files`: candidates that were read. `symlinkTarget` is set when the file was reached through a
  *   symlink (the file itself or a parent directory) and holds the real file's root-relative path.
+ *   `identity` holds the device and inode of the file that was read and the SHA-256 of its bytes.
  * - `paths`: every file and directory listed (directories end with `/`), except ignored ones.
  * - `opaqueDirectories`: directories that exist but were not (fully) listed: hard-excluded,
  *   gitignored, too deep, unreadable, loop-guarded directory links, links whose target was not
@@ -284,7 +287,22 @@ interface ListingSlot {
 }
 
 /** What reading a real file gave: alias paths of the same file reuse it. */
-type FileContent = { readonly bytes: Uint8Array } | { readonly binarySize: number };
+type FileContent =
+  | { readonly bytes: Uint8Array; readonly identity: SourceIdentity }
+  | { readonly binarySize: number };
+
+/**
+ * The identity a text file gets in the snapshot: the device and inode of the opened handle and
+ * the SHA-256 of the bytes read, which `agentcheckup fix --write` compares with the file on disk
+ * before replacing it (src/io/write-fix.ts).
+ */
+function sourceIdentity(file: FileIdentity, bytes: Uint8Array): SourceIdentity {
+  return {
+    dev: file.dev,
+    ino: file.ino,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
+}
 
 const byName = (a: Dirent, b: Dirent): number => compareStrings(a.name, b.name);
 
@@ -765,7 +783,7 @@ class Walker {
   #reuseContent(location: Location): boolean {
     const content = this.#contents.get(location.realPath);
     if (content === undefined) return false;
-    if ('bytes' in content) this.#addFile(location, content.bytes);
+    if ('bytes' in content) this.#addFile(location, content);
     else this.#skip(location.relativePath, 'binary', content.binarySize);
     return true;
   }
@@ -877,20 +895,29 @@ class Walker {
       this.#skip(relativePath, 'binary', bytes.length);
       return;
     }
-    this.#contents.set(location.realPath, { bytes });
-    this.#addFile(location, bytes);
+    const content = { bytes, identity: sourceIdentity(outcome.identity, bytes) };
+    this.#contents.set(location.realPath, content);
+    this.#addFile(location, content);
   }
 
-  /** Alias paths share the same bytes object; consumers must treat `bytes` as read-only. */
-  #addFile(location: Location, bytes: Uint8Array, imported = false): SourceFile {
+  /**
+   * Alias paths share the same bytes and identity objects; consumers must treat them as
+   * read-only. The identity names the real file, also for an alias path.
+   */
+  #addFile(
+    location: Location,
+    content: { readonly bytes: Uint8Array; readonly identity: SourceIdentity },
+    imported = false,
+  ): SourceFile {
     const { relativePath, realRelativePath } = location;
     // Reached through a symlink (the file itself or a parent directory): name the real file, so
     // the engine can treat the alias and the file as one artifact.
     const file: SourceFile = {
       path: relativePath,
-      bytes,
+      bytes: content.bytes,
       ...(realRelativePath === relativePath ? {} : { symlinkTarget: realRelativePath }),
       ...(imported ? { imported } : {}),
+      identity: content.identity,
     };
     this.#files.push(file);
     return file;
@@ -940,7 +967,7 @@ class Walker {
     if (known !== undefined) {
       // Read already, through another path: no second read, and no bytes counted again.
       this.#importedFiles += 1;
-      if ('bytes' in known) return this.#addFile(location, known.bytes, true);
+      if ('bytes' in known) return this.#addFile(location, known, true);
       this.#skip(relativePath, 'binary', known.binarySize);
       return undefined;
     }
@@ -984,8 +1011,9 @@ class Walker {
       this.#skip(relativePath, 'binary', bytes.length);
       return undefined;
     }
-    this.#contents.set(location.realPath, { bytes });
-    return this.#addFile(location, bytes, true);
+    const content = { bytes, identity: sourceIdentity(outcome.identity, bytes) };
+    this.#contents.set(location.realPath, content);
+    return this.#addFile(location, content, true);
   }
 
   /**

@@ -114,7 +114,18 @@ describe('walk: discovery and output shape', () => {
     const root = await makeTempDir();
     await writeTree(root, { 'AGENTS.md': '' });
     const snapshot = await walk(root);
-    expect(snapshot.files).toEqual([{ path: 'AGENTS.md', bytes: new Uint8Array() }]);
+    expect(snapshot.files).toEqual([
+      {
+        path: 'AGENTS.md',
+        bytes: new Uint8Array(),
+        // SHA-256 of no bytes.
+        identity: {
+          dev: expect.any(BigInt) as unknown,
+          ino: (await lstat(path.join(root, 'AGENTS.md'), { bigint: true })).ino,
+          sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        },
+      },
+    ]);
   });
 
   it('honors a custom isCandidate predicate', async () => {
