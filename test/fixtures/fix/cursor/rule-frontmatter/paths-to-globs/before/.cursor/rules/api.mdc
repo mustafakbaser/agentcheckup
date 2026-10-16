@@ -1,0 +1,4 @@
+---
+paths: src/api/**
+---
+Validate input.

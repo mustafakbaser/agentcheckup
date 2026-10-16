@@ -10,7 +10,7 @@ Path-specific GitHub Copilot instructions have no valid applyTo.
 | Category   | `loading`                   |
 | Platforms  | GitHub Copilot              |
 | Applies to | `copilot-path-instructions` |
-| Fixable    | No                          |
+| Fixable    | Yes, `safe`                 |
 | Since      | 2026.10                     |
 
 ## Why

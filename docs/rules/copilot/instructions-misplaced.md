@@ -10,7 +10,7 @@ GitHub Copilot instructions file is not where Copilot looks for it.
 | Category   | `loading`                                           |
 | Platforms  | GitHub Copilot                                      |
 | Applies to | `copilot-instructions`, `copilot-path-instructions` |
-| Fixable    | No                                                  |
+| Fixable    | Yes, `review`                                       |
 | Since      | 2026.10                                             |
 
 ## Why

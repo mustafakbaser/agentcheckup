@@ -4,14 +4,14 @@
 
 Cursor ignores .md files in .cursor/rules.
 
-|            |                  |
-| ---------- | ---------------- |
-| Severity   | `error`          |
-| Category   | `loading`        |
-| Platforms  | Cursor           |
-| Applies to | `cursor-rule-md` |
-| Fixable    | No               |
-| Since      | 2026.10          |
+|            |                         |
+| ---------- | ----------------------- |
+| Severity   | `error`                 |
+| Category   | `loading`               |
+| Platforms  | Cursor                  |
+| Applies to | `cursor-rule-md`        |
+| Fixable    | Yes, `safe` or `review` |
+| Since      | 2026.10                 |
 
 ## Why
 

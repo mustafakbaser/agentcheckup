@@ -10,7 +10,7 @@
 | Category   | `loading`             |
 | Platforms  | Cursor                |
 | Applies to | `cursor-legacy-rules` |
-| Fixable    | No                    |
+| Fixable    | Yes, `review`         |
 | Since      | 2026.10               |
 
 ## Why

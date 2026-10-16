@@ -470,7 +470,8 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "0f457def5c74e4:1"
+      "fingerprint": "0f457def5c74e4:1",
+      "guidance": "add \"globs\" with the files the rule is for, a \"description\" of when to use it, or \"alwaysApply: true\"; to keep it manual on purpose, add \"alwaysApply: false\""
     },
     {
       "ruleId": "cursor/md-file-ignored",
@@ -492,7 +493,34 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "09133325279ffc:1"
+      "fingerprint": "09133325279ffc:1",
+      "fix": {
+        "id": "cursor/md-file-ignored#always-apply",
+        "class": "review",
+        "title": "Rename .cursor/rules/notes.md to notes.mdc and add \"alwaysApply: true\"",
+        "changes": [
+          {
+            "kind": "rename",
+            "from": ".cursor/rules/notes.md",
+            "to": ".cursor/rules/notes.mdc"
+          },
+          {
+            "kind": "edit",
+            "path": ".cursor/rules/notes.mdc",
+            "edits": [
+              {
+                "offset": 0,
+                "length": 0,
+                "text": "---\nalwaysApply: true\n---\n"
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "With \"alwaysApply: true\", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with \"globs\" or a \"description\".",
+          "Devin Local in Windsurf reads the file under either name."
+        ]
+      }
     },
     {
       "ruleId": "instr/import-unresolved",
@@ -964,7 +992,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Moves a file found elsewhere in a .github folder to .github/copilot-instructions.md or into .github/instructions/. A letter-case difference, a .github folder in a subdirectory and an existing target are left to the user, with the commands to run."
+      }
     },
     {
       "id": "cursor/md-file-ignored",
@@ -992,7 +1026,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding \"alwaysApply: true\" or renaming \"paths\" or \"applyTo\" to \"globs\"."
+      }
     },
     {
       "id": "cursor/rule-frontmatter",
@@ -1014,7 +1055,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Safe: writes alwaysApply: \"true\" as the boolean true and joins a globs list into one comma-separated string. For review: renames \"paths\" or \"applyTo\" to \"globs\"."
+      }
     },
     {
       "id": "cursor/rule-never-applied",

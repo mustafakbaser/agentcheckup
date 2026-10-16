@@ -523,7 +523,6 @@ describe('fixRounds', () => {
     const snapshot = snapshotFrom({
       'AGENTS.md': '# Rules\n',
       'CLAUDE.md': '# Claude\n\n@docs/missing.md\n',
-      '.cursor/rules/style.md': 'Use tabs.\n',
     });
     const result = api.fixRounds(snapshot, { rules: api.builtinRules }, ALL_CLASSES);
     expect(result.rounds).toBe(0);

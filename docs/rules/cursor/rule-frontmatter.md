@@ -4,14 +4,14 @@
 
 Cursor rule frontmatter field is unknown or has the wrong type.
 
-|            |               |
-| ---------- | ------------- |
-| Severity   | `warn`        |
-| Category   | `correctness` |
-| Platforms  | Cursor        |
-| Applies to | `cursor-rule` |
-| Fixable    | No            |
-| Since      | 2026.10       |
+|            |                         |
+| ---------- | ----------------------- |
+| Severity   | `warn`                  |
+| Category   | `correctness`           |
+| Platforms  | Cursor                  |
+| Applies to | `cursor-rule`           |
+| Fixable    | Yes, `safe` or `review` |
+| Since      | 2026.10                 |
 
 ## Why
 

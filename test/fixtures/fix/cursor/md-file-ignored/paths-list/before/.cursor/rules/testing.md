@@ -1,0 +1,6 @@
+---
+paths:
+  - "src/**/*.test.ts"
+  - "test/**/*.ts"
+---
+Use vitest.

@@ -3,6 +3,13 @@ import { cursorActivation } from '../../platforms/cursor-rules.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 
+/**
+ * Which mode fits is the author's choice, so there is no fix: `alwaysApply: true` would add the
+ * rule to every conversation, and globs or a description must come from the author.
+ */
+const GUIDANCE =
+  'add "globs" with the files the rule is for, a "description" of when to use it, or "alwaysApply: true"; to keep it manual on purpose, add "alwaysApply: false"';
+
 export const ruleNeverAppliedRule = defineRule({
   meta: {
     id: 'cursor/rule-never-applied',
@@ -31,6 +38,7 @@ export const ruleNeverAppliedRule = defineRule({
           artifact,
           message:
             'This rule has no frontmatter, so Cursor applies it only when you @-mention it. Add "description", "globs" or "alwaysApply: true" to apply it automatically.',
+          guidance: GUIDANCE,
         });
         continue;
       }
@@ -39,6 +47,7 @@ export const ruleNeverAppliedRule = defineRule({
         span: { offset: 0, length: 3 },
         message:
           'This rule sets none of "alwaysApply", "description" and "globs", so Cursor applies it only when you @-mention it. Add one of them to apply it automatically.',
+        guidance: GUIDANCE,
       });
     }
   },

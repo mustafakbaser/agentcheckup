@@ -1,0 +1,5 @@
+---
+name: api
+alwaysApply: true
+---
+Return problem+json errors.

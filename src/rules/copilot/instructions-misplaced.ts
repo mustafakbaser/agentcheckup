@@ -1,12 +1,21 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import type { Artifact, ReportDescriptor } from '../../core/types.js';
+import type { Artifact, ReportDescriptor, Snapshot } from '../../core/types.js';
+import { renameFile } from '../../fix/edits.js';
+import { pathProblem } from '../../fix/paths.js';
+import { isLinked, linkedGuidance, pathTaken } from '../cursor/fixes.js';
 import { defineRule } from '../define.js';
+import { basename, joinPath } from '../instructions/helpers.js';
 import { quotePath } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { inPlausibleGithubTree, type Placement, placement } from './location.js';
 import { COPILOT_SOURCES } from './sources.js';
 
+const ID = 'copilot/instructions-misplaced';
+const REPOSITORY_WIDE = 'copilot-instructions.md';
+const PATH_SPECIFIC = 'instructions';
+
 type Finding = Omit<ReportDescriptor, 'artifact'>;
+type Remedy = Pick<ReportDescriptor, 'fix' | 'guidance'>;
 
 function repositoryWide(path: string, where: Placement): Finding | undefined {
   switch (where.kind) {
@@ -53,21 +62,126 @@ function pathSpecific(path: string, where: Placement): Finding | undefined {
   }
 }
 
-function check(artifact: Artifact, where: (path: string) => Placement): Finding | undefined {
+// ---------------------------------------------------------------------------------------------
+// Fixes and manual steps
+// ---------------------------------------------------------------------------------------------
+
+/** A path as one shell word: bare when it is plain, else in single quotes. */
+function shellWord(path: string): string {
+  return /^[\w./@+-]+$/.test(path) ? path : `'${path.replaceAll("'", `'\\''`)}'`;
+}
+
+/** `path` with its `.github/<inside>` segments in the letter case Copilot expects. */
+function expectedCase(path: string, inside: string): string {
+  const segments = path.split('/');
+  const lower = path.toLowerCase().split('/');
+  const start = lower.findIndex(
+    (segment, index) => segment === '.github' && lower[index + 1] === inside,
+  );
+  if (start === -1) return path;
+  return [...segments.slice(0, start), '.github', inside, ...segments.slice(start + 2)].join('/');
+}
+
+/**
+ * A case-only rename is never made by the tool (ADR 0008): on macOS and Windows a plain rename
+ * does not change what git records, so the manual step renames through a temporary name.
+ */
+function caseGuidance(path: string, inside: string): Remedy {
+  const expected = expectedCase(path, inside);
+  const temporary = `${path}.tmp`;
+  return {
+    guidance: `rename it to ${quotePath(expected)} in two steps, so that git also records the new letter case on macOS and Windows: git mv ${shellWord(path)} ${shellWord(temporary)} && git mv ${shellWord(temporary)} ${shellWord(expected)}`,
+  };
+}
+
+/** The manual step for a file in the `.github` folder of a subdirectory. */
+function nestedGuidance(wide: boolean, root: string): Remedy {
+  return {
+    guidance: wide
+      ? 'to use it on GitHub.com, merge it into .github/copilot-instructions.md at the repository root by hand'
+      : `to use it on GitHub.com, move it into .github/instructions/ at the repository root by hand and limit its "applyTo" to ${quotePath(`${root}/**`)}`,
+  };
+}
+
+/**
+ * Moves a file found elsewhere in a `.github` folder to where Copilot looks in that folder. For
+ * review: Copilot starts loading it. Manual when the file is linked, the `.github` folder differs
+ * in letter case or is not at a repository root, or the target exists.
+ */
+function moveFix(snapshot: Snapshot, artifact: Artifact, path: string, wide: boolean): Remedy {
+  if (isLinked(artifact) || path !== artifact.path) {
+    return { guidance: linkedGuidance(artifact, 'move it') };
+  }
+  const segments = path.split('/');
+  const github = segments.findIndex((segment) => segment.toLowerCase() === '.github');
+  const folder = joinPath(segments.slice(0, Math.max(0, github)).join('/'), '.github');
+  const target = joinPath(folder, wide ? REPOSITORY_WIDE : `${PATH_SPECIFIC}/${basename(path)}`);
+  if (segments[github] !== '.github') {
+    return { guidance: `move it to ${quotePath(target)} by hand` };
+  }
+  const where = placement(snapshot, target, wide ? REPOSITORY_WIDE : PATH_SPECIFIC);
+  if (where.kind === 'nested') return nestedGuidance(wide, where.root);
+  const problem = pathProblem(target);
+  if (problem !== undefined) return { guidance: `move it by hand: ${problem}` };
+  if (pathTaken(snapshot, target)) {
+    return {
+      guidance: wide
+        ? `${quotePath(target)} already exists: merge this file into it by hand`
+        : `${quotePath(target)} already exists: move this file into ${quotePath(`${folder}/${PATH_SPECIFIC}/`)} under another name by hand`,
+    };
+  }
+  return {
+    fix: {
+      id: `${ID}#move`,
+      class: 'review',
+      title: `Move ${path} to ${target}`,
+      changes: [renameFile(artifact, target)],
+      notes: [
+        wide
+          ? 'GitHub Copilot then adds these instructions to every request in this repository.'
+          : 'GitHub Copilot then applies these instructions to the files their "applyTo" matches.',
+      ],
+    },
+  };
+}
+
+function remedy(
+  snapshot: Snapshot,
+  artifact: Artifact,
+  path: string,
+  where: Placement,
+  wide: boolean,
+): Remedy {
+  switch (where.kind) {
+    case 'expected':
+      return {};
+    case 'case':
+      return caseGuidance(path, wide ? REPOSITORY_WIDE : PATH_SPECIFIC);
+    case 'nested':
+      return nestedGuidance(wide, where.root);
+    case 'elsewhere':
+      return moveFix(snapshot, artifact, path, wide);
+  }
+}
+
+function check(snapshot: Snapshot, artifact: Artifact, inside: string): Finding | undefined {
   // Every path that reaches the file counts: a symlink in .github/instructions makes Copilot see it.
   const paths = [artifact.path, ...artifact.aliases];
-  const placements = paths.map((path) => ({ path, where: where(path) }));
+  const placements = paths.map((path) => ({ path, where: placement(snapshot, path, inside) }));
   if (placements.some((entry) => entry.where.kind === 'expected')) return undefined;
   const candidate = placements.find((entry) => inPlausibleGithubTree(entry.path));
   if (candidate === undefined) return undefined;
-  return artifact.kind === 'copilot-instructions'
+  const wide = artifact.kind === 'copilot-instructions';
+  const finding = wide
     ? repositoryWide(candidate.path, candidate.where)
     : pathSpecific(candidate.path, candidate.where);
+  if (finding === undefined) return undefined;
+  return { ...finding, ...remedy(snapshot, artifact, candidate.path, candidate.where, wide) };
 }
 
 export const instructionsMisplacedRule = defineRule({
   meta: {
-    id: 'copilot/instructions-misplaced',
+    id: ID,
     title: 'GitHub Copilot instructions file is not where Copilot looks for it',
     rationale: [
       'GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the deprecated `chat.instructionsFilesLocations` setting can add other directories for the Local harness, so a misplaced `*.instructions.md` file is a warning.',
@@ -80,13 +194,17 @@ export const instructionsMisplacedRule = defineRule({
     platforms: ['copilot'],
     sources: [SOURCES.copilotRepoInstructions, COPILOT_SOURCES.vscodeInstructions],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Moves a file found elsewhere in a .github folder to .github/copilot-instructions.md or into .github/instructions/. A letter-case difference, a .github folder in a subdirectory and an existing target are left to the user, with the commands to run.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const inside =
-        artifact.kind === 'copilot-instructions' ? 'copilot-instructions.md' : 'instructions';
-      const finding = check(artifact, (path) => placement(context.snapshot, path, inside));
+      const inside = artifact.kind === 'copilot-instructions' ? REPOSITORY_WIDE : PATH_SPECIFIC;
+      const finding = check(context.snapshot, artifact, inside);
       if (finding !== undefined) context.report({ artifact, ...finding });
     }
   },

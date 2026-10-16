@@ -109,7 +109,34 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "14a8b0f63a84c7:1"
+      "fingerprint": "14a8b0f63a84c7:1",
+      "fix": {
+        "id": "cursor/md-file-ignored#always-apply",
+        "class": "review",
+        "title": "Rename .cursor/rules/style.md to style.mdc and add \"alwaysApply: true\"",
+        "changes": [
+          {
+            "kind": "rename",
+            "from": ".cursor/rules/style.md",
+            "to": ".cursor/rules/style.mdc"
+          },
+          {
+            "kind": "edit",
+            "path": ".cursor/rules/style.mdc",
+            "edits": [
+              {
+                "offset": 0,
+                "length": 0,
+                "text": "---\nalwaysApply: true\n---\n"
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "With \"alwaysApply: true\", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with \"globs\" or a \"description\".",
+          "Devin Local in Windsurf reads the file under either name."
+        ]
+      }
     },
     {
       "ruleId": "mcp/url-without-type",
@@ -335,7 +362,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Joins an \"applyTo\" YAML list into one comma-separated string."
+      }
     },
     {
       "id": "copilot/instructions-misplaced",
@@ -364,7 +397,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Moves a file found elsewhere in a .github folder to .github/copilot-instructions.md or into .github/instructions/. A letter-case difference, a .github folder in a subdirectory and an existing target are left to the user, with the commands to run."
+      }
     },
     {
       "id": "cursor/md-file-ignored",
@@ -392,7 +431,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding \"alwaysApply: true\" or renaming \"paths\" or \"applyTo\" to \"globs\"."
+      }
     },
     {
       "id": "directive/missing-reason",
