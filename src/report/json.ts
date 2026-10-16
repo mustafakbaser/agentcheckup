@@ -324,6 +324,7 @@ function loadPlan(value: LoadPlan): LoadPlan {
     ).map(limitUsage),
     totals: { startup: size(value.totals.startup), onDemand: size(value.totals.onDemand) },
     incomplete: sortedStrings(value.incomplete),
+    ...(value.ignored === undefined ? {} : { ignored: value.ignored }),
   };
 }
 
@@ -569,6 +570,7 @@ export function toJsonReport(result: ScanResult): ScanResult {
     schemaVersion: result.schemaVersion,
     tool: { name: result.tool.name, version: result.tool.version },
     ruleset: result.ruleset,
+    fingerprintVersion: result.fingerprintVersion,
     targets: [...result.targets],
     artifacts: result.artifacts.map((artifact) => ({
       path: artifact.path,

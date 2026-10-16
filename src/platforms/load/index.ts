@@ -91,17 +91,83 @@ export function checkContextWindow(contextWindow: number | undefined): void {
   }
 }
 
-/** One plan per agent for a session started in `options.cwd`, in PLATFORM_IDS order. */
+/**
+ * One plan per agent for a session started in `options.cwd`, in PLATFORM_IDS order, without the
+ * paths the configuration ignores ({@link withoutIgnored}).
+ */
 export function loadPlans(view: LoadView, options: LoadPlansOptions): LoadPlan[] {
   checkWorkingDirectory(options.cwd);
   checkContextWindow(options.contextWindow);
   return orderedAgents(options.agents).map((agent) =>
-    LOADERS[agent](view, {
-      cwd: options.cwd,
-      config: options.config,
-      ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
-    }),
+    withoutIgnored(
+      LOADERS[agent](view, {
+        cwd: options.cwd,
+        config: options.config,
+        ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+      }),
+      options.config,
+    ),
   );
+}
+
+/** The path an `incomplete` item names: `unread:docs/a.md` -> `docs/a.md`; a directory without its `/`. */
+function incompletePath(item: string): string {
+  const path = item.slice(item.indexOf(':') + 1);
+  return path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+/**
+ * `plan` without the paths the configuration's `ignore` matches, and with `ignored` set to how
+ * many distinct paths it left out.
+ *
+ * The scan never reads an ignored file, so a loader finds it on disk without its content and
+ * would list it as unread, skipped or out of scope, and the matrix would give it a row. The
+ * agents still load those files, so the plan does not pretend they are gone: it counts them.
+ * A count, not a list, because `ignore` usually covers whole directories such as test fixtures,
+ * whose files would otherwise crowd out the real configuration. `--untrusted` ignores the
+ * repository's configuration, so its plans leave nothing out.
+ *
+ * Only an item's own path counts: an item whose path is not ignored stays, whatever the files
+ * behind it, so plans keep agreeing with the findings (src/platforms/load/consistency.ts).
+ */
+export function withoutIgnored(plan: LoadPlan, config: ResolvedConfig): LoadPlan {
+  const ignored = new Set<string>();
+  const keep = (path: string): boolean => {
+    if (path === '' || !config.isIgnored(path)) return true;
+    ignored.add(path);
+    return false;
+  };
+  const entries = plan.entries.filter((entry) => keep(entry.path));
+  const skipped = plan.skipped.filter((skip) => keep(skip.path));
+  const outOfScope = plan.outOfScope.filter((item) => keep(item.path));
+  const incomplete = plan.incomplete.filter((item) => keep(incompletePath(item)));
+  // A limit measured on an ignored file, such as the import depth an ignored import reaches.
+  const limits = plan.limits.filter((limit) => keep(limit.subject));
+  if (ignored.size === 0) return plan;
+  return {
+    ...plan,
+    entries: renumbered(entries),
+    skipped,
+    outOfScope,
+    limits,
+    incomplete,
+    ignored: ignored.size,
+  };
+}
+
+/**
+ * Startup positions 1, 2, 3… again, in the same order, after entries were left out. An unread
+ * import of an ignored file has a position but no size, so totals do not change.
+ */
+function renumbered(entries: readonly LoadEntry[]): LoadEntry[] {
+  const positions = [
+    ...new Set(entries.flatMap((entry) => (entry.position === undefined ? [] : [entry.position]))),
+  ].sort((a, b) => a - b);
+  const next = new Map(positions.map((position, index) => [position, index + 1]));
+  return entries.map((entry) => {
+    const position = entry.position === undefined ? undefined : next.get(entry.position);
+    return position === undefined || position === entry.position ? entry : { ...entry, position };
+  });
 }
 
 /** One plan of `agent` for a session started in `cwd`. */

@@ -5,6 +5,7 @@
     "version": "0.0.0-golden"
   },
   "ruleset": "2026.10",
+  "fingerprintVersion": 2,
   "targets": [
     "claude-code",
     "cline",
@@ -381,7 +382,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "0782b91873723b:1"
+      "fingerprint": "02ecb83c21f9de:1"
     },
     {
       "ruleId": "hooks/unknown-event",
@@ -403,7 +404,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "13c2b0b8eb6c56:1"
+      "fingerprint": "1c59be19a8b84d:1"
     },
     {
       "ruleId": "skill/frontmatter-missing",
@@ -425,7 +426,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "1f52eb1f9d4d74:1"
+      "fingerprint": "1d4ea86d4e28da:1"
     },
     {
       "ruleId": "hooks/fails-open",
@@ -447,7 +448,7 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "1d7ab8c8659b18:1"
+      "fingerprint": "114e41178fdd23:1"
     },
     {
       "ruleId": "cursor/rule-never-applied",
@@ -469,7 +470,7 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "0cae83eb40c270:1"
+      "fingerprint": "0f457def5c74e4:1"
     },
     {
       "ruleId": "cursor/md-file-ignored",
@@ -491,7 +492,7 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "03bff818377079:1"
+      "fingerprint": "09133325279ffc:1"
     },
     {
       "ruleId": "instr/import-unresolved",
@@ -535,7 +536,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "1a8b763edce837:1"
+      "fingerprint": "15500b3f20e0ba:1"
     },
     {
       "ruleId": "instr/agents-md-ignored-by-claude",
@@ -562,7 +563,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "12eedc8837f5e1:1"
+      "fingerprint": "1aeaae03fd947e:1"
     },
     {
       "ruleId": "instr/override-shadows-agents-md",
@@ -589,7 +590,7 @@
       "platforms": [
         "codex"
       ],
-      "fingerprint": "0a93722a9c03a1:1"
+      "fingerprint": "07406e308c0122:1"
     },
     {
       "ruleId": "instr/agents-md-ignored-by-claude",
@@ -616,7 +617,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "06c7e06f4f841e:1"
+      "fingerprint": "1692ce4257c02e:1"
     },
     {
       "ruleId": "instr/codex-size-budget",
@@ -647,7 +648,7 @@
       "platforms": [
         "codex"
       ],
-      "fingerprint": "111772857717d5:1"
+      "fingerprint": "0b9630a14802f1:1"
     },
     {
       "ruleId": "instr/codex-size-budget",
@@ -686,7 +687,7 @@
       "platforms": [
         "codex"
       ],
-      "fingerprint": "1ea6bf6a5266e5:1"
+      "fingerprint": "1af6f83911ee13:1"
     },
     {
       "ruleId": "instr/override-shadows-agents-md",
@@ -713,7 +714,7 @@
       "platforms": [
         "codex"
       ],
-      "fingerprint": "1f832ffa50bd24:1"
+      "fingerprint": "0643a30aae47d3:1"
     }
   ],
   "score": {

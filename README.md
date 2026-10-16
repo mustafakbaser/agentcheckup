@@ -113,8 +113,10 @@ fails the check when a pull request:
 
 - adds or changes an MCP server (the summary says when its package is not pinned to an exact
   version or digest), or adds an MCP config file agentcheckup cannot analyze;
-- adds a broad permission (any shell command, any file write or edit), auto-approves MCP
-  servers, or sets or changes `defaultMode`;
+- adds a permission that lets an agent do more without asking, such as a `permissions.allow`
+  entry (the summary marks broad ones: any shell command, any file write or edit), an extra
+  directory or a skill's `allowed-tools`, auto-approves MCP servers, or sets or changes
+  `defaultMode`;
 - adds or changes a hook;
 - adds an env override that sets an endpoint, a credential, TLS behavior or code execution, such
   as `ANTHROPIC_BASE_URL`, `NODE_TLS_REJECT_UNAUTHORIZED` or `NODE_OPTIONS`, or points an
@@ -130,7 +132,7 @@ adds a hook and points Claude Code at another API endpoint looks like this:
 > | Change                         | Where                                | Detail                                                                 |
 > | :----------------------------- | :----------------------------------- | :--------------------------------------------------------------------- |
 > | **New MCP server, not pinned** | .mcp.json › browser                  | New MCP server browser (stdio, `npx -y @acme/browser-mcp`, not pinned) |
-> | Permission widened             | .claude/settings.json                | permissions.allow adds Bash                                            |
+> | Permission widened             | .claude/settings.json                | permissions.allow adds Bash(curl:\*)                                   |
 > | New hook                       | .claude/settings.json › SessionStart | New hook SessionStart → scripts/hooks/session-start.sh                 |
 > | Env override                   | .claude/settings.json                | Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net        |
 >

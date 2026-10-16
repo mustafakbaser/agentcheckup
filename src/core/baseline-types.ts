@@ -77,7 +77,10 @@ export interface PlanDelta {
  * - `mcp`: an MCP server added or changed, or a new MCP config file that could not be parsed.
  * - `mcp-unpinned`: an added or changed MCP server whose pin is not `exact`, `digest` or
  *   `local`.
- * - `permissions`: a broad or auto-approving permission added, or `defaultMode` changed.
+ * - `permissions`: an entry that lets an agent do more without asking added or changed: any
+ *   `permissions.allow` or `additionalDirectories` entry, a skill's `allowed-tools`,
+ *   `enabledMcpjsonServers`, `enableAllProjectMcpServers` or Gemini `trust` set to true, or
+ *   `defaultMode` set or changed. Never `deny` or `ask` entries.
  * - `hooks`: a hook added or changed.
  * - `env`: an environment override of a class other than `other` added or changed.
  * - `unicode`: a new risk/hidden-unicode finding.

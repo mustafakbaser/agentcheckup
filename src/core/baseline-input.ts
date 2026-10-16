@@ -23,7 +23,7 @@ import type {
   PermissionItem,
 } from '../inventory/types.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
-import { REPORT_SCHEMA_VERSION } from './meta.js';
+import { FINGERPRINT_VERSION, REPORT_SCHEMA_VERSION } from './meta.js';
 import { type Finding, PLATFORM_IDS, type PlatformId } from './types.js';
 
 /** Report schema versions a baseline may have. */
@@ -77,6 +77,11 @@ export interface BaselineReport {
   readonly schemaVersion: number;
   readonly tool: { readonly name: string; readonly version: string };
   readonly ruleset: string;
+  /**
+   * How the report's fingerprints were computed. `validateBaseline` accepts only
+   * FINGERPRINT_VERSION, and reads a report without the field as version 1.
+   */
+  readonly fingerprintVersion?: number;
   /** The prefix the report's paths carry, as in ScanResult. Absent means none. */
   readonly pathBase?: string;
   readonly findings: readonly BaselineFinding[];
@@ -87,7 +92,8 @@ export interface BaselineReport {
 }
 
 /**
- * - `unsupported-schema`: a report, but with a schema version this agentcheckup cannot read.
+ * - `unsupported-schema`: a report, but with a schema version this agentcheckup cannot read, or
+ *   fingerprints from another fingerprint version, which no finding of this version would match.
  * - `invalid`: not a report, or a field has the wrong shape.
  * Both make the CLI exit with code 2.
  */
@@ -243,6 +249,16 @@ function readReport(value: unknown): BaselineReport {
     );
   }
 
+  // Findings match by fingerprint: with another scheme, every finding would look new and every
+  // baseline finding resolved, so refuse instead of failing the run on findings nobody added.
+  const fingerprintVersion = optional(value, 'fingerprintVersion', '', finite) ?? 1;
+  if (fingerprintVersion !== FINGERPRINT_VERSION) {
+    throw new BaselineError(
+      'unsupported-schema',
+      `Baseline report: its finding fingerprints have version ${String(fingerprintVersion)}, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so no finding could be matched. Create the baseline again with this agentcheckup version.`,
+    );
+  }
+
   const tool = object(own(value, 'tool'), 'tool');
   const pathBase = optional(value, 'pathBase', '', string);
   const inventory = optional(value, 'inventory', '', readInventory);
@@ -254,6 +270,7 @@ function readReport(value: unknown): BaselineReport {
       version: string(own(tool, 'version'), 'tool.version'),
     },
     ruleset: string(own(value, 'ruleset'), 'ruleset'),
+    fingerprintVersion,
     ...(pathBase === undefined ? {} : { pathBase }),
     findings: list(own(value, 'findings'), 'findings', readFinding),
     ...(inventory === undefined ? {} : { inventory }),

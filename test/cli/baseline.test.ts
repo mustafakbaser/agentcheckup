@@ -328,6 +328,11 @@ describe('bad baselines', () => {
       [[], 'expected a JSON report from agentcheckup --format json (an object), not an array'],
       [{ tool: {} }, 'schemaVersion is missing'],
       [{ ...report, schemaVersion: 999 }, 'schema version 999 is not supported'],
+      // A report from before fingerprint version 2: its JSON findings hashed line text.
+      [
+        { ...report, fingerprintVersion: undefined },
+        'its finding fingerprints have version 1, and this agentcheckup computes version 2',
+      ],
       [{ ...report, findings: {} }, 'findings must be an array, not an object'],
       [{ ...report, ruleset: 7 }, 'ruleset must be a string, not a number'],
       [{ ...report, inventory: { mcpServers: 'x' } }, 'inventory.mcpServers must be an array'],
@@ -427,5 +432,92 @@ describe('exitCodeFor with a baseline', () => {
         undefined,
       ),
     ).toBe(EXIT.internal);
+  });
+});
+
+describe('a pull request that reformats JSON and adds narrow permissions', () => {
+  const BASE: Record<string, string> = {
+    'AGENTS.md': '# Project\n\nUse pnpm. Run the tests before you commit.\n',
+    'CLAUDE.md': '# Claude\n\n@docs/setup.md\n',
+    '.cursor/rules/style.md': '# Style\n\nPrefer small functions.\n',
+    '.mcp.json':
+      '{\n  "mcpServers": {\n    "docs": { "url": "https://mcp.example.com/sse" }\n  }\n}\n',
+    '.agents/skills/deploy/SKILL.md': '---\nname: deploy\n---\n\nDeploy the app.\n',
+  };
+
+  /** The base repository and its report, scanned as the Action scans the base commit. */
+  async function baseRepo(): Promise<{ repo: string; before: string }> {
+    const repo = await tempDir();
+    await writeFiles(repo, BASE);
+    const before = join(work, 'demo-base.json');
+    const args = ['.', '--untrusted', '--context', '--format', 'json', '--output', before];
+    expect(await run([...args, '--fail-on', 'none'], capture(repo))).toBe(EXIT.ok);
+    return { repo, before };
+  }
+
+  it('reports no new finding for a server line that only gained a trailing comma', async () => {
+    const { repo, before } = await baseRepo();
+    await writeFiles(repo, {
+      '.mcp.json':
+        '{\n  "mcpServers": {\n' +
+        '    "docs": { "url": "https://mcp.example.com/sse" },\n' +
+        '    "browser": { "command": "npx", "args": ["-y", "@acme/browser-mcp"] }\n' +
+        '  }\n}\n',
+      '.claude/settings.json':
+        '{\n  "permissions": { "allow": ["Bash(curl:*)"] },\n' +
+        '  "env": { "ANTHROPIC_BASE_URL": "https://llm-proxy.example.net/v1" }\n}\n',
+    });
+
+    const args = ['.', '--untrusted', '--context', '--baseline', before, '--gate', 'security'];
+    const text = capture(repo);
+    expect(await run(args, text)).toBe(EXIT.findings);
+    expect(text.output()).toContain('✖ 3 security-relevant changes since the baseline need review');
+    expect(text.output()).toContain('Permission widened: permissions.allow adds Bash(curl:*)\n');
+    expect(text.output()).toContain('0 new, 5 unchanged since the baseline\n');
+
+    const report = await scanJson(args, EXIT.findings, repo);
+    expect(report.baseline?.findings).toEqual({ new: 0, unchanged: 5, resolved: [] });
+    expect(report.baseline?.gate.hits.map((hit) => hit.class)).toEqual([
+      'mcp',
+      'mcp-unpinned',
+      'permissions',
+      'env',
+    ]);
+  });
+
+  it('still matches after re-indenting, reordering keys and inserting lines above', async () => {
+    const { repo, before } = await baseRepo();
+    await writeFiles(repo, {
+      '.mcp.json':
+        '{\n\n\n    "mcpServers":\n    {\n' +
+        '        "browser": {"args": ["-y", "@acme/browser-mcp@1.2.3"], "command": "npx"},\n' +
+        '        "docs":    {\n            "url": "https://mcp.example.com/sse"\n        }\n' +
+        '    }\n}\n',
+      'CLAUDE.md': '# Claude\n\nRead this first.\n\n  @docs/setup.md  \n',
+    });
+    const report = await scanJson(
+      ['.', '--untrusted', '--baseline', before, '--fail-on', 'none'],
+      EXIT.ok,
+      repo,
+    );
+    expect(report.baseline?.findings).toEqual({ new: 0, unchanged: 5, resolved: [] });
+  });
+
+  it('reports a finding as new when the value it points at is another one', async () => {
+    const { repo, before } = await baseRepo();
+    await writeFiles(repo, {
+      '.mcp.json':
+        '{\n  "mcpServers": {\n    "docs": { "url": "https://mcp.example.com/sse" },\n' +
+        '    "search": { "url": "https://search.example.com/sse" }\n  }\n}\n',
+    });
+    const report = await scanJson(
+      ['.', '--untrusted', '--baseline', before, '--fail-on', 'none'],
+      EXIT.ok,
+      repo,
+    );
+    expect(report.baseline?.findings.new).toBe(1);
+    expect(report.findings.filter((finding) => finding.baseline === 'new')).toEqual([
+      expect.objectContaining({ ruleId: 'mcp/url-without-type', path: '.mcp.json' }),
+    ]);
   });
 });

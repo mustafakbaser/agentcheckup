@@ -269,6 +269,38 @@ describe('agentcheckup context', () => {
     ]);
   });
 
+  it('leaves files the configuration ignores out of the plans and the matrix, and counts them', async () => {
+    const repo = await tempDir();
+    await writeFiles(repo, {
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'AGENTS.md': '# Root\n',
+      'agentcheckup.config.json': '{ "ignore": ["test/fixtures/**"] }',
+      'test/fixtures/broken/AGENTS.md': '# Fixture\n',
+      'test/fixtures/broken/.cursor/rules/style.md': '# Not a rule\n',
+      'test/fixtures/broken/.agents/skills/x/SKILL.md': '---\nname: x\n---\n',
+    });
+    const io = capture(repo);
+    expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
+    const text = io.output();
+    expect(text).not.toContain('test/fixtures');
+    // The nested AGENTS.md and the skill, which Cursor reads anywhere in the workspace.
+    expect(text).toContain(
+      '\nIgnored by configuration: 2 files are not shown; Cursor may still load them\n',
+    );
+    expect(text).not.toContain('Incomplete');
+
+    const json = await contextJson(['--matrix'], repo);
+    expect(json.context?.matrix?.rows.map((row) => row.path)).toEqual(['AGENTS.md']);
+    expect(JSON.stringify(json.context)).not.toContain('test/fixtures');
+
+    // --untrusted ignores the repository's configuration, so it shows them.
+    const untrusted = await contextJson(['--matrix', '--untrusted'], repo);
+    expect(untrusted.context?.matrix?.rows.map((row) => row.path)).toContain(
+      'test/fixtures/broken/AGENTS.md',
+    );
+    expect(JSON.stringify(untrusted.context)).not.toContain('"ignored"');
+  });
+
   it('exits 2 for a bad configuration or a missing path', async () => {
     const repo = await tempDir();
     await writeFiles(repo, { 'agentcheckup.config.json': '{ "targets": ["vim"] }' });

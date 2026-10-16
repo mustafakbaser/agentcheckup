@@ -9,6 +9,7 @@ import {
 } from '../../src/core/baseline.js';
 import { type BaselineReport, validateBaseline } from '../../src/core/baseline-input.js';
 import type { GateClass } from '../../src/core/baseline-types.js';
+import { FINGERPRINT_VERSION } from '../../src/core/meta.js';
 import type { Finding, RuleMeta } from '../../src/core/types.js';
 import type {
   EnvItem,
@@ -208,6 +209,7 @@ function report(input: ReportInput = {}): Report {
     schemaVersion: 1,
     tool: { name: 'agentcheckup', version: '0.1.0' },
     ruleset: input.ruleset ?? '2026.10',
+    fingerprintVersion: FINGERPRINT_VERSION,
     rules: input.rules ?? [],
     findings: input.findings ?? [],
     ...(input.pathBase === undefined ? {} : { pathBase: input.pathBase }),
@@ -589,10 +591,8 @@ describe('gate: permissions', () => {
   const after = (...permissions: PermissionItem[]): Report =>
     report({ inventory: { permissions } });
 
-  it('reports a broad entry added to an allow list', () => {
-    expect(
-      hits(report(), after(permission('permissions.allow', 'Bash(curl:*)', { broad: true }))),
-    ).toEqual([
+  it('reports a narrow entry added to an allow list', () => {
+    expect(hits(report(), after(permission('permissions.allow', 'Bash(curl:*)')))).toEqual([
       {
         class: 'permissions',
         id: 'perm:.claude/settings.json#permissions.allow=Bash(curl:*)',
@@ -602,12 +602,37 @@ describe('gate: permissions', () => {
     ]);
   });
 
-  it('ignores narrow grants and entries that only restrict', () => {
+  it('reports every entry that lets the agent do more, and marks the broad ones', () => {
+    const skill = '.claude/skills/release/SKILL.md';
     expect(
       hits(
         report(),
         after(
           permission('permissions.allow', 'Bash(npm test)'),
+          permission('permissions.allow', 'Bash', { broad: true }),
+          permission('permissions.allow', 'Write', { broad: true }),
+          permission('permissions.additionalDirectories', '../shared'),
+          permission('permissions.additionalDirectories', '~', { broad: true }),
+          permission('allowed-tools', 'Bash(git status:*)', { file: skill }),
+          permission('allowed-tools', 'Edit', { file: skill, broad: true, effective: false }),
+        ),
+      ).map((hit) => hit.summary),
+    ).toEqual([
+      'permissions.additionalDirectories adds ../shared',
+      'permissions.additionalDirectories adds ~ (broad: the file system root or home directory)',
+      'permissions.allow adds Bash (broad: runs any shell command)',
+      'permissions.allow adds Bash(npm test)',
+      'permissions.allow adds Write (broad: writes any file)',
+      'allowed-tools adds Bash(git status:*)',
+      'allowed-tools adds Edit (broad: edits any file) (ignored where set)',
+    ]);
+  });
+
+  it('ignores entries that only restrict, auto-approval turned off, and removals', () => {
+    expect(
+      hits(
+        report(),
+        after(
           permission('permissions.deny', 'Bash', { broad: true }),
           permission('permissions.ask', 'Bash', { broad: true }),
           permission('enableAllProjectMcpServers', 'false'),
@@ -615,6 +640,13 @@ describe('gate: permissions', () => {
         ),
       ),
     ).toEqual([]);
+    const before = after(
+      permission('permissions.allow', 'Bash(curl:*)'),
+      permission('enableAllProjectMcpServers', 'true'),
+    );
+    expect(hits(before, report())).toEqual([]);
+    // Turning auto-approval off replaces the `true` entry with a `false` one: no hit.
+    expect(hits(before, after(permission('enableAllProjectMcpServers', 'false')))).toEqual([]);
   });
 
   it('reports auto-approval', () => {
@@ -664,15 +696,19 @@ describe('gate: permissions', () => {
         class: 'permissions',
         id: narrow.id,
         change: 'changed',
-        summary: 'permissions.allow Bash(*) widened',
+        summary: 'permissions.allow Bash(*) widened (broad: runs any shell command)',
       },
     ]);
     const ignored = { ...broad, effective: false, digest: 'c' };
-    expect(hits(after(ignored), after(broad))).toHaveLength(1);
+    expect(hits(after(ignored), after(broad)).map((hit) => hit.summary)).toEqual([
+      'permissions.allow Bash(*) (broad: runs any shell command) now takes effect',
+    ]);
     expect(hits(after(broad), after({ ...broad, digest: 'd' }))).toEqual([]);
+    expect(hits(after(narrow), after({ ...narrow, digest: 'e' }))).toEqual([]);
     expect(hits(after(broad), after(ignored))).toEqual([]);
+    expect(hits(after(broad), after(narrow))).toEqual([]);
     expect(hits(report(), after(ignored))[0]?.summary).toBe(
-      'permissions.allow adds Bash(*) (ignored where set)',
+      'permissions.allow adds Bash(*) (broad: runs any shell command) (ignored where set)',
     );
   });
 });
@@ -1263,6 +1299,7 @@ describe('validateBaseline', () => {
       'schemaVersion',
       'tool',
       'ruleset',
+      'fingerprintVersion',
       'pathBase',
       'findings',
       'inventory',
@@ -1275,6 +1312,7 @@ describe('validateBaseline', () => {
       schemaVersion: 1,
       tool: { name: 'agentcheckup', version: '0.1.0' },
       ruleset: '2026.10',
+      fingerprintVersion: FINGERPRINT_VERSION,
       findings: [],
     });
     const result = validateBaseline(minimal);
@@ -1284,9 +1322,27 @@ describe('validateBaseline', () => {
         schemaVersion: 1,
         tool: { name: 'agentcheckup', version: '0.1.0' },
         ruleset: '2026.10',
+        fingerprintVersion: FINGERPRINT_VERSION,
         findings: [],
       },
     });
+  });
+
+  it('refuses a baseline whose fingerprints come from another scheme', () => {
+    // Reports written before the field existed hashed the line text in JSON files too.
+    const { fingerprintVersion: _version, ...old } = json(full) as Record<string, unknown>;
+    expect(invalid(old)).toEqual({
+      reason: 'unsupported-schema',
+      message: `Baseline report: its finding fingerprints have version 1, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so no finding could be matched. Create the baseline again with this agentcheckup version.`,
+    });
+    expect(invalid({ ...(json(full) as object), fingerprintVersion: 3 }).reason).toBe(
+      'unsupported-schema',
+    );
+    expect(invalid({ ...(json(full) as object), fingerprintVersion: '2' })).toEqual({
+      reason: 'invalid',
+      message: 'Baseline report: fingerprintVersion must be a number, not a string.',
+    });
+    expect(validateBaseline(json(full)).ok).toBe(true);
   });
 
   it('tells an unsupported schema version apart from a malformed report', () => {

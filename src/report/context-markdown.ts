@@ -8,6 +8,7 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  ignoredNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
   matrixView,
@@ -221,6 +222,12 @@ function hiddenList(view: PlanView): string[] {
   ];
 }
 
+/** How many files the configuration's `ignore` left out: one paragraph. */
+function ignoredBlock(view: PlanView): string[] {
+  const note = ignoredNote(view);
+  return note === undefined ? [] : [`**Ignored by configuration:** ${text(note)}.`];
+}
+
 function planBlocks(view: PlanView, maxRows: number): string[][] {
   const where = view.cwd === '' ? './' : path(view.cwd);
   const header = [`## ${view.agentName} context · ${where}`];
@@ -236,6 +243,7 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
     onDemandSection(view, maxRows),
     skippedSection(view, maxRows),
     incompleteSection(view, maxRows),
+    ignoredBlock(view),
   ].filter((block) => block.length > 0);
 }
 

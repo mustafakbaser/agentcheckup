@@ -152,6 +152,22 @@ describe('formatContextMarkdown', () => {
     );
   });
 
+  it('counts the files the configuration ignores, after the plan', () => {
+    const output = formatContextMarkdown({
+      ...result,
+      context: contextReport([
+        plan('codex', {
+          entries: [entry('instructions', 'AGENTS.md', { position: 1, size: size(8) })],
+          ignored: 3,
+        }),
+      ]),
+    });
+    expect(output).toContain(
+      '\n\n**Ignored by configuration:** 3 files are not shown; Codex may still load them.\n',
+    );
+    expect(formatContextMarkdown(result)).not.toContain('Ignored by configuration');
+  });
+
   it('says so when there is nothing to show', () => {
     expect(formatContextMarkdown(emptyResult)).toBe('No load plans in this report.\n');
     expect(formatMatrixMarkdown(undefined)).toBe('');

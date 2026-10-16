@@ -12,7 +12,7 @@
  * - 10 MB gzipped per file: not enforceable here; 25,000 results stay well below it.
  */
 import type { ScanResult } from '../core/engine.js';
-import { REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
+import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Range, RuleMeta, Severity } from '../core/types.js';
 import { isNewRuleFinding, newRuleSet } from './gate.js';
 import { forJsonOutput, forSarifMessage, forSarifText } from './sanitize.js';
@@ -38,7 +38,7 @@ const MAX_NOTIFICATION_LOCATIONS = 100;
 const MAX_DESCRIPTION = 1024;
 const MAX_NAME = 255;
 /** `partialFingerprints` key. Versioned: a new fingerprint algorithm gets a new key. */
-export const FINGERPRINT_KEY = 'agentcheckup/v1';
+export const FINGERPRINT_KEY = `agentcheckup/v${String(FINGERPRINT_VERSION)}`;
 /** Category for `runAutomationDetails.id`: `<category>/<run id>` with an empty run id. */
 const AUTOMATION_ID = 'agentcheckup/';
 const SRCROOT = '%SRCROOT%';

@@ -114,6 +114,25 @@ export interface ImportReference {
 
 export type JsonPathSegment = string | number;
 
+/** The value a span points at in a parsed JSON document. See `locate`. */
+export interface JsonLocation {
+  /**
+   * Path from the root to the value: property names, and indices for array elements. A span on
+   * a property key, or on a whole property, points at the property's value.
+   */
+  readonly path: readonly JsonPathSegment[];
+  readonly type: 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
+  /** True when the value is an element of an array; false for an object member or the root. */
+  readonly inArray: boolean;
+  /**
+   * The value as canonical JSON text: no whitespace, object keys sorted by code unit, the last of
+   * duplicate keys, numbers as `JSON.stringify` writes them. An object or array is cut after a
+   * few thousand characters; a string, number, boolean or null is never cut. Computed on the
+   * first call.
+   */
+  canonical(): string;
+}
+
 export type JsonDocument =
   | {
       readonly ok: true;
@@ -124,6 +143,11 @@ export type JsonDocument =
       valueSpan(path: readonly JsonPathSegment[]): Span | undefined;
       /** Span of the property key at `path` (last segment must be a string). */
       keySpan(path: readonly JsonPathSegment[]): Span | undefined;
+      /**
+       * The innermost value that contains `span`, or undefined when the span is not inside the
+       * root value. The same value always gives the same object, so callers can cache by it.
+       */
+      locate(span: Span): JsonLocation | undefined;
     }
   | {
       readonly ok: false;

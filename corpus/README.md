@@ -56,6 +56,10 @@ npx tsx scripts/corpus/fetch.ts && npx tsx scripts/corpus/run.ts
   nothing. It prints each difference grouped by repository and rule (`-` only in `golden.json`,
   `+` only in the new scan, with its message) and exits 1 if there is any, 2 if `golden.json` does
   not exist. With `--only owner/name` it compares only those repositories.
+- `run.ts --check-golden --ignore-fingerprints` compares every field except the fingerprint, and
+  counts by rule the findings whose fingerprint alone changed. Use it for a deliberate change of
+  the fingerprint scheme (`FINGERPRINT_VERSION` in `src/core/meta.ts`): it must report no other
+  difference. Then write `golden.json` again on the new scheme with `--write-golden`.
 
 A full fetch takes about 5 minutes and costs about 190 REST requests (one tree per repository,
 plus per-directory listings for the two trees GitHub truncates) and about 300 GraphQL queries

@@ -14,6 +14,10 @@
  *   npx tsx scripts/corpus/run.ts --check-golden      compare the scan with corpus/golden.json
  *                                                     and print the differences (writes nothing;
  *                                                     combines with --only)
+ *   ... --check-golden --ignore-fingerprints          compare every field but the fingerprint,
+ *                                                     and count the findings whose fingerprint
+ *                                                     alone changed, by rule (for a change of
+ *                                                     the fingerprint scheme)
  *   npx tsx scripts/corpus/run.ts --consistency       plan every repository as `--matrix` does and
  *                                                     check the plans against the findings
  *                                                     (consistency.ts); prints mismatches grouped
@@ -50,6 +54,7 @@ import { type RepoContextFacts, renderContextSection, scanForSummary } from './c
 import {
   compareGolden,
   findingCount,
+  fingerprintChanges,
   type Golden,
   goldenRepo,
   makeGolden,
@@ -65,6 +70,7 @@ const { values } = parseArgs({
     only: { type: 'string', multiple: true, default: [] },
     'write-golden': { type: 'boolean', default: false },
     'check-golden': { type: 'boolean', default: false },
+    'ignore-fingerprints': { type: 'boolean', default: false },
     consistency: { type: 'boolean', default: false },
   },
   strict: true,
@@ -72,6 +78,9 @@ const { values } = parseArgs({
 
 if (values['write-golden'] && values['check-golden']) {
   throw new Error('--write-golden and --check-golden cannot be combined');
+}
+if (values['ignore-fingerprints'] && !values['check-golden']) {
+  throw new Error('--ignore-fingerprints only changes --check-golden');
 }
 if (values['write-golden'] && values.consistency) {
   throw new Error('--write-golden and --consistency cannot be combined');
@@ -719,18 +728,39 @@ function count(n: number, singular: string, plural: string): string {
 
 /**
  * --check-golden: prints the differences and returns the exit status, 0 or 1. `only` limits the
- * comparison to the repositories that --only selected.
+ * comparison to the repositories that --only selected. With `fingerprints` false
+ * (--ignore-fingerprints), findings are compared on every field but the fingerprint, and the
+ * findings whose fingerprint alone changed are counted by rule: the check for a deliberate change
+ * of the fingerprint scheme, which must change nothing else.
  */
 function checkGolden(
   saved: Golden,
   scanned: readonly Scanned[],
   only: ReadonlySet<string> | undefined,
+  fingerprints: boolean,
 ): number {
   const current = makeGolden(scanned.map(({ entry, result }) => goldenRepo(entry, result)));
-  const differences = compareGolden(saved, current, only);
+  const differences = compareGolden(saved, current, only, { fingerprints });
+  if (!fingerprints) {
+    const changes = fingerprintChanges(saved, current, only);
+    const changed = changes.reduce((sum, change) => sum + change.changed, 0);
+    const paired = changes.reduce((sum, change) => sum + change.findings, 0);
+    process.stdout.write(
+      `Fingerprints ignored. ${String(changed)} of ${count(paired, 'finding', 'findings')} that match ` +
+        'on every other field have a new fingerprint:\n' +
+        changes
+          .filter((change) => change.changed > 0)
+          .map(
+            (change) =>
+              `  ${change.ruleId}: ${String(change.changed)} of ${String(change.findings)}\n`,
+          )
+          .join(''),
+    );
+  }
   if (differences.length === 0) {
     process.stdout.write(
-      `corpus/golden.json matches: ${count(current.repos.length, 'repository', 'repositories')}, ` +
+      `corpus/golden.json matches${fingerprints ? '' : ' on every field but the fingerprint'}: ` +
+        `${count(current.repos.length, 'repository', 'repositories')}, ` +
         `${count(findingCount(current), 'finding', 'findings')}.\n`,
     );
     return 0;
@@ -845,7 +875,12 @@ if (values['write-golden']) {
       `${String(findingCount(golden))} findings.\n`,
   );
 } else if (savedGolden !== undefined) {
-  const status = checkGolden(savedGolden, scanned, only.size > 0 ? only : undefined);
+  const status = checkGolden(
+    savedGolden,
+    scanned,
+    only.size > 0 ? only : undefined,
+    !values['ignore-fingerprints'],
+  );
   if (status !== 0) process.exitCode = status;
 } else if (values.consistency) {
   // Printed above.

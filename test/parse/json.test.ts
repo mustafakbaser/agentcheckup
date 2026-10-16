@@ -3,6 +3,7 @@ import type { Span } from '../../src/core/types.js';
 import fc from 'fast-check';
 import {
   JSON_ISSUE,
+  MAX_CANONICAL_LENGTH,
   MAX_JSON_DEPTH,
   MAX_JSON_LENGTH,
   parseJson,
@@ -396,5 +397,90 @@ describe('duplicate keys', () => {
       ['duplicate-key', text.indexOf('"a"'), '"a"'],
     ]);
     expect(parseJsonWithComments('{"a": 1}')).toMatchObject({ ok: true, warnings: [] });
+  });
+});
+
+describe('locate', () => {
+  const text =
+    '{\n  "mcpServers": {\n    "docs": { "url": "https://x.example", "port": 1.50 },\n' +
+    '    "list": [ "a", { "b": 2, "a": [true, null] } ]\n  }\n}\n';
+  const doc = ok(text);
+  const at = (needle: string, length = needle.length) =>
+    doc.locate({ offset: text.indexOf(needle), length });
+
+  it('finds the value under a key, a value or a whole property', () => {
+    const property = '"docs": { "url": "https://x.example", "port": 1.50 }';
+    for (const span of ['"docs"', '{ "url"', property]) {
+      expect(at(span)).toMatchObject({
+        path: ['mcpServers', 'docs'],
+        type: 'object',
+        inArray: false,
+      });
+    }
+    expect(at('"url"')).toMatchObject({ path: ['mcpServers', 'docs', 'url'], type: 'string' });
+    // A span inside a string, as for a hidden character, points at the string.
+    expect(at('x.example')?.path).toEqual(['mcpServers', 'docs', 'url']);
+    expect(at('"url"')?.canonical()).toBe('"https://x.example"');
+    expect(at('1.50')?.canonical()).toBe('1.5');
+  });
+
+  it('numbers array elements and marks them', () => {
+    expect(at('"a",', 3)).toMatchObject({
+      path: ['mcpServers', 'list', 0],
+      type: 'string',
+      inArray: true,
+    });
+    // A span that also covers the comma is not inside the element: it points at the array.
+    expect(at('"a",')).toMatchObject({ path: ['mcpServers', 'list'], type: 'array' });
+    expect(at('{ "b"')).toMatchObject({ path: ['mcpServers', 'list', 1], inArray: true });
+    expect(at('true')).toMatchObject({
+      path: ['mcpServers', 'list', 1, 'a', 0],
+      type: 'boolean',
+    });
+    expect(at('null')?.canonical()).toBe('null');
+  });
+
+  it('writes containers canonically: keys sorted, no whitespace, the last duplicate', () => {
+    expect(at('{ "b"')?.canonical()).toBe('{"a":[true,null],"b":2}');
+    const duplicates = ok('{"z": 1, "a": {"y": [1, 2]}, "z": 3}');
+    expect(duplicates.locate({ offset: 0, length: 1 })?.canonical()).toBe(
+      '{"a":{"y":[1,2]},"z":3}',
+    );
+  });
+
+  it('cuts the canonical text of a large container, never of a string', () => {
+    const big = ok(`[${Array.from({ length: 5000 }, (_, i) => `"item${i}"`).join(',')}]`);
+    expect(big.locate({ offset: 0, length: 1 })?.canonical()).toHaveLength(MAX_CANONICAL_LENGTH);
+    const long = `"${'x'.repeat(10_000)}"`;
+    expect(ok(long).locate({ offset: 5, length: 1 })?.canonical()).toBe(long);
+  });
+
+  it('returns the same object for the same value, and nothing outside the root', () => {
+    expect(at('"docs"')).toBe(at('{ "url"'));
+    expect(at('"url"')).toBe(at('https'));
+    const padded = ok('  {"a": 1}  ');
+    expect(padded.locate({ offset: 0, length: 1 })).toBeUndefined();
+    expect(padded.locate({ offset: 11, length: 0 })).toBeUndefined();
+    expect(ok('{"a": 1}').locate({ offset: 0, length: 8 })).toMatchObject({
+      path: [],
+      type: 'object',
+    });
+  });
+
+  it('locates the earlier of two duplicate keys at its own position', () => {
+    const first = ok('{"a": 1, "a": 2}').locate({ offset: 1, length: 3 });
+    expect(first).toMatchObject({ path: ['a'], type: 'number' });
+    expect(first?.canonical()).toBe('1');
+  });
+
+  it('stays logarithmic per level on a wide object', () => {
+    const wide = `{${Array.from({ length: 50_000 }, (_, i) => `"k${i}": ${i}`).join(', ')}}`;
+    const wideDoc = ok(wide);
+    const started = performance.now();
+    for (let i = 0; i < 50_000; i += 7) {
+      const offset = wide.indexOf(`"k${i}"`);
+      expect(wideDoc.locate({ offset, length: 1 })?.path).toEqual([`k${i}`]);
+    }
+    expect(performance.now() - started).toBeLessThan(5000);
   });
 });

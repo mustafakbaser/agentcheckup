@@ -21,9 +21,10 @@ import {
   parseTree,
   printParseErrorCode,
 } from 'jsonc-parser';
+import { compareStrings } from '../core/compare.js';
 import type { Span } from '../core/types.js';
 import { cleanMessage, spanBetween } from './spans.js';
-import type { JsonDocument, JsonPathSegment, ParseIssue } from './types.js';
+import type { JsonDocument, JsonLocation, JsonPathSegment, ParseIssue } from './types.js';
 import { formatInteger } from '../core/format.js';
 
 /** Texts longer than this (UTF-16 code units) are not parsed. */
@@ -242,6 +243,124 @@ class Locator {
   }
 }
 
+/** An object or array's canonical text is cut after this many characters. */
+export const MAX_CANONICAL_LENGTH = 4096;
+
+/** Index of the last node in `nodes` (sorted by offset) that starts at or before `offset`. */
+function lastStartingAtOrBefore(nodes: readonly JsonNode[], offset: number): number {
+  let low = 0;
+  let high = nodes.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if ((nodes[mid]?.offset ?? 0) <= offset) low = mid + 1;
+    else high = mid;
+  }
+  return low - 1;
+}
+
+/** The innermost node containing `[start, end]`, or undefined outside `root`. Logarithmic per level. */
+function innermostNode(root: JsonNode, start: number, end: number): JsonNode | undefined {
+  if (start < root.offset || end > root.offset + root.length) return undefined;
+  let node = root;
+  for (;;) {
+    const children = node.children ?? [];
+    const child = children[lastStartingAtOrBefore(children, start)];
+    if (child === undefined || end > child.offset + child.length) return node;
+    node = child;
+  }
+}
+
+/** Path segments from the root to `node`. Iterative: nesting is at most MAX_JSON_DEPTH. */
+function pathOf(node: JsonNode): JsonPathSegment[] {
+  const segments: JsonPathSegment[] = [];
+  let current = node;
+  for (let parent = current.parent; parent !== undefined; parent = current.parent) {
+    if (parent.type === 'property') {
+      segments.push(String(parent.children?.[0]?.value));
+    } else if (parent.type === 'array') {
+      segments.push(lastStartingAtOrBefore(parent.children ?? [], current.offset));
+    }
+    current = parent;
+  }
+  return segments.reverse();
+}
+
+/**
+ * Canonical JSON text of a node, as {@link JsonLocation.canonical} describes. Containers stop
+ * growing once the text reaches {@link MAX_CANONICAL_LENGTH}, so the work per call is bounded
+ * by that length plus the object keys sorted on the way.
+ */
+function canonicalText(node: JsonNode): string {
+  if (node.type !== 'object' && node.type !== 'array') {
+    return node.type === 'null' ? 'null' : JSON.stringify(node.value);
+  }
+  const parts: string[] = [];
+  let length = 0;
+  const push = (part: string): boolean => {
+    parts.push(part);
+    length += part.length;
+    return length < MAX_CANONICAL_LENGTH;
+  };
+  const visit = (current: JsonNode): boolean => {
+    if (current.type === 'object') {
+      // The last duplicate wins, as with JSON.parse.
+      const members = new Map<string, JsonNode>();
+      for (const property of current.children ?? []) {
+        const [key, value] = property.children ?? [];
+        if (key !== undefined && value !== undefined) members.set(String(key.value), value);
+      }
+      if (!push('{')) return false;
+      let first = true;
+      for (const name of [...members.keys()].sort(compareStrings)) {
+        const value = members.get(name);
+        if (value === undefined) continue;
+        if (!push(`${first ? '' : ','}${JSON.stringify(name)}:`) || !visit(value)) return false;
+        first = false;
+      }
+      return push('}');
+    }
+    if (current.type === 'array') {
+      if (!push('[')) return false;
+      let first = true;
+      for (const element of current.children ?? []) {
+        if ((!first && !push(',')) || !visit(element)) return false;
+        first = false;
+      }
+      return push(']');
+    }
+    return push(current.type === 'null' ? 'null' : JSON.stringify(current.value));
+  };
+  visit(node);
+  const text = parts.join('');
+  return text.length > MAX_CANONICAL_LENGTH ? text.slice(0, MAX_CANONICAL_LENGTH) : text;
+}
+
+/** `locate` of a parsed document: one cached {@link JsonLocation} per value node. */
+function locator(root: JsonNode): (span: Span) => JsonLocation | undefined {
+  const cache = new WeakMap<JsonNode, JsonLocation>();
+  return (span) => {
+    let node = innermostNode(root, span.offset, span.offset + span.length);
+    // A key, or a whole property, stands for the property's value.
+    if (node?.type === 'property') node = node.children?.[1];
+    else if (node?.parent?.type === 'property' && node.parent.children?.[0] === node) {
+      node = node.parent.children[1];
+    }
+    if (node === undefined || node.type === 'property') return undefined;
+    const hit = cache.get(node);
+    if (hit !== undefined) return hit;
+    const target = node;
+    let canonical: string | undefined;
+    const location: JsonLocation = {
+      path: pathOf(target),
+      type: target.type as JsonLocation['type'],
+      inArray: target.parent?.type === 'array',
+      canonical: () => (canonical ??= canonicalText(target)),
+    };
+    cache.set(target, location);
+    return location;
+  };
+}
+
 /** Parses strict JSON. Never throws on any input. */
 export function parseJson(text: string): JsonDocument {
   if (text.length > MAX_JSON_LENGTH) {
@@ -282,19 +401,20 @@ export function parseJson(text: string): JsonDocument {
     }
     const warnings: ParseIssue[] = [];
     const value = toValue(root, warnings);
-    const locator = new Locator(root);
+    const paths = new Locator(root);
     return {
       ok: true,
       value,
       warnings: warnings.sort((a, b) => a.span.offset - b.span.offset),
       valueSpan: (path) => {
-        const found = locator.find(path);
+        const found = paths.find(path);
         return found ? nodeSpan(found.value) : undefined;
       },
       keySpan: (path) => {
-        const key = locator.find(path)?.property?.children?.[0];
+        const key = paths.find(path)?.property?.children?.[0];
         return key ? nodeSpan(key) : undefined;
       },
+      locate: locator(root),
     };
   } catch (error) {
     // Backstop: a stack overflow or library failure must not crash the scan.

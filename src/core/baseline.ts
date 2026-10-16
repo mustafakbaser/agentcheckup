@@ -23,6 +23,7 @@ import type {
   PermissionItem,
 } from '../inventory/types.js';
 import { classify } from '../platforms/classify.js';
+import { broadGrant } from '../platforms/permissions.js';
 import type {
   BaselineFinding,
   BaselineLimitUsage,
@@ -522,7 +523,7 @@ function gateHits(
       const previous = previousModes.get(stripPath(permission.file, after.base)) ?? [];
       hit('permissions', id, change, modeSummary(permission, change, previous));
     } else if (widens(permission) && !(old !== undefined && alreadyAsWide(old, permission))) {
-      hit('permissions', id, change, permissionSummary(permission, change));
+      hit('permissions', id, change, permissionSummary(permission, change, old));
     }
   }
 
@@ -713,25 +714,72 @@ function autoApproval(permission: PermissionItem): string | undefined {
   }
 }
 
-/** `deny` and `ask` entries narrow what the agent may do, however broad they are. */
+/**
+ * True when the entry lets an agent do something without asking: every `permissions.allow` and
+ * `permissions.additionalDirectories` entry, every tool in a skill's `allowed-tools`, every
+ * `enabledMcpjsonServers` entry, and `enableAllProjectMcpServers` or Gemini CLI's `trust` when
+ * true. A narrow entry such as `Bash(curl:*)` widens too: a reviewer must see every new command
+ * the agent may run unasked, not only the broadest. `deny` and `ask` entries narrow what the
+ * agent may do, however broad they are. `defaultMode` is handled on its own (modeSummary). Keys
+ * not listed here widen, so a new kind of entry fails closed.
+ */
 function widens(permission: PermissionItem): boolean {
-  const segment = lastSegment(permission.key);
-  if (segment === 'deny' || segment === 'ask') return false;
-  return permission.broad || autoApproval(permission) !== undefined;
+  switch (lastSegment(permission.key)) {
+    case 'deny':
+    case 'ask':
+      return false;
+    case 'enableAllProjectMcpServers':
+    case 'trust':
+      return autoApproval(permission) !== undefined;
+    default:
+      return true;
+  }
 }
 
-/** A changed entry that was already as wide, and already took effect if it does now. */
+/**
+ * A changed entry (same key and value, another digest) that lets the agent do no more than it
+ * did: it already widened, already took effect if it does now, and was already broad if it is
+ * now.
+ */
 function alreadyAsWide(old: PermissionItem, permission: PermissionItem): boolean {
-  return widens(old) && (old.effective || !permission.effective);
+  return (
+    widens(old) && (old.effective || !permission.effective) && (old.broad || !permission.broad)
+  );
 }
 
-function permissionSummary(permission: PermissionItem, change: GateHit['change']): string {
+const ADDITIONAL_DIRECTORIES = 'additionalDirectories';
+
+/**
+ * ` (broad: …)` for an entry that grants everything of its kind: any shell command, any file
+ * write or edit, or the file system root or home directory as an extra directory.
+ */
+function broadNote(permission: PermissionItem): string {
+  if (!permission.broad) return '';
+  const grant = broadGrant(permission.value);
+  if (grant !== undefined) return ` (broad: ${grant.capability})`;
+  if (lastSegment(permission.key) === ADDITIONAL_DIRECTORIES) {
+    return ' (broad: the file system root or home directory)';
+  }
+  return ' (broad)';
+}
+
+function permissionSummary(
+  permission: PermissionItem,
+  change: GateHit['change'],
+  old: PermissionItem | undefined,
+): string {
   const key = text(permission.key);
   const value = text(permission.value);
   const effect = autoApproval(permission);
+  const broad = broadNote(permission);
   let summary: string;
-  if (change === 'changed') summary = `${key} ${value} widened`;
-  else if (effect === undefined) summary = `${key} adds ${value}`;
+  if (change === 'changed') {
+    // Same key and value: it either takes effect now, or it became broad (alreadyAsWide).
+    const nowEffective = old !== undefined && !old.effective && permission.effective;
+    summary = nowEffective
+      ? `${key} ${value}${broad} now takes effect`
+      : `${key} ${value} widened${broad}`;
+  } else if (effect === undefined) summary = `${key} adds ${value}${broad}`;
   else if (lastSegment(permission.key) === 'enabledMcpjsonServers') {
     summary = `${key} adds ${value}: ${effect}`;
   } else summary = `${key} set to ${value}: ${effect}`;

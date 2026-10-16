@@ -21,6 +21,14 @@ export const SCORE_FORMULA_VERSION = 1;
 /** Version of the JSON report shape published in schemas/report.schema.json. */
 export const REPORT_SCHEMA_VERSION = 1;
 
+/**
+ * Version of the finding fingerprint scheme (src/core/fingerprint.ts), written to every report
+ * as `fingerprintVersion`. `--baseline` matches findings by fingerprint, so it refuses a
+ * baseline with another version: every finding would look new. Reports without the field have
+ * version 1, which hashed the text of the finding's line in JSON files too.
+ */
+export const FINGERPRINT_VERSION = 2;
+
 export function ruleDocsUrl(ruleId: string): string {
   return `${REPOSITORY_URL}/blob/main/docs/rules/${ruleId}.md`;
 }

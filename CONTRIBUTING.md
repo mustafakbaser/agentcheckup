@@ -112,6 +112,7 @@ costs more trust than a missed finding. See [ADR 0007](docs/adr/0007-model-what-
 | `npx tsx scripts/corpus/run.ts`                   | Scan everything; rewrite `corpus/SUMMARY.md` and the local `results.json` and `REPORT.md` |
 | `npx tsx scripts/corpus/run.ts --write-golden`    | On `main`: record every finding in the local `corpus/golden.json`                         |
 | `npx tsx scripts/corpus/run.ts --check-golden`    | On your branch: list every finding that differs from `golden.json`; exit 1 if any         |
+| `... --check-golden --ignore-fingerprints`        | After a fingerprint scheme change: compare every field but the fingerprint                |
 | `npx tsx scripts/corpus/run.ts --consistency`     | Plan every repository as `context --matrix` does and check the plans against the findings |
 | `npx tsx scripts/corpus/run.ts --only owner/name` | Print one repository's findings                                                           |
 

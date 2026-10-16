@@ -3,9 +3,14 @@ import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
-import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
+import type {
+  FrontmatterResult,
+  JsonDocument,
+  JsonLocation,
+  MarkdownDocument,
+} from '../parse/types.js';
 import { classifyFile, READERS } from '../platforms/classify.js';
-import { MARKDOWN_OR_IMPORTED_KINDS } from '../platforms/kinds.js';
+import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS } from '../platforms/kinds.js';
 import {
   buildContextReport,
   checkContextWindow,
@@ -25,8 +30,14 @@ import {
   DIRECTIVE_UNKNOWN_RULE,
   DIRECTIVE_UNUSED,
 } from './directive-rules.js';
-import { hash53, normalizeExcerpt } from './fingerprint.js';
-import { DIRECTIVE_PREFIX, REPORT_SCHEMA_VERSION, RULESET_VERSION, TOOL_NAME } from './meta.js';
+import { hash53, jsonAnchor, lineAnchor, WHOLE_FILE_ANCHOR } from './fingerprint.js';
+import {
+  DIRECTIVE_PREFIX,
+  FINGERPRINT_VERSION,
+  REPORT_SCHEMA_VERSION,
+  RULESET_VERSION,
+  TOOL_NAME,
+} from './meta.js';
 import { computeScore, type ScoreReport } from './score.js';
 import { type Directive, parseDirective } from './suppress.js';
 import { decode, lineText, positionAt, rangeOf } from './text.js';
@@ -142,6 +153,8 @@ export interface ScanResult {
   readonly schemaVersion: number;
   readonly tool: { readonly name: string; readonly version: string };
   readonly ruleset: string;
+  /** How findings' fingerprints are computed: FINGERPRINT_VERSION (src/core/fingerprint.ts). */
+  readonly fingerprintVersion: number;
   readonly targets: readonly PlatformId[];
   readonly artifacts: readonly ArtifactSummary[];
   /** Sorted by path, line, column, rule id. Includes suppressed findings, marked as such. */
@@ -410,19 +423,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   }
 
   const findings: Finding[] = [];
-  const occurrences = new Map<string, number>();
-  // Normalizing and hashing a source line is O(line length). Cache it per file and line, so
-  // thousands of findings on one long line stay linear instead of quadratic.
-  const lineHashes = new Map<string, string>();
-  const lineHash = (artifact: Artifact, line: number): string => {
-    const key = `${artifact.path}\u0000${line}`;
-    let value = lineHashes.get(key);
-    if (value === undefined) {
-      value = hash53(normalizeExcerpt(lineText(artifact.decoded, line)));
-      lineHashes.set(key, value);
-    }
-    return value;
-  };
+  const fingerprint = fingerprints(json);
 
   for (const item of pending) {
     const { artifact, descriptor, meta } = item;
@@ -442,12 +443,6 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
       }
     }
 
-    const base = hash53(
-      [meta.id, artifact.path, lineHash(artifact, range.start.line)].join('\u0000'),
-    );
-    const occurrence = (occurrences.get(base) ?? 0) + 1;
-    occurrences.set(base, occurrence);
-
     findings.push({
       ruleId: meta.id,
       severity: item.severity,
@@ -464,7 +459,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
         };
       }),
       platforms: descriptor.platforms ?? meta.platforms,
-      fingerprint: `${base}:${occurrence}`,
+      fingerprint: fingerprint(meta.id, artifact, descriptor.span, range.start.line),
       ...(descriptor.fix ? { fix: descriptor.fix } : {}),
       ...(suppressed ? { suppressed } : {}),
     });
@@ -485,7 +480,12 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
         range,
         related: [],
         platforms: DIRECTIVE_UNUSED.platforms,
-        fingerprint: `${hash53([DIRECTIVE_UNUSED.id, path, String(range.start.line)].join('\u0000'))}:1`,
+        fingerprint: fingerprint(
+          DIRECTIVE_UNUSED.id,
+          artifact,
+          entry.directive.span,
+          range.start.line,
+        ),
       });
     }
   }
@@ -507,6 +507,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
     schemaVersion: REPORT_SCHEMA_VERSION,
     tool: { name: TOOL_NAME, version: VERSION },
     ruleset: RULESET_VERSION,
+    fingerprintVersion: FINGERPRINT_VERSION,
     targets: targetList,
     artifacts: artifacts.map((artifact) => ({
       path: artifact.path,
@@ -582,6 +583,50 @@ export function scanWithContext(
         })()
       : buildContextReport({ agents, plans: loadPlans(analysis, { ...shared, cwd }) });
   return { ...result, inventory, context };
+}
+
+/**
+ * Fingerprints in report order, as src/core/fingerprint.ts describes: `<hash>:<occurrence>`. In a
+ * JSON file that parses, the anchor is the value the span points at; elsewhere it is the text of
+ * the finding's first line. Anchors are cached per line and per JSON value, so thousands of
+ * findings on one long line or in one long string stay linear instead of quadratic.
+ */
+function fingerprints(
+  json: ParseServices['json'],
+): (ruleId: string, artifact: Artifact, span: Span | undefined, line: number) => string {
+  const occurrences = new Map<string, number>();
+  const lineAnchors = new Map<string, string>();
+  const valueAnchors = new WeakMap<JsonLocation, string>();
+
+  const anchorOf = (artifact: Artifact, span: Span | undefined, line: number): string => {
+    if (span === undefined) return WHOLE_FILE_ANCHOR;
+    if (JSON_KINDS.has(artifact.kind)) {
+      const doc = json(artifact);
+      const location = doc.ok ? doc.locate(span) : undefined;
+      if (location !== undefined) {
+        let anchor = valueAnchors.get(location);
+        if (anchor === undefined) {
+          anchor = jsonAnchor(location);
+          valueAnchors.set(location, anchor);
+        }
+        return anchor;
+      }
+    }
+    const key = `${artifact.path}\u0000${line}`;
+    let anchor = lineAnchors.get(key);
+    if (anchor === undefined) {
+      anchor = lineAnchor(lineText(artifact.decoded, line));
+      lineAnchors.set(key, anchor);
+    }
+    return anchor;
+  };
+
+  return (ruleId, artifact, span, line) => {
+    const base = hash53([ruleId, artifact.path, anchorOf(artifact, span, line)].join('\u0000'));
+    const occurrence = (occurrences.get(base) ?? 0) + 1;
+    occurrences.set(base, occurrence);
+    return `${base}:${occurrence}`;
+  };
 }
 
 /**

@@ -30,7 +30,7 @@ scans, so JavaScript or TypeScript configuration files are not supported.
 | ----------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `targets`   | platform ids | Agents to check against. Rules about other agents are skipped. Default: all of `claude-code`, `codex`, `cursor`, `copilot`, `gemini`, `windsurf`, `cline`. The `--targets` flag overrides this. |
 | `rules`     | object       | Per rule: `"off"`, `"info"`, `"warn"`, `"error"`, or `[severity, options]`.                                                                                                                     |
-| `ignore`    | globs        | Files to skip, relative to the scanned directory. Files ignored by `.gitignore` are skipped already.                                                                                            |
+| `ignore`    | globs        | Files to skip, relative to the scanned directory. Files ignored by `.gitignore` are skipped already. Load plans and the matrix leave them out too, and each plan counts them.                   |
 | `overrides` | array        | Change rule severities for files matching `files`. Later overrides win. Options can only be set in the top-level `rules`.                                                                       |
 
 Globs use [picomatch](https://github.com/micromatch/picomatch) syntax and match dotfiles.
@@ -116,7 +116,10 @@ why. It never fails on findings. [What each agent loads](context.md) explains th
 The command also takes `--output`, `--baseline`, `--gate`, `--config`, `--no-config`,
 `--untrusted` and `--no-gitignore`, with the same meaning as for a scan. Rule options feed the
 plans: the `maxBytes` option of `instr/codex-size-budget` sets the Codex byte limit the plan
-assumes.
+assumes. Files that `ignore` matches are left out of the plans and the matrix; each plan says how
+many it left out, because agents still load them
+([Files the configuration ignores](context.md#files-the-configuration-ignores)). `--untrusted`
+does not read the configuration, so it shows them.
 
 On a regular scan, `--context` adds the plans and the matrix that `context --matrix` makes
 (every agent at the root, plus Codex in each directory with an `AGENTS.md`) to the report, and
@@ -136,16 +139,23 @@ agentcheckup --baseline base.json --gate security                         # on t
 ```
 
 - Findings match by fingerprint and are marked `new` or `unchanged`. `--fail-on` counts new
-  findings only; the score still covers every finding.
+  findings only; the score still covers every finding. Fingerprints survive lines inserted
+  above, re-indentation, trailing commas and reordered JSON keys.
 - `--gate` names the security-relevant changes that fail the run: `mcp`, `mcp-unpinned`,
   `permissions`, `hooks`, `env`, `unicode`, `security` for all of them, or `none`. Removals
   never trip it. `--gate` without `--baseline` is a usage error.
+- `permissions` trips on every entry that lets an agent do more without asking: any
+  `permissions.allow` entry, narrow ones such as `Bash(curl:*)` included, extra directories, a
+  skill's `allowed-tools`, MCP auto-approval, Gemini CLI `trust`, and a new `defaultMode`. The
+  summary marks broad entries, such as `Bash (broad: runs any shell command)`. `deny` and `ask`
+  entries never trip it. [Gate classes](context.md#gate-classes) has every class.
 - `--context` on the base scan adds the load plans, so the comparison also shows the change in
   session-start context per agent.
 - The baseline is read as untrusted input: at most 64 MiB, a regular file (not a symlink), and
-  only a report with a supported `schemaVersion`. Anything else exits with code 2. A baseline
-  written with another ruleset is accepted with a warning: findings from rules it did not run
-  count as new.
+  only a report with a supported `schemaVersion` and the same `fingerprintVersion`. Anything
+  else exits with code 2: a baseline written before fingerprint version 2 must be created again.
+  A baseline written with another ruleset is accepted with a warning: findings from rules it did
+  not run count as new.
 
 ## Paths in GitHub Actions
 

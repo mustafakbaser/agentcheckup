@@ -118,6 +118,28 @@ describe('formatContextText content', () => {
     ]);
   });
 
+  it('counts the files the configuration ignores in one line, and is silent without any', () => {
+    const ignoring = (ignored: number | undefined): string =>
+      formatContextText({
+        ...result,
+        context: contextReport([
+          plan('cursor', {
+            entries: [entry('instructions', 'AGENTS.md', { position: 1, size: size(8) })],
+            ...(ignored === undefined ? {} : { ignored }),
+          }),
+        ]),
+      });
+    expect(ignoring(22)).toContain(
+      '\n\nIgnored by configuration: 22 files are not shown; Cursor may still load them\n',
+    );
+    expect(ignoring(1)).toContain(
+      'Ignored by configuration: 1 file is not shown; Cursor may still load it\n',
+    );
+    expect(ignoring(1_234)).toContain('1,234 files are not shown');
+    expect(ignoring(undefined)).not.toContain('Ignored by configuration');
+    expect(output).not.toContain('Ignored by configuration');
+  });
+
   it('ends with the token footnote and explains "?" only when used', () => {
     expect(
       output.endsWith(

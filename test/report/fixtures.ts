@@ -138,6 +138,7 @@ export function makeResult(input: ResultInput = {}): ScanResult {
     schemaVersion: 1,
     tool: { name: 'agentcheckup', version: '1.4.0' },
     ruleset: '2026.10',
+    fingerprintVersion: 2,
     targets: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
     artifacts,
     findings,

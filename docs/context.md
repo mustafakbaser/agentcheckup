@@ -71,6 +71,29 @@ Skipped
   replaces.
 - **Incomplete:** files the plan could not analyze, so entries may be missing. For example,
   `.codex/config.toml` is not parsed, so Codex servers and hooks declared there are not listed.
+- **Ignored by configuration:** how many files the plan leaves out because the `ignore` of
+  `agentcheckup.config.json` matches them. See [Files the configuration ignores](#files-the-configuration-ignores).
+
+### Files the configuration ignores
+
+Files that match `ignore` in [the configuration](configuration.md#fields) do not appear in load
+plans or in the matrix, just as no rule checks them. Agents still load them, so each plan says
+how many files it left out, in one line after the plan:
+
+```text
+Ignored by configuration: 22 files are not shown; Cursor may still load them
+```
+
+The count covers the files that plan would otherwise have listed: an import of an ignored file,
+a nested `AGENTS.md` or a skill in an ignored directory. A plan that leaves nothing out has no
+such line. The plan does not list the files: `ignore` usually covers whole directories, such as
+test fixtures, and listing them would bury the real configuration. In JSON the count is
+`plans[].ignored`. The startup positions of the remaining entries are numbered again without
+gaps; the totals do not change, because agentcheckup never read the ignored files.
+
+Only a file's own path counts: a file that is not ignored keeps its entries, skips and
+findings. `--untrusted` ignores the repository's configuration, so its plans and matrix show
+every file: a pull request cannot hide agent configuration by adding it to `ignore`.
 
 ### Triggers
 
@@ -211,7 +234,9 @@ packages/web/AGENTS.md      skipped       start-dir   on-path
 
 Rows are instruction files, rule files, skills (by skill directory) and the files that declare
 MCP servers and hooks. Commands, subagents and imported files such as a `README.md` do not get
-rows. Rows that no agent reads are left out.
+rows. Rows that no agent reads are left out, and so are files the configuration ignores (see
+[Files the configuration ignores](#files-the-configuration-ignores)); the plans above the matrix
+count them. Directories with an ignored `AGENTS.md` get no Codex plan of their own.
 
 | Cell             | Meaning                                                                                                           |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -246,6 +271,7 @@ combined with `--cwd`.
 | `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`       |
 | `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                  |
 | `plans[].incomplete[]`              | What could not be analyzed, such as `unparsed:.codex/config.toml`                                                                               |
+| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                          |
 | `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`                                                   |
 | `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                   |
 | `inventory`                         | Every MCP server, hook, permission and env override, whether or not an agent loads it. Every report has it                                      |
@@ -282,6 +308,20 @@ you and builds the baseline from the base commit, never from the pull request.
   current finding. A current finding without a match is `new`; a baseline finding without a
   match is resolved. `--fail-on` counts new findings only. The score still covers every
   finding, and SARIF marks each result with its baseline state.
+- **Fingerprints** are `<hash>:<occurrence>`. The hash covers the rule id, the file and what the
+  finding points at. In a JSON file, that is the JSON path of the value, without array indices
+  (`mcpServers.docs`, `permissions.allow[]`), and the value itself in canonical form: a string,
+  number or boolean, or the content of an object in an array. An object under a key, such as an
+  MCP server, counts by its key alone, so adding a field to the server keeps its findings. In
+  any other file, or a JSON file that does not parse, it is the text of the finding's line with
+  whitespace collapsed and trailing commas, semicolons and periods removed. A finding on a whole
+  file does not depend on any line. So lines inserted above, re-indentation, a trailing comma
+  added when a sibling is appended, and reordered keys keep a finding unchanged, while a
+  finding about another value is new. Findings with the same hash are numbered in report order.
+- **Fingerprint version.** Every report has a `fingerprintVersion`. A baseline with another
+  version, or without the field (reports from before version 2), is refused with exit code 2:
+  none of its findings could match. Create the baseline again with the same agentcheckup
+  version, as the GitHub Action does on every run.
 - **Inventory items** match by id: `mcp:<file>#<name>`, `hook:<file>#<event>:<hash of the
 command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed when its
   digest differs. The digest covers only what reports show: names, the command and redacted
@@ -300,14 +340,14 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
 `--gate` takes a comma-separated list of classes, `security` for all of them, or `none`. It
 needs `--baseline`. Only additions and changes trip it; removals never do.
 
-| Class          | Trips when                                                                                                                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp`          | An MCP server is added or changed, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON, a `.codex/config.toml` or a `.vscode/mcp.json`                 |
-| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it           |
-| `permissions`  | A broad permission is added (any shell command, any file write or edit), an entry auto-approves MCP servers or skips confirmation, or `defaultMode` is set or changed. `deny` and `ask` entries never trip it |
-| `hooks`        | A hook is added or changed, on any event                                                                                                                                                                      |
-| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                           |
-| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                     |
+| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mcp`          | An MCP server is added or changed, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON, a `.codex/config.toml` or a `.vscode/mcp.json`                                                                                                                                                                                  |
+| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                            |
+| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, a skill's `allowed-tools`, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, or `defaultMode` set or changed. `deny` and `ask` entries never trip it |
+| `hooks`        | A hook is added or changed, on any event                                                                                                                                                                                                                                                                                                                                       |
+| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                            |
+| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                      |
 
 The env classes come from the Claude Code and Node.js documentation. Examples: `endpoint`
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers
@@ -317,17 +357,27 @@ covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `creden
 digest rules above, a new value for an existing `credential` or `code-exec` override is not a
 change, while a new endpoint origin or TLS switch value is.
 
+A narrow entry such as `Bash(curl:*)` trips `permissions` like a broad one: the reviewer should
+see every command an agent may now run without asking. The summary marks the broad ones, which
+grant everything of their kind:
+
+```text
+Permission widened: permissions.allow adds Bash(curl:*)
+Permission widened: permissions.allow adds Bash (broad: runs any shell command)
+Permission widened: permissions.additionalDirectories adds ~ (broad: the file system root or home directory)
+```
+
 Each gate hit has a one-line summary for the pull request. Endpoint values are shown as their
 URL origin; credential values are never shown.
 
 ### Exit codes
 
-| Code | When                                                                                                                                                  |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | No new findings at or above `--fail-on`, and no gate hit. `context` exits 0 unless `--gate` trips                                                     |
-| 1    | New findings at or above `--fail-on`, a score below `--min-score`, or a gate hit                                                                      |
-| 2    | `--gate` without `--baseline`, an unknown gate class, or a baseline that cannot be read or used (too large, a symlink, an unsupported schema version) |
-| 3    | Internal error                                                                                                                                        |
+| Code | When                                                                                                                                                                               |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | No new findings at or above `--fail-on`, and no gate hit. `context` exits 0 unless `--gate` trips                                                                                  |
+| 1    | New findings at or above `--fail-on`, a score below `--min-score`, or a gate hit                                                                                                   |
+| 2    | `--gate` without `--baseline`, an unknown gate class, or a baseline that cannot be read or used (too large, a symlink, an unsupported schema version, another fingerprint version) |
+| 3    | Internal error                                                                                                                                                                     |
 
 ### Who approves a gated change
 
@@ -363,7 +413,7 @@ The `Total` row is the session-start context from the repository. A row ending i
 Since the baseline
 ✖ 4 security-relevant changes need review
     New MCP server, not pinned: New MCP server browser (stdio, npx -y @acme/browser-mcp, not pinned)
-    Permission widened: permissions.allow adds Bash
+    Permission widened: permissions.allow adds Bash(curl:*)
     New hook: New hook SessionStart → scripts/hooks/session-start.sh
     Env override: Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net
 Findings: 0 new, 4 unchanged, 1 resolved

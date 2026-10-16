@@ -5,6 +5,7 @@
     "version": "1.4.0"
   },
   "ruleset": "2026.10",
+  "fingerprintVersion": 2,
   "targets": [
     "claude-code",
     "cline",

@@ -344,7 +344,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "1a2b3c4d5e6f70:1"
+            "agentcheckup/v2": "1a2b3c4d5e6f70:1"
           }
         },
         {
@@ -371,7 +371,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "2b3c4d5e6f7081:1"
+            "agentcheckup/v2": "2b3c4d5e6f7081:1"
           }
         },
         {
@@ -398,7 +398,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "3c4d5e6f708192:1"
+            "agentcheckup/v2": "3c4d5e6f708192:1"
           }
         },
         {
@@ -425,7 +425,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "4d5e6f708192a3:1"
+            "agentcheckup/v2": "4d5e6f708192a3:1"
           },
           "suppressions": [
             {
@@ -458,7 +458,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "5e6f708192a3b4:1"
+            "agentcheckup/v2": "5e6f708192a3b4:1"
           }
         },
         {
@@ -499,7 +499,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "6f708192a3b4c5:1"
+            "agentcheckup/v2": "6f708192a3b4c5:1"
           }
         },
         {
@@ -600,7 +600,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "708192a3b4c5d6:1"
+            "agentcheckup/v2": "708192a3b4c5d6:1"
           }
         },
         {
@@ -627,7 +627,7 @@
             }
           ],
           "partialFingerprints": {
-            "agentcheckup/v1": "8192a3b4c5d6e7:1"
+            "agentcheckup/v2": "8192a3b4c5d6e7:1"
           },
           "suppressions": [
             {

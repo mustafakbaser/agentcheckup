@@ -1,7 +1,9 @@
 /**
  * corpus/golden.json: every finding on every corpus repository in a canonical, sorted form, so a
  * refactor that must not change behavior can be checked against the whole corpus
- * (`run.ts --write-golden` before, `run.ts --check-golden` after).
+ * (`run.ts --write-golden` before, `run.ts --check-golden` after). A deliberate change of the
+ * fingerprint scheme is checked with `--check-golden --ignore-fingerprints`: every other field
+ * must stay the same.
  *
  * The file is gitignored like results.json (docs/adr/0005-scoring.md: no per-repository results
  * are published). It holds rule ids, paths, ranges, severities and fingerprints, and a hash of
@@ -140,8 +142,16 @@ export interface RepoDifference {
   readonly rules: readonly RuleDifference[];
 }
 
+export interface CompareOptions {
+  /**
+   * False to compare every field except the fingerprint: `--check-golden --ignore-fingerprints`,
+   * for a deliberate change of the fingerprint scheme. Default true.
+   */
+  readonly fingerprints?: boolean;
+}
+
 /** Identity of a finding, independent of key order in the file. */
-function keyOf(finding: GoldenFinding): string {
+function keyOf(finding: GoldenFinding, fingerprints = true): string {
   const { start, end } = finding.range;
   return JSON.stringify([
     finding.ruleId,
@@ -151,22 +161,26 @@ function keyOf(finding: GoldenFinding): string {
     end.line,
     end.column,
     finding.severity,
-    finding.fingerprint,
+    fingerprints ? finding.fingerprint : '',
     finding.messageHash,
     finding.suppressed === true,
   ]);
 }
 
 /** Findings of `from` that `other` lacks, counting duplicates. */
-function minus(from: readonly GoldenFinding[], other: readonly GoldenFinding[]): GoldenFinding[] {
+function minus(
+  from: readonly GoldenFinding[],
+  other: readonly GoldenFinding[],
+  fingerprints = true,
+): GoldenFinding[] {
   const counts = new Map<string, number>();
   for (const finding of other) {
-    const key = keyOf(finding);
+    const key = keyOf(finding, fingerprints);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const out: GoldenFinding[] = [];
   for (const finding of from) {
-    const key = keyOf(finding);
+    const key = keyOf(finding, fingerprints);
     const left = counts.get(key) ?? 0;
     if (left > 0) counts.set(key, left - 1);
     else out.push(finding);
@@ -196,29 +210,112 @@ export function compareGolden(
   saved: Golden,
   current: Golden,
   only?: ReadonlySet<string>,
+  options: CompareOptions = {},
 ): RepoDifference[] {
-  const label = (repo: GoldenRepo): string => `${repo.repo}@${repo.sha}`;
-  const inScope = (repo: GoldenRepo): boolean =>
-    only === undefined || only.has(repo.repo.toLowerCase());
-  const savedByLabel = new Map(saved.repos.filter(inScope).map((repo) => [label(repo), repo]));
-  const currentByLabel = new Map(current.repos.filter(inScope).map((repo) => [label(repo), repo]));
-  const all = [...new Map([...savedByLabel, ...currentByLabel]).values()].sort(compareGoldenRepos);
-
+  const fingerprints = options.fingerprints ?? true;
   const out: RepoDifference[] = [];
-  for (const repo of all) {
-    const before = savedByLabel.get(label(repo));
-    const after = currentByLabel.get(label(repo));
-    const removed = before === undefined ? [] : minus(before.findings, after?.findings ?? []);
-    const added = after === undefined ? [] : minus(after.findings, before?.findings ?? []);
+  for (const { label, before, after } of pairRepos(saved, current, only)) {
+    const removed =
+      before === undefined ? [] : minus(before.findings, after?.findings ?? [], fingerprints);
+    const added =
+      after === undefined ? [] : minus(after.findings, before?.findings ?? [], fingerprints);
     const missing = before === undefined ? 'golden' : after === undefined ? 'current' : undefined;
     if (removed.length === 0 && added.length === 0 && missing === undefined) continue;
     out.push({
-      label: label(repo),
+      label,
       ...(missing === undefined ? {} : { missing }),
       rules: byRule(removed, added),
     });
   }
   return out;
+}
+
+/**
+ * The repositories of both files by `repo@sha`, sorted; with `only` (lower-cased `owner/name`),
+ * just those.
+ */
+function pairRepos(
+  saved: Golden,
+  current: Golden,
+  only: ReadonlySet<string> | undefined,
+): { label: string; before?: GoldenRepo; after?: GoldenRepo }[] {
+  const labelOf = (repo: GoldenRepo): string => `${repo.repo}@${repo.sha}`;
+  const inScope = (repo: GoldenRepo): boolean =>
+    only === undefined || only.has(repo.repo.toLowerCase());
+  const savedByLabel = new Map(saved.repos.filter(inScope).map((repo) => [labelOf(repo), repo]));
+  const currentByLabel = new Map(
+    current.repos.filter(inScope).map((repo) => [labelOf(repo), repo]),
+  );
+  const all = [...new Map([...savedByLabel, ...currentByLabel]).values()].sort(compareGoldenRepos);
+  return all.map((repo) => {
+    const label = labelOf(repo);
+    const before = savedByLabel.get(label);
+    const after = currentByLabel.get(label);
+    return {
+      label,
+      ...(before === undefined ? {} : { before }),
+      ...(after === undefined ? {} : { after }),
+    };
+  });
+}
+
+export interface FingerprintChange {
+  readonly ruleId: string;
+  /** Findings of the rule that match a golden finding on every field but the fingerprint. */
+  readonly findings: number;
+  /** How many of them have a fingerprint the golden finding did not have. */
+  readonly changed: number;
+}
+
+/**
+ * For a deliberate change of the fingerprint scheme: pairs current findings with golden findings
+ * that agree on every other field, and counts, per rule, the paired findings whose fingerprint
+ * changed. Within a group of findings that agree on every other field, fingerprints are compared
+ * as a multiset. Findings without a partner are left to {@link compareGolden}.
+ */
+export function fingerprintChanges(
+  saved: Golden,
+  current: Golden,
+  only?: ReadonlySet<string>,
+): FingerprintChange[] {
+  const byRule = new Map<string, { findings: number; changed: number }>();
+  for (const { before, after } of pairRepos(saved, current, only)) {
+    if (before === undefined || after === undefined) continue;
+    const groups = new Map<string, { saved: string[]; current: GoldenFinding[] }>();
+    const group = (finding: GoldenFinding) => {
+      const key = keyOf(finding, false);
+      let entry = groups.get(key);
+      if (entry === undefined) {
+        entry = { saved: [], current: [] };
+        groups.set(key, entry);
+      }
+      return entry;
+    };
+    for (const finding of before.findings) group(finding).saved.push(finding.fingerprint);
+    for (const finding of after.findings) group(finding).current.push(finding);
+    for (const { saved: fingerprints, current: findings } of groups.values()) {
+      const left = new Map<string, number>();
+      for (const fingerprint of fingerprints)
+        left.set(fingerprint, (left.get(fingerprint) ?? 0) + 1);
+      const paired = Math.min(fingerprints.length, findings.length);
+      let unmatched = 0;
+      for (const finding of findings) {
+        const count = left.get(finding.fingerprint) ?? 0;
+        if (count > 0) left.set(finding.fingerprint, count - 1);
+        else unmatched++;
+      }
+      const ruleId = findings[0]?.ruleId;
+      if (ruleId === undefined || paired === 0) continue;
+      const tally = byRule.get(ruleId) ?? { findings: 0, changed: 0 };
+      tally.findings += paired;
+      // Unpaired current findings are additions, which compareGolden reports.
+      tally.changed += Math.min(unmatched, paired);
+      byRule.set(ruleId, tally);
+    }
+  }
+  return [...byRule]
+    .map(([ruleId, tally]) => ({ ruleId, ...tally }))
+    .sort((a, b) => compareStrings(a.ruleId, b.ruleId));
 }
 
 function location(finding: GoldenFinding): string {

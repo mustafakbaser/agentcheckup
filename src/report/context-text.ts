@@ -12,6 +12,7 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, MatrixCell, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  ignoredNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
   matrixView,
@@ -319,6 +320,13 @@ function renderIncomplete(view: PlanView, context: Context): string[] {
   ];
 }
 
+/** How many files the configuration's `ignore` left out: one line, like "Not read by". */
+function renderIgnored(view: PlanView, context: Context): string[] {
+  const note = ignoredNote(view);
+  if (note === undefined) return [];
+  return [context.style.dim(`Ignored by configuration: ${note}`)];
+}
+
 function renderPlan(view: PlanView, context: Context): string[][] {
   const { style, symbols } = context;
   const where = view.cwd === '' ? './' : cleanPath(view.cwd, context);
@@ -339,6 +347,7 @@ function renderPlan(view: PlanView, context: Context): string[][] {
     renderSkipped(view, context),
     renderNotRead(view, context),
     renderIncomplete(view, context),
+    renderIgnored(view, context),
   ].filter((block) => block.length > 0);
 }
 

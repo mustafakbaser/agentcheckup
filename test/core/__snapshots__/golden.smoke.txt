@@ -5,6 +5,7 @@
     "version": "0.0.0-golden"
   },
   "ruleset": "2026.10",
+  "fingerprintVersion": 2,
   "targets": [
     "claude-code",
     "cline",
@@ -108,7 +109,7 @@
       "platforms": [
         "cursor"
       ],
-      "fingerprint": "0fa61ab7c7de4c:1"
+      "fingerprint": "14a8b0f63a84c7:1"
     },
     {
       "ruleId": "mcp/url-without-type",
@@ -130,7 +131,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "1a8b763edce837:1"
+      "fingerprint": "15500b3f20e0ba:1"
     },
     {
       "ruleId": "instr/agents-md-ignored-by-claude",
@@ -157,7 +158,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "0c1a1a251a6989:1"
+      "fingerprint": "1b0491302140c9:1"
     },
     {
       "ruleId": "instr/import-unresolved",
@@ -179,7 +180,7 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "02ce10a4a8e190:1"
+      "fingerprint": "18e5b9b5d4e3d7:1"
     }
   ],
   "score": {

@@ -3,6 +3,7 @@
  * matrix (src/platforms/load/matrix.ts).
  */
 import { describe, expect, it } from 'vitest';
+import { resolveConfig } from '../../../src/core/config.js';
 import { analyze, runRules } from '../../../src/core/engine.js';
 import { PLATFORM_IDS } from '../../../src/core/types.js';
 import {
@@ -14,6 +15,7 @@ import {
   orderedAgents,
   sortedPlan,
   sourcesOf,
+  withoutIgnored,
 } from '../../../src/platforms/load/index.js';
 import {
   buildMatrix,
@@ -212,5 +214,136 @@ describe('matrix', () => {
     // A plan of an agent that is not a column adds no row.
     const cursor = loadPlans(analysis, { agents: ['cursor'], cwd: '', config: analysis.config });
     expect(buildMatrix(analysis, [...plans, ...cursor], ['codex']).rows).toHaveLength(1);
+  });
+});
+
+describe('paths the configuration ignores', () => {
+  const FILES: FileMap = {
+    'AGENTS.md': 'Rules.\n',
+    'CLAUDE.md': '# Claude\n\n@fixtures/guide.md\n\n@docs/setup.md\n',
+    'docs/setup.md': 'Setup.\n',
+    '.cursor/rules/style.mdc': '---\nalwaysApply: true\n---\nStyle.\n',
+    'fixtures/guide.md': 'Guide.\n',
+    'fixtures/repo/AGENTS.md': 'Fixture.\n',
+    'fixtures/repo/CLAUDE.md': 'Fixture.\n',
+    'fixtures/repo/.cursor/rules/x.md': '# x\n',
+    'fixtures/repo/.agents/skills/s/SKILL.md': '---\nname: s\ndescription: Does s.\n---\nBody.\n',
+  };
+
+  /** As a scan with `agentcheckup.config.json` (`ignore`) or with `--untrusted` (none). */
+  function scan(ignore: readonly string[] | undefined) {
+    const analysis = analyze(snapshotFrom(FILES, { paths: ['.git/HEAD'] }), {
+      targets: PLATFORM_IDS,
+      ...(ignore === undefined ? {} : { config: resolveConfig({ ignore }) }),
+    });
+    const { findings } = runRules(analysis, { rules: builtinRules, trustDirectives: false });
+    const plans = matrixPlans(analysis, { agents: CONTEXT_AGENTS, config: analysis.config });
+    return { findings, plans, matrix: buildMatrix(analysis, plans, CONTEXT_AGENTS) };
+  }
+
+  /** Every path a plan mentions. */
+  function pathsOf(plan: LoadPlan): string[] {
+    return [
+      ...plan.entries.map((item) => item.path),
+      ...plan.skipped.map((item) => item.path),
+      ...plan.outOfScope.map((item) => item.path),
+      ...plan.limits.map((item) => item.subject),
+      ...plan.incomplete.map((item) => item.slice(item.indexOf(':') + 1)),
+    ];
+  }
+
+  it('leaves them out of every plan and the matrix, and counts them per plan', () => {
+    const { plans, matrix, findings } = scan(['fixtures/**']);
+    for (const item of plans) {
+      expect(pathsOf(item).filter((path) => path.startsWith('fixtures/'))).toEqual([]);
+    }
+    expect(matrix.rows.map((row) => row.path)).toEqual([
+      '.cursor/rules/style.mdc',
+      'AGENTS.md',
+      'CLAUDE.md',
+    ]);
+    // What each plan would have listed as unread: Claude Code the import of fixtures/guide.md
+    // (it leaves files in a fixtures folder to their own sessions), Cursor the nested files it
+    // reads from anywhere in the workspace. Codex at the root does not reach them.
+    expect(plans.map((item) => `${item.agent} ${String(item.ignored)}`)).toEqual([
+      'claude-code 1',
+      'codex undefined',
+      'cursor 2',
+    ]);
+    // The rules never saw them either.
+    expect(findings.filter((finding) => finding.path.startsWith('fixtures/'))).toEqual([]);
+  });
+
+  it('numbers the session start again without the ignored import', () => {
+    const claude = scan(['fixtures/**']).plans.find((plan) => plan.agent === 'claude-code');
+    expect(
+      claude?.entries
+        .filter((entry) => entry.position !== undefined)
+        .map((entry) => `${String(entry.position)} ${entry.path}`),
+    ).toEqual(['1 CLAUDE.md', '2 docs/setup.md']);
+  });
+
+  it('lists them without a configuration, as with --untrusted', () => {
+    const { plans, matrix } = scan(undefined);
+    expect(plans.every((plan) => plan.ignored === undefined)).toBe(true);
+    expect(matrix.rows.map((row) => row.path)).toContain('fixtures/repo/AGENTS.md');
+    const claude = plans.find((plan) => plan.agent === 'claude-code');
+    expect(claude && pathsOf(claude)).toContain('fixtures/guide.md');
+  });
+
+  it('keeps a plan that ignores nothing as it is', () => {
+    const original = plan('cursor', {
+      entries: [entry('instructions', 'AGENTS.md', { position: 1, size: size(8) })],
+      incomplete: ['unread:pkg/'],
+    });
+    expect(withoutIgnored(original, resolveConfig({ ignore: ['fixtures/**'] }))).toBe(original);
+  });
+
+  it('filters each list by its own path, including directories and limit subjects', () => {
+    const config = resolveConfig({ ignore: ['vendor/**'] });
+    const original = plan('claude-code', {
+      entries: [
+        entry('instructions', 'CLAUDE.md', { position: 1, size: size(10) }),
+        entry('import', 'vendor/a.md', { position: 2 }),
+        entry('import', 'docs/b.md', { position: 3, size: size(4) }),
+        entry('rule', 'vendor/rules/r.md', { trigger: 'on-path' }),
+      ],
+      skipped: [
+        {
+          id: 'instructions:vendor/AGENTS.md',
+          role: 'instructions',
+          path: 'vendor/AGENTS.md',
+          code: 'shadowed-by-claude-md',
+          certainty: 'documented',
+          evidence: [],
+        },
+      ],
+      outOfScope: [{ path: 'vendor/x/CLAUDE.md', because: 'below-start-dir' }],
+      limits: [
+        {
+          key: 'claude-code.import_max_hops',
+          unit: 'hops',
+          limit: 4,
+          used: 1,
+          subject: 'vendor/a.md',
+          effect: 'skips',
+          evidence: [],
+        },
+      ],
+      incomplete: ['unread:vendor/a.md', 'unread:vendor/deep/', 'unread:docs/c.md'],
+    });
+    const filtered = withoutIgnored(original, config);
+    expect(filtered.entries.map((item) => `${String(item.position)} ${item.path}`)).toEqual([
+      '1 CLAUDE.md',
+      '2 docs/b.md',
+    ]);
+    expect(filtered.skipped).toEqual([]);
+    expect(filtered.outOfScope).toEqual([]);
+    expect(filtered.limits).toEqual([]);
+    expect(filtered.incomplete).toEqual(['unread:docs/c.md']);
+    // vendor/a.md, vendor/rules/r.md, vendor/AGENTS.md, vendor/x/CLAUDE.md, vendor/deep.
+    expect(filtered.ignored).toBe(5);
+    // The totals stay: the loader computed them, and an unread file has no size.
+    expect(filtered.totals).toBe(original.totals);
   });
 });

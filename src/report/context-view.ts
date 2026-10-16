@@ -262,8 +262,23 @@ export interface PlanView {
   /** Files and items the agent does not read at all (`not-read`). */
   readonly notRead: readonly { readonly path: string; readonly name?: string }[];
   readonly incomplete: readonly IncompleteRow[];
+  /** Files left out because the configuration's `ignore` matches them (`plan.ignored`), or 0. */
+  readonly ignored: number;
   /** True when any row is unverified, so the "?" needs its footnote. */
   readonly unverified: boolean;
+}
+
+/**
+ * The note for {@link PlanView.ignored}, without the label, or undefined when nothing was left
+ * out. Example: `22 files are not shown; Cursor may still load them`.
+ */
+export function ignoredNote(view: Pick<PlanView, 'ignored' | 'agentName'>): string | undefined {
+  if (view.ignored <= 0) return undefined;
+  const one = view.ignored === 1;
+  return (
+    `${formatInteger(view.ignored)} ${one ? 'file is' : 'files are'} not shown; ` +
+    `${view.agentName} may still load ${one ? 'it' : 'them'}`
+  );
 }
 
 export interface MatrixView {
@@ -592,6 +607,7 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     skipped,
     notRead,
     incomplete: plan.incomplete.map(incompleteRow),
+    ignored: plan.ignored ?? 0,
     unverified:
       startup.some((row) => row.unverified) ||
       services.some((row) => row.unverified) ||

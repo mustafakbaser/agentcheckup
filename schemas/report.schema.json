@@ -9,6 +9,7 @@
     "schemaVersion",
     "tool",
     "ruleset",
+    "fingerprintVersion",
     "targets",
     "artifacts",
     "findings",
@@ -38,6 +39,10 @@
       "description": "Calendar-versioned rule set, e.g. 2026.10.",
       "type": "string",
       "minLength": 1
+    },
+    "fingerprintVersion": {
+      "description": "Version of the scheme that computes each finding's `fingerprint`. `--baseline` refuses a report with another version, and reads a report without this field as version 1.",
+      "const": 2
     },
     "targets": {
       "description": "Platforms the scan targeted, sorted.",
@@ -253,7 +258,7 @@
           "uniqueItems": true
         },
         "fingerprint": {
-          "description": "Stable across line shifts: `<hash>:<occurrence>`.",
+          "description": "`<hash>:<occurrence>`. Stable across lines inserted above and reformatting: in a JSON file the hash covers the JSON path and canonical value the finding points at, elsewhere the normalized text of its line. See `fingerprintVersion`.",
           "type": "string",
           "pattern": "^[0-9a-f]+:[1-9][0-9]*$"
         },
@@ -712,6 +717,11 @@
           "description": "Parts that could not be analyzed, so entries may be missing: `markdown-budget:<path>`, `unparsed:<path>`, `unread:<path>`.",
           "type": "array",
           "items": { "type": "string" }
+        },
+        "ignored": {
+          "description": "How many files the plan leaves out because the configuration's `ignore` matches them. The agent may still load them. Absent when none.",
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

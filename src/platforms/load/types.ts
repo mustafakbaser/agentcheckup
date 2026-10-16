@@ -275,6 +275,13 @@ export interface LoadPlan {
    * `unread:<path>` (the walker did not read the file).
    */
   readonly incomplete: readonly string[];
+  /**
+   * How many files the plan leaves out because the configuration's `ignore` matches them: files
+   * it would otherwise list as entries, skips, out of scope or incomplete. The agent may still
+   * load them; agentcheckup was told not to look. Absent when none. See `withoutIgnored` in
+   * ./index.ts.
+   */
+  readonly ignored?: number;
 }
 
 /**
