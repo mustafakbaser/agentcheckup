@@ -4,7 +4,7 @@
  * still needs a dependency at runtime.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,7 @@ try {
     'dist/index.d.ts',
     'package.json',
     'schemas/config.schema.json',
+    'schemas/fix.schema.json',
     'schemas/report.schema.json',
   ]) {
     if (!files.includes(required)) fail(`tarball is missing ${required}`);
@@ -133,6 +134,38 @@ try {
     0,
   );
   runCli([repo, '--gate', 'security'], 2);
+
+  // fix on a copy of the smoke fixture: a dry run, --write --review, then a second dry run that
+  // must plan nothing. Until the rules emit fixes there may be nothing to change, so the first
+  // dry run may exit 0 or 1. TODO(maintainer): once the rule fixes land, expect exit 1 and
+  // specific fixes here.
+  const copy = join(work, 'fix-repo');
+  await cp(fixture, copy, { recursive: true });
+  interface FixJson {
+    mode: string;
+    fixes: { status: string }[];
+  }
+  const fixCli = (args: readonly string[], expected: readonly number[]): string => {
+    const result = spawnSync(process.execPath, [cli, 'fix', ...args], {
+      cwd: copy,
+      encoding: 'utf8',
+    });
+    if (result.status === null || !expected.includes(result.status)) {
+      fail(`fix ${args.join(' ')} exited ${result.status}, expected ${expected.join(' or ')}`);
+    }
+    return result.stdout;
+  };
+  const dryRun = JSON.parse(fixCli(['--format', 'json'], [0, 1])) as FixJson;
+  if (dryRun.mode !== 'dry-run') fail('fix --format json did not report a dry run');
+  fixCli([], [0, 1]);
+  const written = fixCli(['--write', '--review'], [0, 1]);
+  const expectedSummary = dryRun.fixes.length === 0 ? 'No fixes applied.' : 'Re-scanned:';
+  if (!written.includes(expectedSummary)) fail(`fix --write printed no summary: ${written}`);
+  const again = JSON.parse(fixCli(['--format', 'json'], [0, 1])) as FixJson;
+  if (again.fixes.some((entry) => entry.status === 'planned')) {
+    fail('a second fix dry run still planned fixes');
+  }
+  fixCli(['--write', '--untrusted'], [2]);
 
   process.stdout.write(
     `smoke: ok (${files.length} files, ${report.findings.length} findings, score ${report.score.score})\n`,

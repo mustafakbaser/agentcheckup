@@ -49,6 +49,9 @@ describe('run', () => {
       '--baseline <file>',
       '--gate <classes>',
       'GITHUB_WORKSPACE',
+      'agentcheckup fix [path] [options]',
+      '--compact ',
+      '--verbose ',
     ]) {
       expect(help.out.join('')).toContain(flag);
     }

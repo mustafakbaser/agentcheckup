@@ -3,20 +3,24 @@ import { parseGateClasses } from '../core/baseline.js';
 import type { GateClass } from '../core/baseline-types.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from '../core/types.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
+import type { DetailLevel } from '../report/feedback.js';
 
 export const OUTPUT_FORMATS = ['stylish', 'json', 'sarif', 'github', 'markdown', 'badge'] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 export const CONTEXT_FORMATS = ['text', 'json', 'markdown'] as const;
 export type ContextFormat = (typeof CONTEXT_FORMATS)[number];
+export const FIX_FORMATS = ['diff', 'json'] as const;
+export type FixFormat = (typeof FIX_FORMATS)[number];
 export type FailOn = Severity | 'none';
 
 export type Command =
-  | { readonly kind: 'help'; readonly topic?: 'context' }
+  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' }
   | { readonly kind: 'version' }
   | { readonly kind: 'rules'; readonly format: 'text' | 'json' }
   | { readonly kind: 'explain'; readonly ruleId: string }
   | { readonly kind: 'scan'; readonly options: ScanCommandOptions }
-  | { readonly kind: 'context'; readonly options: ContextCommandOptions };
+  | { readonly kind: 'context'; readonly options: ContextCommandOptions }
+  | { readonly kind: 'fix'; readonly options: FixCommandOptions };
 
 /** Options both the scan and the context command take. */
 export interface SharedCommandOptions {
@@ -43,6 +47,8 @@ export interface ScanCommandOptions extends SharedCommandOptions {
   readonly showSuppressed: boolean;
   /** `--context`: add load plans and the matrix to the report. */
   readonly context: boolean;
+  /** `--compact`, `--verbose` or neither: how much stylish, markdown and github output show. */
+  readonly level: DetailLevel;
 }
 
 export interface ContextCommandOptions extends SharedCommandOptions {
@@ -52,6 +58,23 @@ export interface ContextCommandOptions extends SharedCommandOptions {
   /** Root-relative POSIX directory, normalized; `''` is the scanned directory. */
   readonly cwd: string;
   readonly matrix: boolean;
+}
+
+/**
+ * `agentcheckup fix`. Shares the scan's configuration options; `baseline`, `gate` and
+ * `contextWindow` are always unset, `gitignore` always true.
+ */
+export interface FixCommandOptions extends SharedCommandOptions {
+  readonly format: FixFormat;
+  readonly targets: readonly PlatformId[] | undefined;
+  /** `--write`: apply the selected fixes. */
+  readonly write: boolean;
+  /** `--review`: with `--write`, also apply fixes of class `review`. */
+  readonly review: boolean;
+  /** `-i`: ask about each fix, then write the accepted ones. */
+  readonly interactive: boolean;
+  /** `--rule`: only fixes of these rules, deduplicated. Checked against the rules in run.ts. */
+  readonly rules: readonly string[] | undefined;
 }
 
 export class UsageError extends Error {
@@ -162,8 +185,18 @@ export function parseWorkingDirectory(value: string | undefined): string {
 type Values = Record<string, string | boolean | undefined>;
 
 /** Flags that only one command takes, with the command that does. */
-const SCAN_ONLY = ['targets', 'fail-on', 'min-score', 'show-suppressed', 'context'] as const;
+const SCAN_ONLY = [
+  'fail-on',
+  'min-score',
+  'show-suppressed',
+  'context',
+  'compact',
+  'verbose',
+] as const;
 const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
+const FIX_ONLY = ['write', 'review', 'interactive', 'rule'] as const;
+/** Scan and context flags `fix` does not take. */
+const NOT_FOR_FIX = ['baseline', 'gate', 'context-window', 'no-gitignore'] as const;
 
 function rejectFlags(values: Values, flags: readonly string[], message: string): void {
   for (const flag of flags) {
@@ -200,7 +233,8 @@ function contextCommand(values: Values, rest: readonly string[]): Command {
   if (rest.length > 1) {
     throw new UsageError(`"context" takes at most one path, got ${rest.length}.`);
   }
-  rejectFlags(values, SCAN_ONLY, 'does not apply to the context command.');
+  rejectFlags(values, [...SCAN_ONLY, 'targets'], 'does not apply to the context command.');
+  rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   const cwd = parseWorkingDirectory(values['cwd'] as string | undefined);
   const matrix = values['matrix'] === true;
   if (matrix && cwd !== '') {
@@ -229,10 +263,14 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
     throw new UsageError(`Expected at most one path, got ${positionals.length}.`);
   }
   rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   const shared = sharedOptions(values, positionals[0]);
   const context = values['context'] === true;
   if (shared.contextWindow !== undefined && !context) {
     throw new UsageError('--context-window needs --context, or use the context command.');
+  }
+  if (values['compact'] === true && values['verbose'] === true) {
+    throw new UsageError('--compact and --verbose cannot be combined.');
   }
   return {
     kind: 'scan',
@@ -248,6 +286,56 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
       minScore: parseMinScore(values['min-score'] as string | undefined),
       showSuppressed: values['show-suppressed'] === true,
       context,
+      level:
+        values['compact'] === true ? 'compact' : values['verbose'] === true ? 'verbose' : 'default',
+    },
+  };
+}
+
+function parseRules(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const ids = list(value);
+  if (ids.length === 0) throw new UsageError('--rule needs at least one rule id.');
+  return [...new Set(ids)];
+}
+
+function fixCommand(values: Values, rest: readonly string[]): Command {
+  if (values['help'] === true) return { kind: 'help', topic: 'fix' };
+  if (values['version'] === true) return { kind: 'version' };
+  if (rest.length > 1) throw new UsageError(`"fix" takes at most one path, got ${rest.length}.`);
+  rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_FIX], 'does not apply to the fix command.');
+  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  const write = values['write'] === true;
+  const review = values['review'] === true;
+  const interactive = values['interactive'] === true;
+  if (review && !write) {
+    throw new UsageError(
+      '--review needs --write: "agentcheckup fix --write --review" applies the fixes that need ' +
+        'review too. A dry run already shows them.',
+    );
+  }
+  const untrusted = values['untrusted'] === true;
+  if (untrusted && (write || interactive)) {
+    throw new UsageError(
+      `--untrusted allows only a dry run, so it cannot be combined with ${write ? '--write' : '-i'}.`,
+    );
+  }
+  const format = oneOf((values['format'] as string | undefined) ?? 'diff', FIX_FORMATS, '--format');
+  if (interactive && format === 'json' && values['output'] === undefined) {
+    throw new UsageError(
+      '-i asks its questions on stdout, so -i --format json needs --output <file>.',
+    );
+  }
+  return {
+    kind: 'fix',
+    options: {
+      ...sharedOptions(values, rest[0]),
+      format,
+      targets: parseTargets(values['targets'] as string | undefined),
+      write,
+      review,
+      interactive,
+      rules: parseRules(values['rule'] as string | undefined),
     },
   };
 }
@@ -280,11 +368,18 @@ export function parseCommand(argv: readonly string[]): Command {
       cwd: { type: 'string' },
       matrix: { type: 'boolean' },
       'context-window': { type: 'string' },
+      compact: { type: 'boolean' },
+      verbose: { type: 'boolean' },
+      write: { type: 'boolean' },
+      review: { type: 'boolean' },
+      interactive: { type: 'boolean', short: 'i' },
+      rule: { type: 'string' },
     },
   });
 
   const [first, ...rest] = positionals;
   if (first === 'context') return contextCommand(values, rest);
+  if (first === 'fix') return fixCommand(values, rest);
   if (values.help) return { kind: 'help' };
   if (values.version) return { kind: 'version' };
 

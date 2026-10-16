@@ -1,8 +1,8 @@
-import { basename, dirname, relative, resolve, sep } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { compareWithBaseline } from '../core/baseline.js';
 import { type BaselineReport, validateBaseline } from '../core/baseline-input.js';
 import type { GateClass } from '../core/baseline-types.js';
-import { ConfigError, resolveConfig, type ResolvedConfig } from '../core/config.js';
+import { ConfigError } from '../core/config.js';
 import {
   type ContextOptions,
   type ScanOptions,
@@ -11,17 +11,10 @@ import {
   scanWithContext,
 } from '../core/engine.js';
 import { rebaseResult } from '../core/rebase.js';
-import { CONFIG_FILE_NAME, ruleDocsUrl } from '../core/meta.js';
-import {
-  PLATFORM_IDS,
-  type PlatformId,
-  type RuleMeta,
-  SEVERITIES,
-  type Snapshot,
-} from '../core/types.js';
+import { ruleDocsUrl } from '../core/meta.js';
+import { PLATFORM_IDS, type RuleMeta, SEVERITIES, type Snapshot } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { readConfigFile } from '../io/config-file.js';
-import { OutputError, writeOutputFile } from '../io/output.js';
+import { OutputError } from '../io/output.js';
 import { relativeInsideRoot } from '../io/paths.js';
 import { InputFileError, readJsonInput } from '../io/read-file.js';
 import { walk, WalkError } from '../io/walk.js';
@@ -35,36 +28,29 @@ import { formatContextText } from '../report/context-text.js';
 import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
 import { forTerminal } from '../report/sanitize.js';
-import { plainStyle, type Style } from '../report/stylish.js';
-import { DIRECTIVE_RULES } from '../core/directive-rules.js';
-import { builtinRules } from '../rules/index.js';
 import {
   type ContextCommandOptions,
   type FailOn,
   parseCommand,
   type ScanCommandOptions,
-  type SharedCommandOptions,
   UsageError,
 } from './args.js';
-import { CONTEXT_HELP, HELP } from './help.js';
-import { ansiStyle, shouldUseColor } from './style.js';
+import {
+  allRuleMeta,
+  emit,
+  errorMessage,
+  EXIT,
+  type ExitCode,
+  type Io,
+  loadConfig,
+  scanOptionsFor,
+  styleFor,
+} from './common.js';
+import { fix } from './fix.js';
+import { CONTEXT_HELP, FIX_HELP, HELP } from './help.js';
+import { ansiStyle } from './style.js';
 
-export interface Io {
-  readonly stdout: (text: string) => void;
-  readonly stderr: (text: string) => void;
-  readonly cwd: string;
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly isTTY: boolean;
-}
-
-/**
- * - 0: clean. `context` without `--gate` always exits 0 unless something fails.
- * - 1: (new) findings at or above `--fail-on`, a score below `--min-score`, or a tripped gate.
- * - 2: invalid arguments, configuration, `--cwd`, `--agent` or baseline; an unwritable output.
- * - 3: internal error, including a rule or loader that crashed.
- */
-export const EXIT = { ok: 0, findings: 1, usage: 2, internal: 3 } as const;
-export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
+export { EXIT, type ExitCode, type Io, type Prompt } from './common.js';
 
 /** Entry point with injected I/O, so the whole CLI is testable without spawning processes. */
 export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
@@ -72,7 +58,9 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     const command = parseCommand(argv);
     switch (command.kind) {
       case 'help':
-        io.stdout(command.topic === 'context' ? CONTEXT_HELP : HELP);
+        io.stdout(
+          command.topic === 'context' ? CONTEXT_HELP : command.topic === 'fix' ? FIX_HELP : HELP,
+        );
         return EXIT.ok;
       case 'version':
         io.stdout(`${VERSION}\n`);
@@ -86,13 +74,16 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return await scan(command.options, io);
       case 'context':
         return await context(command.options, io);
+      case 'fix':
+        return await fix(command.options, io);
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
       // The first argument that is not a flag names the command, as in parseCommand.
+      const first = argv.find((arg) => !arg.startsWith('-'));
       const help =
-        argv.find((arg) => !arg.startsWith('-')) === 'context'
-          ? 'agentcheckup context --help'
+        first === 'context' || first === 'fix'
+          ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
       io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);
       return EXIT.usage;
@@ -114,10 +105,6 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
   }
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function isParseArgsError(error: unknown): boolean {
   return (
     error instanceof TypeError &&
@@ -125,29 +112,6 @@ function isParseArgsError(error: unknown): boolean {
     typeof error.code === 'string' &&
     error.code.startsWith('ERR_PARSE_ARGS_')
   );
-}
-
-async function loadConfig(
-  options: SharedCommandOptions,
-  root: string,
-  cwd: string,
-): Promise<ResolvedConfig | undefined> {
-  if (!options.useConfig) return undefined;
-  const explicit = options.config === undefined ? undefined : resolve(cwd, options.config);
-  const directory = explicit === undefined ? root : dirname(explicit);
-  const fileName = explicit === undefined ? CONFIG_FILE_NAME : basename(explicit);
-  const text = await readConfigFile(directory, fileName);
-  if (text === undefined) {
-    if (explicit !== undefined) throw new ConfigError(`Config file not found: ${explicit}`);
-    return undefined;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch (error) {
-    throw new ConfigError(`${fileName} is not valid JSON: ${errorMessage(error)}`);
-  }
-  return resolveConfig(raw, fileName);
 }
 
 /**
@@ -181,6 +145,9 @@ function withBaseline(
   const comparison = compareWithBaseline(scanned, baseline, { gate });
   return { ...scanned, findings: comparison.findings, baseline: comparison.diff };
 }
+
+/** Formats a person reads: they show what each agent misses unless `--compact`. */
+const HUMAN_FORMATS: ReadonlySet<string> = new Set(['stylish', 'markdown', 'github']);
 
 /** The format puts the comparison's ruleset notice in the report itself. */
 const SHOWS_RULESET_NOTICE: ReadonlySet<string> = new Set([
@@ -222,29 +189,20 @@ function pathPrefix(root: string, io: Io, format: string): string {
   return relative(io.cwd, root).split(sep).join('/');
 }
 
-function styleFor(options: SharedCommandOptions, io: Io): Style {
-  const color =
-    options.output === undefined &&
-    shouldUseColor({ flag: options.color, env: io.env, isTTY: io.isTTY });
-  return color ? ansiStyle : plainStyle;
-}
-
-async function emit(report: string, options: SharedCommandOptions, io: Io): Promise<void> {
-  if (options.output === undefined) io.stdout(report);
-  else await writeOutputFile(resolve(io.cwd, options.output), report);
-}
-
-function scanOptionsFor(
-  options: SharedCommandOptions,
-  config: ResolvedConfig | undefined,
-  targets: readonly PlatformId[] | undefined,
-): ScanOptions {
-  return {
-    rules: builtinRules,
-    ...(config ? { config } : {}),
-    ...(targets ? { targets } : {}),
-    trustDirectives: !options.untrusted,
-  };
+/**
+ * The scan with root load plans, for the summary of what each agent misses. The plans only add
+ * to the report: if a loader crashes, the findings are reported without them, with a warning.
+ */
+function scanWithRootPlans(snapshot: Snapshot, scanOptions: ScanOptions, io: Io): ScanResult {
+  try {
+    return scanWithContext(snapshot, { ...scanOptions, matrix: false });
+  } catch (error) {
+    io.stderr(
+      `Warning: Could not work out what each agent loads, so the report leaves it out: ` +
+        `${forTerminal(errorMessage(error))}\n`,
+    );
+    return scanSnapshot(snapshot, scanOptions);
+  }
 }
 
 async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
@@ -256,24 +214,34 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
     scanIgnoredAgentConfig: options.untrusted,
   });
   const scanOptions = scanOptionsFor(options, config, options.targets);
+  // Human-readable reports show what each agent misses, from the root load plans (cheap: no
+  // matrix). `--compact` shows findings only, and JSON, SARIF and the badge add plans only with
+  // --context.
+  const rootPlans = options.level !== 'compact' && HUMAN_FORMATS.has(options.format);
   const scanned = options.context
     ? scanWithContext(snapshot, {
         ...scanOptions,
         matrix: true,
         ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
       })
-    : scanSnapshot(snapshot, scanOptions);
+    : rootPlans
+      ? scanWithRootPlans(snapshot, scanOptions, io)
+      : scanSnapshot(snapshot, scanOptions);
   const result = rebaseResult(
     withBaseline(scanned, baseline, options.gate),
     pathPrefix(root, io, options.format),
   );
 
+  const style = styleFor(options, io);
   const report =
     options.format === 'badge'
       ? `${badgeMarkdown(result)}\n`
       : format(result, options.format, {
-          style: styleFor(options, io),
+          style,
           showSuppressed: options.showSuppressed,
+          level: options.level,
+          // OSC 8 links only where a terminal renders them: ANSI output to a TTY.
+          hyperlinks: style === ansiStyle && io.isTTY,
         });
   warn(result, options.format, io);
   await emit(report, options, io);
@@ -406,12 +374,6 @@ function gateTripped(result: ScanResult): boolean {
   return (result.baseline?.gate.hits.length ?? 0) > 0;
 }
 
-function allRuleMeta(): RuleMeta[] {
-  return [...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES].sort((a, b) =>
-    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-  );
-}
-
 function listRulesText(): string {
   const rules = allRuleMeta();
   const width = Math.max(...rules.map((meta) => meta.id.length), 10);
@@ -442,8 +404,18 @@ function explain(ruleId: string, io: Io): ExitCode {
       `Severity:   ${meta.severity}\n` +
       `Category:   ${meta.category}\n` +
       `Platforms:  ${meta.platforms.join(', ')}\n` +
-      `Applies to: ${meta.appliesTo.join(', ')}\n\n` +
+      `Applies to: ${meta.appliesTo.join(', ')}\n` +
+      `${fixLines(meta)}\n\n` +
       `${meta.rationale}\n\nSources:\n${sources}\n\nDocs: ${ruleDocsUrl(meta.id)}\n`,
   );
   return EXIT.ok;
+}
+
+/** `Fix:` and the classes a rule's fixes can have with its summary, or that it has none. */
+function fixLines(meta: RuleMeta): string {
+  if (meta.fix === undefined) return 'Fix:        No automatic fix; guidance only';
+  return (
+    `Fix:        ${meta.fix.classes.join(', ')} (agentcheckup fix --rule ${meta.id})\n` +
+    `            ${meta.fix.summary}`
+  );
 }

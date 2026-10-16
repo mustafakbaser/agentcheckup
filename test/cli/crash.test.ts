@@ -25,7 +25,15 @@ describe('a crashing loader', () => {
     },
   );
 
-  it('does not affect a scan without --context', async () => {
-    expect(await run(['--fail-on', 'none'], capture(CONTEXT_FIXTURE))).toBe(EXIT.ok);
+  it('does not affect a scan without --context: the report leaves the plans out', async () => {
+    const io = capture(CONTEXT_FIXTURE);
+    expect(await run(['--fail-on', 'none'], io)).toBe(EXIT.ok);
+    expect(io.output()).not.toContain('What each agent misses');
+    expect(io.errors()).toContain('Could not work out what each agent loads');
+    expect(io.errors()).toContain('loader crashed');
+
+    const compact = capture(CONTEXT_FIXTURE);
+    expect(await run(['--fail-on', 'none', '--compact'], compact)).toBe(EXIT.ok);
+    expect(compact.errors()).toBe('');
   });
 });

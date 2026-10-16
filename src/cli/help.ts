@@ -8,16 +8,22 @@ Docs: ${REPOSITORY_URL}#readme
 `;
 
 export const HELP = `Usage: ${TOOL_NAME} [path] [options]
+       ${TOOL_NAME} fix [path] [options]
        ${TOOL_NAME} context [path] [options]
        ${TOOL_NAME} rules [--json]
        ${TOOL_NAME} explain <rule-id>
 
 Check AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules, Copilot instructions and MCP
-configs against how coding agents actually load them. "${TOOL_NAME} context"
-shows what each agent loads; run "${TOOL_NAME} context --help" for its options.
+configs against how coding agents actually load them. "${TOOL_NAME} fix" repairs
+what it can, and "${TOOL_NAME} context" shows what each agent loads; run either
+with --help for its options.
 
 Options
   -f, --format <name>      stylish (default), json, sarif, github, markdown, badge
+      --compact            stylish, markdown, github: the findings only, without what
+                           each agent misses and the why, fix and how lines
+      --verbose            stylish, markdown, github: also each rule's docs URL,
+                           rationale and sources
   -o, --output <file>      Write the report to a file instead of stdout
   -t, --targets <list>     Comma-separated platforms to check against. Default: all
                            (${PLATFORM_IDS.join(', ')})
@@ -52,6 +58,50 @@ Exit codes
   1  Findings at or above --fail-on (new ones only, with --baseline), the score is
      below --min-score, or --gate found security-relevant changes
   2  Invalid arguments, configuration or baseline
+  3  Internal error (a rule or the scanner crashed)
+
+${FOOTER}`;
+
+export const FIX_HELP = `Usage: ${TOOL_NAME} fix [path] [options]
+
+Repair what agentcheckup can fix. Without --write or -i this is a dry run: it
+prints the diff of each fix, checked by scanning a fixed copy in memory, and
+changes nothing. [path] is the repository root; default: the current directory.
+
+A safe fix has one correct form and adds or changes no MCP server, hook,
+permission or env override. Every other fix needs review. Findings without a
+fix are listed as manual steps.
+
+Options
+      --write              Apply the safe fixes, then scan the files again
+      --review             With --write: also apply the fixes that need review
+  -i, --interactive        Ask about each fix: [y]es [n]o [d]iff [a]lternatives
+                           [q]uit, then apply the accepted ones. Enter means yes
+                           for a safe fix and no for one that needs review.
+                           Needs a terminal
+      --rule <ids>         Comma-separated rule ids: fix only these rules.
+                           mcp/literal-secret is fixed only when named here or
+                           accepted with -i
+  -t, --targets <list>     Comma-separated platforms to check against. Default: all
+                           (${PLATFORM_IDS.join(', ')})
+  -f, --format <name>      diff (default), json
+  -o, --output <file>      Write the diff or JSON to a file instead of stdout
+  -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
+      --no-config          Ignore config files
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration.
+                           Dry run only: cannot be combined with --write or -i
+      --color, --no-color  Force or disable color
+  -h, --help               Show this help
+
+agentcheckup runs no git, hooks or formatters. Review what it wrote with git diff.
+
+Exit codes
+  0  Nothing to change (dry run), or every selected fix was applied and verified
+  1  The dry run found changes, or a selected fix was not applied: a conflict, a
+     file that changed since the scan, a refused path or a failed check
+  2  Invalid arguments or configuration, an unknown --rule, or -i without a
+     terminal
   3  Internal error (a rule or the scanner crashed)
 
 ${FOOTER}`;

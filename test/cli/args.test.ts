@@ -22,6 +22,7 @@ describe('parseCommand', () => {
         gate: [],
         contextWindow: undefined,
         context: false,
+        level: 'default',
       },
     });
   });
