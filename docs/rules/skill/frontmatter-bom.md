@@ -10,7 +10,7 @@ Skill file starts with a byte order mark.
 | Category   | `loading`                      |
 | Platforms  | Claude Code, Codex, Gemini CLI |
 | Applies to | `skill`                        |
-| Fixable    | No                             |
+| Fixable    | Yes, `safe`                    |
 | Since      | 2026.10                        |
 
 ## Why

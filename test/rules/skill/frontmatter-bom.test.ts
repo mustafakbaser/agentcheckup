@@ -25,7 +25,7 @@ describe('skill/frontmatter-bom', () => {
       },
     ]);
     expect(result.findings[0]?.platforms).toEqual(['codex', 'gemini']);
-    expect(result.findings[0]?.fix).toBeUndefined();
+    expect(result.findings[0]?.fix?.id).toBe('skill/frontmatter-bom#remove-bom');
   });
 
   it('reports invalid and CRLF frontmatter too', () => {

@@ -21,6 +21,7 @@ import {
   validFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import { type FixOrGuidance, fixFields, nameFix } from './fixes.js';
 
 const MAX_NAME_LENGTH = 64;
 /** Offending characters listed in a message. */
@@ -172,6 +173,11 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
       SOURCES.claudeSkills,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe', 'review'],
+      summary:
+        'Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. A non-ASCII name or an invalid directory name is left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -183,6 +189,7 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
       const span = data.valueSpan('name');
       let message: string;
       let impacts: readonly Impact[];
+      let repair: FixOrGuidance;
       const { reach, distributable } = placement(context, artifact);
       if (nameNotText(value)) {
         const codex = reach.has('codex');
@@ -196,11 +203,13 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
           ...(codex ? [{ platform: 'codex', severity: 'error' } as const] : []),
           SPEC_INVALID,
         ];
+        repair = { guidance: 'write "name" as one line of text, such as the directory name' };
       } else if (typeof value === 'string') {
         const analysis = analyze(value, (platform) => reach.has(platform), distributable);
         if (analysis === undefined) continue;
         message = `Skill name ${quote(value.trim())} ${joinNames(analysis.problems)}. ${sentence(joinClauses(analysis.consequences))}`;
         impacts = analysis.impacts;
+        repair = nameFix(context, artifact, frontmatter, 'skill/name-format', value);
       } else {
         // Missing or empty: skill/name-missing. Numbers and booleans read as text everywhere.
         continue;
@@ -213,6 +222,7 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
         severity: resolved.severity,
         platforms: resolved.platforms,
         ...(span === undefined ? {} : { span }),
+        ...fixFields(repair),
       });
     }
   },

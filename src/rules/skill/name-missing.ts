@@ -1,4 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -9,6 +11,7 @@ import {
   quote,
   sentence,
 } from '../shared/format.js';
+import { directoryAsName, type FixOrGuidance, fixFields } from './fixes.js';
 import {
   type Impact,
   isDistributable,
@@ -18,8 +21,38 @@ import {
   resolveImpacts,
   skillDirectoryName,
   validFrontmatter,
+  type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+
+/**
+ * Writes the directory name as `name`, the name Claude Code and Codex already fall back to:
+ * `safe` when the directory has a valid name without a reserved word and no symlink alias puts
+ * the skill in another directory. Otherwise a manual step.
+ */
+function addName(
+  artifact: Artifact,
+  frontmatter: ValidFrontmatter,
+  present: boolean,
+): FixOrGuidance {
+  const directory = directoryAsName(artifact);
+  const manual = {
+    guidance:
+      'add a "name" of lowercase letters, digits and hyphens, and rename the directory to match',
+  };
+  if (directory === undefined) return manual;
+  const change = present
+    ? yamlSetScalar(artifact, frontmatter, 'name', directory)
+    : yamlInsertKey(artifact, frontmatter, 'name', directory, { position: 'first' });
+  if (change === undefined) return { guidance: `set "name" to "${directory}"` };
+  const fix: Fix = {
+    id: 'skill/name-missing#directory',
+    class: 'safe',
+    title: `Set "name" to "${directory}" in ${artifact.path}`,
+    changes: [change],
+  };
+  return { fix };
+}
 
 export const nameMissingRule = defineRule({
   meta: {
@@ -42,6 +75,10 @@ Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`
       SKILL_SOURCES.codexSkillLoader,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe'],
+      summary: 'Sets `name` to the directory name when that is a valid skill name.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -89,6 +126,7 @@ Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: (present ? data.keySpan('name') : undefined) ?? OPENING_DELIMITER,
+        ...fixFields(addName(artifact, frontmatter, present)),
       });
     }
   },

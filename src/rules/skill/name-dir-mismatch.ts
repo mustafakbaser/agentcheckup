@@ -16,6 +16,7 @@ import {
   validFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import { fixFields, isValidSkillName, nameFix } from './fixes.js';
 
 export const nameDirMismatchRule = defineRule({
   meta: {
@@ -39,6 +40,11 @@ Rename the directory or change \`name\` so that they match.`,
       SOURCES.claudeSkills,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe', 'review'],
+      summary:
+        'Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. Directories are never renamed.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -92,12 +98,21 @@ Rename the directory or change \`name\` so that they match.`,
           ]),
         );
         const span = frontmatter.data.valueSpan('name');
+        // A symlink's directory is the user's to rename: the skill's own name may be right.
+        const repair = own
+          ? nameFix(context, artifact, frontmatter, 'skill/name-dir-mismatch', raw)
+          : {
+              guidance: isValidSkillName(name)
+                ? `rename the directory of the symlink ${quotePath(path)} to ${quote(name)}`
+                : 'choose a name that matches the directory of the skill and of every symlink to it, and rename directories as needed',
+            };
         context.report({
           artifact,
           message: `Skill name ${quote(raw)} does not match ${where}. ${consequence}`,
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(span === undefined ? {} : { span }),
+          ...fixFields(repair),
         });
       }
     }

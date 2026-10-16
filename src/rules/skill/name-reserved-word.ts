@@ -39,7 +39,12 @@ interface Problem {
   readonly message: string;
   readonly impacts: readonly Impact[];
   readonly span?: Span;
+  readonly guidance: string;
 }
+
+const RENAME_DIRECTORY = 'rename the skill directory, and set "name" to match';
+const RENAME_SKILL =
+  'choose a name without "anthropic" or "claude", and rename the skill directory to match';
 
 function folderProblem(paths: readonly string[]): Problem | undefined {
   for (const path of paths) {
@@ -53,12 +58,14 @@ function folderProblem(paths: readonly string[]): Problem | undefined {
       return {
         message: `The skill directory ${quote(folder)} is reserved for skills synced from claude.ai, so Claude Code skips this skill.`,
         impacts: [{ platform: 'claude-code', severity: 'error' }],
+        guidance: RENAME_DIRECTORY,
       };
     }
     if (isReservedNamespace(folder)) {
       return {
         message: `The skill directory ${quote(folder)} is reserved for skills synced from claude.ai, so Claude Code skips this skill.`,
         impacts: [{ platform: 'claude-code', severity: 'error' }],
+        guidance: RENAME_DIRECTORY,
       };
     }
   }
@@ -83,6 +90,7 @@ function nameProblem(
         { platform: 'claude-code', severity: 'warn', scope: 'distribution' },
       ],
       ...(span === undefined ? {} : { span }),
+      guidance: RENAME_SKILL,
     };
   }
   if (word === undefined || !distributable) return undefined;
@@ -90,6 +98,7 @@ function nameProblem(
     message: `Skill name ${quote(raw)} contains the reserved word ${quote(word)}, so the Claude API and claude.ai upload reject the skill.`,
     impacts: [{ platform: 'claude-code', severity: 'warn', scope: 'distribution' }],
     ...(span === undefined ? {} : { span }),
+    guidance: RENAME_SKILL,
   };
 }
 
@@ -140,6 +149,7 @@ Choose a name without these words.`,
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(problem.span === undefined ? {} : { span: problem.span }),
+          guidance: problem.guidance,
         });
       }
     }

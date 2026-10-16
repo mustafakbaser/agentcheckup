@@ -55,6 +55,9 @@ function offsetAfterCodePoints(text: string, count: number): number | undefined 
   return undefined;
 }
 
+const MOVE_REFERENCE =
+  'move reference sections into files next to SKILL.md and link to them from the body';
+
 export const bodyTooLongRule = defineRule<BodyTooLongOptions>({
   meta: {
     id: 'skill/body-too-long',
@@ -97,6 +100,7 @@ Move reference material into separate files next to SKILL.md and link to them.`,
             severity: resolved.severity,
             platforms: resolved.platforms,
             span: lineSpanAt(artifact, artifact.decoded.lineStarts[firstOver - 1] ?? start),
+            guidance: MOVE_REFERENCE,
           });
         }
       }
@@ -118,6 +122,7 @@ Move reference material into separate files next to SKILL.md and link to them.`,
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: lineSpanAt(artifact, start + cut),
+        guidance: MOVE_REFERENCE,
       });
     }
   },

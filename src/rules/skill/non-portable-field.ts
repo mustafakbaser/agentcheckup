@@ -131,6 +131,8 @@ Keep extension fields in skills that only their agents load, and move your own d
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(span === undefined ? {} : { span }),
+          guidance:
+            'move your own keys under "metadata", and remove agent-specific fields from the copy you upload or publish',
         });
         continue;
       }
@@ -147,6 +149,7 @@ Keep extension fields in skills that only their agents load, and move your own d
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(span === undefined ? {} : { span }),
+          guidance: `remove ${quote(key)} if the agents that ignore it should behave the same, or keep it and accept the difference`,
         });
       }
     }

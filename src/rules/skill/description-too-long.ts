@@ -77,12 +77,17 @@ Put the key use case first and move details into the body.`,
         !overLimit && whenToUse !== undefined && length <= LISTING_CAP
           ? data.valueSpan('when_to_use')
           : data.valueSpan('description');
+      const listed = overLimit ? MAX_DESCRIPTION : LISTING_CAP;
       context.report({
         artifact,
         message,
         severity: resolved.severity,
         platforms: resolved.platforms,
         ...(span === undefined ? {} : { span }),
+        guidance:
+          !overLimit && whenToUse !== undefined && length <= LISTING_CAP
+            ? `shorten "when_to_use" so that it and "description" fit in ${cap} characters`
+            : `shorten "description" to ${formatInteger(listed)} characters or fewer: put the main use case first and move details into the body`,
       });
     }
   },

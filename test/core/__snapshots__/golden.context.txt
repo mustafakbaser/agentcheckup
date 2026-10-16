@@ -360,7 +360,21 @@
         "codex",
         "gemini"
       ],
-      "fingerprint": "04e07438515c2a:1"
+      "fingerprint": "04e07438515c2a:1",
+      "fix": {
+        "id": "skill/frontmatter-bom#remove-bom",
+        "class": "safe",
+        "title": "Remove the byte order mark from .agents/skills/db-migrate/SKILL.md",
+        "changes": [
+          {
+            "kind": "encoding",
+            "path": ".agents/skills/db-migrate/SKILL.md",
+            "to": "utf-8",
+            "bom": false
+          }
+        ]
+      },
+      "guidance": "save SKILL.md as UTF-8 without a byte order mark"
     },
     {
       "ruleId": "hooks/fails-open",
@@ -426,7 +440,29 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "1d4ea86d4e28da:1"
+      "fingerprint": "1d4ea86d4e28da:1",
+      "fix": {
+        "id": "skill/frontmatter-missing#add",
+        "class": "review",
+        "title": "Add frontmatter to .claude/skills/triage/SKILL.md",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": ".claude/skills/triage/SKILL.md",
+            "edits": [
+              {
+                "offset": 0,
+                "length": 0,
+                "text": "---\nname: triage\ndescription: \"Triage new issues: add one `area:` label and ask for a reproduction.\"\n---\n"
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "Copied from the first line of the body; reword it to say what the skill does and when to use it."
+        ]
+      },
+      "guidance": "start SKILL.md with a \"---\" line, then \"name\" and \"description\" fields, then a closing \"---\" line"
     },
     {
       "ruleId": "hooks/fails-open",
@@ -2796,7 +2832,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Replaces backslashes in a link with `/` (safe), or writes the link in the letter case of the only file it matches (review). Other broken links are left to you."
+      }
     },
     {
       "id": "skill/description-missing",
@@ -2864,7 +2907,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you."
+      }
     },
     {
       "id": "skill/description-quality",
@@ -3050,7 +3099,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Writes an `allowed-tools` list as a space-separated string when no tool rule contains a space. Other types are left to you."
+      }
     },
     {
       "id": "skill/frontmatter-bom",
@@ -3104,7 +3159,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Saves SKILL.md as UTF-8 without the byte order mark."
+      }
     },
     {
       "id": "skill/frontmatter-invalid",
@@ -3202,7 +3263,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Moves the frontmatter to line 1 and removes the indentation of its delimiters (safe), or adds frontmatter with the directory name and the first body line as the description (review). An unclosed block is left to you."
+      }
     },
     {
       "id": "skill/name-dir-mismatch",
@@ -3256,7 +3324,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. Directories are never renamed."
+      }
     },
     {
       "id": "skill/name-format",
@@ -3323,7 +3398,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. A non-ASCII name or an invalid directory name is left to you."
+      }
     },
     {
       "id": "skill/name-missing",
@@ -3384,7 +3466,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Sets `name` to the directory name when that is a valid skill name."
+      }
     },
     {
       "id": "skill/name-reserved-word",
@@ -3564,7 +3652,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Puts a value that YAML 1.1 reads as a boolean, or YAML 1.2 as a number, in double quotes. Anchors, aliases, tags and empty values are left to you."
+      }
     }
   ],
   "skipped": [],

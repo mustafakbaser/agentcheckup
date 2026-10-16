@@ -10,7 +10,7 @@ Skill name is missing or empty.
 | Category   | `portability`                                   |
 | Platforms  | Claude Code, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                         |
-| Fixable    | No                                              |
+| Fixable    | Yes, `safe`                                     |
 | Since      | 2026.10                                         |
 
 ## Why

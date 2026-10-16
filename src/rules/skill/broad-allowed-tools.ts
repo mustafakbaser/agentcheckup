@@ -93,6 +93,10 @@ Scope each rule to the commands the skill needs, such as \`Bash(git status *)\`,
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(span === undefined ? {} : { span }),
+          guidance:
+            platform === 'copilot'
+              ? 'remove the shell tool from "allowed-tools" so that GitHub Copilot asks before it runs commands'
+              : 'limit each rule in "allowed-tools" to the commands or files the skill needs, such as "Bash(git status *)", or remove it so that Claude Code asks',
         });
       }
     }

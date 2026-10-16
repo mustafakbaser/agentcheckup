@@ -21,6 +21,8 @@ interface Entry {
   readonly name: string;
   readonly platforms: ReadonlySet<PlatformId>;
   readonly span: Span | undefined;
+  /** The skills root both skills are found in. */
+  readonly root: string;
 }
 
 /** What each platform does with two skills of the same name, from its documentation. */
@@ -78,7 +80,7 @@ Rename one of the skills.`,
         );
         const key = `${location.root}\u0000${name}`;
         const group = groups.get(key) ?? [];
-        group.push({ artifact, path, name, platforms, span });
+        group.push({ artifact, path, name, platforms, span, root: location.root });
         groups.set(key, group);
       }
     }
@@ -107,6 +109,7 @@ Rename one of the skills.`,
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(entry.span === undefined ? {} : { span: entry.span }),
+          guidance: `rename this skill or ${quotePath(first.path)}: change "name" and the skill directory to a name no other skill in ${quotePath(entry.root)} uses`,
           related: [
             {
               path: first.artifact.path,

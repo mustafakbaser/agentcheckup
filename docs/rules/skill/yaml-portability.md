@@ -10,7 +10,7 @@ Skill frontmatter uses YAML that parsers read differently.
 | Category   | `portability`                                          |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                                |
-| Fixable    | No                                                     |
+| Fixable    | Yes, `review`                                          |
 | Since      | 2026.10                                                |
 
 ## Why

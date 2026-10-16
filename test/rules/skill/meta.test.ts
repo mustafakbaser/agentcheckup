@@ -6,7 +6,14 @@ import { RULESET_VERSION } from '../../../src/core/meta.js';
 import { skillRules } from '../../../src/rules/skill/index.js';
 
 const SOURCE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), '../../../src/rules/skill');
-const HELPERS = new Set(['index.ts', 'format.ts', 'repair.ts', 'shared.ts', 'sources.ts']);
+const HELPERS = new Set([
+  'index.ts',
+  'fixes.ts',
+  'format.ts',
+  'repair.ts',
+  'shared.ts',
+  'sources.ts',
+]);
 
 describe('skill rule family', () => {
   it('registers one rule per file, in id order', () => {

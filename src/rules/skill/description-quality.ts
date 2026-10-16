@@ -119,6 +119,8 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
         severity: resolved.severity,
         platforms: resolved.platforms,
         ...(span === undefined ? {} : { span }),
+        guidance:
+          'rewrite "description" to say what the skill does, then add "Use when ..." with the words a request for it would contain',
       });
     }
   },

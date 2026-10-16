@@ -1,5 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import type { Span } from '../../core/types.js';
+import type { Artifact, Fix, Span } from '../../core/types.js';
+import { quoteYaml } from '../../fix/index.js';
 import { parseFrontmatter } from '../../parse/frontmatter.js';
 import type { FrontmatterData, ParseIssue } from '../../parse/types.js';
 import { defineRule } from '../define.js';
@@ -11,8 +12,10 @@ import {
   resolveImpacts,
   SKILL_PLATFORMS,
   validFrontmatter,
+  type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import { checkedYamlEdit, editable, type FixOrGuidance, fixFields, ownerKey } from './fixes.js';
 
 const sameSpan = (a: Span | undefined, b: Span): boolean =>
   a?.offset === b.offset && a.length === b.length;
@@ -61,6 +64,107 @@ function message(warning: ParseIssue, source: string, key: string | undefined): 
   }
 }
 
+const QUOTE_GUIDANCE = 'put the value in double quotes';
+
+/**
+ * Writes a plain scalar that parsers read differently in double quotes (`review`), so every
+ * parser reads the text YAML 1.2 parsers read today: `yes` stays the text "yes", `1.0` becomes
+ * the text "1.0". For a YAML 1.1 boolean that is a top-level value, `-i` also offers `true` or
+ * `false`.
+ */
+function quoteScalar(
+  artifact: Artifact,
+  frontmatter: ValidFrontmatter,
+  warning: ParseIssue,
+  source: string,
+): FixOrGuidance {
+  const guidance =
+    warning.code === 'yaml11-boolean'
+      ? 'put the value in double quotes, or write true or false'
+      : QUOTE_GUIDANCE;
+  const first = source.charAt(0);
+  const owner = ownerKey(frontmatter.data, warning.span);
+  if (
+    !editable(artifact) ||
+    owner === undefined ||
+    source.trim() !== source ||
+    source === '' ||
+    first === '"' ||
+    first === "'" ||
+    source.includes('\n') ||
+    source.includes('\r')
+  ) {
+    return { guidance };
+  }
+  const quoted = checkedYamlEdit(
+    artifact,
+    frontmatter,
+    owner,
+    warning.span,
+    quoteYaml(source, 'double'),
+    () => true,
+  );
+  if (quoted === undefined) return { guidance };
+  const topValue = sameSpan(frontmatter.data.valueSpan(owner), warning.span);
+  const yaml11 = ['y', 'yes', 'on'].includes(source.toLowerCase());
+  const boolean =
+    warning.code === 'yaml11-boolean' && topValue
+      ? checkedYamlEdit(
+          artifact,
+          frontmatter,
+          owner,
+          warning.span,
+          String(yaml11),
+          (value) => value === yaml11,
+        )
+      : undefined;
+  const fix: Fix = {
+    id: 'skill/yaml-portability#quote',
+    class: 'review',
+    title: `Put ${quote(source)} in double quotes in ${artifact.path}`,
+    changes: [quoted],
+    ...(boolean === undefined
+      ? {}
+      : {
+          alternatives: [
+            {
+              id: 'skill/yaml-portability#boolean',
+              class: 'review',
+              title: `Write ${quote(source)} as ${String(yaml11)} in ${artifact.path}`,
+              changes: [boolean],
+            },
+          ],
+        }),
+  };
+  return { fix, guidance };
+}
+
+/** The fix or manual step for one warning. */
+function repairFor(
+  artifact: Artifact,
+  frontmatter: ValidFrontmatter,
+  warning: ParseIssue,
+  source: string,
+): FixOrGuidance | undefined {
+  switch (warning.code) {
+    case 'yaml11-boolean':
+    case 'number-coercion':
+      return quoteScalar(artifact, frontmatter, warning, source);
+    case 'alias':
+      return {
+        guidance: source.startsWith('*')
+          ? 'replace the alias with the value it refers to'
+          : 'remove the anchor and write out the values that refer to it',
+      };
+    case 'tag':
+      return { guidance: 'remove the tag' };
+    case 'null-value':
+      return { guidance: 'remove the key or give it a value' };
+    default:
+      return undefined;
+  }
+}
+
 export const yamlPortabilityRule = defineRule({
   meta: {
     id: 'skill/yaml-portability',
@@ -81,6 +185,11 @@ Quote values that must stay text, write booleans as \`true\` or \`false\`, avoid
       SKILL_SOURCES.codexSkillParser,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Puts a value that YAML 1.1 reads as a boolean, or YAML 1.2 as a number, in double quotes. Anchors, aliases, tags and empty values are left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -105,6 +214,7 @@ Quote values that must stay text, write booleans as \`true\` or \`false\`, avoid
           severity: resolved.severity,
           platforms: resolved.platforms,
           span: warning.span,
+          ...fixFields(repairFor(artifact, frontmatter, warning, source) ?? {}),
         });
       }
     }

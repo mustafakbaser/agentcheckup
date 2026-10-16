@@ -1,8 +1,11 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { reencode } from '../../fix/index.js';
 import { bomHidesFrontmatter } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformsDo, sentence } from '../shared/format.js';
+import { editable } from './fixes.js';
 import {
   impactsOn,
   isDistributable,
@@ -12,6 +15,19 @@ import {
   resolveImpacts,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+
+/** Re-encodes SKILL.md as UTF-8 without the mark. Undefined for a file a fix may not touch. */
+function removeBom(artifact: Artifact): Fix | undefined {
+  if (!editable(artifact)) return undefined;
+  const change = reencode(artifact);
+  if (change === undefined) return undefined;
+  return {
+    id: 'skill/frontmatter-bom#remove-bom',
+    class: 'safe',
+    title: `Remove the byte order mark from ${artifact.path}`,
+    changes: [change],
+  };
+}
 
 export const frontmatterBomRule = defineRule({
   meta: {
@@ -33,6 +49,10 @@ Save SKILL.md as UTF-8 without a byte order mark.`,
       SKILL_SOURCES.anthropicsSkillValidator,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe'],
+      summary: 'Saves SKILL.md as UTF-8 without the byte order mark.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -60,12 +80,15 @@ Save SKILL.md as UTF-8 without a byte order mark.`,
           ? 'the skills-ref validator and the anthropics/skills packager reject it'
           : undefined,
       ].filter((clause) => clause !== undefined);
+      const fix = removeBom(artifact);
       context.report({
         artifact,
         message: `SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before \`---\`. ${sentence(joinClauses(clauses))}`,
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: OPENING_DELIMITER,
+        ...(fix === undefined ? {} : { fix }),
+        guidance: 'save SKILL.md as UTF-8 without a byte order mark',
       });
     }
   },

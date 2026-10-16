@@ -1,4 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
 import { descriptionState } from '../../platforms/codex-skills.js';
 import { firstBodyLine } from '../../platforms/skills.js';
 import { defineRule } from '../define.js';
@@ -22,10 +24,53 @@ import {
   resolveImpacts,
   SKILL_PLATFORMS,
   validFrontmatter,
+  type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import {
+  COPIED_NOTE,
+  copiedDescription,
+  editable,
+  type FixOrGuidance,
+  fixFields,
+} from './fixes.js';
 
 export { firstBodyLine } from '../../platforms/skills.js';
+
+const WRITE_DESCRIPTION = 'add a "description" that says what the skill does and when to use it';
+
+/**
+ * Copies the first line of the body into a missing or empty `description` (`review`): the text
+ * Claude Code already uses when the key is omitted, for the author to reword. A manual step when
+ * the value is not text or no line can be copied.
+ */
+function copyDescription(
+  artifact: Artifact,
+  frontmatter: ValidFrontmatter,
+  state: 'missing' | 'empty',
+): FixOrGuidance {
+  const manual = { guidance: WRITE_DESCRIPTION };
+  if (!editable(artifact)) return manual;
+  const description = copiedDescription(artifact.decoded.text.slice(frontmatter.bodyOffset));
+  if (description === undefined) return manual;
+  const { data } = frontmatter;
+  const change =
+    state === 'empty'
+      ? yamlSetScalar(artifact, frontmatter, 'description', description, { style: 'double' })
+      : yamlInsertKey(artifact, frontmatter, 'description', description, {
+          style: 'double',
+          position: data.keys.includes('name') ? { after: 'name' } : 'last',
+        });
+  if (change === undefined) return manual;
+  const fix: Fix = {
+    id: 'skill/description-missing#copy-body',
+    class: 'review',
+    title: `Set "description" to the first line of the body in ${artifact.path}`,
+    changes: [change],
+    notes: [COPIED_NOTE],
+  };
+  return { fix, guidance: WRITE_DESCRIPTION };
+}
 
 export const descriptionMissingRule = defineRule({
   meta: {
@@ -49,6 +94,11 @@ Add a \`description\` that says what the skill does and when to use it.`,
       SOURCES.claudeApiSkills,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -85,7 +135,12 @@ Add a \`description\` that says what the skill does and when to use it.`,
       ];
       const clauses: (string | undefined)[] = [];
       let lead: string;
+      let repair: FixOrGuidance;
       if (state === 'not-text') {
+        repair = {
+          guidance:
+            'write "description" as one line of text that says what the skill does and when to use it',
+        };
         lead = `\`description\` is ${describeType(value)}, not text.`;
         if (codex) {
           clauses.push('Codex cannot read the frontmatter and skips the skill');
@@ -94,6 +149,7 @@ Add a \`description\` that says what the skill does and when to use it.`,
         if (distributable) clauses.push('the skills-ref validator rejects it');
       } else if (state === 'missing') {
         lead = 'The frontmatter has no `description`.';
+        repair = copyDescription(artifact, frontmatter, state);
         const skipping = reached(context, artifact, ['codex', 'gemini']);
         clauses.push(platformsDo(skipping, ['skips', 'skip'], 'the skill'));
         impacts.push(...impactsOn(skipping, 'error'));
@@ -106,6 +162,7 @@ Add a \`description\` that says what the skill does and when to use it.`,
         // Claude Code documents its fallback only for an omitted description, so an empty one
         // claims nothing for Claude Code (as in skill/name-missing).
         lead = '`description` is empty.';
+        repair = copyDescription(artifact, frontmatter, state);
         if (codex) clauses.push('Codex skips the skill');
         if (gemini) clauses.push('Gemini CLI loads it with no description');
         clauses.push(requirement('a value'));
@@ -123,6 +180,7 @@ Add a \`description\` that says what the skill does and when to use it.`,
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: (present ? data.keySpan('description') : undefined) ?? OPENING_DELIMITER,
+        ...fixFields(repair),
       });
     }
   },

@@ -1,6 +1,8 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText } from '../../core/text.js';
-import type { Artifact, DecodedText, PlatformId, Span } from '../../core/types.js';
+import type { Artifact, DecodedText, Fix, PlatformId, Span } from '../../core/types.js';
+import { prependFrontmatter, type YamlEntry } from '../../fix/index.js';
+import type { FrontmatterResult } from '../../parse/types.js';
 import { codexFrontmatterClose, isCodexDelimiter } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
@@ -14,6 +16,15 @@ import {
   type SkillScope,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import {
+  COPIED_NOTE,
+  copiedDescription,
+  directoryAsName,
+  editable,
+  type FixOrGuidance,
+  fixFields,
+  frontmatterToLineOne,
+} from './fixes.js';
 
 /** Span of line `line` (1-based), without its line terminator. */
 function lineSpan(decoded: DecodedText, line: number): Span {
@@ -40,6 +51,56 @@ interface Problem {
   readonly message: string;
   readonly impacts: readonly Impact[];
   readonly span?: Span;
+  readonly repair?: FixOrGuidance;
+}
+
+const ADD_FRONTMATTER =
+  'start SKILL.md with a "---" line, then "name" and "description" fields, then a closing "---" line';
+
+/**
+ * Moves the frontmatter opened on `openLine` to line 1 without indentation (`safe`): `#dedent`
+ * when indentation goes, `#blank-lines` when only blank lines before it do.
+ */
+function moveToLineOne(artifact: Artifact, openLine: number, guidance: string): FixOrGuidance {
+  const moved = editable(artifact) ? frontmatterToLineOne(artifact, openLine) : undefined;
+  if (moved === undefined) return { guidance };
+  const { edits, dedent } = moved;
+  const fix: Fix = {
+    id: `skill/frontmatter-missing#${dedent ? 'dedent' : 'blank-lines'}`,
+    class: 'safe',
+    title: dedent
+      ? `Remove the indentation of the frontmatter delimiters in ${artifact.path}`
+      : `Delete the blank lines before the frontmatter in ${artifact.path}`,
+    changes: [{ kind: 'edit', path: artifact.path, edits }],
+  };
+  return { fix, guidance };
+}
+
+/**
+ * Adds frontmatter to a SKILL.md that has none (`review`): `name` with the directory name when
+ * that is a valid name, and `description` copied from the first line of the body, which Claude
+ * Code uses today. A manual step when no line can be copied.
+ */
+function addFrontmatter(artifact: Artifact, result: FrontmatterResult): FixOrGuidance {
+  const manual = { guidance: ADD_FRONTMATTER };
+  if (!editable(artifact)) return manual;
+  const description = copiedDescription(artifact.decoded.text);
+  if (description === undefined) return manual;
+  const name = directoryAsName(artifact);
+  const entries: YamlEntry[] = [
+    ...(name === undefined ? [] : [{ key: 'name', value: name }]),
+    { key: 'description', value: description, style: 'double' },
+  ];
+  const change = prependFrontmatter(artifact, result, entries);
+  if (change === undefined) return manual;
+  const fix: Fix = {
+    id: 'skill/frontmatter-missing#add',
+    class: 'review',
+    title: `Add frontmatter to ${artifact.path}`,
+    changes: [change],
+    notes: [COPIED_NOTE],
+  };
+  return { fix, guidance: ADD_FRONTMATTER };
 }
 
 /**
@@ -53,6 +114,7 @@ function problem(
   skippers: readonly PlatformId[],
   claude: { readonly clause: string; readonly severity: Impact['severity'] } | undefined,
   span?: Span,
+  repair?: () => FixOrGuidance,
 ): Problem | undefined {
   const skipping = reached(scope, artifact, skippers);
   const claudeReached =
@@ -69,10 +131,15 @@ function problem(
       ...(claudeReached ? [{ platform: 'claude-code', severity: claude.severity } as const] : []),
     ],
     ...(span === undefined ? {} : { span }),
+    ...(repair === undefined ? {} : { repair: repair() }),
   };
 }
 
-function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefined {
+function absentProblem(
+  scope: SkillScope,
+  artifact: Artifact,
+  result: FrontmatterResult,
+): Problem | undefined {
   const { decoded } = artifact;
   if (decoded.text.trim() === '') {
     return problem(
@@ -81,6 +148,8 @@ function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefin
       'SKILL.md is empty, so it has no frontmatter.',
       ['codex', 'gemini'],
       undefined,
+      undefined,
+      () => ({ guidance: ADD_FRONTMATTER }),
     );
   }
 
@@ -95,6 +164,14 @@ function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefin
       closed ? ['gemini'] : ['codex', 'gemini'],
       { clause: CLAUDE_READS_AS_INSTRUCTIONS, severity: 'error' },
       lineSpan(decoded, 1),
+      () =>
+        moveToLineOne(
+          artifact,
+          1,
+          closed
+            ? 'remove the spaces before "---" on line 1 and on the closing line'
+            : 'remove the spaces before "---" on line 1 and add a closing "---" line',
+        ),
     );
   }
 
@@ -111,6 +188,12 @@ function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefin
       ['codex', 'gemini'],
       { clause: CLAUDE_READS_AS_INSTRUCTIONS, severity: 'error' },
       lineSpan(decoded, firstContent),
+      () =>
+        moveToLineOne(
+          artifact,
+          firstContent,
+          'delete everything before the opening "---" so that it is line 1',
+        ),
     );
   }
 
@@ -125,6 +208,7 @@ function absentProblem(scope: SkillScope, artifact: Artifact): Problem | undefin
       severity: 'warn',
     },
     lineSpan(decoded, 1),
+    () => addFrontmatter(artifact, result),
   );
 }
 
@@ -149,6 +233,7 @@ function unclosedProblem(
       ['gemini'],
       undefined,
       lineSpan(decoded, indentedClose),
+      () => moveToLineOne(artifact, 1, 'remove the spaces before the closing "---"'),
     );
   }
   return problem(
@@ -158,6 +243,7 @@ function unclosedProblem(
     geminiCloses ? ['codex'] : ['codex', 'gemini'],
     undefined,
     openSpan,
+    () => ({ guidance: 'add a "---" line after the last frontmatter field to close the block' }),
   );
 }
 
@@ -179,13 +265,18 @@ Start the file with \`---\`, add \`name\` and \`description\`, and close the blo
       SOURCES.agentSkillsSpec,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe', 'review'],
+      summary:
+        'Moves the frontmatter to line 1 and removes the indentation of its delimiters (safe), or adds frontmatter with the directory name and the first body line as the description (review). An unclosed block is left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
     for (const artifact of loadableSkills(context)) {
       const result = context.frontmatter(artifact);
       let found: Problem | undefined;
-      if (result.kind === 'absent') found = absentProblem(context, artifact);
+      if (result.kind === 'absent') found = absentProblem(context, artifact, result);
       else if (result.kind === 'unclosed')
         found = unclosedProblem(context, artifact, result.openSpan);
       if (found === undefined) continue;
@@ -197,6 +288,7 @@ Start the file with \`---\`, add \`name\` and \`description\`, and close the blo
         severity: resolved.severity,
         platforms: resolved.platforms,
         ...(found.span === undefined ? {} : { span: found.span }),
+        ...(found.repair === undefined ? {} : fixFields(found.repair)),
       });
     }
   },

@@ -1,6 +1,7 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
-import type { Span } from '../../core/types.js';
+import type { Artifact, Fix, Span } from '../../core/types.js';
+import { quoteYaml } from '../../fix/index.js';
 import { codexRejectsMetadata } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
@@ -19,8 +20,10 @@ import {
   reached,
   resolveImpacts,
   validFrontmatter,
+  type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
+import { checkedYamlEdit, editable, type FixOrGuidance, fixFields } from './fixes.js';
 
 const MAX_COMPATIBILITY = 500;
 const MAX_LISTED_KEYS = 3;
@@ -30,6 +33,66 @@ const SPEC: Impact = { platform: 'claude-code', severity: 'warn', scope: 'distri
 interface Problem {
   readonly message: string;
   readonly impacts: readonly Impact[];
+  /** A manual step. */
+  readonly guidance: string;
+  /** `allowed-tools` is a list of strings, which the fix can join. */
+  readonly list?: true;
+}
+
+const WHITESPACE = /\s/u;
+
+/**
+ * Writes an `allowed-tools` list as the space-separated string the specification defines
+ * (`review`): only when every item is text without whitespace, which a space-separated string
+ * can hold, and no comment sits among the items.
+ */
+function allowedToolsString(
+  artifact: Artifact,
+  frontmatter: ValidFrontmatter,
+  guidance: string,
+): FixOrGuidance {
+  const { data } = frontmatter;
+  const value = data.values['allowed-tools'];
+  const keySpan = data.keySpan('allowed-tools');
+  const valueSpan = data.valueSpan('allowed-tools');
+  if (
+    !editable(artifact) ||
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    keySpan === undefined ||
+    valueSpan === undefined
+  ) {
+    return { guidance };
+  }
+  const items: string[] = [];
+  for (const item of value as readonly unknown[]) {
+    if (typeof item !== 'string' || item === '' || WHITESPACE.test(item)) return { guidance };
+    items.push(item);
+  }
+  const joined = items.join(' ');
+  const { text } = artifact.decoded;
+  let colon = keySpan.offset + keySpan.length;
+  while (text.charAt(colon) === ' ' || text.charAt(colon) === '\t') colon++;
+  const end = valueSpan.offset + valueSpan.length;
+  if (text.charAt(colon) !== ':' || end <= colon || text.slice(colon, end).includes('#')) {
+    return { guidance };
+  }
+  const change = checkedYamlEdit(
+    artifact,
+    frontmatter,
+    'allowed-tools',
+    { offset: colon + 1, length: end - colon - 1 },
+    ` ${quoteYaml(joined)}`,
+    (after) => after === joined,
+  );
+  if (change === undefined) return { guidance };
+  const fix: Fix = {
+    id: 'skill/field-type#allowed-tools-string',
+    class: 'review',
+    title: `Write "allowed-tools" as a space-separated string in ${artifact.path}`,
+    changes: [change],
+  };
+  return { fix, guidance };
 }
 
 const isMap = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -57,6 +120,7 @@ function metadataProblem(
         SPEC,
         ...(scalar && codex ? [{ platform: 'codex', severity: 'error' } as const] : []),
       ],
+      guidance: 'write "metadata" as indented "key: value" lines with text values',
     };
   }
   const offending = Object.keys(value).filter((key) => {
@@ -77,6 +141,9 @@ function metadataProblem(
   return {
     message: `In \`metadata\`, ${joinNames(listed)}, but the Agent Skills specification allows only text values. ${advice}`,
     impacts: [SPEC],
+    guidance: nested
+      ? 'store each nested value in "metadata" as one line of text, or move it out of "metadata"'
+      : 'put the values in "metadata" in double quotes',
   };
 }
 
@@ -86,6 +153,7 @@ function compatibilityProblem(value: unknown): Problem | undefined {
     return {
       message: `\`compatibility\` is ${describeType(value)}, not text. The skills-ref validator and the anthropics/skills packager reject it.`,
       impacts: [SPEC],
+      guidance: 'write "compatibility" as one line of text, in double quotes',
     };
   }
   const length = codePointLength(value.trim());
@@ -93,6 +161,7 @@ function compatibilityProblem(value: unknown): Problem | undefined {
   return {
     message: `\`compatibility\` is ${formatInteger(length)} characters, over the ${MAX_COMPATIBILITY} that the Agent Skills specification and Claude Code allow, so the skills-ref validator and the anthropics/skills packager reject it.`,
     impacts: [SPEC],
+    guidance: `shorten "compatibility" to ${MAX_COMPATIBILITY} characters or fewer`,
   };
 }
 
@@ -103,11 +172,15 @@ function allowedToolsProblem(value: unknown): Problem | undefined {
       message:
         '`allowed-tools` is a YAML list. Claude Code accepts one, but the Agent Skills specification defines a space-separated string.',
       impacts: [SPEC],
+      guidance:
+        'write "allowed-tools" as one line of tool names separated by spaces, or keep the list if only Claude Code loads the skill',
+      list: true,
     };
   }
   return {
     message: `\`allowed-tools\` is ${describeType(value)}, not a space-separated string of tool names.`,
     impacts: [SPEC],
+    guidance: 'write "allowed-tools" as one line of tool names separated by spaces',
   };
 }
 
@@ -116,6 +189,7 @@ function licenseProblem(value: unknown): Problem | undefined {
   return {
     message: `\`license\` is ${describeType(value)}, not text. The Agent Skills specification expects a license name or the name of a bundled license file.`,
     impacts: [SPEC],
+    guidance: 'write "license" as text: a license name or the name of a bundled license file',
   };
 }
 
@@ -138,6 +212,11 @@ Use the types from the specification, and quote values that YAML would read as n
       SKILL_SOURCES.anthropicsSkillValidator,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Writes an `allowed-tools` list as a space-separated string when no tool rule contains a space. Other types are left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -166,6 +245,11 @@ Use the types from the specification, and quote values that YAML would read as n
           severity: resolved.severity,
           platforms: resolved.platforms,
           ...(span === undefined ? {} : { span }),
+          ...fixFields(
+            problem.list === true
+              ? allowedToolsString(artifact, frontmatter, problem.guidance)
+              : { guidance: problem.guidance },
+          ),
         });
       }
     }

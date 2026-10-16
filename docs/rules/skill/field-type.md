@@ -10,7 +10,7 @@ Skill frontmatter field has the wrong type or length.
 | Category   | `correctness`      |
 | Platforms  | Claude Code, Codex |
 | Applies to | `skill`            |
-| Fixable    | No                 |
+| Fixable    | Yes, `review`      |
 | Since      | 2026.10            |
 
 ## Why

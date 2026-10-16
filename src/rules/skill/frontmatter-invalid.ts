@@ -31,6 +31,7 @@ interface Problem {
   readonly message: string;
   readonly impacts: readonly Impact[];
   readonly span: Span;
+  readonly guidance: string;
 }
 
 /** skills-ref and the anthropics/skills packager reject frontmatter that does not parse. */
@@ -73,6 +74,7 @@ function unsupportedProblem(scope: SkillScope, artifact: Artifact, result: Unsup
       VALIDATORS,
     ],
     span: result.span,
+    guidance: 'replace the block with YAML "key: value" lines between two "---" lines',
   };
 }
 
@@ -92,12 +94,14 @@ function duplicateProblem(
       ]),
       impacts: [{ platform: 'codex', severity: 'error' }, VALIDATORS],
       span: issue.span,
+      guidance: `keep one ${quote(key)} line and delete the others`,
     };
   }
   return {
     message: `The frontmatter repeats ${quote(key)}. The skills-ref validator rejects duplicate keys, and other YAML parsers either reject them or keep one of the values.`,
     impacts: impactsOn(SKILL_PLATFORMS, 'warn', 'distribution'),
     span: issue.span,
+    guidance: `keep one ${quote(key)} line and delete the others`,
   };
 }
 
@@ -127,6 +131,8 @@ function syntaxProblem(scope: SkillScope, artifact: Artifact, issue: ParseIssue)
     message: withClauses(`The frontmatter is not valid YAML (${reason(issue)}).`, clauses),
     impacts,
     span: issue.span,
+    guidance:
+      'put values that contain ": " or start with "[", "{", "@" or a backtick in double quotes, and indent with spaces',
   };
 }
 
@@ -142,6 +148,7 @@ function invalidProblem(
       message: `agentcheckup did not check this frontmatter: ${reason(cause.issue)}.`,
       impacts: impactsOn(SKILL_PLATFORMS, 'info', 'distribution'),
       span: cause.issue.span,
+      guidance: 'keep the frontmatter short and flat: "name", "description" and a few fields',
     };
   }
   if (cause.kind === 'not-a-mapping') {
@@ -153,6 +160,8 @@ function invalidProblem(
       ]),
       impacts: [...impactsOn(skipping, 'error'), VALIDATORS],
       span: cause.issue.span,
+      guidance:
+        'write the frontmatter as "key: value" lines, starting with "name" and "description"',
     };
   }
   if (cause.kind === 'duplicate') return duplicateProblem(scope, artifact, cause.issue, cause.key);
@@ -198,6 +207,7 @@ Quote values that contain \`: \` or start with a YAML indicator such as \`[\`, \
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: problem.span,
+        guidance: problem.guidance,
       });
     }
   },

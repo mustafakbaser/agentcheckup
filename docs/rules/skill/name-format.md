@@ -10,7 +10,7 @@ Skill name does not follow the Agent Skills naming rules.
 | Category   | `correctness`                              |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot |
 | Applies to | `skill`                                    |
-| Fixable    | No                                         |
+| Fixable    | Yes, `safe` or `review`                    |
 | Since      | 2026.10                                    |
 
 ## Why

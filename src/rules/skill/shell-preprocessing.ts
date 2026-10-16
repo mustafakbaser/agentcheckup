@@ -243,6 +243,8 @@ Review these commands before you invoke the skill, or set \`disableSkillShellExe
           severity: resolved.severity,
           platforms: resolved.platforms,
           span: injected.span,
+          guidance:
+            'replace the injected command with a pinned, reviewed one, or remove the "!" so that Claude Code shows the command instead of running it',
         });
       }
     }
