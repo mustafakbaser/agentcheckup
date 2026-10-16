@@ -1,0 +1,64 @@
+<green>safe</green>    instr/agents-md-ignored-by-claude  <b>Add "@AGENTS.md" as line 1 of CLAUDE.md</b>
+<b>--- a/CLAUDE.md</b>
+<b>+++ b/CLAUDE.md</b>
+<blue>@@ -1,3 +1,5 @@</blue>
+<green>+@AGENTS.md</green>
+<green>+</green>
+ # Acme API
+ 
+ Use pnpm.
+  <gray>effect:</gray> Claude Code session start ≈50 → ≈247 tokens
+
+<yellow>review</yellow>  cursor/md-file-ignored  <b>Rename .cursor/rules/style.md to style.mdc with "alwaysApply: true"</b>
+<b>rename from .cursor/rules/style.md</b>
+<b>rename to .cursor/rules/style.mdc</b>
+<b>--- a/.cursor/rules/style.md</b>
+<b>+++ b/.cursor/rules/style.mdc</b>
+<blue>@@ -1,3 +1,6 @@</blue>
+<green>+---</green>
+<green>+alwaysApply: true</green>
+<green>+---</green>
+ # Style
+ 
+ Use tabs.
+  <gray>effect:</gray> Cursor session start ≈304 → ≈614 tokens
+  <gray>note:</gray> -i offers: globs, description
+
+<yellow>review</yellow>  mcp/url-without-type  <b>Add "type": "http" to MCP server docs</b>
+<b>--- a/.mcp.json</b>
+<b>+++ b/.mcp.json</b>
+<blue>@@ -1,6 +1,7 @@</blue>
+ {
+   "mcpServers": {
+     "docs": {
+<green>+      "type": "http",</green>
+       "url": "https://docs.example.com/mcp"
+     }
+   }
+  <gray>effect:</gray> Changed MCP server docs (http, https://docs.example.com) (gate class mcp)
+  <gray>note:</gray> Claude Code will offer to start it; `claude -p` starts it without asking.
+
+<yellow>review</yellow>  skill/description-missing  <b>Copy a description into .agents/skills/release-notes/SKILL.md</b>
+<b>--- a/.agents/skills/release-notes/SKILL.md</b>
+<b>+++ b/.agents/skills/release-notes/SKILL.md</b>
+<blue>@@ -1,5 +1,6 @@</blue>
+ ---
+ name: release-notes
+<green>+description: "Release notes"</green>
+ ---
+ 
+ # Release notes
+  <gray>note:</gray> copied from the body; reword it to say when to use the skill
+
+<yellow>review</yellow>  instr/agents-md-ignored-by-claude  <b>Create packages/api/CLAUDE.md that imports AGENTS.md</b>
+<b>--- /dev/null</b>
+<b>+++ b/packages/api/CLAUDE.md</b>
+<blue>@@ -0,0 +1 @@</blue>
+<green>+@AGENTS.md</green>
+  <gray>effect:</gray> Claude Code in packages/api session start ≈120 → ≈410 tokens
+
+<green>safe</green>    json/duplicate-key  <b>Delete the first "docs" in .mcp.json</b>
+  <yellow>skipped</yellow>: it overlaps a fix that goes first; run agentcheckup fix again
+
+<gray>manual</gray>  instr/import-unresolved  CLAUDE.md:3  create docs/setup.md or correct the path
+Verified on an in-memory copy: 5 findings resolved, 0 new, 1 left.

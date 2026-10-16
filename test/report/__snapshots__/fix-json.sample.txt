@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "agentcheckup",
+    "version": "1.4.0"
+  },
+  "ruleset": "2026.10",
+  "mode": "dry-run",
+  "fixes": [
+    {
+      "id": "instr/agents-md-ignored-by-claude#import",
+      "ruleId": "instr/agents-md-ignored-by-claude",
+      "class": "safe",
+      "title": "Add \"@AGENTS.md\" as line 1 of CLAUDE.md",
+      "effects": [
+        {
+          "kind": "tokens",
+          "agent": "claude-code",
+          "cwd": "",
+          "before": 50,
+          "after": 247
+        }
+      ],
+      "findings": [
+        "1a2c3d:1"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "cursor/md-file-ignored#rename",
+      "ruleId": "cursor/md-file-ignored",
+      "class": "review",
+      "title": "Rename .cursor/rules/style.md to style.mdc with \"alwaysApply: true\"",
+      "effects": [
+        {
+          "kind": "tokens",
+          "agent": "cursor",
+          "cwd": "",
+          "before": 304,
+          "after": 614
+        }
+      ],
+      "findings": [
+        "1a2d3e:1"
+      ],
+      "notes": [
+        "-i offers: globs, description"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "mcp/url-without-type#type",
+      "ruleId": "mcp/url-without-type",
+      "class": "review",
+      "title": "Add \"type\": \"http\" to MCP server docs",
+      "effects": [
+        {
+          "kind": "gate",
+          "class": "mcp",
+          "id": "mcp:.mcp.json#docs",
+          "change": "changed",
+          "summary": "Changed MCP server docs (http, https://docs.example.com)"
+        }
+      ],
+      "findings": [
+        "1a2e3f:1"
+      ],
+      "notes": [
+        "Claude Code will offer to start it; `claude -p` starts it without asking."
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "skill/description-missing#copy",
+      "ruleId": "skill/description-missing",
+      "class": "review",
+      "title": "Copy a description into .agents/skills/release-notes/SKILL.md",
+      "effects": [],
+      "findings": [
+        "1a2f40:1"
+      ],
+      "notes": [
+        "copied from the body; reword it to say when to use the skill"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "instr/agents-md-ignored-by-claude#create",
+      "ruleId": "instr/agents-md-ignored-by-claude",
+      "class": "review",
+      "title": "Create packages/api/CLAUDE.md that imports AGENTS.md",
+      "effects": [
+        {
+          "kind": "tokens",
+          "agent": "claude-code",
+          "cwd": "packages/api",
+          "before": 120,
+          "after": 410
+        }
+      ],
+      "findings": [
+        "1a3041:1"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "json/duplicate-key#fix",
+      "ruleId": "json/duplicate-key",
+      "class": "safe",
+      "title": "Delete the first \"docs\" in .mcp.json",
+      "effects": [],
+      "findings": [
+        "1a3142:1"
+      ],
+      "status": "skipped",
+      "reason": "conflict"
+    }
+  ],
+  "files": [
+    {
+      "path": ".agents/skills/release-notes/SKILL.md",
+      "op": "edit",
+      "before": {
+        "sha256": "c4fac67f60086536e6b40787695b524698fc9c6c8ec7d26e03214878b323095b",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "after": {
+        "sha256": "ed2f7ef9e4bd784e7f50c623d295d3d278dfe3753aa79360c1308a6015b00634",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "hunks": [
+        {
+          "oldStart": 1,
+          "oldLines": 5,
+          "newStart": 1,
+          "newLines": 6,
+          "lines": [
+            " ---",
+            " name: release-notes",
+            "+description: \"Release notes\"",
+            " ---",
+            " ",
+            " # Release notes"
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".cursor/rules/style.mdc",
+      "op": "rename",
+      "from": ".cursor/rules/style.md",
+      "before": {
+        "sha256": "5d87b0d8e72cfec51b12e6234856ec93eb9c3a017ac2175292f0635412fbf037",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "after": {
+        "sha256": "e208412476dc5e17d4eaed359b1c9baac651572bbfd63851f532a94506afa353",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "hunks": [
+        {
+          "oldStart": 1,
+          "oldLines": 3,
+          "newStart": 1,
+          "newLines": 6,
+          "lines": [
+            "+---",
+            "+alwaysApply: true",
+            "+---",
+            " # Style",
+            " ",
+            " Use tabs."
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".mcp.json",
+      "op": "edit",
+      "before": {
+        "sha256": "96c546df156e47f0824334cb6ec6f6a9e7e35051dd3adfbd45b0f851bc029a83",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "after": {
+        "sha256": "65904823b893b58e3afaf2c032fd350caa926d28fa7606c18fe911faaf103012",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "hunks": [
+        {
+          "oldStart": 1,
+          "oldLines": 6,
+          "newStart": 1,
+          "newLines": 7,
+          "lines": [
+            " {",
+            "   \"mcpServers\": {",
+            "     \"docs\": {",
+            "+      \"type\": \"http\",",
+            "       \"url\": \"https://docs.example.com/mcp\"",
+            "     }",
+            "   }"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "op": "edit",
+      "before": {
+        "sha256": "131b67d6c36daa7533148e146ee305b68dc46ec30215a82ad489df12f47a2890",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "after": {
+        "sha256": "5614155e75cf7aa4d64421181a4b9040d4713dee25602cab6c94a2fdb31acb0b",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "hunks": [
+        {
+          "oldStart": 1,
+          "oldLines": 3,
+          "newStart": 1,
+          "newLines": 5,
+          "lines": [
+            "+@AGENTS.md",
+            "+",
+            " # Acme API",
+            " ",
+            " Use pnpm."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "packages/api/CLAUDE.md",
+      "op": "create",
+      "after": {
+        "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+        "encoding": "utf-8",
+        "bom": false,
+        "lineEnding": "lf"
+      },
+      "hunks": [
+        {
+          "oldStart": 0,
+          "oldLines": 0,
+          "newStart": 1,
+          "newLines": 1,
+          "lines": [
+            "+@AGENTS.md"
+          ]
+        }
+      ]
+    }
+  ],
+  "manual": [
+    {
+      "ruleId": "instr/import-unresolved",
+      "path": "CLAUDE.md",
+      "line": 3,
+      "guidance": "create docs/setup.md or correct the path"
+    }
+  ],
+  "verification": {
+    "resolved": 5,
+    "remaining": 1,
+    "introduced": []
+  }
+}
