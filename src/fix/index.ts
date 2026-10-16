@@ -250,3 +250,57 @@ export interface FixReport {
     readonly introduced: readonly IntroducedFinding[];
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Modules
+// ---------------------------------------------------------------------------------------------
+
+export { applyPlan, editedText, FixApplyError } from './apply.js';
+export {
+  createFile,
+  insertLine,
+  type InsertLineOptions,
+  jsonInsertProperty,
+  type JsonInsertOptions,
+  type JsonPath,
+  jsonRemoveProperty,
+  type JsonRemoveOptions,
+  jsonRenameKey,
+  jsonReplaceValue,
+  type JsonValue,
+  MAX_COPIED_LENGTH,
+  MAX_SKILL_NAME_LENGTH,
+  prependFrontmatter,
+  quoteJson,
+  quoteYaml,
+  reencode,
+  renameFile,
+  replaceSpan,
+  safeCopiedText,
+  skillSlug,
+  type YamlEntry,
+  yamlInsertKey,
+  type YamlInsertOptions,
+  type YamlPosition,
+  type YamlScalar,
+  yamlSetScalar,
+  type YamlStyle,
+  type YamlValueOptions,
+} from './edits.js';
+export { MAX_FIX_PATH_LENGTH, pathProblem } from './paths.js';
+export {
+  type FixCandidate,
+  fixKey,
+  LITERAL_SECRET_RULE,
+  MAX_FIXES,
+  planFixes,
+  type PlanOptions,
+} from './plan.js';
+export {
+  type FileDiff,
+  type FixRun,
+  fixRounds,
+  type FixScanOptions,
+  MAX_ROUNDS,
+  MAX_WRITTEN_FILE_BYTES,
+} from './verify.js';

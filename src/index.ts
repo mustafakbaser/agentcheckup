@@ -83,6 +83,32 @@ export type { ScoreReport } from './core/score.js';
 export type * from './core/types.js';
 export { ARTIFACT_KINDS, CATEGORIES, PLATFORM_IDS, SEVERITIES } from './core/types.js';
 export { VERSION } from './core/version.js';
+export {
+  applyPlan,
+  type Conflict,
+  type DiffHunk,
+  type FileDiff,
+  type FileReport,
+  type FileState,
+  FixApplyError,
+  type FixEffect,
+  type FixPlan,
+  type FixReport,
+  type FixReportEntry,
+  fixRounds,
+  type FixRun,
+  type FixScanOptions,
+  type FixSelection,
+  type FixSkipReason,
+  type FixStatus,
+  type FixVerification,
+  type IntroducedFinding,
+  type ManualStep,
+  MAX_FIXES,
+  MAX_ROUNDS,
+  MAX_WRITTEN_FILE_BYTES,
+  type PlannedFix,
+} from './fix/index.js';
 export type * from './inventory/types.js';
 export { WalkError, type WalkOptions } from './io/walk.js';
 export type * from './platforms/load/types.js';
