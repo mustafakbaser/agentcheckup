@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { subagentInvalidRule } from '../../../src/rules/instructions/subagent-invalid.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixedText, fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/subagent-invalid';
 const rules = [subagentInvalidRule];
@@ -155,5 +156,76 @@ describe('instr/subagent-invalid', () => {
     expect(
       run('---\nname: -x\ndescription: d\n---\n', 'packages/api/.claude/agents/review/x.md'),
     ).toHaveLength(1);
+  });
+});
+
+describe('instr/subagent-invalid fix', () => {
+  const AGENT = '---\nname: reviewer\ndescription: Reviews code\n---\nYou review code.\n';
+
+  it('deletes the blank lines before the frontmatter, as a safe fix', () => {
+    const result = lint({ [PATH]: `\n \n${AGENT}` }, { rules });
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: PATH,
+        fix: {
+          id: `${RULE}#leading-lines`,
+          class: 'safe',
+          title: `Delete the blank lines before the frontmatter of ${PATH}`,
+          changes: [{ kind: 'edit', path: PATH, edits: [{ offset: 0, length: 3, text: '' }] }],
+        },
+      },
+    ]);
+    const run = fixFiles(
+      { [PATH]: `\r\n\r\n${AGENT.replaceAll('\n', '\r\n')}` },
+      { rules },
+      selectRule(RULE),
+    );
+    expect(fixedText(run, PATH)).toBe(AGENT.replaceAll('\n', '\r\n'));
+  });
+
+  it('drops the fix when the subagent would still be skipped after it', () => {
+    const run = fixFiles(
+      { [PATH]: '\n---\nname: reviewer\n---\nYou review code.\n' },
+      { rules },
+      selectRule(RULE),
+    );
+    expect(run.applied).toEqual([]);
+    expect(run.skipped.map((item) => item.reason)).toEqual(['verification-failed']);
+    expect(run.files).toEqual([]);
+  });
+
+  it.each([
+    ['---\nname: reviewer\n', 'add a "---" line after the last frontmatter field'],
+    ['---\ndescription: Reviews code\n---\n', 'add "name: reviewer" to the frontmatter'],
+    ['---\nname: re:viewer\ndescription: d\n---\n', 'replace ":" in the name with "-"'],
+    [
+      '---\nname: reviewer\n---\n',
+      'add a "description" that says when Claude should use this subagent',
+    ],
+  ])('gives a manual step for %j', (text, guidance) => {
+    expect(repairs(lint({ [PATH]: text }, { rules }), RULE)).toEqual([{ path: PATH, guidance }]);
+  });
+
+  it('suggests no name when the file name is not one', () => {
+    const result = lint(
+      { '.claude/agents/Code Reviewer.md': '---\ndescription: d\n---\n' },
+      { rules },
+    );
+    expect(repairs(result, RULE)[0]?.guidance).toBe(
+      'add a "name" of lowercase letters and hyphens to the frontmatter',
+    );
+  });
+
+  it('leaves a symlinked subagent to the user', () => {
+    const result = lint(
+      { [PATH]: `\n${AGENT}` },
+      { rules, symlinks: { [PATH]: 'shared/reviewer.md' } },
+    );
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: PATH,
+        guidance: `delete the blank lines before "---" by hand: "${PATH}" is a symbolic link to "shared/reviewer.md"`,
+      },
+    ]);
   });
 });

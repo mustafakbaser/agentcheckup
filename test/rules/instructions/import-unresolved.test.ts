@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { importUnresolvedRule } from '../../../src/rules/instructions/import-unresolved.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixedText, fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/import-unresolved';
 const rules = [importUnresolvedRule];
@@ -280,5 +281,113 @@ describe('instr/import-unresolved', () => {
       'GEMINI.md',
     ]);
     expect(findings(lint(files, { rules, targets: ['codex'] }), RULE)).toEqual([]);
+  });
+});
+
+describe('instr/import-unresolved fix', () => {
+  it('points the import at the only file with that name, for review', () => {
+    const result = lint(
+      { 'CLAUDE.md': 'See @docs/setup.md.\n' },
+      { rules, paths: ['guides/setup.md', 'docs/other.md'] },
+    );
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: 'CLAUDE.md',
+        fix: {
+          id: `${RULE}#repoint`,
+          class: 'review',
+          title: 'Change the import "@docs/setup.md" in CLAUDE.md to "@guides/setup.md"',
+          changes: [
+            {
+              kind: 'edit',
+              path: 'CLAUDE.md',
+              edits: [{ offset: 5, length: 13, text: 'guides/setup.md' }],
+            },
+          ],
+          notes: [
+            'guides/setup.md is the only file named setup.md that agentcheckup found; check that it is the file you meant.',
+          ],
+        },
+      },
+    ]);
+    const run = fixFiles(
+      { 'CLAUDE.md': 'See @docs/setup.md.\n' },
+      { rules, paths: ['guides/setup.md'] },
+      selectRule(RULE),
+    );
+    // The sentence's period stays after the new path.
+    expect(fixedText(run, 'CLAUDE.md')).toBe('See @guides/setup.md.\n');
+  });
+
+  it.each([
+    ['a nested importer', 'pkg/CLAUDE.md', '@./setup.md', 'docs/setup.md', '@../docs/setup.md'],
+    [
+      'Gemini CLI, which needs "./" before a name without a letter',
+      'GEMINI.md',
+      '@./a/1.md',
+      'b/1.md',
+      '@./b/1.md',
+    ],
+  ])('writes the path relative to %s', (_label, path, line, target, expected) => {
+    const run = fixFiles({ [path]: `${line}\n` }, { rules, paths: [target] }, selectRule(RULE));
+    expect(fixedText(run, path)).toBe(`${expected}\n`);
+    expect(run.verification).toMatchObject({ resolved: 1, introduced: [] });
+  });
+
+  describe('leaves to the user', () => {
+    it('an import of a file that exists nowhere', () => {
+      const result = lint({ 'CLAUDE.md': '@docs/setup.md\n' }, { rules });
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'CLAUDE.md',
+          guidance: 'create "docs/setup.md" or correct the path; no file named "setup.md" exists',
+        },
+      ]);
+    });
+
+    it('an import whose name several files have', () => {
+      const result = lint(
+        { 'CLAUDE.md': '@docs/setup.md\n' },
+        { rules, paths: ['a/setup.md', 'b/setup.md', 'c/setup.md', 'd/setup.md'] },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'CLAUDE.md',
+          guidance:
+            'correct the path; files named "setup.md": "a/setup.md", "b/setup.md", "c/setup.md" and 1 more',
+        },
+      ]);
+    });
+
+    it('a path written with escapes, and a target an import cannot name as written', () => {
+      const escaped = lint(
+        { 'CLAUDE.md': '@docs/my\\ setup.md\n' },
+        { rules, paths: ['guides/my setup.md'] },
+      );
+      expect(repairs(escaped, RULE)).toEqual([
+        { path: 'CLAUDE.md', guidance: 'point the import at "guides/my setup.md"' },
+      ]);
+    });
+
+    it('Gemini CLI trailing punctuation', () => {
+      const result = lint({ 'GEMINI.md': 'Read @./guide.md.\n' }, { rules, paths: ['guide.md'] });
+      expect(repairs(result, RULE)).toEqual([
+        { path: 'GEMINI.md', guidance: 'end the path before ".", for example with a space' },
+      ]);
+    });
+
+    it('an importer that another path links to', () => {
+      const result = lint(
+        { 'CLAUDE.md': '@docs/setup.md\n', 'GEMINI.md': '@docs/setup.md\n' },
+        { rules, paths: ['guides/setup.md'], symlinks: { 'GEMINI.md': 'CLAUDE.md' } },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'CLAUDE.md',
+          guidance:
+            'point the import at "guides/setup.md" by hand: "GEMINI.md" is a symbolic link to this file',
+        },
+      ]);
+    });
   });
 });

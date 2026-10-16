@@ -53,6 +53,8 @@ export const claudeMdTooLongRule = defineRule<ClaudeMdTooLongOptions>({
         artifact,
         message,
         span: { offset, length: lineText(artifact.decoded, firstExtraLine).length },
+        guidance:
+          'move instructions that matter for only part of the codebase into path-scoped rules in .claude/rules/ or into skills; @path imports do not help, because imported files load at launch too',
       });
     }
   },

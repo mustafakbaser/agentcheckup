@@ -27,6 +27,10 @@ export interface CodexSizeBudgetOptions {
 /** Bounds the related locations listed on one finding. */
 const MAX_RELATED = 20;
 
+/** The manual step: only the author can decide what to move or cut. */
+const SIZE_GUIDANCE =
+  'move instructions for one part of the repository into an AGENTS.md in that directory, or cut content; if you raised project_doc_max_bytes, set the maxBytes option to match';
+
 interface Truncation {
   readonly file: CodexChainFile;
   /** Bytes of this file that Codex reads. */
@@ -168,6 +172,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
         span,
         message: `${via}${head} Codex reads at most ${formatInteger(maxBytes)} bytes of AGENTS.md content, ${lost}${alsoDropped}.`,
         related,
+        guidance: SIZE_GUIDANCE,
       });
     }
 
@@ -190,6 +195,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
           path: previous.artifact.path,
           message: `Read by Codex first: ${formatInteger(previous.size)} bytes.`,
         })),
+        guidance: SIZE_GUIDANCE,
       });
     }
   },

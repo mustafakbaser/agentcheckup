@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   claudeRuleFrontmatterRule,
+  escapeUnclosedBrackets,
+  splitPatterns,
   unclosedBracket,
 } from '../../../src/rules/instructions/claude-rule-frontmatter.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixedText, fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/claude-rule-frontmatter';
 const rules = [claudeRuleFrontmatterRule];
@@ -142,5 +145,127 @@ describe('instr/claude-rule-frontmatter', () => {
   it('does not run when Claude Code is not targeted', () => {
     const result = lint({ [PATH]: '---\nglobs: x\n---\n' }, { rules, targets: ['cursor'] });
     expect(findings(result, RULE)).toEqual([]);
+  });
+});
+
+describe('instr/claude-rule-frontmatter fix', () => {
+  function fixed(text: string): string | undefined {
+    const result = fixFiles({ [PATH]: text }, { rules }, selectRule(RULE));
+    expect(result.verification.introduced).toEqual([]);
+    return result.files.length === 0 ? undefined : fixedText(result, PATH);
+  }
+
+  it('renames globs to paths for review, and lists a comma-separated string', () => {
+    const result = lint({ [PATH]: '---\nglobs: src/**/*.ts, test/**\n---\nBody\n' }, { rules });
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: PATH,
+        fix: {
+          id: `${RULE}#paths`,
+          class: 'review',
+          title: `Rename "globs" to "paths" in ${PATH} and list its 2 patterns`,
+          changes: [
+            {
+              kind: 'edit',
+              path: PATH,
+              edits: [
+                {
+                  offset: 4,
+                  length: 27,
+                  text: 'paths:\n  - "src/**/*.ts"\n  - "test/**"',
+                },
+              ],
+            },
+          ],
+          notes: [
+            'Claude Code then loads this rule only when it works with files that match these patterns, instead of in every session.',
+          ],
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    ['one pattern', '---\nglobs: "src/**"\n---\nB\n', '---\npaths: "src/**"\n---\nB\n'],
+    [
+      'applyTo with another ignored field',
+      '---\napplyTo: "**/*.ts,**/*.tsx"\ndescription: TS\n---\nB\n',
+      '---\npaths:\n  - "**/*.ts"\n  - "**/*.tsx"\ndescription: TS\n---\nB\n',
+    ],
+    [
+      'a flow list',
+      '---\nglobs: ["a/**", "b/**"]\n---\nB\n',
+      '---\npaths: ["a/**", "b/**"]\n---\nB\n',
+    ],
+    [
+      'an unclosed bracket in a flow list',
+      '---\npaths: ["a/**", "b [x"]\n---\nB\n',
+      '---\npaths: ["a/**", "b \\\\[x"]\n---\nB\n',
+    ],
+    [
+      'an unclosed bracket in a single-quoted string',
+      "---\npaths: 'shots [2024/**'\n---\nB\n",
+      "---\npaths: 'shots \\[2024/**'\n---\nB\n",
+    ],
+  ])('%s', (_label, before, after) => {
+    expect(fixed(before)).toBe(after);
+  });
+
+  describe('leaves to the user', () => {
+    it('invalid YAML', () => {
+      const result = lint({ [PATH]: '---\npaths: [src/**\n---\nB\n' }, { rules });
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: PATH,
+          guidance:
+            'correct the YAML; write each glob pattern as a quoted string, such as "src/**/*.ts", because a pattern that starts with "*" or "{" is not plain YAML',
+        },
+      ]);
+    });
+
+    it.each([
+      ['unbalanced braces', '---\nglobs: src/{a,b, c/**\n---\nB\n'],
+      ['an empty pattern', '---\nglobs: "a/**,,b/**"\n---\nB\n'],
+      ['an empty value', '---\nglobs:\n---\nB\n'],
+      ['a value that is not a pattern', '---\nglobs: 3\n---\nB\n'],
+      ['a value on its own line', '---\nglobs:\n  a/**, b/**\n---\nB\n'],
+      ['a list with a comment', '---\npaths:\n  - a [x # photos\n  - b/** # docs\n---\nB\n'],
+    ])('%s', (_label, text) => {
+      expect(fixed(text)).toBeUndefined();
+      expect(repairs(lint({ [PATH]: text }, { rules }), RULE).some((item) => item.fix)).toBe(false);
+    });
+
+    it('a rule that another path links to', () => {
+      const result = lint(
+        {
+          [PATH]: '---\nglobs: a/**\n---\nB\n',
+          '.claude/rules/b.md': '---\nglobs: a/**\n---\nB\n',
+        },
+        { rules, symlinks: { '.claude/rules/b.md': PATH } },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: PATH,
+          guidance:
+            'rename "globs" to "paths" by hand: ".claude/rules/b.md" is a symbolic link to this file',
+        },
+      ]);
+    });
+  });
+
+  it('splits patterns at commas outside braces', () => {
+    expect(splitPatterns('src/*.{ts,tsx}, docs/**')).toEqual(['src/*.{ts,tsx}', 'docs/**']);
+    expect(splitPatterns('a/**')).toEqual(['a/**']);
+    expect(splitPatterns('a/{b,c')).toBeUndefined();
+    expect(splitPatterns('a/}b{')).toBeUndefined();
+    expect(splitPatterns('a/**,\u202Eb')).toBeUndefined();
+  });
+
+  it('escapes exactly the brackets the rule reports', () => {
+    for (const pattern of ['photos [2024/**', 'a[b]c[d', '[', 'a\\[b[c', 'x[[y']) {
+      expect(unclosedBracket(escapeUnclosedBrackets(pattern))).toBe(-1);
+    }
+    expect(escapeUnclosedBrackets('a[b]c[d')).toBe('a[b]c\\[d');
+    expect(escapeUnclosedBrackets('src/[ab]/**')).toBe('src/[ab]/**');
   });
 });

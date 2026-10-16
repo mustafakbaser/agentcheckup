@@ -22,6 +22,11 @@ import { INSTRUCTION_SOURCES } from './sources.js';
 
 export { isFileSystemPath } from '../../platforms/load/imports.js';
 
+/** Manual steps: which file to copy where is the author's choice. */
+const COPY_GUIDANCE = 'copy the file into the repository and import it with a relative path';
+const HOME_GUIDANCE =
+  'if teammates need these instructions, copy the file into the repository and import it with a relative path; keep personal ones in CLAUDE.local.md';
+
 function within(path: string, root: string): boolean {
   return root === '' || path === root || path.startsWith(`${root}/`);
 }
@@ -126,6 +131,7 @@ export const importOutsideRootRule = defineRule({
             artifact,
             span: edge.reference.span,
             platforms: [DIALECT_PLATFORM[dialect]],
+            guidance: edge.reference.kind === 'home' ? HOME_GUIDANCE : COPY_GUIDANCE,
             ...finding,
             ...(undocumented === undefined
               ? {}

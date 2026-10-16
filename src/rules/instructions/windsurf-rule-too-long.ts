@@ -53,6 +53,8 @@ export const windsurfRuleTooLongRule = defineRule({
         artifact,
         span: { offset: overflow, length: Math.max(0, lineEnd - overflow) },
         message: `This rule has ${formatInteger(count)} characters. Windsurf's Cascade agent limits each workspace rule file to 12,000 characters, and the text from line ${formatInteger(line)} on is past that limit.`,
+        guidance:
+          'split the rule into several rule files with their own activation modes, or move reference material into files the rule points to',
       });
     }
   },

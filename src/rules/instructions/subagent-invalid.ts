@@ -1,4 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, ReportDescriptor } from '../../core/types.js';
+import { replaceSpan } from '../../fix/edits.js';
 import {
   checkSubagent,
   MAX_SUBAGENT_NAME_LENGTH,
@@ -7,7 +9,14 @@ import {
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger, quote } from '../shared/format.js';
+import { byHand, editBlocker } from './fixes.js';
+import { basename } from './helpers.js';
 import { issueDetail } from './yaml.js';
+
+const RULE_ID = 'instr/subagent-invalid';
+
+/** A name Claude Code accepts and its documentation uses: lowercase letters, digits, hyphens. */
+const SUGGESTED_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** The finding message for one reason Claude Code skips a subagent file. */
 function message(issue: SubagentIssue): string {
@@ -39,9 +48,72 @@ function message(issue: SubagentIssue): string {
   }
 }
 
+/** A name for the subagent from its file name, when that is already a valid one. */
+function nameFromFile(artifact: Artifact): string | undefined {
+  const file = basename(artifact.path);
+  const name = file.toLowerCase().endsWith('.md') ? file.slice(0, -3) : file;
+  return SUGGESTED_NAME.test(name) && name.length <= MAX_SUBAGENT_NAME_LENGTH ? name : undefined;
+}
+
+/**
+ * Blank lines before the frontmatter are deleted: they are whitespace, so the fix keeps every
+ * word. Every other problem needs a value only the author knows, or a YAML repair.
+ */
+function repair(
+  artifact: Artifact,
+  issue: SubagentIssue,
+): Pick<ReportDescriptor, 'fix' | 'guidance'> {
+  switch (issue.code) {
+    case 'misplaced-frontmatter': {
+      const blocker = editBlocker(artifact);
+      if (blocker !== undefined) {
+        return { guidance: byHand('delete the blank lines before "---"', blocker) };
+      }
+      return {
+        fix: {
+          id: `${RULE_ID}#leading-lines`,
+          class: 'safe',
+          title: `Delete the blank lines before the frontmatter of ${artifact.path}`,
+          changes: [replaceSpan(artifact, { offset: 0, length: issue.span.offset }, '')],
+        },
+      };
+    }
+    case 'unclosed-frontmatter':
+      return { guidance: 'add a "---" line after the last frontmatter field' };
+    case 'unsupported-frontmatter':
+      return { guidance: 'rewrite the frontmatter as YAML "key: value" lines between "---" lines' };
+    case 'invalid-yaml':
+      return {
+        guidance:
+          'correct the YAML; claude --debug shows why Claude Code skipped the file, and quoting a value that contains ": " often fixes it',
+      };
+    case 'name-empty':
+    case 'name-missing': {
+      const name = nameFromFile(artifact);
+      return {
+        guidance:
+          name === undefined
+            ? 'add a "name" of lowercase letters and hyphens to the frontmatter'
+            : `add "name: ${name}" to the frontmatter`,
+      };
+    }
+    case 'name-leading-dash':
+      return { guidance: 'remove the leading "-" from the name' };
+    case 'name-colon':
+      return { guidance: 'replace ":" in the name with "-"' };
+    case 'name-too-long':
+      return {
+        guidance: `shorten the name to ${formatInteger(MAX_SUBAGENT_NAME_LENGTH)} characters or fewer`,
+      };
+    case 'description-empty':
+    case 'description-missing':
+      return { guidance: 'add a "description" that says when Claude should use this subagent' };
+  }
+}
+
 export const subagentInvalidRule = defineRule({
   meta: {
-    id: 'instr/subagent-invalid',
+    id: RULE_ID,
     title: 'Claude Code skips a subagent with invalid frontmatter',
     rationale: [
       'Claude Code loads a subagent from `.claude/agents/` only when YAML frontmatter on the first line has a `name` and a `description`. Without a `name`, or with frontmatter that does not start on the first line, the file is treated as documentation. A `name` that starts with `-`, contains `:` (reserved for plugin subagents) or is longer than 256 characters, a missing `description`, and YAML that does not parse also make Claude Code skip the file. The session shows no message; the reason, if any, is only in the debug log (`claude --debug`).',
@@ -54,6 +126,11 @@ export const subagentInvalidRule = defineRule({
     platforms: ['claude-code'],
     sources: [SOURCES.claudeSubagents],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['safe'],
+      summary:
+        'Deletes the blank lines before the frontmatter. Missing fields, names and YAML errors are left to you.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -61,7 +138,12 @@ export const subagentInvalidRule = defineRule({
       const check = checkSubagent(artifact.decoded.text, context.frontmatter(artifact));
       if (check.status !== 'skipped') continue;
       for (const issue of check.issues) {
-        context.report({ artifact, span: issue.span, message: message(issue) });
+        context.report({
+          artifact,
+          span: issue.span,
+          message: message(issue),
+          ...repair(artifact, issue),
+        });
       }
     }
   },

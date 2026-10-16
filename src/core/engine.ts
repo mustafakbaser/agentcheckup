@@ -25,6 +25,15 @@ import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import { EMPTY_CONFIG, type ResolvedConfig } from './config.js';
 import {
+  CAPPED_FINDINGS,
+  MAX_SUGGESTED_IDS,
+  missingReasonGuidance,
+  similarRuleIds,
+  unknownRuleFix,
+  unknownRuleGuidance,
+  unusedDirectiveFix,
+} from './directive-fixes.js';
+import {
   DIRECTIVE_MISSING_REASON,
   DIRECTIVE_RULES,
   DIRECTIVE_UNKNOWN_RULE,
@@ -326,6 +335,10 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   const ruleFailures: RuleFailure[] = [];
   const ranRules: RuleMeta[] = [];
   const knownRuleIds = new Set<string>(DIRECTIVE_RULES.map((meta) => meta.id));
+  // The files each rule ran on and completed, and how many findings it reported per file: an
+  // unused directive is removed only when every rule it names ran on its file in this scan.
+  const ranOn = new Map<string, ReadonlySet<string>>();
+  const reportCounts = new Map<string, number>();
 
   for (const rule of options.rules) {
     knownRuleIds.add(rule.meta.id);
@@ -339,6 +352,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
     );
     if (ruleArtifacts.length === 0) continue;
     ranRules.push(rule.meta);
+    ranOn.set(rule.meta.id, new Set(ruleArtifacts.map((artifact) => artifact.path)));
 
     const baseSetting = config.ruleSetting(rule.meta.id, '');
     let ruleOptions: unknown = rule.defaultOptions;
@@ -359,6 +373,8 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
         report: (descriptor) => {
           const configured = config.ruleSetting(rule.meta.id, descriptor.artifact.path)?.severity;
           if (configured === 'off') return;
+          const countKey = `${rule.meta.id}\u0000${descriptor.artifact.path}`;
+          reportCounts.set(countKey, (reportCounts.get(countKey) ?? 0) + 1);
           pending.push({
             meta: rule.meta,
             artifact: descriptor.artifact,
@@ -368,6 +384,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
         },
       });
     } catch (error) {
+      ranOn.delete(rule.meta.id);
       ruleFailures.push({
         ruleId: rule.meta.id,
         message: error instanceof Error ? error.message : String(error),
@@ -390,16 +407,29 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
       const directives = collectDirectives(artifact, frontmatter(artifact), markdown(artifact));
       if (directives.length === 0) continue;
       const entries: { directive: Directive; used: boolean }[] = [];
+      let suggested = 0;
       for (const directive of directives) {
-        const unknown = directive.ruleIds.filter((id) => !knownRuleIds.has(id));
-        for (const id of unknown) {
+        directive.ruleIds.forEach((id, index) => {
+          if (knownRuleIds.has(id)) return;
+          const similar =
+            suggested++ < MAX_SUGGESTED_IDS ? similarRuleIds(id, knownRuleIds) : undefined;
+          const [only] = similar ?? [];
+          const fix =
+            similar?.length === 1 && only !== undefined
+              ? unknownRuleFix(artifact, directive, index, only)
+              : undefined;
           pending.push({
             meta: DIRECTIVE_UNKNOWN_RULE,
             artifact,
             severity: DIRECTIVE_UNKNOWN_RULE.severity,
-            descriptor: { artifact, span: directive.span, message: `Unknown rule "${id}".` },
+            descriptor: {
+              artifact,
+              span: directive.span,
+              message: `Unknown rule "${id}".`,
+              ...(fix === undefined ? { guidance: unknownRuleGuidance(similar ?? []) } : { fix }),
+            },
           });
-        }
+        });
         if (directive.reason.length === 0 || directive.ruleIds.length === 0) {
           pending.push({
             meta: DIRECTIVE_MISSING_REASON,
@@ -412,6 +442,10 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
                 directive.ruleIds.length === 0
                   ? 'Directive must name the rules it disables, then give a reason after " -- ".'
                   : 'Directive needs a reason after " -- ". It has no effect until it has one.',
+              guidance: missingReasonGuidance(
+                directive,
+                artifact.decoded.text.startsWith('#', directive.span.offset),
+              ),
             },
           });
           continue;
@@ -469,9 +503,20 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   for (const [path, entries] of directivesByPath) {
     const artifact = artifacts.find((candidate) => candidate.path === path);
     if (!artifact) continue;
+    // Only rules that saw the whole file can prove a directive unused: the Markdown budget may
+    // have left part of it unanalyzed.
+    const complete = markdown(artifact).analysis.complete;
     for (const entry of entries) {
       if (entry.used) continue;
       const range = rangeOf(artifact.decoded, entry.directive.span);
+      const provenUnused =
+        complete &&
+        entry.directive.ruleIds.every(
+          (id) =>
+            ranOn.get(id)?.has(path) === true &&
+            (reportCounts.get(`${id}\u0000${path}`) ?? 0) < CAPPED_FINDINGS,
+        );
+      const fix = provenUnused ? unusedDirectiveFix(artifact, entry.directive) : undefined;
       findings.push({
         ruleId: DIRECTIVE_UNUSED.id,
         severity: DIRECTIVE_UNUSED.severity,
@@ -487,6 +532,12 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
           entry.directive.span,
           range.start.line,
         ),
+        ...(fix === undefined
+          ? {
+              guidance:
+                'remove the directive unless a rule it names reports here with other targets or settings',
+            }
+          : { fix }),
       });
     }
   }

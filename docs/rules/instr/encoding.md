@@ -10,7 +10,7 @@ Instruction file is not UTF-8.
 | Category   | `loading`                                                                                                                                                                                                                                                        |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                                                          |
 | Applies to | `agents-md`, `agents-override-md`, `claude-md`, `claude-local-md`, `claude-rule`, `claude-agent`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `cline-rule`, `cursor-rule`, `cursor-legacy-rules`, `copilot-instructions`, `copilot-path-instructions` |
-| Fixable    | No                                                                                                                                                                                                                                                               |
+| Fixable    | Yes, `safe`                                                                                                                                                                                                                                                      |
 | Since      | 2026.10                                                                                                                                                                                                                                                          |
 
 ## Why

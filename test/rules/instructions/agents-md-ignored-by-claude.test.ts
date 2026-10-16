@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { agentsMdIgnoredByClaudeRule } from '../../../src/rules/instructions/agents-md-ignored-by-claude.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixedText, fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/agents-md-ignored-by-claude';
 const rules = [agentsMdIgnoredByClaudeRule];
@@ -227,5 +228,175 @@ describe('instr/agents-md-ignored-by-claude', () => {
   it('does not run when Claude Code is not targeted', () => {
     const result = lint({ 'AGENTS.md': AGENTS, 'CLAUDE.md': 'x\n' }, { rules, targets: ['codex'] });
     expect(findings(result, RULE)).toEqual([]);
+  });
+});
+
+describe('instr/agents-md-ignored-by-claude fix', () => {
+  const CLAUDE = '# Claude\n\nUse yarn.\n';
+
+  it('adds the import as line 1 of the CLAUDE.md next to AGENTS.md, as a safe fix', () => {
+    const result = lint(
+      { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE },
+      { rules, targets: ['claude-code'] },
+    );
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: 'AGENTS.md',
+        fix: {
+          id: `${RULE}#import`,
+          class: 'safe',
+          title: 'Add "@AGENTS.md" as line 1 of CLAUDE.md',
+          changes: [
+            {
+              kind: 'edit',
+              path: 'CLAUDE.md',
+              edits: [{ offset: 0, length: 0, text: '@AGENTS.md\n\n' }],
+            },
+          ],
+          notes: [],
+        },
+      },
+    ]);
+  });
+
+  it('notes that GitHub Copilot CLI may read AGENTS.md twice when Copilot is targeted', () => {
+    const result = lint({ 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE }, { rules });
+    expect(repairs(result, RULE)[0]?.fix?.notes).toEqual([
+      'GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice after this change (not verified).',
+    ]);
+  });
+
+  it('imports "@../AGENTS.md" into .claude/CLAUDE.md, resolved from the importing file', () => {
+    const run = fixFiles(
+      { 'AGENTS.md': AGENTS, '.claude/CLAUDE.md': CLAUDE },
+      { rules },
+      selectRule(RULE, ['safe']),
+    );
+    expect(fixedText(run, '.claude/CLAUDE.md')).toBe(`@../AGENTS.md\n\n${CLAUDE}`);
+    expect(run.verification).toMatchObject({ resolved: 1, introduced: [] });
+  });
+
+  it('creates a CLAUDE.md for an AGENTS.md shadowed from a parent directory, for review', () => {
+    const files = { 'CLAUDE.md': CLAUDE, 'packages/api/AGENTS.md': AGENTS };
+    expect(repairs(lint(files, { rules, targets: ['claude-code'] }), RULE)).toEqual([
+      {
+        path: 'packages/api/AGENTS.md',
+        fix: {
+          id: `${RULE}#create`,
+          class: 'review',
+          title: 'Create packages/api/CLAUDE.md with the line "@AGENTS.md"',
+          changes: [{ kind: 'create', path: 'packages/api/CLAUDE.md', text: '@AGENTS.md\n' }],
+          notes: [
+            'Claude Code loads the new file, and AGENTS.md through it, when it works with files in packages/api.',
+          ],
+        },
+      },
+    ]);
+    expect(fixFiles(files, { rules }, selectRule(RULE, ['safe'])).applied).toEqual([]);
+  });
+
+  it('creates a committed CLAUDE.md instead of editing CLAUDE.local.md', () => {
+    const run = fixFiles(
+      { 'AGENTS.md': AGENTS, 'CLAUDE.local.md': 'My sandbox.\n' },
+      { rules },
+      selectRule(RULE),
+    );
+    expect(run.files.map((file) => [file.op, file.path])).toEqual([['create', 'CLAUDE.md']]);
+    expect(fixedText(run, 'CLAUDE.local.md')).toBe('My sandbox.\n');
+    expect(run.applied[0]?.fix.notes?.[0]).toBe(
+      'CLAUDE.local.md stays as it is. Commit the new file, so that Claude Code reads AGENTS.md through the import for everyone.',
+    );
+  });
+
+  it('warns that a nested CLAUDE.md hides parent AGENTS.md files when only CLAUDE.local.md is above', () => {
+    const result = lint(
+      { 'CLAUDE.local.md': 'Mine.\n', 'pkg/AGENTS.md': AGENTS },
+      { rules, targets: ['claude-code'] },
+    );
+    expect(repairs(result, RULE)[0]?.fix?.notes).toEqual([
+      'CLAUDE.local.md stays as it is. Commit the new file, so that Claude Code reads AGENTS.md through the import for everyone.',
+      'In sessions started in pkg, an AGENTS.md in a parent directory then loads only if a CLAUDE.md imports it.',
+    ]);
+  });
+
+  describe('leaves to the user', () => {
+    it('a suppressed finding', () => {
+      const run = fixFiles(
+        {
+          'AGENTS.md': `<!-- agentcheckup-disable-file ${RULE} -- separate on purpose -->\n${AGENTS}`,
+          'CLAUDE.md': CLAUDE,
+        },
+        { rules },
+        selectRule(RULE),
+      );
+      expect(run.before.findings.find((finding) => finding.ruleId === RULE)?.suppressed).toEqual({
+        kind: 'inline',
+        reason: 'separate on purpose',
+      });
+      expect(run.applied).toEqual([]);
+      expect(run.files).toEqual([]);
+    });
+
+    it('a CLAUDE.md that is a symlink, or that another path links to', () => {
+      const linked = lint(
+        { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE },
+        { rules, symlinks: { 'CLAUDE.md': 'shared/rules.md' } },
+      );
+      expect(repairs(linked, RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'add the line "@AGENTS.md" at the top of "CLAUDE.md" by hand: "CLAUDE.md" is a symbolic link to "shared/rules.md"',
+        },
+      ]);
+      const aliased = lint(
+        { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE, 'GEMINI.md': CLAUDE },
+        { rules, symlinks: { 'GEMINI.md': 'CLAUDE.md' } },
+      );
+      expect(repairs(aliased, RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'add the line "@AGENTS.md" at the top of "CLAUDE.md" by hand: "GEMINI.md" is a symbolic link to this file',
+        },
+      ]);
+      const viaAlias = lint(
+        { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE, 'docs/CLAUDE.md': CLAUDE },
+        { rules, symlinks: { 'CLAUDE.md': 'docs/CLAUDE.md' } },
+      );
+      expect(repairs(viaAlias, RULE)[0]).toEqual({
+        path: 'AGENTS.md',
+        guidance:
+          'add the line "@AGENTS.md" at the top of "CLAUDE.md" by hand: "CLAUDE.md" is a symbolic link to "docs/CLAUDE.md"',
+      });
+    });
+
+    it('a CLAUDE.md that is a symlink checked out as text: instr/symlink-materialized fixes it', () => {
+      const result = lint({ 'AGENTS.md': AGENTS, 'CLAUDE.md': 'AGENTS.md' }, { rules });
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'replace the path in "CLAUDE.md" with the line "@AGENTS.md" (see instr/symlink-materialized)',
+        },
+      ]);
+    });
+
+    it('a CLAUDE.md whose frontmatter is not closed', () => {
+      const result = lint({ 'AGENTS.md': AGENTS, 'CLAUDE.md': '---\nowner: me\n' }, { rules });
+      expect(repairs(result, RULE)).toEqual([
+        { path: 'AGENTS.md', guidance: 'add the line "@AGENTS.md" at the top of "CLAUDE.md"' },
+      ]);
+    });
+
+    it('a new CLAUDE.md whose name another file takes in a different letter case', () => {
+      const result = lint(
+        { 'CLAUDE.md': CLAUDE, 'pkg/AGENTS.md': AGENTS },
+        { rules, paths: ['pkg/claude.md'] },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        { path: 'pkg/AGENTS.md', guidance: 'add the line "@AGENTS.md" to "pkg/CLAUDE.md"' },
+      ]);
+    });
   });
 });

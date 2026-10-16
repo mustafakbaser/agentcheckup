@@ -166,10 +166,15 @@ describe('SkippedLoad.fix', () => {
     ]);
   });
 
-  it('is absent in a real scan until a rule attaches fixes', () => {
+  it('carries the class of the fix a built-in rule attaches in a real scan', () => {
     const plans = plansOf({ 'AGENTS.md': 'Rules.\n', 'CLAUDE.md': '# Project\n' });
-    expect(plans.flatMap((item) => item.skipped).some((item) => item.fix !== undefined)).toBe(
-      false,
-    );
+    expect(skipOf(plans, 'claude-code', 'AGENTS.md')?.fix).toBe('safe');
+    // A skip whose finding has no fix has no class: no file named missing.md exists.
+    const unfixed = plansOf({ 'AGENTS.md': 'Rules.\n', 'CLAUDE.md': '@docs/missing.md\n' });
+    const missing = unfixed
+      .flatMap((item) => item.skipped)
+      .find((item) => item.code === 'import-unresolved');
+    expect(missing).toMatchObject({ ruleId: 'instr/import-unresolved', name: 'docs/missing.md' });
+    expect(missing?.fix).toBeUndefined();
   });
 });

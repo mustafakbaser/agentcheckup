@@ -142,6 +142,7 @@ export const importDepthRule = defineRule({
           artifact: file,
           span: reference.span,
           platforms,
+          guidance: `import ${quotePath(target)} directly from ${quotePath(from)}, or from a file fewer hops away`,
           ...(uncertainty === undefined
             ? { message }
             : {
@@ -163,6 +164,8 @@ export const importDepthRule = defineRule({
           platforms,
           severity: 'info',
           message: `This import closes a cycle: ${cycleText(cycle.members)}. The imported file is already loaded earlier in the chain, so the import adds no new instructions.`,
+          guidance:
+            'remove this import, unless an agent also loads this file by itself and needs the file it imports',
         });
       }
     }

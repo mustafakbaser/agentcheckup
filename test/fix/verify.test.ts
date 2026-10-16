@@ -524,17 +524,23 @@ describe('fixRounds', () => {
       'AGENTS.md': '# Rules\n',
       'CLAUDE.md': '# Claude\n\n@docs/missing.md\n',
     });
-    const result = api.fixRounds(snapshot, { rules: api.builtinRules }, ALL_CLASSES);
-    expect(result.rounds).toBe(0);
-    expect(result.snapshot).toBe(snapshot);
-    expect(result.after).toBe(result.before);
+    // One rule's fixes, so that fixes other rules add later do not change this test.
+    const selection = { ...ALL_CLASSES, ruleIds: new Set(['instr/agents-md-ignored-by-claude']) };
+    const result = api.fixRounds(snapshot, { rules: api.builtinRules }, selection);
+    expect(result.rounds).toBe(1);
+    expect(result.applied.map((item) => item.fix.id)).toEqual([
+      'instr/agents-md-ignored-by-claude#import',
+    ]);
+    expect(textOf(result.snapshot, 'CLAUDE.md')).toBe(
+      '@AGENTS.md\n\n# Claude\n\n@docs/missing.md\n',
+    );
     expect(result.verification).toEqual({
-      resolved: 0,
-      remaining: result.before.findings.filter((finding) => !finding.suppressed).length,
+      resolved: 1,
+      remaining: result.before.findings.filter((finding) => !finding.suppressed).length - 1,
       introduced: [],
     });
     expect(result.verification.remaining).toBeGreaterThan(0);
-    expect(api.applyPlan(snapshot, { fixes: result.applied })).toBe(snapshot);
+    expect(api.applyPlan(snapshot, { fixes: result.applied }).files).toEqual(result.snapshot.files);
     expect(api.MAX_ROUNDS).toBe(3);
     expect(api.MAX_FIXES).toBe(1000);
     expect(api.MAX_WRITTEN_FILE_BYTES).toBe(1024 * 1024);

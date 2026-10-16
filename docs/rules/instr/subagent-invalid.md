@@ -10,7 +10,7 @@ Claude Code skips a subagent with invalid frontmatter.
 | Category   | `loading`      |
 | Platforms  | Claude Code    |
 | Applies to | `claude-agent` |
-| Fixable    | No             |
+| Fixable    | Yes, `safe`    |
 | Since      | 2026.10        |
 
 ## Why

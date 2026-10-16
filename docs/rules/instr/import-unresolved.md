@@ -10,7 +10,7 @@ Imported file does not exist.
 | Category   | `correctness`                                                           |
 | Platforms  | Claude Code, Gemini CLI                                                 |
 | Applies to | `claude-md`, `claude-local-md`, `claude-rule`, `agents-md`, `gemini-md` |
-| Fixable    | No                                                                      |
+| Fixable    | Yes, `review`                                                           |
 | Since      | 2026.10                                                                 |
 
 ## Why

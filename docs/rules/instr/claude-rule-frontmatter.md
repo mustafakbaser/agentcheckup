@@ -10,7 +10,7 @@ Claude Code rule frontmatter is invalid or ignored.
 | Category   | `loading`     |
 | Platforms  | Claude Code   |
 | Applies to | `claude-rule` |
-| Fixable    | No            |
+| Fixable    | Yes, `review` |
 | Since      | 2026.10       |
 
 ## Why

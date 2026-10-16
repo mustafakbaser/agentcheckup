@@ -4,14 +4,14 @@
 
 Claude Code skips AGENTS.md because a CLAUDE.md exists.
 
-|            |             |
-| ---------- | ----------- |
-| Severity   | `warn`      |
-| Category   | `loading`   |
-| Platforms  | Claude Code |
-| Applies to | `agents-md` |
-| Fixable    | No          |
-| Since      | 2026.10     |
+|            |                         |
+| ---------- | ----------------------- |
+| Severity   | `warn`                  |
+| Category   | `loading`               |
+| Platforms  | Claude Code             |
+| Applies to | `agents-md`             |
+| Fixable    | Yes, `safe` or `review` |
+| Since      | 2026.10                 |
 
 ## Why
 

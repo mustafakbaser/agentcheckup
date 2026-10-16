@@ -1,9 +1,25 @@
 import { RULESET_VERSION } from '../../core/meta.js';
+import { dirnamePosix } from '../../core/paths.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quote } from '../shared/format.js';
-import { basename, targetedReaders } from './helpers.js';
+import { basename, joinPath, targetedReaders } from './helpers.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
+
+/** Paths that are safe to print in a shell command without quoting. */
+const SHELL_SAFE_PATH = /^[\w./-]+$/;
+
+/**
+ * The manual step: a case-only rename, which agentcheckup never makes itself. `git mv` records it
+ * on case-insensitive file systems too. The command is printed only for paths that cannot carry
+ * shell syntax.
+ */
+function renameGuidance(path: string, expected: string): string {
+  if (!SHELL_SAFE_PATH.test(path) || !SHELL_SAFE_PATH.test(expected) || path.startsWith('-')) {
+    return 'rename it with git mv, so that Git records the new letter case on macOS and Windows too';
+  }
+  return `if it holds agent instructions, run: git mv ${path} ${expected}`;
+}
 
 export const filenameCaseRule = defineRule({
   meta: {
@@ -37,11 +53,16 @@ export const filenameCaseRule = defineRule({
       );
       if (platforms.length === 0) continue;
       const name = quote(basename(artifact.path));
-      const expected = quote(basename(artifact.caseMismatch.expected));
+      const expectedName = basename(artifact.caseMismatch.expected);
+      const expected = quote(expectedName);
       context.report({
         artifact,
         platforms,
         message: `This file is named ${name}, not ${expected}, so agents find it on macOS and Windows but not on Linux, where file names are case-sensitive. Rename it to ${expected}, or give it another name if it is not agent instructions.`,
+        guidance: renameGuidance(
+          artifact.path,
+          joinPath(dirnamePosix(artifact.path), expectedName),
+        ),
       });
     }
   },

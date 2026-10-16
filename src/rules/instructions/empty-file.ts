@@ -66,11 +66,25 @@ export const emptyFileRule = defineRule({
         ? platforms.filter((platform) => platform === 'claude-code')
         : platforms;
       if (reported.length > 0) {
-        context.report({ artifact, platforms: reported, message: empty.message });
+        context.report({
+          artifact,
+          platforms: reported,
+          message: empty.message,
+          guidance: guidanceFor(artifact),
+        });
       }
     }
   },
 });
+
+/** The manual step: only the author knows what the file should say, and fixes never delete. */
+function guidanceFor(artifact: Artifact): string {
+  if (COMMENT_STRIPPED_KINDS.has(artifact.kind)) {
+    return 'add instructions or delete the file; even an empty CLAUDE file stops Claude Code from reading AGENTS.md';
+  }
+  if (FRONTMATTER_KINDS.has(artifact.kind)) return 'add the rule text, or delete the file';
+  return 'add instructions or delete the file';
+}
 
 interface Emptiness {
   readonly message: string;

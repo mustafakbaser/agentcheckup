@@ -19,6 +19,11 @@ export type DirectiveScope = 'next-line' | 'file';
 export interface Directive {
   readonly scope: DirectiveScope;
   readonly ruleIds: readonly string[];
+  /**
+   * Where each of `ruleIds` is written, in the same order: offsets into the artifact's decoded
+   * text, like `span`. Lets a fix replace one misspelled id.
+   */
+  readonly ruleIdSpans: readonly Span[];
   readonly reason: string;
   /** Line the directive applies to (1-based). For `file` scope, 0. */
   readonly targetLine: number;
@@ -27,32 +32,52 @@ export interface Directive {
   readonly line: number;
 }
 
-const NEXT_LINE_KEYWORD = `${DIRECTIVE_PREFIX}-disable-next-line`;
-const FILE_KEYWORD = `${DIRECTIVE_PREFIX}-disable-file`;
+export const NEXT_LINE_KEYWORD = `${DIRECTIVE_PREFIX}-disable-next-line`;
+export const FILE_KEYWORD = `${DIRECTIVE_PREFIX}-disable-file`;
+
+/** One character `String.prototype.trim` removes. */
+const TRIMMED = /\s/;
 
 /**
- * Returns the comment body without delimiters, or undefined if `text` is not a single comment.
- * Plain string operations, no regular expressions: directive text comes from untrusted files,
- * and an earlier regex version backtracked super-linearly on long inputs.
+ * Start and end, as offsets into `text`, of the comment body without its delimiters and the
+ * whitespace around it, or undefined if `text` is not a single comment. Plain string operations
+ * and a one-character test, no regular expression over the text: directive text comes from
+ * untrusted files, and an earlier regex version backtracked super-linearly on long inputs.
  */
-function commentBody(text: string): string | undefined {
+function commentBody(text: string): { readonly start: number; readonly end: number } | undefined {
+  let start: number;
+  let end: number;
   if (text.startsWith('<!--')) {
-    return text.endsWith('-->') && text.length >= 7 ? text.slice(4, -3).trim() : undefined;
+    if (!text.endsWith('-->') || text.length < 7) return undefined;
+    start = 4;
+    end = text.length - 3;
+  } else if (text.startsWith('#')) {
+    start = 1;
+    end = text.length;
+  } else {
+    return undefined;
   }
-  if (text.startsWith('#')) return text.slice(1).trim();
-  return undefined;
+  while (start < end && TRIMMED.test(text.charAt(start))) start++;
+  while (end > start && TRIMMED.test(text.charAt(end - 1))) end--;
+  return { start, end };
 }
 
-/** Splits `keyword rest` and returns `rest`, or undefined if `body` does not start with keyword. */
-function afterKeyword(body: string, keyword: string): string | undefined {
-  if (body === keyword) return '';
+/**
+ * Where the rest of `body` starts after `keyword` and the space or tab that follows it, or
+ * undefined if `body` does not start with the keyword.
+ */
+function afterKeyword(body: string, keyword: string): number | undefined {
+  if (body === keyword) return keyword.length;
   if (!body.startsWith(keyword)) return undefined;
   const next = body.charAt(keyword.length);
-  return next === ' ' || next === '\t' ? body.slice(keyword.length + 1) : undefined;
+  return next === ' ' || next === '\t' ? keyword.length + 1 : undefined;
 }
 
 export interface DirectiveCandidate {
-  /** Comment text, trimmed, including its delimiters (`<!-- ... -->` or `# ...`). */
+  /**
+   * Comment text, trimmed, including its delimiters (`<!-- ... -->` or `# ...`). It starts at
+   * `span.offset`.
+   */
   readonly text: string;
   readonly span: Span;
   /** 1-based line where the comment ends. */
@@ -62,29 +87,40 @@ export interface DirectiveCandidate {
 
 /** Parses a comment. Returns undefined when it is not an agentcheckup directive. */
 export function parseDirective(candidate: DirectiveCandidate): Directive | undefined {
-  const body = commentBody(candidate.text);
-  if (body === undefined) return undefined;
+  const location = commentBody(candidate.text);
+  if (location === undefined) return undefined;
+  const body = candidate.text.slice(location.start, location.end);
 
   let scope: DirectiveScope;
-  let rest = afterKeyword(body, NEXT_LINE_KEYWORD);
-  if (rest === undefined) {
-    rest = afterKeyword(body, FILE_KEYWORD);
-    if (rest === undefined) return undefined;
+  let skip = afterKeyword(body, NEXT_LINE_KEYWORD);
+  if (skip === undefined) {
+    skip = afterKeyword(body, FILE_KEYWORD);
+    if (skip === undefined) return undefined;
     scope = 'file';
   } else {
     scope = 'next-line';
   }
 
+  const rest = body.slice(skip);
+  const restOffset = candidate.span.offset + location.start + skip;
   const separator = rest.indexOf(' -- ');
   const idsPart = separator === -1 ? rest : rest.slice(0, separator);
   const reason = separator === -1 ? '' : rest.slice(separator + 4).trim();
-  const ruleIds = idsPart
-    .split(',')
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0);
+  const ruleIds: string[] = [];
+  const ruleIdSpans: Span[] = [];
+  let pieceStart = 0;
+  for (const piece of idsPart.split(',')) {
+    const id = piece.trim();
+    if (id.length > 0) {
+      ruleIds.push(id);
+      ruleIdSpans.push({ offset: restOffset + pieceStart + piece.indexOf(id), length: id.length });
+    }
+    pieceStart += piece.length + 1;
+  }
   return {
     scope,
     ruleIds,
+    ruleIdSpans,
     reason,
     targetLine: scope === 'file' ? 0 : candidate.endLine + 1,
     span: candidate.span,

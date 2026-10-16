@@ -260,6 +260,8 @@ export const vagueDirectiveRule = defineRule({
           span,
           platforms,
           message: `${quote(sentence)} is generic advice that tells the agent nothing about this project. Replace it with the specific command, convention or path you mean.`,
+          guidance:
+            'name what you mean, such as the exact test command or a naming rule, or delete the sentence',
         });
       }
     }

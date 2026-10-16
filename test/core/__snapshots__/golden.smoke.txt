@@ -206,7 +206,28 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "1b0491302140c9:1"
+      "fingerprint": "1b0491302140c9:1",
+      "fix": {
+        "id": "instr/agents-md-ignored-by-claude#import",
+        "class": "safe",
+        "title": "Add \"@AGENTS.md\" as line 1 of CLAUDE.md",
+        "changes": [
+          {
+            "kind": "edit",
+            "path": "CLAUDE.md",
+            "edits": [
+              {
+                "offset": 0,
+                "length": 0,
+                "text": "@AGENTS.md\n\n"
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice after this change (not verified)."
+        ]
+      }
     },
     {
       "ruleId": "instr/import-unresolved",
@@ -228,7 +249,8 @@
       "platforms": [
         "claude-code"
       ],
-      "fingerprint": "18e5b9b5d4e3d7:1"
+      "fingerprint": "18e5b9b5d4e3d7:1",
+      "guidance": "create \"docs/missing-guide.md\" or correct the path; no file named \"missing-guide.md\" exists"
     }
   ],
   "score": {
@@ -549,7 +571,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces the id with the only rule id within two edits of it, which makes the directive suppress that rule."
+      }
     },
     {
       "id": "directive/unused",
@@ -594,7 +622,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Removes the directive, and its line when nothing else is on it, when every rule it names checked the file in this scan."
+      }
     },
     {
       "id": "instr/agents-md-ignored-by-claude",
@@ -616,7 +650,14 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe",
+          "review"
+        ],
+        "summary": "Adds \"@AGENTS.md\" as the first line of the CLAUDE.md in the same directory (safe), or creates a CLAUDE.md with that line when the CLAUDE file Claude Code reads instead is in a parent directory or is a CLAUDE.local.md (review)."
+      }
     },
     {
       "id": "instr/claude-md-too-long",
@@ -783,7 +824,13 @@
           "status": "unverified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "safe"
+        ],
+        "summary": "Converts a UTF-16 file that decodes without errors to UTF-8 without a byte order mark, keeping its text and line endings. Invalid UTF-8 is left to you."
+      }
     },
     {
       "id": "instr/filename-case",
@@ -1010,7 +1057,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Points the import at the only file in the repository with the name it asks for. Without exactly one such file, the path is left to you."
+      }
     },
     {
       "id": "instr/symlink-materialized",
@@ -1057,7 +1110,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces the path in a CLAUDE.md or GEMINI.md with an import of the file it links to; other files need symlinks enabled in Git."
+      }
     },
     {
       "id": "instr/vague-directive",

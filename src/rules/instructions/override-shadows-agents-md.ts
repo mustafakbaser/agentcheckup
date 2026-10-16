@@ -38,6 +38,7 @@ export const overrideShadowsAgentsMdRule = defineRule({
           related,
           message:
             'This AGENTS.override.md is empty, but Codex still reads it instead of the AGENTS.md next to it, so Codex gets no instructions from this directory.',
+          guidance: 'delete the empty AGENTS.override.md so that Codex reads AGENTS.md again',
         });
       } else {
         context.report({
@@ -46,6 +47,8 @@ export const overrideShadowsAgentsMdRule = defineRule({
           severity: 'info',
           message:
             'Codex reads this file instead of the AGENTS.md next to it, so Codex does not see the instructions in AGENTS.md. Claude Code never reads AGENTS.override.md.',
+          guidance:
+            'if the override is for one machine, keep it out of version control; otherwise merge what you need into AGENTS.md and delete the override',
         });
       }
     }

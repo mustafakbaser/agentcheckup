@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { encodingRule } from '../../../src/rules/instructions/encoding.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/encoding';
 const rules = [encodingRule];
@@ -121,6 +122,72 @@ describe('instr/encoding', () => {
     it('files no targeted platform reads', () => {
       const result = lint({ 'CLAUDE.md': utf16le('x') }, { rules, targets: ['codex'] });
       expect(findings(result, RULE)).toEqual([]);
+    });
+  });
+});
+
+describe('instr/encoding fix', () => {
+  it('converts UTF-16 to UTF-8 without a byte order mark, as a safe fix', () => {
+    const result = lint({ 'AGENTS.md': utf16le('# Rules\r\nUse pnpm.\r\n') }, { rules });
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: 'AGENTS.md',
+        fix: {
+          id: `${RULE}#utf-8`,
+          class: 'safe',
+          title: 'Convert AGENTS.md from UTF-16 (little-endian) to UTF-8',
+          changes: [{ kind: 'encoding', path: 'AGENTS.md', to: 'utf-8', bom: false }],
+        },
+      },
+    ]);
+    const run = fixFiles(
+      { 'AGENTS.md': utf16le('# Rules\r\nUse pnpm.\r\n') },
+      { rules },
+      selectRule(RULE, ['safe']),
+    );
+    expect(new TextDecoder().decode(run.snapshot.files[0]?.bytes)).toBe('# Rules\r\nUse pnpm.\r\n');
+    expect(run.verification).toMatchObject({ resolved: 1, introduced: [] });
+  });
+
+  it('also converts a UTF-16 file whose readers do not document UTF-16 (an info finding)', () => {
+    const result = lint({ 'CLAUDE.md': utf16le('Use pnpm.') }, { rules });
+    expect(repairs(result, RULE)[0]?.fix?.class).toBe('safe');
+  });
+
+  describe('leaves to the user', () => {
+    it('UTF-16 with bytes that do not decode', () => {
+      const odd = new Uint8Array([0xff, 0xfe, 0x41, 0x00, 0x42]);
+      expect(repairs(lint({ 'AGENTS.md': odd }, { rules }), RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'save the file as UTF-8 in an editor that shows it correctly; some of its bytes are not valid UTF-16 (little-endian), so agentcheckup does not convert it',
+        },
+      ]);
+    });
+
+    it('invalid UTF-8, whose original encoding only the author knows', () => {
+      expect(repairs(lint({ 'AGENTS.md': WINDOWS_1254 }, { rules }), RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'open the file in the encoding it was written in, such as Windows-1252, and save it as UTF-8',
+        },
+      ]);
+    });
+
+    it('a file reached through a symbolic link', () => {
+      const result = lint(
+        { 'AGENTS.md': utf16le('Use pnpm.') },
+        { rules, symlinks: { 'AGENTS.md': 'shared/rules.md' } },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'AGENTS.md',
+          guidance:
+            'save the file as UTF-8 by hand: "AGENTS.md" is a symbolic link to "shared/rules.md"',
+        },
+      ]);
     });
   });
 });

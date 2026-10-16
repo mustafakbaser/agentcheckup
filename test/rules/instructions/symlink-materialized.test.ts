@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { symlinkMaterializedRule } from '../../../src/rules/instructions/symlink-materialized.js';
 import { findings, lint } from '../../helpers/lint.js';
+import { fixedText, fixFiles, repairs, selectRule } from './fix-helpers.js';
 
 const RULE = 'instr/symlink-materialized';
 const rules = [symlinkMaterializedRule];
@@ -92,5 +93,82 @@ describe('instr/symlink-materialized', () => {
       { rules },
     );
     expect(findings(result, RULE).map((finding) => finding.path)).toEqual(['.windsurfrules']);
+  });
+});
+
+describe('instr/symlink-materialized fix', () => {
+  const ENABLE_SYMLINKS =
+    'run "git config core.symlinks true" and check the file out again; on Windows, creating symlinks needs Developer Mode or Administrator rights';
+
+  it('replaces the path in CLAUDE.md with an import, for review', () => {
+    const result = lint({ 'CLAUDE.md': 'AGENTS.md\n', 'AGENTS.md': AGENTS }, { rules });
+    expect(repairs(result, RULE)).toEqual([
+      {
+        path: 'CLAUDE.md',
+        fix: {
+          id: `${RULE}#import`,
+          class: 'review',
+          title: 'Replace the path in CLAUDE.md with the import "@AGENTS.md"',
+          changes: [
+            {
+              kind: 'edit',
+              path: 'CLAUDE.md',
+              edits: [{ offset: 0, length: 9, text: '@AGENTS.md' }],
+            },
+          ],
+          notes: [
+            'Git then records this file as a regular file instead of a symlink, and agents read the linked instructions through the import.',
+          ],
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    ['GEMINI.md', 'AGENTS.md', '@./AGENTS.md'],
+    ['GEMINI.md', './docs/agents.md', '@./docs/agents.md'],
+    ['docs/GEMINI.md', '../AGENTS.md', '@../AGENTS.md'],
+    ['CLAUDE.local.md', 'docs/agents.md', '@docs/agents.md'],
+  ])('imports in %s %j as %j', (path, target, line) => {
+    const run = fixFiles(
+      { [path]: target, 'AGENTS.md': AGENTS, 'docs/agents.md': AGENTS },
+      { rules },
+      selectRule(RULE),
+    );
+    expect(fixedText(run, path)).toBe(line);
+    expect(run.verification).toMatchObject({ resolved: 1, introduced: [] });
+  });
+
+  describe('leaves to the user', () => {
+    it.each([
+      ['AGENTS.md', 'CLAUDE.md'],
+      ['.cursorrules', 'AGENTS.md'],
+      ['.github/copilot-instructions.md', '../AGENTS.md'],
+    ])('%s, which has no imports: symlinks must be enabled', (path, target) => {
+      const result = lint({ 'AGENTS.md': AGENTS, 'CLAUDE.md': AGENTS, [path]: target }, { rules });
+      expect(repairs(result, RULE)).toEqual([{ path, guidance: ENABLE_SYMLINKS }]);
+    });
+
+    it('a target an import cannot name as written', () => {
+      const result = lint(
+        { 'CLAUDE.md': 'docs/a+b.md', 'AGENTS.md': AGENTS },
+        { rules, paths: ['docs/a+b.md'] },
+      );
+      expect(repairs(result, RULE)).toEqual([{ path: 'CLAUDE.md', guidance: ENABLE_SYMLINKS }]);
+    });
+
+    it('a file another path links to', () => {
+      const result = lint(
+        { 'CLAUDE.md': 'AGENTS.md', 'GEMINI.md': 'AGENTS.md', 'AGENTS.md': AGENTS },
+        { rules, symlinks: { 'GEMINI.md': 'CLAUDE.md' } },
+      );
+      expect(repairs(result, RULE)).toEqual([
+        {
+          path: 'CLAUDE.md',
+          guidance:
+            'replace the path with the line "@AGENTS.md" by hand: "GEMINI.md" is a symbolic link to this file',
+        },
+      ]);
+    });
   });
 });

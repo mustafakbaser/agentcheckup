@@ -69,6 +69,11 @@ export const DIRECTIVE_UNUSED: RuleMeta = {
   platforms: ALL_PLATFORMS,
   sources: [SOURCE],
   since: RULESET_VERSION,
+  fix: {
+    classes: ['safe'],
+    summary:
+      'Removes the directive, and its line when nothing else is on it, when every rule it names checked the file in this scan.',
+  },
 };
 
 export const DIRECTIVE_UNKNOWN_RULE: RuleMeta = {
@@ -84,6 +89,11 @@ export const DIRECTIVE_UNKNOWN_RULE: RuleMeta = {
   platforms: ALL_PLATFORMS,
   sources: [SOURCE],
   since: RULESET_VERSION,
+  fix: {
+    classes: ['review'],
+    summary:
+      'Replaces the id with the only rule id within two edits of it, which makes the directive suppress that rule.',
+  },
 };
 
 export const DIRECTIVE_RULES: readonly RuleMeta[] = [

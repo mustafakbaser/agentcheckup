@@ -1,0 +1,3 @@
+# Setup
+
+Run pnpm install.
