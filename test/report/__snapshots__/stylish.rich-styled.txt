@@ -1,5 +1,5 @@
 <u>.cursor/rules/style.mdc</u>
-  <dim>2:1</dim>  <yellow>warning</yellow>  `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  <gray>cursor/conflicting-activation</gray>
+  <dim>2:1</dim>  <yellow>warning</yellow>  `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  <gray>cursor/conflicting-activation</gray>  <green>fixable</green>
 
 <u>AGENTS.md</u>
   <dim> 1:1</dim>  <blue>info</blue>     Start with a one-paragraph project overview.       <gray>clarity/missing-overview</gray>

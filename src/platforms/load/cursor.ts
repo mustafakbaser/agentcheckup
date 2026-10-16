@@ -205,7 +205,12 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     code: SkippedLoad['code'],
     certainty: Certainty,
     evidence: readonly SourceKey[],
-    extra: { readonly id?: string; readonly name?: string; readonly ruleId?: string } = {},
+    extra: {
+      readonly id?: string;
+      readonly name?: string;
+      readonly ruleId?: string;
+      readonly size?: Size;
+    } = {},
   ): void => {
     const { id, ...rest } = extra;
     skipped.push({
@@ -256,6 +261,7 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
       // Found on case-insensitive file systems only; Cursor documents neither case.
       skip('instructions', path, 'case-mismatch', 'unverified', evidence, {
         ruleId: 'instr/filename-case',
+        size: fileSize(artifact),
       });
       return;
     }
@@ -294,6 +300,7 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
       }
       skip('rule', path, 'not-mdc', nested ? 'unverified' : 'documented', ['cursorRules'], {
         ruleId: 'cursor/md-file-ignored',
+        size: fileSize(artifact),
       });
       return;
     }

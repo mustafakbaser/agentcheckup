@@ -1,0 +1,34 @@
+Claude Code context · ./
+
+At session start  bytes  ≈tokens
+  1  CLAUDE.md      200       50
+           Total    200     ≈ 50
+
+Skipped
+  .mcp.json › docs           "url" without "type"                     mcp/url-without-type               fix: review
+  AGENTS.md                  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
+  CLAUDE.md › docs/setup.md  the import does not resolve              instr/import-unresolved
+
+Not read by Claude Code: .cursor/rules/style.md
+
+Codex context · ./
+
+At session start  bytes  ≈tokens
+  1  AGENTS.md      788      197
+           Total    788    ≈ 197
+
+Skipped
+  .agents/skills/release-notes/SKILL.md  no description  skill/description-missing  fix: review
+
+Cursor context · ./
+
+At session start  bytes  ≈tokens
+  1  AGENTS.md      788      197
+  2  CLAUDE.md      200       50
+           Total    988    ≈ 247
+
+Skipped
+  .cursor/rules/style.md  only .mdc files are read here  cursor/md-file-ignored  fix: review
+
+4 of 5 skips can be fixed: agentcheckup fix
+≈tokens = characters ÷ 4

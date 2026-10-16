@@ -11,6 +11,7 @@ import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
+import type { FixClass } from '../core/types.js';
 import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../inventory/types.js';
 import type {
   Assumption,
@@ -229,6 +230,8 @@ export interface SkipRow {
   readonly name?: string;
   readonly reason: string;
   readonly ruleId?: string;
+  /** Class of the fix that removes the skip (`SkippedLoad.fix`). */
+  readonly fix?: FixClass;
   readonly unverified: boolean;
 }
 
@@ -272,6 +275,17 @@ export interface PlanView {
  * The note for {@link PlanView.ignored}, without the label, or undefined when nothing was left
  * out. Example: `22 files are not shown; Cursor may still load them`.
  */
+/**
+ * `3 of 4 skips can be fixed`, counting the skipped rows of every plan, or undefined when none
+ * can be.
+ */
+export function fixableNote(views: readonly Pick<PlanView, 'skipped'>[]): string | undefined {
+  const rows = views.flatMap((view) => view.skipped);
+  const fixable = rows.filter((row) => row.fix !== undefined).length;
+  if (fixable === 0) return undefined;
+  return `${formatInteger(fixable)} of ${formatInteger(rows.length)} ${rows.length === 1 ? 'skip' : 'skips'} can be fixed`;
+}
+
 export function ignoredNote(view: Pick<PlanView, 'ignored' | 'agentName'>): string | undefined {
   if (view.ignored <= 0) return undefined;
   const one = view.ignored === 1;
@@ -586,6 +600,7 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       ...(entry.name === undefined ? {} : { name: entry.name }),
       reason: SKIP_LABELS[entry.code],
       ...(entry.ruleId === undefined ? {} : { ruleId: entry.ruleId }),
+      ...(entry.fix === undefined ? {} : { fix: entry.fix }),
       unverified: entry.certainty === 'unverified',
     });
   }

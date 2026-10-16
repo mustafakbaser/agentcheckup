@@ -12,6 +12,7 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, MatrixCell, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  fixableNote,
   ignoredNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
@@ -279,14 +280,24 @@ function renderSkipped(view: PlanView, context: Context): string[] {
           : `${cleanPath(row.path, context)} ${symbols.into} ${clean(row.name, context)}`,
       reason: `${clean(row.reason, context)}${row.unverified ? ' ?' : ''}`,
       rule: row.ruleId === undefined ? '' : clean(row.ruleId, context),
+      fix: row.fix,
     }));
     const whereWidth = columnWidth(rows.map((row) => row.where));
     const reasonWidth = columnWidth(rows.map((row) => row.reason));
+    const ruleWidth = columnWidth(rows.map((row) => row.rule));
     lines.push(style.bold('Skipped'));
     for (const row of rows) {
-      const rule =
-        row.rule === '' ? '' : `${padding(row.reason, reasonWidth)}${GAP}${style.gray(row.rule)}`;
-      lines.push(...columns(row.where, whereWidth, `${row.reason}${rule}`));
+      // Each column is padded only when something follows it, so no row ends in blanks.
+      let detail = row.reason;
+      if (row.rule !== '' || row.fix !== undefined) {
+        detail += `${padding(row.reason, reasonWidth)}${GAP}${style.gray(row.rule)}`;
+      }
+      if (row.fix !== undefined) {
+        const tag = `fix: ${row.fix}`;
+        const paint = row.fix === 'safe' ? style.green : style.yellow;
+        detail += `${padding(row.rule, ruleWidth)}${GAP}${paint(tag)}`;
+      }
+      lines.push(...columns(row.where, whereWidth, detail));
     }
   }
   return lines;
@@ -441,7 +452,9 @@ function finish(blocks: readonly (readonly string[])[]): string {
 
 function footnotes(views: readonly PlanView[], context: Context): string[] {
   const { style, symbols } = context;
-  const lines = [style.dim(`${symbols.approx}tokens = characters ${symbols.divide} 4`)];
+  const fixable = fixableNote(views);
+  const lines = fixable === undefined ? [] : [`${fixable}: agentcheckup fix`];
+  lines.push(style.dim(`${symbols.approx}tokens = characters ${symbols.divide} 4`));
   if (views.some((view) => view.unverified)) {
     lines.push(style.dim('? = unverified: neither documentation nor source code confirms it'));
   }

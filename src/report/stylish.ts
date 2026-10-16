@@ -1,17 +1,44 @@
 /**
  * ESLint-"stylish"-like terminal output: findings grouped by file with aligned columns, then a
  * summary with counts, the score and notices. Pure: the CLI decides about color (NO_COLOR,
- * FORCE_COLOR, TTY) and passes a {@link Style}.
+ * FORCE_COLOR, TTY) and hyperlinks and passes a {@link Style} and a flag.
+ *
+ * At the `default` level (see {@link DetailLevel}) the output starts with what each agent
+ * misses, from the root load plans when the result has them; each finding gets a `why` line
+ * when the plans add a fact its message lacks, and a `fix` or `how` line; the summary ends with
+ * the fix counts and the commands that apply them. `compact` is the output from before fixes,
+ * plus a `fixable` tag; `verbose` adds each rule's docs URL, rationale and sources.
  */
 import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL } from '../core/meta.js';
 import type { Grade } from '../core/score.js';
-import { CATEGORIES, type Finding, type Severity } from '../core/types.js';
+import {
+  CATEGORIES,
+  type Finding,
+  type FixClass,
+  type RuleMeta,
+  type Severity,
+} from '../core/types.js';
+import {
+  type DetailLevel,
+  docsUrl,
+  firstParagraph,
+  fixCounts,
+  fixOf,
+  guidanceOf,
+  impactOf,
+  type ImpactRow,
+  type PlanIndex,
+  planIndex,
+  tokensText,
+  whyText,
+} from './feedback.js';
 import { gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
   breakdown,
   displayWidth,
+  markdownToPlain,
   plural,
   SEVERITY_LABELS,
   SKIP_REASON_LABELS,
@@ -55,6 +82,14 @@ export interface StylishOptions {
   readonly showSuppressed?: boolean | undefined;
   /** Show at most this many findings per file, then `… and N more`. Default: all. */
   readonly maxPerFile?: number | undefined;
+  /** How much to show. Default `default`. */
+  readonly level?: DetailLevel | undefined;
+  /**
+   * Rule ids become OSC 8 hyperlinks to their docs. Set it only when ANSI output goes to a
+   * terminal (color on, stdout a TTY): this module never checks. Ignored with `ascii`, and for
+   * ids that are not plain identifiers.
+   */
+  readonly hyperlinks?: boolean | undefined;
 }
 
 interface Symbols {
@@ -66,6 +101,7 @@ interface Symbols {
   readonly arrow: string;
   readonly sub: string;
   readonly more: string;
+  readonly approx: string;
 }
 
 const UNICODE_SYMBOLS: Symbols = {
@@ -77,6 +113,7 @@ const UNICODE_SYMBOLS: Symbols = {
   arrow: '→',
   sub: '↳',
   more: '…',
+  approx: '≈',
 };
 
 const ASCII_SYMBOLS: Symbols = {
@@ -88,6 +125,7 @@ const ASCII_SYMBOLS: Symbols = {
   arrow: '->',
   sub: '->',
   more: '...',
+  approx: '~',
 };
 
 /** Untrusted messages longer than this (code points) are cut. Keeps one finding on one line. */
@@ -100,6 +138,12 @@ const MAX_RELATED = 3;
 const MAX_NOTICE_PATHS = 3;
 /** Rule failures and configuration warnings listed before `… and N more`. */
 const MAX_LISTED = 10;
+/** Lines of "What each agent misses" before `… and N more`. */
+const MAX_IMPACT_LINES = 10;
+/** Impact descriptions wider than this do not push the fix column of the other lines. */
+const MAX_ALIGNED_IMPACT_WIDTH = 80;
+/** Sources listed per finding at the `verbose` level. */
+const MAX_SOURCES = 5;
 
 interface Context {
   readonly style: Style;
@@ -111,6 +155,13 @@ interface Context {
   readonly newRules: ReadonlySet<string>;
   /** Width of the marker column, without the gap after it. */
   readonly markerWidth: number;
+  readonly level: DetailLevel;
+  /** OSC 8 hyperlinks on rule ids (never in ASCII mode). */
+  readonly hyperlinks: boolean;
+  /** What the root load plans add to each finding. */
+  readonly plans: PlanIndex;
+  /** Rule metadata by id, for the `verbose` level. */
+  readonly rules: ReadonlyMap<string, RuleMeta>;
 }
 
 /** Marker for findings the baseline does not have; unchanged ones get blanks of equal width. */
@@ -144,6 +195,77 @@ function paintGrade(grade: Grade, style: Style): string {
 
 function location(path: string, line: number, column: number, context: Context): string {
   return `${clean(path, context)}:${line}:${column}`;
+}
+
+function paintClass(fixClass: FixClass, text: string, style: Style): string {
+  return fixClass === 'safe' ? style.green(text) : style.yellow(text);
+}
+
+/**
+ * `text` as an OSC 8 hyperlink to `url`. Only ever called with the docs URL of a rule id that
+ * passed `isSafeRuleId` and the styled id itself, so no repository text reaches the sequence.
+ */
+function hyperlink(url: string, text: string): string {
+  return `\u001b]8;;${url}\u001b\\${text}\u001b]8;;\u001b\\`;
+}
+
+/** The rule id column: gray, a hyperlink to the docs when enabled, then the `fixable` tag. */
+function ruleColumn(finding: Finding, context: Context): string {
+  const { style } = context;
+  const id = style.gray(clean(finding.ruleId, context));
+  const url = context.hyperlinks ? docsUrl(finding.ruleId) : undefined;
+  const linked = url === undefined ? id : hyperlink(url, id);
+  if (context.level !== 'compact') return linked;
+  const fix = fixOf(finding, 'terminal');
+  if (fix === undefined) return linked;
+  const tag = fix.class === 'safe' ? 'fixable' : 'fixable (review)';
+  return `${linked}  ${paintClass(fix.class, tag, style)}`;
+}
+
+/** Label width of the detail lines: `why`, `fix`, `how`; `verbose` adds `docs`, `about`, `source`. */
+function labelWidth(context: Context): number {
+  return context.level === 'verbose' ? 'source'.length : 'why'.length;
+}
+
+/**
+ * Lines under a finding at the `default` and `verbose` levels: `why` when the load plans add a
+ * fact the message lacks, then `fix` (class and title) or `how` (guidance). `verbose` adds the
+ * docs URL, the first paragraph of the rationale and the sources. Nothing for a suppressed
+ * finding: it is never fixed.
+ */
+function detailLines(finding: Finding, context: Context): string[] {
+  if (context.level === 'compact' || finding.suppressed !== undefined) return [];
+  const { style, symbols } = context;
+  const width = labelWidth(context);
+  const line = (label: string, text: string): string =>
+    `${style.gray(label.padEnd(width))}  ${text}`;
+  const lines: string[] = [];
+
+  const facts = context.plans.facts(finding);
+  if (facts !== undefined) lines.push(line('why', clean(whyText(facts, symbols.approx), context)));
+  const fix = fixOf(finding, 'terminal');
+  const guidance = guidanceOf(finding);
+  if (fix !== undefined) {
+    lines.push(
+      line('fix', `${paintClass(fix.class, fix.class, style)}: ${clean(fix.title, context)}`),
+    );
+  } else if (guidance !== undefined) {
+    lines.push(line('how', clean(guidance, context)));
+  }
+
+  if (context.level === 'verbose') {
+    const url = docsUrl(finding.ruleId);
+    if (url !== undefined) lines.push(line('docs', url));
+    const meta = context.rules.get(finding.ruleId);
+    if (meta !== undefined) {
+      const about = firstParagraph(markdownToPlain(meta.rationale));
+      if (about !== '') lines.push(line('about', clean(about, context)));
+      for (const source of meta.sources.slice(0, MAX_SOURCES)) {
+        lines.push(line('source', clean(`${source.title}: ${source.url}`, context)));
+      }
+    }
+  }
+  return lines;
 }
 
 interface Row {
@@ -208,7 +330,7 @@ function renderFile(
       marker = text === '' ? pad : `${style.bold(text)}${pad}`;
     }
     lines.push(
-      `  ${style.dim(position)}  ${severity}  ${marker}${message}${padding}  ${style.gray(clean(finding.ruleId, context))}`,
+      `  ${style.dim(position)}  ${severity}  ${marker}${message}${padding}  ${ruleColumn(finding, context)}`,
     );
 
     if (finding.suppressed) {
@@ -231,6 +353,7 @@ function renderFile(
         `${indent}${style.gray(`${symbols.sub} ${symbols.more} and ${plural(hidden, 'more related location')}`)}`,
       );
     }
+    for (const detail of detailLines(finding, context)) lines.push(`${indent}${detail}`);
   }
   if (findings.length > rows.length) {
     lines.push(
@@ -418,7 +541,89 @@ function scoreLine(result: ScanResult, context: Context): string {
   );
 }
 
-/** Formats a scan result for a terminal. Returns text ending with a newline. */
+/** `AGENTS.md is skipped: a CLAUDE.md on the path is read instead (≈197 tokens)`. */
+function impactText(row: ImpactRow, context: Context): string {
+  const { subject } = row;
+  const what =
+    subject.prefix === undefined
+      ? clean(subject.text, context)
+      : `${subject.prefix} ${clean(subject.text, context)}`;
+  const why =
+    row.importer === undefined
+      ? row.label
+      : `${clean(row.importer, context)} imports it, but ${row.label}`;
+  const tokens =
+    row.tokens === undefined ? '' : ` (${tokensText(row.tokens, context.symbols.approx)})`;
+  return `${what} is skipped: ${why}${tokens}`;
+}
+
+/**
+ * "What each agent misses", from the root load plans: one line per skip, the agent named on its
+ * first line, then the class of the fix that removes the skip, or `manual`. Nothing at the
+ * `compact` level, without load plans, or when no agent misses anything.
+ */
+function renderImpact(result: ScanResult, context: Context): string[] {
+  if (context.level === 'compact') return [];
+  const rows = impactOf(result)?.rows ?? [];
+  if (rows.length === 0) return [];
+  const { style, symbols } = context;
+  const shown = rows.slice(0, MAX_IMPACT_LINES);
+  const texts = shown.map((row) => impactText(row, context));
+  const nameWidth = Math.max(...shown.map((row) => row.agentName.length));
+  const textWidth = Math.max(
+    0,
+    ...texts.map(displayWidth).filter((width) => width <= MAX_ALIGNED_IMPACT_WIDTH),
+  );
+  const lines = [style.bold('What each agent misses')];
+  shown.forEach((row, index) => {
+    const text = texts[index] ?? '';
+    const name = index > 0 && shown[index - 1]?.agent === row.agent ? '' : row.agentName;
+    const padding = ' '.repeat(Math.max(0, textWidth - displayWidth(text)));
+    const tag =
+      row.fix === undefined ? style.dim('manual') : paintClass(row.fix, `fix: ${row.fix}`, style);
+    lines.push(`  ${name.padEnd(nameWidth)}  ${text}${padding}  ${tag}`);
+  });
+  if (rows.length > shown.length) {
+    lines.push(
+      `  ${style.dim(`${symbols.more} and ${rows.length - shown.length} more: agentcheckup context`)}`,
+    );
+  }
+  return lines;
+}
+
+/**
+ * `Fixes: 1 safe (agentcheckup fix --write) · 3 need review (agentcheckup fix -i) · 1 manual`,
+ * when any unsuppressed finding has a fix.
+ */
+function fixesLine(result: ScanResult, context: Context): string | undefined {
+  if (context.level === 'compact') return undefined;
+  const { style, symbols } = context;
+  const counts = fixCounts(result.findings, 'terminal');
+  if (counts.safe + counts.review === 0) return undefined;
+  const parts: string[] = [];
+  if (counts.safe > 0) {
+    parts.push(`${style.green(`${counts.safe} safe`)} (agentcheckup fix --write)`);
+  }
+  if (counts.review > 0) {
+    const verb = counts.review === 1 ? 'needs' : 'need';
+    parts.push(`${style.yellow(`${counts.review} ${verb} review`)} (agentcheckup fix -i)`);
+  }
+  if (counts.manual > 0) parts.push(`${counts.manual} manual`);
+  return `Fixes: ${parts.join(` ${symbols.dot} `)}`;
+}
+
+/** Where the rule docs are, when findings are listed. */
+function docsLine(visible: readonly Finding[], context: Context): string | undefined {
+  if (context.level === 'compact' || visible.length === 0) return undefined;
+  return context.hyperlinks
+    ? 'Rule docs: click a rule id, or agentcheckup explain <rule-id>'
+    : 'Rule docs: agentcheckup explain <rule-id>';
+}
+
+/**
+ * Formats a scan result for a terminal. Returns text ending with a newline. The summary of what
+ * each agent misses needs `result.context` (root load plans); without it, it is left out.
+ */
 export function formatStylish(result: ScanResult, options: StylishOptions): string {
   const ascii = options.ascii === true;
   const newRules = newRuleSet(result);
@@ -437,6 +642,10 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     )
       ? NEW_RULE_MARKER.length
       : NEW_MARKER.length,
+    level: options.level ?? 'default',
+    hyperlinks: options.hyperlinks === true && !ascii,
+    plans: planIndex(result),
+    rules: new Map(result.rules.map((meta) => [meta.id, meta])),
   };
   const maxPerFile =
     options.maxPerFile !== undefined && Number.isFinite(options.maxPerFile)
@@ -447,6 +656,8 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     (finding) => options.showSuppressed === true || !finding.suppressed,
   );
   const blocks: string[][] = [];
+  const impact = renderImpact(result, context);
+  if (impact.length > 0) blocks.push(impact);
   for (const [path, findings] of groupByPath(visible)) {
     blocks.push(renderFile(path, findings, maxPerFile, context));
   }
@@ -463,6 +674,8 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     categoriesLine(result, context),
     baselineLine(result, context),
     scoreLine(result, context),
+    fixesLine(result, context),
+    docsLine(visible, context),
   ].filter((line) => line !== undefined);
   blocks.push(summary);
 

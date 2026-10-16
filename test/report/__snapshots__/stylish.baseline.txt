@@ -1,5 +1,5 @@
 .cursor/rules/style.mdc
-  2:1  warning       `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  cursor/conflicting-activation
+  2:1  warning       `alwaysApply: true` overrides `globs`, so the rule loads in every chat.  cursor/conflicting-activation  fixable
 
 AGENTS.md
    1:1  info        Start with a one-paragraph project overview.       clarity/missing-overview

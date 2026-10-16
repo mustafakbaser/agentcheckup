@@ -345,7 +345,33 @@
           ],
           "partialFingerprints": {
             "agentcheckup/v2": "1a2b3c4d5e6f70:1"
-          }
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove `globs`"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": ".cursor/rules/style.mdc",
+                    "uriBaseId": "%SRCROOT%"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "charOffset": 4,
+                        "charLength": 14
+                      }
+                    }
+                  ]
+                }
+              ],
+              "properties": {
+                "class": "safe"
+              }
+            }
+          ]
         },
         {
           "ruleId": "clarity/missing-overview",

@@ -4,11 +4,9 @@
  * `forMarkdown`.
  */
 import { ruleDocsUrl } from '../core/meta.js';
+import { isSafeRuleId } from './feedback.js';
 import { forMarkdown } from './sanitize.js';
 import { plural, truncate } from './text.js';
-
-/** Rule ids that are safe to put in a code span and a docs URL as they are. */
-const SAFE_RULE_ID = /^[a-z\d]+(?:-[a-z\d]+)*\/[a-z\d]+(?:-[a-z\d]+)*$/;
 
 /** Untrusted text as inline Markdown: cut to `max` code points, then escaped. */
 export function escaped(value: string, max: number): string {
@@ -17,14 +15,12 @@ export function escaped(value: string, max: number): string {
 
 /** `` `rule/id` `` for known-safe ids, otherwise escaped text. */
 export function ruleCode(ruleId: string, max: number): string {
-  return SAFE_RULE_ID.test(ruleId) ? `\`${ruleId}\`` : escaped(ruleId, max);
+  return isSafeRuleId(ruleId) ? `\`${ruleId}\`` : escaped(ruleId, max);
 }
 
 /** A link to the rule's documentation for known-safe ids, otherwise escaped text. */
 export function ruleLink(ruleId: string, max: number): string {
-  return SAFE_RULE_ID.test(ruleId)
-    ? `[\`${ruleId}\`](${ruleDocsUrl(ruleId)})`
-    : escaped(ruleId, max);
+  return isSafeRuleId(ruleId) ? `[\`${ruleId}\`](${ruleDocsUrl(ruleId)})` : escaped(ruleId, max);
 }
 
 /**

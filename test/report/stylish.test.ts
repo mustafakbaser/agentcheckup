@@ -26,25 +26,29 @@ const plain = (
   options: Omit<Parameters<typeof formatStylish>[1], 'style'> = {},
 ) => formatStylish(result, { style: plainStyle, ...options });
 
+// The snapshots from before fixes existed are the `compact` level: the same output plus a
+// `fixable` tag on findings that carry a fix.
 describe('formatStylish snapshots', () => {
   it.each(FIXTURES)('%s', async (name, result) => {
-    await expect(plain(result)).toMatchFileSnapshot(`__snapshots__/stylish.${name}.txt`);
+    await expect(plain(result, { level: 'compact' })).toMatchFileSnapshot(
+      `__snapshots__/stylish.${name}.txt`,
+    );
   });
 
   it('hostile, with suppressed findings', async () => {
-    await expect(plain(hostileResult, { showSuppressed: true })).toMatchFileSnapshot(
-      '__snapshots__/stylish.hostile-suppressed.txt',
-    );
+    await expect(
+      plain(hostileResult, { showSuppressed: true, level: 'compact' }),
+    ).toMatchFileSnapshot('__snapshots__/stylish.hostile-suppressed.txt');
   });
 
   it('rich, styled, with suppressed findings', async () => {
     await expect(
-      formatStylish(richResult, { style: tagStyle, showSuppressed: true }),
+      formatStylish(richResult, { style: tagStyle, showSuppressed: true, level: 'compact' }),
     ).toMatchFileSnapshot('__snapshots__/stylish.rich-styled.txt');
   });
 
   it('rich, ASCII only', async () => {
-    const output = plain(richResult, { ascii: true, showSuppressed: true });
+    const output = plain(richResult, { ascii: true, showSuppressed: true, level: 'compact' });
     expect(output).toMatch(/^[\t\n\x20-\x7e]*$/);
     await expect(output).toMatchFileSnapshot('__snapshots__/stylish.rich-ascii.txt');
   });
@@ -203,7 +207,7 @@ describe('formatStylish layout', () => {
 
 describe('formatStylish with a baseline', () => {
   const result = withContext(richResult);
-  const output = plain(result);
+  const output = plain(result, { level: 'compact' });
 
   it('matches the snapshot', async () => {
     await expect(output).toMatchFileSnapshot('__snapshots__/stylish.baseline.txt');

@@ -28,25 +28,36 @@ describe('formatGithub', () => {
     expect(formatGithub(emptyResult)).toBe('');
   });
 
+  // `compact` is the output from before fixes, with the fix class in the title.
   it.each(['rich', 'hostile'] as const)('%s matches the snapshot', async (name) => {
     const result = name === 'rich' ? richResult : hostileResult;
-    await expect(formatGithub(result)).toMatchFileSnapshot(`__snapshots__/github.${name}.txt`);
+    await expect(formatGithub(result, { level: 'compact' })).toMatchFileSnapshot(
+      `__snapshots__/github.${name}.txt`,
+    );
+    await expect(formatGithub(result)).toMatchFileSnapshot(
+      `__snapshots__/github.${name}-default.txt`,
+    );
   });
 
   it.each(FIXTURES)('%s: every line is one well-formed annotation command', (_, result) => {
-    const output = formatGithub(result);
-    const expected =
-      result.findings.filter((finding) => !finding.suppressed).length + result.ruleFailures.length;
-    expect(lines(output)).toHaveLength(expected);
-    for (const line of lines(output)) {
-      expect(line).toMatch(COMMAND_LINE);
-      expect(unsafeCodePoints(line, { tab: true })).toEqual([]);
+    for (const level of ['compact', 'default', 'verbose'] as const) {
+      const output = formatGithub(result, { level });
+      const expected =
+        result.findings.filter((finding) => !finding.suppressed).length +
+        result.ruleFailures.length;
+      expect(lines(output)).toHaveLength(expected);
+      for (const line of lines(output)) {
+        expect(line).toMatch(COMMAND_LINE);
+        expect(unsafeCodePoints(line, { tab: true })).toEqual([]);
+      }
     }
   });
 
   it('round-trips through the runner parser to the sanitized values', () => {
     const active = hostileResult.findings.filter((finding) => !finding.suppressed);
-    const parsed = lines(formatGithub(hostileResult)).map(parseWorkflowCommand);
+    const parsed = lines(formatGithub(hostileResult, { level: 'compact' })).map(
+      parseWorkflowCommand,
+    );
     active.forEach((finding, index) => {
       const command = parsed[index]!;
       expect(Object.keys(command.properties)).toEqual([
@@ -58,7 +69,8 @@ describe('formatGithub', () => {
         'title',
       ]);
       expect(command.properties['file']).toBe(forTerminal(finding.path));
-      expect(command.properties['title']).toBe(forTerminal(finding.ruleId));
+      const tag = finding.fix === undefined ? '' : ` (fix: ${finding.fix.class})`;
+      expect(command.properties['title']).toBe(forTerminal(`${finding.ruleId}${tag}`));
       expect(command.properties['line']).toBe(String(finding.range.start.line));
       expect(command.data).toBe(forTerminal(finding.message, { multiline: true }));
     });
@@ -67,9 +79,9 @@ describe('formatGithub', () => {
   });
 
   it('maps severities to error, warning and notice and positions to properties', () => {
-    const output = lines(formatGithub(richResult));
+    const output = lines(formatGithub(richResult, { level: 'compact' }));
     expect(output[0]).toBe(
-      '::warning file=.cursor/rules/style.mdc,line=2,col=1,endLine=2,endColumn=18,title=cursor/conflicting-activation::`alwaysApply: true` overrides `globs`, so the rule loads in every chat.',
+      '::warning file=.cursor/rules/style.mdc,line=2,col=1,endLine=2,endColumn=18,title=cursor/conflicting-activation (fix%3A safe)::`alwaysApply: true` overrides `globs`, so the rule loads in every chat.',
     );
     expect(output[1]).toMatch(/^::notice file=AGENTS\.md,line=1,col=1,endLine=1,endColumn=1,/);
     expect(output[2]).toMatch(/^::error file=AGENTS\.md,line=12,col=3,endLine=12,endColumn=9,/);

@@ -8,6 +8,7 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  fixableNote,
   ignoredNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
@@ -158,13 +159,16 @@ function onDemandSection(view: PlanView, maxRows: number): string[] {
 function skippedSection(view: PlanView, maxRows: number): string[] {
   const lines: string[] = [];
   if (view.skipped.length > 0) {
+    // A Fix column only when a skip in this plan can be fixed.
+    const withFix = view.skipped.some((row) => row.fix !== undefined);
     const { rows } = cappedRows(
       view.skipped,
       (row) => {
         const where =
           row.name === undefined ? path(row.path) : `${path(row.path)} › ${text(row.name)}`;
         const rule = row.ruleId === undefined ? '' : ruleLink(row.ruleId, MAX_PATH_LENGTH);
-        return `| ${where} | ${text(row.reason)}${row.unverified ? ' ?' : ''} | ${rule} |`;
+        const cells = `| ${where} | ${text(row.reason)}${row.unverified ? ' ?' : ''} | ${rule} |`;
+        return withFix ? `${cells} ${row.fix ?? ''} |` : cells;
       },
       maxRows,
       MAX_TABLE_CHARACTERS,
@@ -173,8 +177,8 @@ function skippedSection(view: PlanView, maxRows: number): string[] {
       '### Skipped',
       '',
       ...table(
-        '| File | Reason | Rule |',
-        '| :--- | :----- | :--- |',
+        withFix ? '| File | Reason | Rule | Fix |' : '| File | Reason | Rule |',
+        withFix ? '| :--- | :----- | :--- | :-- |' : '| :--- | :----- | :--- |',
         rows,
         view.skipped.length,
         'skipped file',
@@ -280,7 +284,9 @@ function maxRowsOf(options: ContextMarkdownOptions): number {
 }
 
 function footnotes(views: readonly PlanView[]): string[] {
-  const lines = ['_≈Tokens = characters ÷ 4._'];
+  const fixable = fixableNote(views);
+  const lines = fixable === undefined ? [] : [`${fixable}: \`agentcheckup fix\``];
+  lines.push('_≈Tokens = characters ÷ 4._');
   if (views.some((view) => view.unverified)) {
     lines.push('_? = unverified: neither documentation nor source code confirms it._');
   }

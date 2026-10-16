@@ -1,0 +1,53 @@
+## Claude Code context · ./
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | CLAUDE\.md | 200 | 50 |  |
+|  | **Total** | **200** | **≈ 50** |  |
+
+### Skipped
+
+| File | Reason | Rule | Fix |
+| :--- | :----- | :--- | :-- |
+| \.mcp\.json › docs | &quot;url&quot; without &quot;type&quot; | [`mcp/url-without-type`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/mcp/url-without-type.md) | review |
+| AGENTS\.md | a CLAUDE\.md on the path is read instead | [`instr/agents-md-ignored-by-claude`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md) | safe |
+| CLAUDE\.md › docs/setup\.md | the import does not resolve | [`instr/import-unresolved`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/import-unresolved.md) |  |
+
+**Not read by Claude Code:** \.cursor/rules/style\.md
+
+## Codex context · ./
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | AGENTS\.md | 788 | 197 |  |
+|  | **Total** | **788** | **≈ 197** |  |
+
+### Skipped
+
+| File | Reason | Rule | Fix |
+| :--- | :----- | :--- | :-- |
+| \.agents/skills/release\-notes/SKILL\.md | no description | [`skill/description-missing`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/skill/description-missing.md) | review |
+
+## Cursor context · ./
+
+### At session start
+
+| # | File | Bytes | ≈Tokens | Via |
+| -: | :--- | ----: | ------: | :-- |
+| 1 | AGENTS\.md | 788 | 197 |  |
+| 2 | CLAUDE\.md | 200 | 50 |  |
+|  | **Total** | **988** | **≈ 247** |  |
+
+### Skipped
+
+| File | Reason | Rule | Fix |
+| :--- | :----- | :--- | :-- |
+| \.cursor/rules/style\.md | only \.mdc files are read here | [`cursor/md-file-ignored`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/cursor/md-file-ignored.md) | review |
+
+4 of 5 skips can be fixed: `agentcheckup fix`
+
+_≈Tokens = characters ÷ 4._

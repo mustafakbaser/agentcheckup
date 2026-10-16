@@ -9,7 +9,13 @@
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
 import { normalizeRelative } from '../../core/paths.js';
-import { PLATFORM_IDS, type PlatformId, type RuleSource } from '../../core/types.js';
+import {
+  type Finding,
+  type FixClass,
+  PLATFORM_IDS,
+  type PlatformId,
+  type RuleSource,
+} from '../../core/types.js';
 import { SOURCES } from '../sources.js';
 import { loadClaudeCode } from './claude-code.js';
 import { loadCodex } from './codex.js';
@@ -280,16 +286,55 @@ export interface ContextReportInput {
   readonly agents: readonly ContextAgent[];
   readonly plans: readonly LoadPlan[];
   readonly matrix?: ContextReport['matrix'];
+  /**
+   * The scan's findings. A skip gets `fix`, the class of the fix on the unsuppressed finding of
+   * its rule on its file ({@link withFixClasses}). Without them, skips keep what they have.
+   */
+  readonly findings?: readonly Finding[];
+}
+
+/**
+ * The fix class of each (rule, file): from the unsuppressed findings that carry a fix. When
+ * several do, `review` wins: the skip is gone only once every one of them is applied.
+ */
+function fixClasses(findings: readonly Finding[]): Map<string, FixClass> {
+  const classes = new Map<string, FixClass>();
+  for (const finding of findings) {
+    if (finding.suppressed !== undefined || finding.fix === undefined) continue;
+    const key = `${finding.ruleId}\u0000${finding.path}`;
+    if (classes.get(key) !== 'review') classes.set(key, finding.fix.class);
+  }
+  return classes;
+}
+
+/**
+ * `plan` with `fix` set on each skip a rule reports, from the finding of that rule on the same
+ * path (`SkippedLoad.ruleId`, `SkippedLoad.path`) when it carries a fix, and removed otherwise.
+ */
+export function withFixClasses(plan: LoadPlan, findings: readonly Finding[]): LoadPlan {
+  const classes = fixClasses(findings);
+  return {
+    ...plan,
+    skipped: plan.skipped.map((skip) => {
+      const { fix: _previous, ...rest } = skip;
+      const fix =
+        skip.ruleId === undefined ? undefined : classes.get(`${skip.ruleId}\u0000${skip.path}`);
+      return fix === undefined ? rest : { ...rest, fix };
+    }),
+  };
 }
 
 /**
  * The context report of `plans`: agents in PLATFORM_IDS order, plans by agent then working
  * directory, every list inside a plan sorted, matrix rows by path, and `sources` holding exactly
  * the sources the plans cite, by key. A matrix's cells must already follow `agents` in
- * PLATFORM_IDS order (see `buildMatrix`).
+ * PLATFORM_IDS order (see `buildMatrix`). With `findings`, skips get their fix class.
  */
 export function buildContextReport(input: ContextReportInput): ContextReport {
-  const plans = input.plans.map(sortedPlan).sort(comparePlans);
+  const { findings } = input;
+  const plans = input.plans
+    .map((plan) => sortedPlan(findings === undefined ? plan : withFixClasses(plan, findings)))
+    .sort(comparePlans);
   return {
     agents: orderedAgents(input.agents),
     sources: sourcesOf(citedSourceKeys(plans)),

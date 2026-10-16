@@ -580,9 +580,14 @@ export function scanWithContext(
             agents,
             plans,
             matrix: buildMatrix(analysis, plans, agents),
+            findings: result.findings,
           });
         })()
-      : buildContextReport({ agents, plans: loadPlans(analysis, { ...shared, cwd }) });
+      : buildContextReport({
+          agents,
+          plans: loadPlans(analysis, { ...shared, cwd }),
+          findings: result.findings,
+        });
   return { ...result, inventory, context };
 }
 

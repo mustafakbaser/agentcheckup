@@ -180,14 +180,26 @@ class PlanParts {
 // Instructions
 // ---------------------------------------------------------------------------------------------
 
+/** What Codex would receive from a file it skips: the whole file, decoded as Codex does. */
+function skippedSize(artifact: Artifact): Size {
+  return sizeOf(artifact.file.bytes.length, codexText(artifact.file.bytes));
+}
+
 function addInstructions(view: LoadView, parts: PlanParts, chain: CodexChain): void {
-  const skip = (path: string, code: SkipCode, ruleId: string, certainty: Certainty): void => {
+  const skip = (
+    path: string,
+    code: SkipCode,
+    ruleId: string,
+    certainty: Certainty,
+    size?: Size,
+  ): void => {
     parts.skip({
       id: `instructions:${path}`,
       role: 'instructions',
       path,
       code,
       ruleId,
+      ...(size === undefined ? {} : { size }),
       certainty,
       evidence: code === 'over-byte-budget' ? INSTRUCTION_EVIDENCE : CHAIN_SOURCE,
     });
@@ -228,18 +240,21 @@ function addInstructions(view: LoadView, parts: PlanParts, chain: CodexChain): v
         'over-byte-budget',
         RULES.sizeBudget,
         file.status === 'cut-blank' ? 'source-code' : 'documented',
+        skippedSize(artifact),
       );
     }
 
     if (basename(path) === 'AGENTS.override.md') {
       const hidden = agentsMdBeside(view.snapshot, path);
       if (hidden !== undefined) {
+        const shadowed = view.index.get(hidden);
         parts.skip({
           id: `instructions:${hidden}`,
           role: 'instructions',
           path: hidden,
           code: 'shadowed-by-override',
           ruleId: RULES.overrideShadows,
+          ...(shadowed === undefined ? {} : { size: skippedSize(shadowed) }),
           certainty: 'documented',
           evidence: INSTRUCTION_EVIDENCE,
         });
@@ -274,6 +289,7 @@ function addCaseMismatches(
       path: artifact.path,
       code: 'case-mismatch',
       ruleId: RULES.filenameCase,
+      size: skippedSize(artifact),
       certainty: 'source-code',
       evidence: CHAIN_SOURCE,
     });
@@ -536,6 +552,8 @@ function addSkills(
         ...base,
         code: verdict.code,
         ruleId: verdict.ruleId,
+        // The skill file: its body never reaches the model.
+        size: skippedSize(artifact),
         certainty: weakest(root.certainty, verdict.certainty),
         evidence: sortedKeys([...verdict.evidence, ...root.evidence]),
       });

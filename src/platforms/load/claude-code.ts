@@ -190,6 +190,14 @@ function size(text: string, bytes: number = utf8ByteLength(text)): Size {
   return { bytes, chars: codePointLength(text), tokens: estimateTokens(text) };
 }
 
+/**
+ * What Claude Code would receive from a file it skips: the whole decoded file. Comments are not
+ * stripped, so a skip never parses Markdown and the scan's Markdown budget is spent as before.
+ */
+function skippedSize(artifact: Artifact): Size {
+  return size(artifact.decoded.text, artifact.file.bytes.length);
+}
+
 /** The text Claude Code receives: block HTML comments removed (see `inHtmlComment`). */
 function withoutComments(text: string, doc: MarkdownDocument): string {
   if (doc.htmlComments.length === 0) return text;
@@ -534,13 +542,23 @@ class ClaudeLoader {
 
   /** A file over Claude Code's 4 MiB limit, which it skips. */
   #oversize(artifact: Artifact, path: string, role: LoadRole): boolean {
-    return this.#overLimit(path, role, artifact.file.bytes.length);
+    return this.#overLimit(path, role, artifact.file.bytes.length, artifact);
   }
 
-  /** Skips a file of `bytes` bytes when it is over Claude Code's 4 MiB limit. */
-  #overLimit(path: string, role: LoadRole, bytes: number): boolean {
+  /**
+   * Skips a file of `bytes` bytes when it is over Claude Code's 4 MiB limit, with its size when
+   * the scan read it.
+   */
+  #overLimit(path: string, role: LoadRole, bytes: number, artifact?: Artifact): boolean {
     if (bytes <= CLAUDE_MAX_FILE_BYTES) return false;
-    this.#skip({ role, path, code: 'over-byte-budget', certainty: 'documented', evidence: MEMORY });
+    this.#skip({
+      role,
+      path,
+      code: 'over-byte-budget',
+      ...(artifact === undefined ? {} : { size: skippedSize(artifact) }),
+      certainty: 'documented',
+      evidence: MEMORY,
+    });
     this.#bytes.push({ path, value: bytes });
     return true;
   }
@@ -764,6 +782,7 @@ class ClaudeLoader {
         path: artifact.path,
         code: 'shadowed-by-claude-md',
         ...(this.#shadowedFiles().has(artifact) ? { ruleId: SHADOW_RULE } : {}),
+        size: skippedSize(artifact),
         certainty: 'documented',
         evidence: MEMORY,
       });
@@ -783,6 +802,7 @@ class ClaudeLoader {
         path: artifact.path,
         code: 'case-mismatch',
         ruleId: CASE_RULE,
+        size: skippedSize(artifact),
         certainty: 'documented',
         evidence: MEMORY,
       });

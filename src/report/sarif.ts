@@ -10,10 +10,18 @@
  * - 1,024 characters for `shortDescription`/`fullDescription`, 255 for `name`: truncated.
  * - Empty strings are not accepted for required properties: every one has a fallback.
  * - 10 MB gzipped per file: not enforceable here; 25,000 results stay well below it.
+ *
+ * A finding's fix becomes `result.fixes` (SARIF 2.1.0 §3.55) when it is one `edit` of one file:
+ * each text edit is a replacement whose `deletedRegion` is `charOffset`/`charLength` in UTF-16
+ * code units (the run's `columnKind`) of the decoded text, without a byte order mark, and whose
+ * `insertedContent.text` is the new text, exactly. Creates, renames, re-encodings and fixes that
+ * touch several files have no SARIF form here, and fixes that apply only when named
+ * (mcp/literal-secret) are never offered.
  */
 import type { ScanResult } from '../core/engine.js';
 import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
-import type { Finding, Range, RuleMeta, Severity } from '../core/types.js';
+import type { Finding, Fix, FixClass, Range, RuleMeta, Severity } from '../core/types.js';
+import { fixOf } from './feedback.js';
 import { isNewRuleFinding, newRuleSet } from './gate.js';
 import { forJsonOutput, forSarifMessage, forSarifText } from './sanitize.js';
 import {
@@ -79,6 +87,24 @@ interface SarifRule {
   readonly properties: { readonly tags: readonly string[]; readonly 'security-severity'?: string };
 }
 
+interface SarifReplacement {
+  readonly deletedRegion: { readonly charOffset: number; readonly charLength: number };
+  /** Absent for a pure deletion. */
+  readonly insertedContent?: { readonly text: string };
+}
+
+interface SarifFix {
+  readonly description: SarifMessage;
+  readonly artifactChanges: readonly [
+    {
+      readonly artifactLocation: { readonly uri: string; readonly uriBaseId: string };
+      readonly replacements: readonly SarifReplacement[];
+    },
+  ];
+  /** `class`: `safe` fixes are applied by `agentcheckup fix --write`, `review` ones on request. */
+  readonly properties: { readonly class: FixClass };
+}
+
 interface SarifResult {
   readonly ruleId: string;
   readonly ruleIndex: number;
@@ -93,6 +119,7 @@ interface SarifResult {
     readonly kind: 'inSource' | 'external';
     readonly justification: string;
   }[];
+  readonly fixes?: readonly SarifFix[];
   /**
    * `newRule`: a new finding of a rule newer than the baseline's rule set, which the baseline
    * could not have reported. Set only then.
@@ -266,7 +293,39 @@ function buildRules(result: ScanResult): { rules: SarifRule[]; index: Map<string
   return { rules, index };
 }
 
+/**
+ * The SARIF form of a fix that edits one file, or undefined for any other fix. Edits do not
+ * overlap and all index the text before the change, as SARIF replacements do; they are listed
+ * by offset.
+ */
+export function toSarifFix(fix: Fix): SarifFix | undefined {
+  const [change, ...rest] = fix.changes;
+  if (change?.kind !== 'edit' || rest.length > 0 || change.edits.length === 0) return undefined;
+  const replacements = [...change.edits]
+    .sort((a, b) => a.offset - b.offset || a.length - b.length)
+    .map((edit): SarifReplacement => ({
+      deletedRegion: {
+        charOffset: Math.max(0, Math.floor(edit.offset)),
+        charLength: Math.max(0, Math.floor(edit.length)),
+      },
+      // The text to write, exactly: forJsonOutput escapes what must not be shown raw.
+      ...(edit.text === '' ? {} : { insertedContent: { text: edit.text } }),
+    }));
+  return {
+    description: { text: nonEmpty(forSarifMessage(fix.title), 'Fix') },
+    artifactChanges: [
+      {
+        artifactLocation: { uri: pathToUri(change.path), uriBaseId: SRCROOT },
+        replacements,
+      },
+    ],
+    properties: { class: fix.class },
+  };
+}
+
 function toResult(finding: Finding, ruleIndex: number, newRules: ReadonlySet<string>): SarifResult {
+  const fix = fixOf(finding, 'pull-request');
+  const sarifFix = fix === undefined ? undefined : toSarifFix(fix);
   const related = finding.related.slice(0, MAX_RELATED).map((location, position) => ({
     id: position + 1,
     physicalLocation: physicalLocation(location.path, location.range),
@@ -292,6 +351,7 @@ function toResult(finding: Finding, ruleIndex: number, newRules: ReadonlySet<str
           ],
         }
       : {}),
+    ...(sarifFix === undefined ? {} : { fixes: [sarifFix] }),
     ...(isNewRuleFinding(finding, newRules) ? { properties: { newRule: true } } : {}),
   };
 }

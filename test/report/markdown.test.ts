@@ -44,7 +44,9 @@ function cellSeparators(row: string): number {
 
 function tableRows(output: string): string[] {
   const lines = output.split('\n');
-  const start = lines.indexOf('| Location | Severity | Rule | Message |');
+  const start = lines.findIndex((line) =>
+    line.startsWith('| Location | Severity | Rule | Message |'),
+  );
   if (start < 0) return [];
   const rows: string[] = [];
   for (const line of lines.slice(start + 2)) {
@@ -55,25 +57,45 @@ function tableRows(output: string): string[] {
 }
 
 describe('formatMarkdown', () => {
+  // The snapshots from before fixes existed: the `compact` level is that report, unchanged.
   it.each(FIXTURES)('%s matches the snapshot', async (name, result) => {
-    await expect(formatMarkdown(result)).toMatchFileSnapshot(`__snapshots__/markdown.${name}.txt`);
+    await expect(formatMarkdown(result, { level: 'compact' })).toMatchFileSnapshot(
+      `__snapshots__/markdown.${name}.txt`,
+    );
   });
+
+  it.each(FIXTURES.filter(([name]) => name !== 'clean' && name !== 'empty'))(
+    '%s at the default level matches the snapshot',
+    async (name, result) => {
+      await expect(formatMarkdown(result)).toMatchFileSnapshot(
+        `__snapshots__/markdown.${name}-default.txt`,
+      );
+    },
+  );
 
   it.each(FIXTURES)('%s: no raw HTML, mentions, issue references or script links', (_, result) => {
-    const output = formatMarkdown(result);
-    expect(output).not.toContain('<');
-    expect(output).not.toMatch(/@[\p{L}\p{N}]/u);
-    expect(output).not.toMatch(/(?<!&)#\d/);
-    expect(output).not.toMatch(/javascript:/i);
-    expect(output).not.toMatch(/(?<!\\)!\[/);
-    expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
-  });
-
-  it.each(FIXTURES)('%s: every findings row has exactly four cells', (_, result) => {
-    for (const row of tableRows(formatMarkdown(result))) {
-      expect(cellSeparators(row)).toBe(5);
+    for (const level of ['compact', 'default'] as const) {
+      const output = formatMarkdown(result, { level });
+      expect(output).not.toContain('<');
+      expect(output).not.toMatch(/@[\p{L}\p{N}]/u);
+      expect(output).not.toMatch(/(?<!&)#\d/);
+      expect(output).not.toMatch(/javascript:/i);
+      expect(output).not.toMatch(/(?<!\\)!\[/);
+      expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
     }
   });
+
+  it.each(FIXTURES)(
+    '%s: every findings row has four cells, five with the Fix column',
+    (_, result) => {
+      for (const row of tableRows(formatMarkdown(result, { level: 'compact' }))) {
+        expect(cellSeparators(row)).toBe(5);
+      }
+      for (const row of tableRows(formatMarkdown(result))) {
+        expect(cellSeparators(row)).toBe(6);
+      }
+    },
+  );
 
   it('heads with the score and grade', () => {
     expect(formatMarkdown(richResult).split('\n')[0]).toBe(
@@ -85,7 +107,7 @@ describe('formatMarkdown', () => {
   });
 
   it('lists unsuppressed findings, most severe first, rules linked to their docs', () => {
-    const rows = tableRows(formatMarkdown(richResult));
+    const rows = tableRows(formatMarkdown(richResult, { level: 'compact' }));
     expect(rows).toHaveLength(6);
     expect(rows.map((row) => row.split(' | ')[1])).toEqual([
       'error',
@@ -101,7 +123,7 @@ describe('formatMarkdown', () => {
   });
 
   it('does not link rule ids that are not plain identifiers', () => {
-    const rows = tableRows(formatMarkdown(hostileResult));
+    const rows = tableRows(formatMarkdown(hostileResult, { level: 'compact' }));
     const evil = rows.find((row) => row.includes('title=x'))!;
     expect(evil).toContain('| evil\\:rule,title=x |');
   });

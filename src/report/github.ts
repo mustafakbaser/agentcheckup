@@ -7,6 +7,12 @@
  * Every property value and the message go through the workflow-command sanitizers, so each
  * finding is exactly one line and no untrusted text can start a command of its own.
  *
+ * A finding with a fix gets `(fix: safe)` or `(fix: review)` in its title. At the `default` and
+ * `verbose` levels the body adds lines, joined as `%0A`: `Why:` when the root load plans add a
+ * fact the message lacks, `Fix:` (or `How:` for manual guidance) and `Docs:` with the rule's
+ * documentation URL. Each added line is single-line: a line break in a fix title or guidance is
+ * shown as `⏎`, so it cannot fake another line of the body.
+ *
  * GitHub shows at most 10 annotations of each type per step (50 per job) in the UI; the rest
  * remain in the log. GitHub resolves `file` against the repository root, so the CLI rebases
  * paths onto $GITHUB_WORKSPACE for this format when the scanned directory is inside it.
@@ -14,8 +20,32 @@
 import type { BaselineDiff } from '../core/baseline-types.js';
 import type { ScanResult } from '../core/engine.js';
 import type { Finding, Severity } from '../core/types.js';
+import {
+  type DetailLevel,
+  docsUrl,
+  fixOf,
+  guidanceOf,
+  type PlanIndex,
+  planIndex,
+  whyText,
+} from './feedback.js';
 import { gateRows } from './gate.js';
-import { forWorkflowCommand, forWorkflowProperty } from './sanitize.js';
+import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
+import { truncate } from './text.js';
+
+export interface GithubOptions {
+  /** How much to show. Default `default`; `verbose` shows what `default` does. */
+  readonly level?: DetailLevel | undefined;
+}
+
+/** Fix titles and guidance longer than this (code points) are cut. */
+const MAX_DETAIL_LENGTH = 500;
+const LINE_BREAK = /\r\n?|\n/g;
+
+/** Untrusted text for one line of an annotation body: line breaks shown as `⏎`, cut. */
+function oneLine(text: string): string {
+  return truncate(text, MAX_DETAIL_LENGTH).replace(LINE_BREAK, NEWLINE_MARKER);
+}
 
 type AnnotationCommand = 'error' | 'warning' | 'notice';
 
@@ -35,7 +65,28 @@ function command(
   return `::${name} ${list}::${data}`;
 }
 
-function annotation(finding: Finding): string {
+/** `rule/id (fix: safe)` for a finding with a fix, else the rule id. */
+function title(finding: Finding): string {
+  const fix = fixOf(finding, 'pull-request');
+  return fix === undefined ? finding.ruleId : `${finding.ruleId} (fix: ${fix.class})`;
+}
+
+/** The message, then the Why, Fix or How, and Docs lines the level asks for. */
+function body(finding: Finding, level: DetailLevel, plans: PlanIndex): string {
+  if (level === 'compact') return finding.message;
+  const lines = [finding.message];
+  const facts = plans.facts(finding);
+  if (facts !== undefined) lines.push(`Why: ${whyText(facts, '≈')}`);
+  const fix = fixOf(finding, 'pull-request');
+  const guidance = guidanceOf(finding);
+  if (fix !== undefined) lines.push(`Fix (${fix.class}): ${oneLine(fix.title)}`);
+  else if (guidance !== undefined) lines.push(`How: ${oneLine(guidance)}`);
+  const url = docsUrl(finding.ruleId);
+  if (url !== undefined) lines.push(`Docs: ${url}`);
+  return lines.join('\n');
+}
+
+function annotation(finding: Finding, level: DetailLevel, plans: PlanIndex): string {
   const { start, end } = finding.range;
   return command(
     COMMANDS[finding.severity],
@@ -45,9 +96,9 @@ function annotation(finding: Finding): string {
       ['col', String(start.column)],
       ['endLine', String(end.line)],
       ['endColumn', String(end.column)],
-      ['title', forWorkflowProperty(finding.ruleId)],
+      ['title', forWorkflowProperty(title(finding))],
     ],
-    forWorkflowCommand(finding.message),
+    forWorkflowCommand(body(finding, level, plans)),
   );
 }
 
@@ -99,10 +150,12 @@ function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
  * change under review), each security-relevant change that trips `--gate` gets an error
  * annotation, and a baseline from another ruleset gets a warning.
  */
-export function formatGithub(result: ScanResult): string {
+export function formatGithub(result: ScanResult, options: GithubOptions = {}): string {
+  const level = options.level ?? 'default';
+  const plans = planIndex(result);
   const lines = result.findings
     .filter((finding) => !finding.suppressed && finding.baseline !== 'unchanged')
-    .map(annotation);
+    .map((finding) => annotation(finding, level, plans));
   const diff = result.baseline;
   if (diff !== undefined) {
     lines.push(...gateAnnotations(result, diff));
