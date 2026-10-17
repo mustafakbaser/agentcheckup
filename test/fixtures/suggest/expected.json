@@ -1,0 +1,48 @@
+{
+  "comments": [
+    {
+      "path": ".agents/skills/deploy/SKILL.md",
+      "line": 2,
+      "side": "RIGHT",
+      "body": "```suggestion\nname: deploy\n```\n\n**agentcheckup** safe fix for [`skill/name-dir-mismatch`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/skill/name-dir-mismatch.md), [`skill/name-format`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/skill/name-format.md): Sets \\`name\\` to the directory name\\: safe when that is the name in lowercase with hyphens, review otherwise\\.\n\n<!-- agentcheckup-suggestion skill/name-dir-mismatch,skill/name-format fd1c29f4e2f8 -->"
+    },
+    {
+      "path": ".agents/skills/notes/SKILL.md",
+      "line": 1,
+      "side": "RIGHT",
+      "body": "```suggestion\n---\nname: notes\n```\n\n**agentcheckup** safe fix for [`skill/name-missing`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/skill/name-missing.md): Sets \\`name\\` to the directory name when that is a valid skill name\\.\n\n<!-- agentcheckup-suggestion skill/name-missing 02e37839e34a -->"
+    },
+    {
+      "path": ".github/instructions/ts.instructions.md",
+      "line": 4,
+      "start_line": 2,
+      "side": "RIGHT",
+      "start_side": "RIGHT",
+      "body": "```suggestion\napplyTo: \"**/*.ts,**/*.tsx\"\n```\n\n**agentcheckup** safe fix for [`copilot/apply-to`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/copilot/apply-to.md): Joins an &quot;applyTo&quot; YAML list into one comma\\-separated string\\.\n\n<!-- agentcheckup-suggestion copilot/apply-to 74151d191441 -->"
+    },
+    {
+      "path": "CLAUDE.md",
+      "line": 1,
+      "side": "RIGHT",
+      "body": "```suggestion\n@AGENTS.md\n\n# Claude\n```\n\n**agentcheckup** safe fix for [`instr/agents-md-ignored-by-claude`](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md): Adds &quot;@&#8203;AGENTS\\.md&quot; as the first line of the CLAUDE\\.md in the same directory \\(safe\\), or creates a CLAUDE\\.md with that line when the CLAUDE file Claude Code reads instead is in a parent directory or is a CLAUDE\\.local\\.md \\(review\\)\\.\n\n<!-- agentcheckup-suggestion instr/agents-md-ignored-by-claude 75554d6af144 -->"
+    }
+  ],
+  "skipped": [
+    {
+      "reason": "outside-diff",
+      "count": 1
+    },
+    {
+      "reason": "not-safe",
+      "count": 1
+    },
+    {
+      "reason": "renames-file",
+      "count": 1
+    },
+    {
+      "reason": "hidden-characters",
+      "count": 1
+    }
+  ]
+}

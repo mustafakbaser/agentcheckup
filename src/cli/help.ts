@@ -87,7 +87,10 @@ Options
                            accepted with -i
   -t, --targets <list>     Comma-separated platforms to check against. Default: all
                            (${PLATFORM_IDS.join(', ')})
-  -f, --format <name>      diff (default), json
+  -f, --format <name>      diff (default), json, suggestions
+      --diff <file>        For --format suggestions, which needs --untrusted: the pull
+                           request's unified diff. Prints review comments that suggest
+                           the safe fixes inside it, as JSON
   -o, --output <file>      Write the diff or JSON to a file instead of stdout
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files

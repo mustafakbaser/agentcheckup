@@ -1,0 +1,85 @@
+diff --git a/.agents/skills/deploy/SKILL.md b/.agents/skills/deploy/SKILL.md
+index 1f0c2a1..7b3d9e4 100644
+--- a/.agents/skills/deploy/SKILL.md
++++ b/.agents/skills/deploy/SKILL.md
+@@ -1,4 +1,4 @@
+ ---
+-name: deploy-app
++name: Deploy
+ description: Deploys the web app to production when a release tag is pushed.
+ ---
+diff --git a/.agents/skills/notes/SKILL.md b/.agents/skills/notes/SKILL.md
+new file mode 100644
+index 0000000..5e2f8c0
+--- /dev/null
++++ b/.agents/skills/notes/SKILL.md
+@@ -0,0 +1,6 @@
++---
++description: Writes release notes from the pull requests merged since the last tag.
++license: MIT
++---
++
++# Notes
+diff --git a/.cursor/rules/style.md b/.cursor/rules/style.md
+new file mode 100644
+index 0000000..9d4a1b2
+--- /dev/null
++++ b/.cursor/rules/style.md
+@@ -0,0 +1,4 @@
++---
++description: Code style for the web app
++---
++Use tabs for indentation.
+diff --git a/.github/instructions/ts.instructions.md b/.github/instructions/ts.instructions.md
+index 2c8e0f1..b41d7a3 100644
+--- a/.github/instructions/ts.instructions.md
++++ b/.github/instructions/ts.instructions.md
+@@ -1,5 +1,6 @@
+ ---
+ applyTo:
+   - "**/*.ts"
++  - "**/*.tsx"
+ ---
+ Use strict TypeScript.
+diff --git a/.mcp.json b/.mcp.json
+index 6a7b8c9..0d1e2f3 100644
+--- a/.mcp.json
++++ b/.mcp.json
+@@ -1,5 +1,5 @@
+ {
+   "mcpServers": {
+-    "docs": { "url": "https://docs.example.com/sse" }
++    "docs": { "url": "https://mcp.example.com/sse" }
+   }
+ }
+diff --git a/CLAUDE.md b/CLAUDE.md
+new file mode 100644
+index 0000000..c3d4e5f
+--- /dev/null
++++ b/CLAUDE.md
+@@ -0,0 +1,3 @@
++# Claude
++
++Keep answers short.
+diff --git a/docs/logo.png b/docs/logo.png
+new file mode 100644
+index 0000000..8f9e0d1
+Binary files /dev/null and b/docs/logo.png differ
+diff --git a/notes/old.md b/notes/old.md
+deleted file mode 100644
+index 4a5b6c7..0000000
+--- a/notes/old.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-+++ b/.agents/skills/build/SKILL.md
+-@@ -1,6 +1,6 @@
+- name: Build
+diff --git a/packages/web/CLAUDE.md b/packages/web/CLAUDE.md
+new file mode 100644
+index 0000000..e6f7a8b
+--- /dev/null
++++ b/packages/web/CLAUDE.md
+@@ -0,0 +1,3 @@
++# Web ⁧app⁩
++
++Use the shared config.

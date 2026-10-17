@@ -28,7 +28,7 @@ server with a `url` but no `type`, and a skill without a description.
 | `-i`, `--interactive`                  | Ask about each fix, then apply the accepted ones. See [Interactive mode](#interactive-mode).                                        |
 | `--rule <ids>`                         | Comma-separated rule ids: fix only these rules. An unknown id is a usage error.                                                     |
 | `-t`, `--targets <list>`               | The agents to check against, as for a scan.                                                                                         |
-| `-f`, `--format <name>`                | `diff` (default) or `json`. See [JSON output](#json-output).                                                                        |
+| `-f`, `--format <name>`                | `diff` (default), [`json`](#json-output), or [`suggestions`](#pull-request-suggestions) with `--diff <file>`.                       |
 | `-o`, `--output <file>`                | Write the diff or JSON to a file instead of stdout.                                                                                 |
 | `-c`, `--config <file>`, `--no-config` | As for a scan.                                                                                                                      |
 | `--untrusted`                          | As for a scan, and a dry run only. See [Untrusted repositories](#untrusted-repositories).                                           |
@@ -330,6 +330,53 @@ A skipped fix's `reason` is one of `conflict`, `changed-since-scan`, `refused-pa
 `verification-failed`, `limit`, `write-failed` or `declined`. The fingerprints in `findings[]` are
 those of the scan's JSON report. Paths are never absolute, and credentials are redacted in the
 hunks as in the diff.
+
+## Pull request suggestions
+
+`fix --untrusted --format suggestions --diff <file>` turns the safe fixes of a pull request into
+review comments with suggested changes, for the GitHub Action to post. `[path]` is the pull
+request's head and `<file>` its unified diff, with paths relative to `[path]`: the output of
+`gh pr diff`, or of the API with `Accept: application/vnd.github.diff`. The diff is read like any
+untrusted input, at most 16 MiB.
+
+```sh
+gh pr diff 42 > pr.diff
+npx agentcheckup fix --untrusted --format suggestions --diff pr.diff --output suggestions.json
+```
+
+The JSON follows [schemas/suggestions.schema.json](../schemas/suggestions.schema.json):
+`comments[]` in the shape the API that creates a review takes, and `skipped[]`, a count per
+reason. One round of safe fixes runs and is verified as in a dry run; fixes that need review and
+those of `mcp/literal-secret` are never suggested.
+
+- Each block of changed lines is one comment, made only when all its lines lie in one hunk of the
+  diff. A removed line gets an empty suggestion. An inserted line has no line of its own: the
+  comment anchors on the line before it and repeats that line above the new ones, or, before line
+  1, anchors on line 1 and repeats it below them.
+- The body is the suggestion, the rule's fix summary and a last line
+  `<!-- agentcheckup-suggestion <rule ids> <hash> -->`, where the hash is 12 hex digits of the
+  SHA-256 of the path, the lines and the suggested text, so the Action can skip a comment it
+  already posted.
+- The suggested lines are the exact new text. A change whose lines hold a control, bidirectional,
+  tag or other invisible character (`hidden-characters`) or a credential (`credential`) is not
+  suggested, nor one outside the diff (`outside-diff`). Neither is a fix that creates or renames a
+  file, changes an encoding, or touches a UTF-16 file, a file with a byte order mark or one with
+  CRLF line endings, because a suggestion cannot keep them. At most 50 comments are made.
+
+````json
+{
+  "path": ".github/instructions/ts.instructions.md",
+  "line": 4,
+  "start_line": 2,
+  "side": "RIGHT",
+  "start_side": "RIGHT",
+  "body": "```suggestion\napplyTo: \"**/*.ts,**/*.tsx\"\n```\n\n**agentcheckup** safe fix for [`copilot/apply-to`](…): Joins an &quot;applyTo&quot; YAML list into one comma\\-separated string\\.\n\n<!-- agentcheckup-suggestion copilot/apply-to 74151d191441 -->"
+}
+````
+
+The command exits 0 whatever it suggests, 2 for invalid arguments (`--format suggestions`
+without `--diff` or `--untrusted`, or with `--write` or `-i`) or a diff it cannot read, and 3 when
+a rule crashed, without output.
 
 ## Rules with fixes
 

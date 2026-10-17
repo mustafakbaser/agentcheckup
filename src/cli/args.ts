@@ -10,7 +10,7 @@ export const OUTPUT_FORMATS = ['stylish', 'json', 'sarif', 'github', 'markdown',
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 export const CONTEXT_FORMATS = ['text', 'json', 'markdown'] as const;
 export type ContextFormat = (typeof CONTEXT_FORMATS)[number];
-export const FIX_FORMATS = ['diff', 'json'] as const;
+export const FIX_FORMATS = ['diff', 'json', 'suggestions'] as const;
 export type FixFormat = (typeof FIX_FORMATS)[number];
 export const TASKS_FORMATS = ['markdown', 'json'] as const;
 export type TasksFormat = (typeof TASKS_FORMATS)[number];
@@ -79,6 +79,8 @@ export interface FixCommandOptions extends SharedCommandOptions {
   readonly interactive: boolean;
   /** `--rule`: only fixes of these rules, deduplicated. Checked against the rules in run.ts. */
   readonly rules: readonly string[] | undefined;
+  /** `--diff`: the pull request's unified diff, for `--format suggestions` (see suggest.ts). */
+  readonly diff: string | undefined;
 }
 
 /**
@@ -217,7 +219,7 @@ const SCAN_ONLY = [
   'verbose',
 ] as const;
 const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
-const FIX_ONLY = ['write', 'review', 'interactive', 'rule'] as const;
+const FIX_ONLY = ['write', 'review', 'interactive', 'rule', 'diff'] as const;
 /** Scan and context flags `fix` does not take. */
 const NOT_FOR_FIX = ['baseline', 'gate', 'context-window', 'no-gitignore'] as const;
 const TASKS_ONLY = ['check', 'max'] as const;
@@ -373,6 +375,7 @@ function fixCommand(values: Values, rest: readonly string[]): Command {
       review,
       interactive,
       rules: parseRules(values['rule'] as string | undefined),
+      diff: values['diff'] as string | undefined,
     },
   };
 }
@@ -428,7 +431,7 @@ function tasksCommand(values: Values, rest: readonly string[]): Command {
   rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
   rejectFlags(
     values,
-    ['write', 'review', 'interactive'],
+    ['write', 'review', 'interactive', 'diff'],
     'works only with the fix command: agentcheckup fix.',
   );
   return {
@@ -483,6 +486,7 @@ export function parseCommand(argv: readonly string[]): Command {
       rule: { type: 'string' },
       check: { type: 'boolean' },
       max: { type: 'string' },
+      diff: { type: 'string' },
     },
   });
 

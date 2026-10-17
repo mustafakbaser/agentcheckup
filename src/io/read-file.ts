@@ -32,6 +32,11 @@ export interface ReadInputOptions {
   readonly label: string;
   /** Default {@link DEFAULT_INPUT_MAX_BYTES}. */
   readonly maxBytes?: number;
+  /**
+   * Invalid UTF-8 is an error (default), or is replaced with U+FFFD, for input such as a diff
+   * whose content lines need not be text.
+   */
+  readonly invalidUtf8?: 'error' | 'replace';
 }
 
 export interface ReadJsonOptions extends ReadInputOptions {
@@ -41,7 +46,8 @@ export interface ReadJsonOptions extends ReadInputOptions {
 
 /**
  * Reads `filePath` as UTF-8 text, without a BOM. Throws {@link InputFileError} when the file is
- * missing, a symlink, not a regular file, larger than `maxBytes`, unreadable or not UTF-8.
+ * missing, a symlink, not a regular file, larger than `maxBytes`, unreadable or, unless
+ * `invalidUtf8` is `replace`, not UTF-8.
  */
 export async function readTextInput(filePath: string, options: ReadInputOptions): Promise<string> {
   const { label } = options;
@@ -95,7 +101,8 @@ export async function readTextInput(filePath: string, options: ReadInputOptions)
   }
   try {
     // fatal: invalid UTF-8 is an error, not silently replaced text. The BOM is dropped.
-    return new TextDecoder('utf-8', { fatal: true }).decode(outcome.bytes);
+    const fatal = options.invalidUtf8 !== 'replace';
+    return new TextDecoder('utf-8', { fatal }).decode(outcome.bytes);
   } catch (error) {
     throw new InputFileError(`${label} ${filePath} is not valid UTF-8 text.`, { cause: error });
   }

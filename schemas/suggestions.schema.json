@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/suggestions.schema.json",
+  "title": "agentcheckup suggestions output",
+  "description": "Output of `agentcheckup fix --untrusted --format suggestions --diff <file>`: review comments with suggested changes for the safe fixes of a pull request, in the shape of `comments[]` of the GitHub API that creates a pull request review. Lines are 1-based lines of the head version. Paths are POSIX and relative to the scanned directory. Comment bodies hold text from the scanned repository: treat them as untrusted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "ruleset", "comments", "skipped"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this output shape. Incremented on any incompatible change.",
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ruleset": {
+      "description": "Calendar-versioned rule set, e.g. 2026.10.",
+      "type": "string",
+      "minLength": 1
+    },
+    "comments": {
+      "description": "One comment per change, by path and line.",
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/comment"
+      }
+    },
+    "skipped": {
+      "description": "Fixes, or for outside-diff, hidden-characters, credential and limit single changes, that are not suggested, counted by reason.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skip"
+      }
+    }
+  },
+  "$defs": {
+    "comment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line", "side", "body"],
+      "dependentRequired": {
+        "start_line": ["start_side"],
+        "start_side": ["start_line"]
+      },
+      "properties": {
+        "path": {
+          "description": "POSIX path relative to the scanned directory. Never absolute, never `..`.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?![/\\\\]|[A-Za-z]:)",
+          "not": {
+            "type": "string",
+            "pattern": "(?:^|/)\\.\\.(?:/|$)"
+          }
+        },
+        "line": {
+          "description": "The last line the suggestion replaces.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "start_line": {
+          "description": "The first line, when the suggestion replaces more than one.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "side": {
+          "const": "RIGHT"
+        },
+        "start_side": {
+          "const": "RIGHT"
+        },
+        "body": {
+          "description": "A `suggestion` block with the new lines, the reason, and the marker `<!-- agentcheckup-suggestion <rule ids> <12 hex digits> -->` on the last line.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60000
+        }
+      }
+    },
+    "skip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "count"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "outside-diff",
+            "not-safe",
+            "creates-file",
+            "renames-file",
+            "encoding-change",
+            "unsupported-encoding",
+            "line-endings",
+            "hidden-characters",
+            "credential",
+            "conflict",
+            "verification-failed",
+            "refused-path",
+            "limit"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

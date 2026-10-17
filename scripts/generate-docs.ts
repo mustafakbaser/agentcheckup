@@ -2,9 +2,10 @@
  * Generates docs/rules/<family>/<name>.md for every rule, docs/rules/README.md (the catalog),
  * the table of rules with fixes in docs/fix.md (between the FIXABLE_START and FIXABLE_END
  * markers; the rest of that page is written by hand), and schemas/config.schema.json, from rule
- * metadata; schemas/policy.schema.json from POLICY_JSON_SCHEMA; and the table of how
- * `agentcheckup tasks` handles each rule in docs/tasks.md (between the TASK_RULES_START and
- * TASK_RULES_END markers) and schemas/tasks.schema.json, from src/tasks. Run with
+ * metadata; schemas/policy.schema.json from POLICY_JSON_SCHEMA; schemas/suggestions.schema.json
+ * from src/report/suggestions-json.ts; and the table of how `agentcheckup tasks` handles each
+ * rule in docs/tasks.md (between the TASK_RULES_START and TASK_RULES_END markers) and
+ * schemas/tasks.schema.json, from src/tasks. Run with
  * `pnpm docs:generate`. CI runs it with `--check` and fails if the committed files are stale.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -16,6 +17,7 @@ import { DIRECTIVE_RULES } from '../src/core/directive-rules.js';
 import { CONFIG_FILE_NAME, RULESET_VERSION } from '../src/core/meta.js';
 import type { RuleMeta } from '../src/core/types.js';
 import { POLICY_JSON_SCHEMA } from '../src/policy/schema.js';
+import { SUGGESTIONS_JSON_SCHEMA } from '../src/report/suggestions-json.js';
 import { builtinRules } from '../src/rules/index.js';
 import { forYouReason } from '../src/tasks/for-you.js';
 import { TASKS_JSON_SCHEMA } from '../src/tasks/schema.js';
@@ -268,6 +270,10 @@ outputs.set(
 outputs.set(
   join('schemas', 'tasks.schema.json'),
   `${JSON.stringify(TASKS_JSON_SCHEMA, null, 2)}\n`,
+);
+outputs.set(
+  join('schemas', 'suggestions.schema.json'),
+  `${JSON.stringify(SUGGESTIONS_JSON_SCHEMA, null, 2)}\n`,
 );
 
 let stale = 0;

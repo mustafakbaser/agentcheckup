@@ -76,6 +76,7 @@ import {
   scanOptionsFor,
   styleFor,
 } from './common.js';
+import { suggest } from './suggest.js';
 
 /** What every step of one `fix` run needs. */
 interface Session {
@@ -94,6 +95,7 @@ interface Session {
 const BOTH_CLASSES: ReadonlySet<FixClass> = new Set(['safe', 'review']);
 
 export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode> {
+  if (options.format === 'suggestions' || options.diff !== undefined) return suggest(options, io);
   const prompt = options.interactive ? terminalOf(io) : undefined;
   const ruleIds = checkedRuleIds(options.rules);
   const root = resolve(io.cwd, options.path);
