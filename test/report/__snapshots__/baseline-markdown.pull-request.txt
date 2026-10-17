@@ -14,6 +14,7 @@ Findings: 1 new error, 0 resolved.
 | Copilot CLI | ≈34 tokens, 2 files | ≈62 tokens, 2 files | ≈+28 tokens | — |
 | Copilot in VS Code | ≈34 tokens, 2 files | ≈62 tokens, 2 files | ≈+28 tokens | — |
 | Copilot cloud agent | ≈34 tokens, 2 files | ≈62 tokens, 2 files | ≈+28 tokens | — |
+| Gemini CLI | ≈0 tokens, 0 files | ≈0 tokens, 0 files | unchanged | — |
 | Devin Local | ≈34 tokens, 2 files | ≈86 tokens, 3 files | ≈+52 tokens, +1 file | — |
 | Cline | ≈31 tokens, 1 file | ≈59 tokens, 1 file | ≈+28 tokens | — |
 

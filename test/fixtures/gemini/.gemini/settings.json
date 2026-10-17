@@ -1,0 +1,18 @@
+{
+  // Gemini CLI strips comments from its settings files.
+  "context": { "fileName": ["AGENTS.md", "GEMINI.md"] },
+  "mcpServers": {
+    "docs": { "httpUrl": "https://docs.example.com/mcp" },
+    "db": { "command": "npx", "args": ["-y", "@acme/db-mcp@1.2.3"] }
+  },
+  "mcp": { "excluded": ["db"] },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [{ "name": "guard", "type": "command", "command": "./scripts/guard.sh", "timeout": 5000 }]
+      }
+    ],
+    "BeforeCommit": [{ "hooks": [{ "type": "command", "command": "./scripts/guard.sh" }] }]
+  }
+}

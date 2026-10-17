@@ -2,6 +2,7 @@ import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { reencode } from '../../fix/index.js';
 import { bomHidesFrontmatter } from '../../platforms/codex-skills.js';
+import { geminiSkipReasons } from '../../platforms/gemini-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformsDo, sentence } from '../shared/format.js';
@@ -60,8 +61,10 @@ Save SKILL.md as UTF-8 without a byte order mark.`,
       const { decoded } = artifact;
       if (!decoded.hasBom || decoded.encoding !== 'utf-8') continue;
       // Only a delimited block is lost to the mark; without one, skill/frontmatter-missing reports.
-      if (!bomHidesFrontmatter(decoded, context.frontmatter(artifact))) continue;
-      const skipping = reached(context, artifact, ['codex', 'gemini']);
+      const frontmatter = context.frontmatter(artifact);
+      if (!bomHidesFrontmatter(decoded, frontmatter)) continue;
+      const gemini = geminiSkipReasons(frontmatter, decoded).includes('bom');
+      const skipping = reached(context, artifact, gemini ? ['codex', 'gemini'] : ['codex']);
       const resolved = resolveImpacts(context, artifact, [
         ...impactsOn(skipping, 'error'),
         { platform: 'claude-code', severity: 'warn', scope: 'distribution' },

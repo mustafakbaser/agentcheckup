@@ -8,6 +8,7 @@ import {
   frontmatterYaml,
   invalidCause,
 } from '../../platforms/codex-skills.js';
+import { geminiSkipReasons, type GeminiSkipReason } from '../../platforms/gemini-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformsDo, quote, sentence } from '../shared/format.js';
@@ -54,10 +55,21 @@ function withClauses(lead: string, clauses: readonly (string | undefined)[]): st
   return present.length === 0 ? lead : `${lead} ${sentence(joinClauses(present))}`;
 }
 
+/** Codex, and Gemini CLI when it skips the skill for `reason`, among the agents that reach it. */
+function codexAndGemini(
+  scope: SkillScope,
+  artifact: Artifact,
+  result: FrontmatterResult,
+  reason: GeminiSkipReason,
+): ReturnType<typeof reached> {
+  const gemini = geminiSkipReasons(result, artifact.decoded).includes(reason);
+  return reached(scope, artifact, gemini ? ['codex', 'gemini'] : ['codex']);
+}
+
 function unsupportedProblem(scope: SkillScope, artifact: Artifact, result: Unsupported): Problem {
   const opening = lineText(artifact.decoded, 1).trim();
   const label = result.syntax === 'toml' ? `${quote(opening)} (TOML)` : quote(opening);
-  const skipping = reached(scope, artifact, ['codex', 'gemini']);
+  const skipping = codexAndGemini(scope, artifact, result, 'unsupported');
   const claude = reached(scope, artifact, ['claude-code']).length > 0;
   return {
     message: withClauses(
@@ -152,7 +164,7 @@ function invalidProblem(
     };
   }
   if (cause.kind === 'not-a-mapping') {
-    const skipping = reached(scope, artifact, ['codex', 'gemini']);
+    const skipping = codexAndGemini(scope, artifact, result, 'not-a-mapping');
     return {
       message: withClauses('The frontmatter is not a mapping of keys to values.', [
         platformsDo(skipping, SKIP, 'the skill'),

@@ -18,6 +18,7 @@ export {
   claudeImportOutsideRoot,
   DIALECT_PLATFORM,
   filesWithFollowedImports,
+  geminiImportOutsideRoot,
   importRoots,
   importsPastLimit,
   inHtmlComment,
@@ -56,19 +57,23 @@ export function uncertaintyNote(uncertainty: ImportsUncertainty): string {
     : "Claude Code reads this through a symlink in another directory than the file it points to, and its documentation does not say whether imports then resolve from the link's directory, as agentcheckup assumes, or from the target's.";
 }
 
+/** Without `json`, only GEMINI.md files are Gemini CLI roots (see `ImportView`). */
 export type GraphContext = Pick<
   RuleContext<unknown>,
   'markdown' | 'snapshot' | 'allArtifacts' | 'targets'
->;
+> &
+  Partial<Pick<RuleContext<unknown>, 'json'>>;
 
 /** The shared import graph, built from a rule context. */
 export class ImportGraph extends LoadImportGraph {
   constructor(context: GraphContext, maxEdgeVisits?: number) {
+    const json = context.json?.bind(context);
     super(
       {
         snapshot: context.snapshot,
         index: artifactIndex(context.allArtifacts),
         markdown: (artifact) => context.markdown(artifact),
+        ...(json === undefined ? {} : { json }),
       },
       maxEdgeVisits,
     );

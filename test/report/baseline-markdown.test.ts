@@ -113,14 +113,16 @@ describe('baseline Markdown of a pull request', async () => {
       'Copilot CLI',
       'Copilot in VS Code',
       'Copilot cloud agent',
+      'Gemini CLI',
       'Devin Local',
       'Cline',
     ]);
+    // Gemini CLI reads GEMINI.md, which neither tree has, so only its row is unchanged.
     for (const row of table) {
-      const [, before, after, change] = cells(row);
+      const [agent, before, after, change] = cells(row);
       expect(before).toMatch(/^≈[\d,]+ tokens, \d+ files?$/);
       expect(after).toMatch(/^≈[\d,]+ tokens, \d+ files?$/);
-      expect(change).toMatch(/^≈\+[\d,]+ tokens/);
+      expect(change).toMatch(agent === 'Gemini CLI' ? /^unchanged$/ : /^≈\+[\d,]+ tokens/);
     }
     // The always-applied testing.mdc is one more file at Cursor's session start.
     expect(cells(table[2]!)[3]).toMatch(/, \+1 file$/);
@@ -147,7 +149,7 @@ describe('baseline Markdown without a change', async () => {
 
   it('reports every plan unchanged and nothing missed', () => {
     const table = rows(output, TABLE_HEADER);
-    expect(table).toHaveLength(8);
+    expect(table).toHaveLength(9);
     for (const row of table) {
       const [, before, after, change] = cells(row);
       expect(after).toBe(before);

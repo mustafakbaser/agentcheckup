@@ -94,7 +94,7 @@ export class ImportPlanner {
     });
     this.#index = new Map(analysis.index);
     this.#graph = new ImportGraph(
-      { snapshot, index: this.#index, markdown: analysis.markdown },
+      { snapshot, index: this.#index, markdown: analysis.markdown, json: analysis.json },
       options.maxEdgeVisits,
     );
     this.#settled = new Set([

@@ -21,6 +21,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import { type Finding, type PlatformId, SEVERITIES, type Severity } from '../../core/types.js';
+import { descriptionState } from '../codex-skills.js';
 import { skillLocation } from '../skills.js';
 import { codexSeesBlank, isBlank } from './codex-text.js';
 import {
@@ -132,15 +133,30 @@ export const SKIP_RULES: readonly SkipRule[] = [
   // VS Code does not load a skill whose name is invalid or differs from its directory.
   { ruleId: 'skill/name-dir-mismatch', agent: 'copilot-vscode', codes: ['invalid-frontmatter'] },
   { ruleId: 'skill/name-format', agent: 'copilot-vscode', codes: ['invalid-frontmatter'] },
-  // Gemini CLI
-  { ruleId: 'instr/import-depth', agent: 'gemini', codes: ['import-too-deep'] },
+  // Gemini CLI. instr/import-depth also reports import cycles, as information: the file is loaded.
+  {
+    ruleId: 'instr/import-depth',
+    agent: 'gemini',
+    codes: ['import-too-deep'],
+    minSeverity: 'warn',
+  },
   { ruleId: 'instr/import-outside-root', agent: 'gemini', codes: ['import-outside-root'] },
   { ruleId: 'instr/import-unresolved', agent: 'gemini', codes: ['import-unresolved'] },
   { ruleId: 'hooks/unknown-event', agent: 'gemini', codes: ['unknown-event'] },
   { ruleId: 'json/invalid-syntax', agent: 'gemini', codes: ['invalid-json'] },
   { ruleId: 'skill/description-missing', agent: 'gemini', codes: ['no-description'] },
   { ruleId: 'skill/frontmatter-bom', agent: 'gemini', codes: ['bom'] },
+  // A `+++` or `---js` block, or YAML that is not a mapping; the rule leaves out Gemini CLI for
+  // YAML that does not parse, which Gemini CLI reads line by line.
+  { ruleId: 'skill/frontmatter-invalid', agent: 'gemini', codes: ['invalid-frontmatter'] },
   { ruleId: 'skill/frontmatter-missing', agent: 'gemini', codes: ['no-frontmatter'] },
+  // Without `name` the skill is skipped (error); with an empty one Gemini CLI loads it (warn).
+  {
+    ruleId: 'skill/name-missing',
+    agent: 'gemini',
+    codes: ['invalid-frontmatter'],
+    minSeverity: 'error',
+  },
   // Copilot, Gemini CLI, Devin Local and Cline
   ...skipsFor(NEWER_AGENTS, 'instr/empty-file', ['blank-file']),
   ...skipsFor(NEWER_AGENTS, 'instr/filename-case', ['case-mismatch']),
@@ -203,14 +219,19 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/frontmatter-invalid',
-    agents: ['claude-code', 'cursor', ...COPILOT_SURFACES, 'gemini'],
+    agents: ['claude-code', 'cursor', ...COPILOT_SURFACES],
     reason:
-      'The agent lists the skill without the fields it could not read; Gemini CLI reads the name and description lines without YAML. The finding never names Copilot, whose handling is not documented.',
+      'The agent lists the skill without the fields it could not read. The finding never names Copilot, whose handling is not documented.',
   },
   {
     ruleId: 'skill/frontmatter-missing',
     agents: ['claude-code'],
     reason: 'Claude Code lists the skill, named after its directory.',
+  },
+  {
+    ruleId: 'gemini/settings-key-ignored',
+    agents: ['gemini'],
+    reason: 'A setting Gemini CLI ignores, not a file it skips.',
   },
   {
     ruleId: 'cursor/legacy-cursorrules',
@@ -322,6 +343,27 @@ export const ALLOWANCES = {
       reason:
         "hooks/unknown-event does not check Devin Local's hook files (.devin/hooks.v1.json and the hooks of .devin/config.json), so a hook under an event Devin Local does not fire has no finding.",
     },
+    {
+      agent: 'gemini',
+      code: 'import-too-deep',
+      rule: 'instr/import-depth',
+      reason:
+        'instr/import-depth does not judge a chain through a file agentcheckup did not read, nor a chain from a file in a template or example folder; the plan still stops after five hops.',
+    },
+    {
+      agent: 'gemini',
+      code: 'blank-file',
+      rule: 'instr/empty-file',
+      reason:
+        'The rules count Gemini CLI as a reader of a file that the settings of its own directory or one above it name in context.fileName; a session started deeper also reads a blank file above it that only its own settings name.',
+    },
+    {
+      agent: 'gemini',
+      code: 'invalid-frontmatter',
+      rule: 'skill/frontmatter-invalid',
+      reason:
+        'YAML that does not give name and description as text: Gemini CLI reads them line by line and skips the skill when a line is missing. skill/frontmatter-invalid reports such YAML for other agents and does not name Gemini CLI, and valid YAML has no rule.',
+    },
   ] satisfies readonly {
     readonly agent: ContextAgent;
     readonly code: SkipCode;
@@ -361,6 +403,12 @@ export const ALLOWANCES = {
    * `applyTo` is readable.
    */
   excludeAgentValue: 'copilot-exclude-agent-value',
+  /**
+   * skill/description-missing reports an empty `description` too, and names Gemini CLI, which
+   * lists such a skill with no description (the finding says so). Allowed when the plan lists the
+   * skill and its description is empty.
+   */
+  emptySkillDescription: 'empty-skill-description',
 } as const;
 
 export type AllowanceName =
@@ -369,7 +417,8 @@ export type AllowanceName =
   | typeof ALLOWANCES.bomOnlyAgentsMd
   | typeof ALLOWANCES.installedSkill
   | typeof ALLOWANCES.firstSkipReason
-  | typeof ALLOWANCES.excludeAgentValue;
+  | typeof ALLOWANCES.excludeAgentValue
+  | typeof ALLOWANCES.emptySkillDescription;
 
 export type MismatchKind =
   /** A skip names a rule, and no unsuppressed finding of it on that file lists the agent. */
@@ -403,7 +452,8 @@ export interface ConsistencyInput {
   readonly findings: readonly Finding[];
   /** Plans built on the scan's analysis, after its rules ran. */
   readonly plans: readonly LoadPlan[];
-  readonly view: Pick<LoadView, 'index'>;
+  /** Without `frontmatter`, {@link ALLOWANCES.emptySkillDescription} never applies. */
+  readonly view: Pick<LoadView, 'index'> & Partial<Pick<LoadView, 'frontmatter'>>;
 }
 
 export interface ConsistencyOptions {
@@ -626,6 +676,15 @@ class Checker {
       return;
     }
     if (
+      ruleId === 'skill/description-missing' &&
+      group.includes('gemini') &&
+      entries.length > 0 &&
+      this.#emptyDescription(path) &&
+      this.#allow(ALLOWANCES.emptySkillDescription)
+    ) {
+      return;
+    }
+    if (
       ruleId === 'instr/empty-file' &&
       group.includes('codex') &&
       entries.length > 0 &&
@@ -684,6 +743,15 @@ class Checker {
     if (incomplete) return 'incomplete';
     if (plan.outOfScope.some((item) => this.#real(item.path) === path)) return 'out-of-scope';
     return undefined;
+  }
+
+  /** A skill whose frontmatter has a `description` that is empty. */
+  #emptyDescription(path: string): boolean {
+    const { index, frontmatter } = this.#input.view;
+    const artifact = index.get(path);
+    if (artifact === undefined || frontmatter === undefined) return false;
+    const result = frontmatter(artifact);
+    return result.kind === 'valid' && descriptionState(result.data) === 'empty';
   }
 
   /** An instruction file that holds only a byte order mark and whitespace, which Codex reads. */

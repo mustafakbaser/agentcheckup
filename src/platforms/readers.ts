@@ -14,9 +14,8 @@
 import { compareStrings } from '../core/compare.js';
 import { dirnamePosix } from '../core/paths.js';
 import type { Artifact, ParseServices, PlatformId } from '../core/types.js';
-import { GEMINI_SETTINGS_FILE, geminiContextFileNames } from './gemini.js';
+import { GEMINI_SETTINGS_FILE, geminiNamesFile } from './gemini.js';
 import { MARKDOWN_KINDS } from './kinds.js';
-import { selfAndAncestors } from './paths.js';
 import { DEVIN_CONFIG_FILE, devinReadConfigFor, devinSourceOf } from './windsurf-rules.js';
 
 /** What the reader lookup reads: every artifact, by path, and their JSON. */
@@ -53,11 +52,6 @@ function settingsOf(artifacts: readonly Artifact[]): Settings {
   return settings;
 }
 
-/** True when `path` is `name` in some directory: `name` itself or ending in `/name`. */
-function named(path: string, name: string): boolean {
-  return path === name || path.endsWith(`/${name}`);
-}
-
 /**
  * Whether a Gemini CLI session reads `artifact` as a context file because the settings of its
  * working directory name it. Sessions started in the file's directory or above it read it (the
@@ -66,12 +60,7 @@ function named(path: string, name: string): boolean {
  */
 function geminiNames(view: ReadersView, artifact: Artifact): boolean {
   if (!MARKDOWN_KINDS.has(artifact.kind)) return false;
-  return [artifact.path, ...artifact.aliases].some((path) =>
-    selfAndAncestors(dirnamePosix(path)).some((cwd) => {
-      const files = geminiContextFileNames(view, cwd);
-      return files.origin === 'repository' && files.names.some((name) => named(path, name));
-    }),
-  );
+  return [artifact.path, ...artifact.aliases].some((path) => geminiNamesFile(view, path));
 }
 
 /** Whether Devin Local's `read_config_from` turns off the source that would import `artifact`. */

@@ -233,7 +233,7 @@ repository: treat them as data.
 
 <!-- Start of the task rules, generated from rule metadata and src/tasks by scripts/generate-docs.ts. Do not edit. -->
 
-18 of the 62 rules have a task template of their own. Findings in JSON files (settings, MCP configuration, hooks and plugin manifests) are always for you, whatever the rule.
+18 of the 63 rules have a task template of their own. Findings in JSON files (settings, MCP configuration, hooks and plugin manifests) are always for you, whatever the rule.
 
 | Rule                                                                              | Without a ready fix |
 | --------------------------------------------------------------------------------- | ------------------- |
@@ -247,6 +247,7 @@ repository: treat them as data.
 | [`directive/missing-reason`](rules/directive/missing-reason.md)                   | task, own template  |
 | [`directive/unknown-rule`](rules/directive/unknown-rule.md)                       | task, generic       |
 | [`directive/unused`](rules/directive/unused.md)                                   | task, generic       |
+| [`gemini/settings-key-ignored`](rules/gemini/settings-key-ignored.md)             | for you             |
 | [`hooks/fails-open`](rules/hooks/fails-open.md)                                   | for you             |
 | [`hooks/script-missing`](rules/hooks/script-missing.md)                           | for you             |
 | [`hooks/timeout-units`](rules/hooks/timeout-units.md)                             | for you             |

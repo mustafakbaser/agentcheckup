@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
+import { geminiSkipReasons } from '../../platforms/gemini-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -93,12 +94,16 @@ Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`
 
       const requiring = reached(context, artifact, ['cursor', 'copilot']);
       const gemini = reached(context, artifact, ['gemini']).length > 0;
+      // Gemini CLI skips a skill without the key and loads one with an empty value.
+      const geminiSkips = geminiSkipReasons(frontmatter, artifact.decoded).includes('no-name');
       // Codex treats an empty name as missing; Claude Code documents only the missing case.
       const fallbacks = reached(context, artifact, present ? ['codex'] : ['claude-code', 'codex']);
       const impacts: Impact[] = [
         ...requiring.map((platform) => ({ platform, severity: 'warn' }) as const),
         { platform: 'claude-code', severity: 'warn', scope: 'distribution' },
-        ...(gemini ? [{ platform: 'gemini', severity: present ? 'warn' : 'error' } as const] : []),
+        ...(gemini
+          ? [{ platform: 'gemini', severity: geminiSkips ? 'error' : 'warn' } as const]
+          : []),
       ];
       const resolved = resolveImpacts(context, artifact, impacts);
       if (resolved === undefined) continue;
@@ -110,9 +115,9 @@ Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`
         directory === undefined ? 'the directory name' : `the directory name ${quote(directory)}`;
       const clauses = [
         gemini
-          ? present
-            ? 'Gemini CLI loads the skill without a usable name'
-            : 'Gemini CLI skips the skill'
+          ? geminiSkips
+            ? 'Gemini CLI skips the skill'
+            : 'Gemini CLI loads the skill without a usable name'
           : undefined,
         platformsDo(fallbacks, ['uses', 'use'], fallbackName),
         requiringNames.length === 0

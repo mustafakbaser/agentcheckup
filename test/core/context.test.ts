@@ -11,6 +11,7 @@ import { scanSnapshot, scanWithContext } from '../../src/core/engine.js';
 import { PLATFORM_IDS, type Snapshot } from '../../src/core/types.js';
 import { scan } from '../../src/index.js';
 import { walk } from '../../src/io/walk.js';
+import type { ContextAgent } from '../../src/platforms/load/types.js';
 import { formatJson } from '../../src/report/json.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { type FileMap, snapshotFrom } from '../helpers/lint.js';
@@ -67,6 +68,7 @@ describe('scanWithContext', () => {
       'copilot-cli',
       'copilot-vscode',
       'copilot-cloud',
+      'gemini',
       'windsurf',
       'cline',
     ]);
@@ -77,6 +79,7 @@ describe('scanWithContext', () => {
       'copilot-cli@',
       'copilot-vscode@',
       'copilot-cloud@',
+      'gemini@',
       'windsurf@',
       'cline@',
     ]);
@@ -110,10 +113,11 @@ describe('scanWithContext', () => {
   });
 
   it('defaults to the modeled agents among the targets', () => {
-    const only = scanWithContext(snapshot, { ...OPTIONS, targets: ['codex', 'gemini'] });
-    expect(only.context.agents).toEqual(['codex']);
-    const none = scanWithContext(snapshot, { ...OPTIONS, targets: ['gemini'] });
-    expect(none.context).toEqual({ agents: [], sources: {}, plans: [] });
+    const only = scanWithContext(snapshot, { ...OPTIONS, targets: ['codex', 'windsurf'] });
+    expect(only.context.agents).toEqual(['codex', 'windsurf']);
+    // A platform target plans each of its agents.
+    const copilot = scanWithContext(snapshot, { ...OPTIONS, targets: ['copilot'] });
+    expect(copilot.context.agents).toEqual(['copilot-cli', 'copilot-vscode', 'copilot-cloud']);
     const configured = scanWithContext(snapshot, {
       rules: builtinRules,
       config: resolveConfig({ targets: ['cursor'] }),
@@ -131,11 +135,13 @@ describe('scanWithContext', () => {
       'copilot-cli@',
       'copilot-vscode@',
       'copilot-cloud@',
+      'gemini@',
       'windsurf@',
       'cline@',
     ]);
     expect(context.matrix?.rows.map((row) => [row.path, ...row.cells])).toEqual([
-      // Claude Code, Codex, Cursor, Copilot CLI, VS Code and cloud agent, Devin Local, Cline.
+      // Claude Code, Codex, Cursor, Copilot CLI, VS Code and cloud agent, Gemini CLI, Devin Local,
+      // Cline. Gemini CLI reads GEMINI.md and its own settings, none of these.
       [
         '.mcp.json',
         'startup',
@@ -143,6 +149,7 @@ describe('scanWithContext', () => {
         'not-read',
         'startup',
         'startup',
+        'not-read',
         'not-read',
         'startup',
         'not-read',
@@ -155,6 +162,7 @@ describe('scanWithContext', () => {
         'startup',
         'startup',
         'startup',
+        'not-read',
         'startup',
         'startup',
       ],
@@ -166,6 +174,7 @@ describe('scanWithContext', () => {
         'startup',
         'startup',
         'startup',
+        'not-read',
         'startup',
         'not-read',
       ],
@@ -177,6 +186,7 @@ describe('scanWithContext', () => {
         'on-path',
         'not-read',
         'on-path',
+        'not-read',
         'on-path',
         'not-read',
       ],
@@ -185,7 +195,7 @@ describe('scanWithContext', () => {
 
   it('rejects options it cannot plan, before running any rule', () => {
     const bad = [
-      { agents: ['gemini'] },
+      { agents: ['vim' as ContextAgent] },
       { cwd: '../x' },
       { cwd: 'a/../b' },
       { cwd: 'pkg/' },

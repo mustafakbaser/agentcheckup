@@ -6,7 +6,8 @@
  *   user-level `~/.claude/rules/` files, but it does not say so for project `.claude/rules/`
  *   files. Those are still followed, and `ParsedFile.documented` tells callers which results rest
  *   only on them, so they can treat those as information.
- * - Gemini CLI expands them in GEMINI.md up to five hops; a missing file becomes an
+ * - Gemini CLI expands them in every context file it loads, up to five hops: GEMINI.md, and the
+ *   files `context.fileName` names (src/platforms/gemini.ts). A missing file becomes an
  *   "Import failed" comment and imports outside the project root are rejected
  *   (geminicli.com/docs/reference/memport, memoryImportProcessor.ts).
  *
@@ -28,8 +29,10 @@ import type { Artifact, PlatformId, Snapshot } from '../../core/types.js';
 import { findImports } from '../../parse/imports.js';
 import type { ImportDialect, ImportReference, MarkdownDocument } from '../../parse/types.js';
 import { classify } from '../classify.js';
+import { geminiNamesFile } from '../gemini.js';
+import { MARKDOWN_KINDS } from '../kinds.js';
 import { skillDirectoryOf } from '../location.js';
-import { basename, inPayloadFolder, joinPath, selfAndAncestors } from '../paths.js';
+import { basename, inPayloadFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import type { LoadView } from './view.js';
 
 export const DIALECT_PLATFORM: Readonly<Record<ImportDialect, PlatformId>> = {
@@ -52,8 +55,12 @@ const MAX_EDGE_VISITS = 200_000;
  */
 export const TEXT_EXTENSIONS: ReadonlySet<string> = new Set(['md', 'mdc', 'markdown', 'txt', '']);
 
-/** The parts of a `LoadView` the graph reads. */
-export type ImportView = Pick<LoadView, 'snapshot' | 'index' | 'markdown'>;
+/**
+ * The parts of a `LoadView` the graph reads. Without `json`, the graph cannot read Gemini CLI's
+ * `context.fileName`, and only GEMINI.md files are Gemini CLI roots.
+ */
+export type ImportView = Pick<LoadView, 'snapshot' | 'index' | 'markdown'> &
+  Partial<Pick<LoadView, 'json'>>;
 
 export interface ImportEdge {
   readonly reference: ImportReference;
@@ -96,6 +103,15 @@ export class ImportGraph {
 
   markdown(artifact: Artifact): MarkdownDocument {
     return this.#view.markdown(artifact);
+  }
+
+  /**
+   * Whether the settings of a working directory at or above `path` name the file there in
+   * Gemini CLI's `context.fileName` ({@link geminiNamesFile}). False without `json`.
+   */
+  geminiNames(path: string): boolean {
+    const json = this.#view.json;
+    return json !== undefined && geminiNamesFile({ index: this.index, json }, path);
   }
 
   /**
@@ -295,8 +311,9 @@ function kindAt(
 
 /**
  * True when `dialect`'s agent loads the file at `path`, which reaches `artifact`, by itself and
- * expands its imports: a GEMINI.md for Gemini CLI; for Claude Code a CLAUDE.md, CLAUDE.local.md,
- * `.claude/rules/` file, or an AGENTS.md without a CLAUDE file on its path.
+ * expands its imports: for Gemini CLI a GEMINI.md, or a Markdown file that `context.fileName`
+ * names in the settings of its directory or one above it; for Claude Code a CLAUDE.md,
+ * CLAUDE.local.md, `.claude/rules/` file, or an AGENTS.md without a CLAUDE file on its path.
  */
 function isRootLocation(
   graph: ImportGraph,
@@ -311,7 +328,9 @@ function isRootLocation(
   if (classification === undefined || classification.caseMismatch !== undefined) return false;
   if (inPayloadFolder(path)) return false;
   const { kind } = classification;
-  if (dialect === 'gemini') return kind === 'gemini-md';
+  if (dialect === 'gemini') {
+    return kind === 'gemini-md' || (MARKDOWN_KINDS.has(kind) && graph.geminiNames(path));
+  }
   if (kind === 'claude-md' || kind === 'claude-local-md' || kind === 'claude-rule') return true;
   return (
     kind === 'agents-md' &&
@@ -615,6 +634,43 @@ export function isFileSystemPath(path: string): boolean {
  */
 export function scanRootIsRepository(snapshot: Snapshot): boolean {
   return pathStatus(snapshot, '.git') === 'exists';
+}
+
+function within(path: string, root: string): boolean {
+  return root === '' || path === root || path.startsWith(`${root}/`);
+}
+
+/**
+ * How a Gemini CLI import in `file` leaves the project root, as instr/import-outside-root reports
+ * it. Gemini CLI replaces such an import with an "Import failed ... Path traversal attempt"
+ * comment (memoryImportProcessor.ts, `validateImportPath`):
+ * - `absolute`: an absolute path, which resolves outside the project.
+ * - `relative`: a relative path that resolves outside the project root, the nearest directory
+ *   with `.git` at or above the directory the import resolves from. Undefined when the scan shows
+ *   no `.git` there: the root may lie above the scan root.
+ * Undefined for `~/` paths, which Gemini CLI does not read as imports, and for imports inside the
+ * project root.
+ */
+export function geminiImportOutsideRoot(
+  graph: ImportGraph,
+  file: Artifact,
+  edge: ImportEdge,
+): 'absolute' | 'relative' | undefined {
+  const { reference, target } = edge;
+  switch (reference.kind) {
+    case 'home':
+      return undefined;
+    case 'absolute':
+      return 'absolute';
+    case 'relative': {
+      // From where the import resolves: the link's directory for a GEMINI.md symlink.
+      const from = graph.rootPath(file, 'gemini') ?? file.path;
+      const projectRoot = nearestGitRoot(graph.snapshot, dirnamePosix(from));
+      if (projectRoot === undefined) return undefined;
+      if (target !== undefined && within(target, projectRoot)) return undefined;
+      return 'relative';
+    }
+  }
 }
 
 /**

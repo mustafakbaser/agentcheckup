@@ -497,6 +497,7 @@ describe('allowances', () => {
     expect(allowed.report.allowed[ALLOWANCES.installedSkill]).toBeGreaterThan(0);
     expect(brief(check(files, {}, [ALLOWANCES.installedSkill]).report.mismatches)).toEqual([
       'finding-not-planned skill/frontmatter-missing codex collection/z/SKILL.md',
+      'finding-not-planned skill/frontmatter-missing gemini collection/z/SKILL.md',
     ]);
   });
 });

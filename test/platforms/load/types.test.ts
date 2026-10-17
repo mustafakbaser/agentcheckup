@@ -120,6 +120,7 @@ describe('load-plan contract', () => {
       'copilot-cli',
       'copilot-vscode',
       'copilot-cloud',
+      'gemini',
       'windsurf',
       'cline',
     ]);

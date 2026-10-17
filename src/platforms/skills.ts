@@ -89,6 +89,14 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
   { segment: '.clinerules/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
 ];
 
+/**
+ * The project skills folders of Gemini CLI, relative to the working directory, in the order it
+ * reads them; a skill in a later folder overrides one with the same name in an earlier folder.
+ * Gemini CLI reads them only in the working directory, `SKILL.md` and `<name>/SKILL.md` in each
+ * (skillManager.ts and skillLoader.ts at google-gemini/gemini-cli ed96fae).
+ */
+export const GEMINI_SKILL_ROOTS = ['.gemini/skills', '.agents/skills'] as const;
+
 export interface SkillLocation {
   /** The skills root directory, e.g. `apps/web/.claude/skills`. */
   readonly root: string;

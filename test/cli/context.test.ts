@@ -72,6 +72,7 @@ describe('agentcheckup context', () => {
       ['copilot-cli', 'packages/api'],
       ['copilot-vscode', 'packages/api'],
       ['copilot-cloud', 'packages/api'],
+      ['gemini', 'packages/api'],
       ['windsurf', 'packages/api'],
       ['cline', 'packages/api'],
     ]);
@@ -131,16 +132,17 @@ describe('agentcheckup context', () => {
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
     expect(text).toMatch(
-      /^Files by agent +Claude Code +Codex +Cursor +Copilot CLI +Copilot in VS Code +Copilot cloud agent +Devin Local +Cline$/m,
+      /^Files by agent +Claude Code +Codex +Cursor +Copilot CLI +Copilot in VS Code +Copilot cloud agent +Gemini CLI +Devin Local +Cline$/m,
     );
-    expect(text).toMatch(/^AGENTS\.md(?: +startup){8}$/m);
-    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir(?: +—){6}$/m);
+    // Gemini CLI reads GEMINI.md unless its settings name AGENTS.md.
+    expect(text).toMatch(/^AGENTS\.md(?: +startup){6} +— +startup +startup$/m);
+    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir(?: +—){7}$/m);
     expect(text).toMatch(/^start-dir {7}loaded when a session starts in its directory$/m);
 
     const report = await contextJson(['--matrix']);
     expect(report.context?.matrix?.rows.length).toBeGreaterThan(10);
     // The root for every agent, then Codex in each directory with an AGENTS.md.
-    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(8);
+    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(9);
     expect(report.context?.plans.map((plan) => plan.cwd)).toContain('services/billing/ledger');
   });
 
@@ -158,6 +160,7 @@ describe('agentcheckup context', () => {
       'copilot-cli',
       'copilot-vscode',
       'copilot-cloud',
+      'gemini',
       'windsurf',
       'cline',
     ]);
@@ -220,7 +223,6 @@ describe('agentcheckup context', () => {
     [['--cwd', 'AGENTS.md'], '--cwd AGENTS.md is a file, not a directory.'],
     [['--cwd', '../outside'], '".." is not allowed'],
     [['--cwd', '/tmp'], 'not an absolute path'],
-    [['--agent', 'gemini'], 'does not model what gemini loads yet'],
     [['--agent', 'nope'], 'Unknown agent "nope"'],
     [['--matrix', '--cwd', 'packages'], '--matrix covers the whole repository'],
     [['--context-window', '0'], '--context-window must be a positive whole number'],
@@ -265,10 +267,7 @@ describe('agentcheckup context', () => {
       'AGENTS.md': '# Root\n',
       'agentcheckup.config.json': '{ "targets": ["gemini"] }',
     });
-    const none = capture(repo);
-    expect(await run(['context'], none)).toBe(EXIT.usage);
-    expect(none.errors()).toContain('None of the targets (gemini) has a load model.');
-    expect(none.errors()).toContain('choose with --agent');
+    expect((await contextJson([], repo)).context?.agents).toEqual(['gemini']);
 
     const named = await contextJson(['--agent', 'codex'], repo);
     expect(named.context?.agents).toEqual(['codex']);
@@ -293,6 +292,7 @@ describe('agentcheckup context', () => {
       'copilot-cli',
       'copilot-vscode',
       'copilot-cloud',
+      'gemini',
       'windsurf',
       'cline',
     ]);

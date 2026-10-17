@@ -2,7 +2,7 @@
 
 # Rules
 
-Rule set `2026.10`: 62 rules.
+Rule set `2026.10`: 63 rules.
 
 Severity policy: `error` means a documented platform behavior skips, ignores, truncates or
 breaks the file. `warn` means degraded behavior or a portability problem. `info` is advice
@@ -24,6 +24,7 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | [`directive/missing-reason`](directive/missing-reason.md)                   | warn     | correctness | manual        | Suppression directive has no rule id or no reason                     |
 | [`directive/unknown-rule`](directive/unknown-rule.md)                       | warn     | correctness | review        | Suppression directive names a rule that does not exist                |
 | [`directive/unused`](directive/unused.md)                                   | warn     | correctness | safe          | Suppression directive does not suppress anything                      |
+| [`gemini/settings-key-ignored`](gemini/settings-key-ignored.md)             | warn     | loading     | manual        | Gemini CLI ignores a top-level key from its old settings format       |
 | [`hooks/fails-open`](hooks/fails-open.md)                                   | info     | risk        | review        | Tool-gating hook lets the tool call proceed when it fails             |
 | [`hooks/script-missing`](hooks/script-missing.md)                           | error    | correctness | manual        | Hook command runs a script that does not exist                        |
 | [`hooks/timeout-units`](hooks/timeout-units.md)                             | warn     | correctness | review        | Hook timeout looks like the wrong unit                                |

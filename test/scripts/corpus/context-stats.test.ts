@@ -53,6 +53,7 @@ describe('scanForSummary', () => {
       'copilot-cli': ['AGENTS.md', 'CLAUDE.md'],
       'copilot-vscode': ['AGENTS.md', 'CLAUDE.md'],
       'copilot-cloud': ['AGENTS.md', 'CLAUDE.md'],
+      gemini: [],
       windsurf: ['AGENTS.md', 'CLAUDE.md'],
       cline: ['AGENTS.md'],
     });
@@ -114,7 +115,8 @@ describe('renderContextSection', () => {
 
   it('adds up counts across repositories', () => {
     const text = renderContextSection(repos);
-    expect(text).toContain('| The three agents load different instruction files | 1 of 2 |');
+    // Gemini CLI reads only GEMINI.md without context.fileName, so it loads none of these.
+    expect(text).toContain('| The three agents load different instruction files | 2 of 2 |');
     expect(text).toContain(
       '| Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead | 1 of 2 |',
     );

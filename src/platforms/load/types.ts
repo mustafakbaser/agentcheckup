@@ -45,10 +45,9 @@ export const CONTEXT_PLATFORM: Readonly<Record<ContextAgent, PlatformId>> = {
 };
 
 /**
- * Whether each agent's loader is turned on: the one switch per agent. An agent that is off has
- * a stub loader in ./index.ts and is not planned anywhere: not by `context`, `--agent`, a scan
- * with `--context`, the matrix, the consistency check or the corpus harness. The unit that
- * replaces the stub with a real loader turns its agent on here, in the same change.
+ * Whether each agent's loader is turned on: the one switch per agent. An agent that is off is
+ * not planned anywhere: not by `context`, `--agent`, a scan with `--context`, the matrix, the
+ * consistency check or the corpus harness.
  */
 export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
   'claude-code': true,
@@ -57,7 +56,7 @@ export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
   'copilot-cli': true,
   'copilot-vscode': true,
   'copilot-cloud': true,
-  gemini: false,
+  gemini: true,
   windsurf: true,
   cline: true,
 };

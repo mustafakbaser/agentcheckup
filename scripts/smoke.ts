@@ -121,14 +121,17 @@ try {
   if (!runCli(['context', repo], 0).includes('Claude Code context')) {
     fail('context printed no Claude Code plan');
   }
-  // Every agent the matrix shows loads the root AGENTS.md at session start.
+  // One cell per agent; Claude Code, Codex and Cursor read the root AGENTS.md at session start.
   const matrix = runCli(['context', repo, '--matrix'], 0).split('\n');
   const cells = matrix
     .find((line) => line.startsWith('AGENTS.md '))
     ?.split(' ')
     .filter(Boolean)
     .slice(1);
-  if (cells?.length !== CONTEXT_AGENTS.length || cells.some((cell) => cell !== 'startup')) {
+  if (
+    cells?.length !== CONTEXT_AGENTS.length ||
+    cells.slice(0, 3).some((cell) => cell !== 'startup')
+  ) {
     fail('context --matrix printed no matrix row for AGENTS.md');
   }
   const baseline = join(work, 'baseline.json');

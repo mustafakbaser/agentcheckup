@@ -1,15 +1,15 @@
 import { RULESET_VERSION } from '../../core/meta.js';
-import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ReportDescriptor } from '../../core/types.js';
 import type { ImportDialect } from '../../parse/types.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quotePath } from '../shared/format.js';
-import { FindingLimiter, nearestGitRoot } from './helpers.js';
+import { FindingLimiter } from './helpers.js';
 import {
   claudeImportOutsideRoot,
   DIALECT_PLATFORM,
   filesWithFollowedImports,
+  geminiImportOutsideRoot,
   type ImportEdge,
   ImportGraph,
   importsUncertainty,
@@ -27,10 +27,6 @@ const COPY_GUIDANCE = 'copy the file into the repository and import it with a re
 const HOME_GUIDANCE =
   'if teammates need these instructions, copy the file into the repository and import it with a relative path; keep personal ones in CLAUDE.local.md';
 
-function within(path: string, root: string): boolean {
-  return root === '' || path === root || path.startsWith(`${root}/`);
-}
-
 function describe(
   graph: ImportGraph,
   artifact: Artifact,
@@ -38,7 +34,7 @@ function describe(
   dialect: ImportDialect,
   repository: boolean,
 ): Pick<ReportDescriptor, 'message' | 'severity'> | undefined {
-  const { reference, target } = edge;
+  const { reference } = edge;
   const written = `@${reference.raw}`;
   if (dialect === 'claude') {
     switch (claudeImportOutsideRoot(edge, repository)) {
@@ -59,24 +55,18 @@ function describe(
         };
     }
   }
-  switch (reference.kind) {
-    case 'home':
+  switch (geminiImportOutsideRoot(graph, artifact, edge)) {
+    case undefined:
       return undefined;
     case 'absolute':
       return {
         message: `Import ${quotePath(written)} uses an absolute path, which does not exist on other machines. Gemini CLI also rejects imports outside the project root and inserts an "Import failed" comment instead.`,
       };
-    case 'relative': {
-      // From where the import resolves: the link's directory for a GEMINI.md symlink.
-      const from = graph.rootPath(artifact, dialect) ?? artifact.path;
-      const projectRoot = nearestGitRoot(graph.snapshot, dirnamePosix(from));
-      if (projectRoot === undefined) return undefined;
-      if (target !== undefined && within(target, projectRoot)) return undefined;
+    case 'relative':
       return {
         severity: 'error',
         message: `Import ${quotePath(written)} resolves outside the project root, so Gemini CLI does not load it and inserts an "Import failed ... Path traversal attempt" comment instead.`,
       };
-    }
   }
 }
 

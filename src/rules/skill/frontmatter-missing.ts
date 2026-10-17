@@ -4,6 +4,7 @@ import type { Artifact, DecodedText, Fix, PlatformId, Span } from '../../core/ty
 import { moveFrontmatterToTop, prependFrontmatter, type YamlEntry } from '../../fix/index.js';
 import type { FrontmatterResult } from '../../parse/types.js';
 import { codexFrontmatterClose, isCodexDelimiter } from '../../platforms/codex-skills.js';
+import { geminiSkipReasons } from '../../platforms/gemini-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger, joinClauses, platformsDo, sentence } from '../shared/format.js';
@@ -140,18 +141,24 @@ function problem(
   };
 }
 
+/** `['gemini']` when Gemini CLI finds no frontmatter, so it skips the skill. */
+function geminiWithout(result: FrontmatterResult, decoded: DecodedText): PlatformId[] {
+  return geminiSkipReasons(result, decoded).includes('no-frontmatter') ? ['gemini'] : [];
+}
+
 function absentProblem(
   scope: SkillScope,
   artifact: Artifact,
   result: FrontmatterResult,
 ): Problem | undefined {
   const { decoded } = artifact;
+  const gemini = geminiWithout(result, decoded);
   if (decoded.text.trim() === '') {
     return problem(
       scope,
       artifact,
       'SKILL.md is empty, so it has no frontmatter.',
-      ['codex', 'gemini'],
+      ['codex', ...gemini],
       undefined,
       undefined,
       () => ({ guidance: ADD_FRONTMATTER }),
@@ -166,7 +173,7 @@ function absentProblem(
       scope,
       artifact,
       `The \`---\` on line 1 is indented${closed ? '' : ' and never closed'}.`,
-      closed ? ['gemini'] : ['codex', 'gemini'],
+      closed ? gemini : ['codex', ...gemini],
       { clause: CLAUDE_READS_AS_INSTRUCTIONS, severity: 'error' },
       lineSpan(decoded, 1),
       () =>
@@ -190,7 +197,7 @@ function absentProblem(
       scope,
       artifact,
       `The frontmatter starts on line ${formatInteger(firstContent)}, but agents look for it only on line 1.`,
-      ['codex', 'gemini'],
+      ['codex', ...gemini],
       { clause: CLAUDE_READS_AS_INSTRUCTIONS, severity: 'error' },
       lineSpan(decoded, firstContent),
       () =>
@@ -206,7 +213,7 @@ function absentProblem(
     scope,
     artifact,
     'SKILL.md does not start with `---`, so it has no frontmatter.',
-    ['codex', 'gemini'],
+    ['codex', ...gemini],
     {
       clause:
         'Claude Code uses the directory name as its name and the first non-empty line of the body as its description',
@@ -220,22 +227,22 @@ function absentProblem(
 function unclosedProblem(
   scope: SkillScope,
   artifact: Artifact,
-  openSpan: Span,
+  result: Extract<FrontmatterResult, { kind: 'unclosed' }>,
 ): Problem | undefined {
   const { decoded } = artifact;
-  // Gemini CLI closes the block at any line that starts with `---` (skillLoader.ts).
-  const geminiCloses = findLine(decoded, 1, (text) => text.startsWith('---')) !== undefined;
+  // Gemini CLI closes the block at any line that starts with `---` (geminiClosesFrontmatter).
+  const gemini = geminiWithout(result, decoded);
   // The block opens with `---` on line 1, so this is the line where Codex finds it closed.
   const indentedClose = codexFrontmatterClose(decoded);
   if (indentedClose !== undefined) {
     // Codex trims lines, so it finds the indented `---`. Claude Code's handling of a closing
     // line is undocumented, so only Gemini CLI, which needs `---` at the line start, is claimed.
-    if (geminiCloses) return undefined;
+    if (gemini.length === 0) return undefined;
     return problem(
       scope,
       artifact,
       `The closing \`---\` on line ${formatInteger(indentedClose)} is indented.`,
-      ['gemini'],
+      gemini,
       undefined,
       lineSpan(decoded, indentedClose),
       () => moveToLineOne(artifact, 1, 'remove the spaces before the closing "---"'),
@@ -245,9 +252,9 @@ function unclosedProblem(
     scope,
     artifact,
     'The frontmatter opened on line 1 has no closing `---` line.',
-    geminiCloses ? ['codex'] : ['codex', 'gemini'],
+    ['codex', ...gemini],
     undefined,
-    openSpan,
+    result.openSpan,
     () => ({ guidance: 'add a "---" line after the last frontmatter field to close the block' }),
   );
 }
@@ -282,8 +289,7 @@ Start the file with \`---\`, add \`name\` and \`description\`, and close the blo
       const result = context.frontmatter(artifact);
       let found: Problem | undefined;
       if (result.kind === 'absent') found = absentProblem(context, artifact, result);
-      else if (result.kind === 'unclosed')
-        found = unclosedProblem(context, artifact, result.openSpan);
+      else if (result.kind === 'unclosed') found = unclosedProblem(context, artifact, result);
       if (found === undefined) continue;
       const resolved = resolveImpacts(context, artifact, found.impacts);
       if (resolved === undefined) continue;

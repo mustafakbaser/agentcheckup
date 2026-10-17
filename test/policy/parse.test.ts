@@ -245,7 +245,7 @@ describe('errors', () => {
           'hook',
         ],
       },
-      budgets: { gemini: { startupTokens: 1 }, codx: {}, codex: { startupTokens: 0 }, cursor: 5 },
+      budgets: { windsurf: { startupTokens: 1 }, codx: {}, codex: { startupTokens: 0 }, cursor: 5 },
     });
     for (const error of errors) expect(error).not.toMatch(/[\n\r]/);
     expect(errors).toMatchSnapshot();

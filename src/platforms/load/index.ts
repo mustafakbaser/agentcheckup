@@ -16,6 +16,7 @@ import { loadCline } from './cline.js';
 import { loadCodex } from './codex.js';
 import { loadCopilotCli, loadCopilotCloud, loadCopilotVscode } from './copilot.js';
 import { loadCursor } from './cursor.js';
+import { loadGemini } from './gemini.js';
 import {
   ALL_CONTEXT_AGENTS,
   CONTEXT_AGENTS,
@@ -54,31 +55,8 @@ type Loader = (
 ) => LoadPlan;
 
 /**
- * The loader of an agent that is turned off (`LOADER_ENABLED` in ./types.ts): a plan with
- * nothing in it. It never runs, because {@link orderedAgents} refuses an agent that is off; it
- * keeps {@link LOADERS} complete until the agent's loader replaces it.
- */
-function notModeled(agent: ContextAgent): Loader {
-  return (_view, options) => {
-    const zero = { bytes: 0, chars: 0, tokens: 0 };
-    return {
-      agent,
-      cwd: options.cwd,
-      entries: [],
-      skipped: [],
-      outOfScope: [],
-      assumptions: [],
-      hidden: [],
-      limits: [],
-      totals: { startup: zero, onDemand: zero },
-      incomplete: [],
-    };
-  };
-}
-
-/**
- * The loader of each agent. To turn an agent on, replace its stub with the real loader here and
- * set its `LOADER_ENABLED` flag in ./types.ts.
+ * The loader of each agent. Its `LOADER_ENABLED` flag in ./types.ts can turn an agent off: no
+ * command, scan or matrix then plans it.
  */
 const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'claude-code': loadClaudeCode,
@@ -87,7 +65,7 @@ const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'copilot-cli': loadCopilotCli,
   'copilot-vscode': loadCopilotVscode,
   'copilot-cloud': loadCopilotCloud,
-  gemini: notModeled('gemini'),
+  gemini: loadGemini,
   windsurf: loadWindsurf,
   cline: loadCline,
 };

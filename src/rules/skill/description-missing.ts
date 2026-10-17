@@ -3,6 +3,7 @@ import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
 import { descriptionState } from '../../platforms/codex-skills.js';
+import { geminiSkipReasons } from '../../platforms/gemini-skills.js';
 import { firstBodyLine } from '../../platforms/skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
@@ -184,7 +185,10 @@ Add a \`description\` that says what the skill does and when to use it.`,
       } else if (state === 'missing') {
         lead = 'The frontmatter has no `description`.';
         repair = copyDescription(artifact, frontmatter, state);
-        const skipping = reached(context, artifact, ['codex', 'gemini']);
+        const geminiSkips = geminiSkipReasons(frontmatter, artifact.decoded).includes(
+          'no-description',
+        );
+        const skipping = reached(context, artifact, geminiSkips ? ['codex', 'gemini'] : ['codex']);
         clauses.push(platformsDo(skipping, ['skips', 'skip'], 'the skill'));
         impacts.push(...impactsOn(skipping, 'error'));
         if (claude) {
