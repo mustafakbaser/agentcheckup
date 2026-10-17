@@ -26,12 +26,12 @@ scans, so JavaScript or TypeScript configuration files are not supported.
 
 ## Fields
 
-| Field       | Type         | Meaning                                                                                                                                                                                         |
-| ----------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `targets`   | platform ids | Agents to check against. Rules about other agents are skipped. Default: all of `claude-code`, `codex`, `cursor`, `copilot`, `gemini`, `windsurf`, `cline`. The `--targets` flag overrides this. |
-| `rules`     | object       | Per rule: `"off"`, `"info"`, `"warn"`, `"error"`, or `[severity, options]`.                                                                                                                     |
-| `ignore`    | globs        | Files to skip, relative to the scanned directory. Files ignored by `.gitignore` are skipped already. Load plans and the matrix leave them out too, and each plan counts them.                   |
-| `overrides` | array        | Change rule severities for files matching `files`. Later overrides win. Options can only be set in the top-level `rules`.                                                                       |
+| Field       | Type         | Meaning                                                                                                                                                                                                                                                                                   |
+| ----------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `targets`   | platform ids | Agents to check against. Rules about other agents are skipped, and `context` plans only their agents. Default: all of `claude-code`, `codex`, `cursor`, `copilot` (its CLI, VS Code and cloud agent), `gemini`, `windsurf` (Devin Desktop), `cline`. The `--targets` flag overrides this. |
+| `rules`     | object       | Per rule: `"off"`, `"info"`, `"warn"`, `"error"`, or `[severity, options]`.                                                                                                                                                                                                               |
+| `ignore`    | globs        | Files to skip, relative to the scanned directory. Files ignored by `.gitignore` are skipped already. Load plans and the matrix leave them out too, and each plan counts them.                                                                                                             |
+| `overrides` | array        | Change rule severities for files matching `files`. Later overrides win. Options can only be set in the top-level `rules`.                                                                                                                                                                 |
 
 Globs use [picomatch](https://github.com/micromatch/picomatch) syntax and match dotfiles.
 
@@ -128,9 +128,9 @@ out, and `--verbose` shows the same as the default in both formats.
 
 ## What each agent loads
 
-`agentcheckup context [path]` shows the load plan of each modeled agent: what is in context when a
-session starts, what loads on demand, the MCP servers and hooks it starts, and what it skips and
-why. A skip that `agentcheckup fix` can remove ends with `fix: safe`, `fix: review`, or
+`agentcheckup context [path]` shows the load plan of each of nine agents, with Copilot's CLI, VS
+Code and cloud agent planned separately: what is in context when a session starts, what loads
+on demand, the MCP servers and hooks it starts, and what it skips and why. A skip that `agentcheckup fix` can remove ends with `fix: safe`, `fix: review`, or
 `needs your words (fix -i)`. It never fails on findings. [What each agent loads](context.md)
 explains the output.
 
@@ -145,7 +145,8 @@ explains the output.
 The command also takes `--output`, `--baseline`, `--gate`, `--config`, `--no-config`,
 `--untrusted` and `--no-gitignore`, with the same meaning as for a scan. Rule options feed the
 plans: the `maxBytes` option of `instr/codex-size-budget` sets the Codex byte limit the plan
-assumes. Files that `ignore` matches are left out of the plans and the matrix; each plan says how
+assumes, unless a `.codex/config.toml` on the path sets `project_doc_max_bytes`, which wins.
+Files that `ignore` matches are left out of the plans and the matrix; each plan says how
 many it left out, because agents still load them
 ([Files the configuration ignores](context.md#files-the-configuration-ignores)). `--untrusted`
 does not read the configuration, so it shows them.
@@ -175,7 +176,8 @@ agentcheckup --baseline base.json --gate security                         # on t
   never trip it. `--gate` without `--baseline` is a usage error.
 - `permissions` trips on every entry that lets an agent do more without asking: any
   `permissions.allow` entry, narrow ones such as `Bash(curl:*)` included, extra directories, a
-  skill's `allowed-tools`, MCP auto-approval, Gemini CLI `trust`, and a new `defaultMode`. The
+  skill's `allowed-tools`, MCP auto-approval, Gemini CLI `trust`, a new `defaultMode`, and
+  Codex settings such as `approval_policy = "never"`. The
   summary marks broad entries, such as `Bash (broad: runs any shell command)`. `deny` and `ask`
   entries never trip it. [Gate classes](context.md#gate-classes) has every class.
 - `--context` on the base scan adds the load plans, so the comparison also shows the change in

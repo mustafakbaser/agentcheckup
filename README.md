@@ -5,11 +5,12 @@
 [![CI](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Claude Code, Codex and Cursor read different files from the same repository, and they rarely say
-what they skipped. agentcheckup shows, for each agent, what is in context when a session starts,
-what loads later, and what is skipped and why. It checks every file against how the agents load
-it, fixes what has one correct form, writes the rest as tasks for your coding agent, and flags
-new MCP servers, hooks, permissions and environment overrides in pull requests.
+Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin and Cline read different files from
+the same repository, and they rarely say what they skipped. agentcheckup shows, for each agent,
+what is in context when a session starts, what loads later, and what is skipped and why. It
+checks every file against how the agents load it, fixes what has one correct form, writes the
+rest as tasks for your coding agent, and flags new MCP servers, hooks, permissions and
+environment overrides in pull requests.
 
 ```sh
 npx agentcheckup context   # what each agent loads
@@ -52,31 +53,46 @@ Cursor context · ./
 Skipped
   .cursor/rules/style.md  only .mdc files are read here  cursor/md-file-ignored  fix: review
 
+Copilot CLI context · ./
+…
+Gemini CLI context · ./: loads nothing from this repository
+…
 3 of 4 skips can be fixed: agentcheckup fix
 ```
 
-Every plan also states its assumptions, such as the Claude Code version and a trusted workspace,
-and the scopes it cannot see, such as `~/.claude` and managed settings. `--cwd <dir>` plans a
-session started in another directory, and the matrix shows the whole repository at once:
+Nine agents get a plan: Copilot counts three times, because its CLI, VS Code and cloud agent
+read different files, and Devin Desktop's agent is Devin Local. Every plan also states its
+assumptions, such as the Claude Code version and a trusted workspace, and the scopes it cannot
+see, such as `~/.claude` and managed settings. `--cwd <dir>` plans a session started in another
+directory, and the matrix shows the whole repository at once:
 
 ```text
 $ npx agentcheckup context --matrix
 …
-Files by agent           Claude Code   Codex     Cursor
-.claude/skills/deploy    listed        —         listed
-.claude/skills/pdf       listed        —         listed
-.cursor/rules/style.md   —             —         skipped
-.mcp.json                skipped       —         —
-AGENTS.md                skipped       startup   startup
-CLAUDE.md                startup       —         startup
+Files by agent          Claude Codex Cursor Copilot       Devin Cline
+                                            CLI VSC Cloud
+.claude/skills/deploy   L      —     L      L   L   L     L     L
+.claude/skills/pdf      L      —     L      L   L   L     L     L
+.cursor/rules/style.md  —      —     X      —   —   —     U     —
+.mcp.json               X      —     —      S   S   —     S     —
+AGENTS.md               X      S     S      S   S   S     S     S
+CLAUDE.md               S      —     S      S   S   S     S     —
+Not shown: Gemini CLI reads none of these files
+
+S  startup   loaded at session start
+L  listed    in the skills listing; the body loads when used
+U  manual    loaded only when you ask for it
+X  skipped   not loaded; the plan says why
+—  not-read  not read by this agent
 ```
 
 Here Claude Code never sees `AGENTS.md` or the MCP server, Codex never sees `CLAUDE.md` or the
-skills, and Cursor ignores `style.md` because it is not an `.mdc` file.
+skills, Cursor ignores `style.md` because it is not an `.mdc` file, and Gemini CLI reads none
+of these files.
 [What each agent loads](docs/context.md) explains every column and cell.
 
 In [80 public repositories](corpus/SUMMARY.md#what-agents-load) with agent configuration, the
-three agents load different instruction files at session start in 41 of the 71 repositories
+nine agents load different instruction files at session start in 72 of the 73 repositories
 where any of them loads instructions. By default, Claude Code skips the root `AGENTS.md` in 11 of
 the 55 repositories that have one, because a `CLAUDE.md` is read instead.
 
@@ -100,7 +116,7 @@ What each agent misses
 AGENTS.md
   1:1  warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md. Add the line "@AGENTS.md" to that file so Claude Code reads both.  instr/agents-md-ignored-by-claude
                 ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
-                why  Claude Code never loads these ≈28 tokens; Codex and Cursor do.
+                why  Claude Code never loads these ≈28 tokens; Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Devin Local and Cline do.
                 fix  safe: Add "@AGENTS.md" as line 1 of CLAUDE.md
 
 CLAUDE.md
@@ -129,8 +145,9 @@ sources. Each rule is backed by the agent's documentation or source code, for ex
 - **[Invisible Unicode](docs/rules/risk/hidden-unicode.md)** and
   [credentials committed in MCP configuration](docs/rules/mcp/literal-secret.md).
 
-The rules cover Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Desktop (formerly
-Windsurf) and Cline. The [rule catalog](docs/rules/README.md) lists all of them.
+The rules and the load plans cover Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin
+Desktop (formerly Windsurf) and Cline. The [rule catalog](docs/rules/README.md) lists all of
+them.
 [What coding agents read](docs/platforms.md) documents each agent's loading behavior with sources,
 and [One configuration for every agent](docs/portability.md) shows how to share one setup.
 
@@ -447,8 +464,9 @@ Suppress a single finding with a reason:
 <!-- agentcheckup-disable-next-line instr/import-unresolved -- generated during the docs build -->
 ```
 
-Rule options also feed the load plans: if you raised Codex's `project_doc_max_bytes`, set the
-`maxBytes` option of `instr/codex-size-budget` and `context` uses the same limit. See
+Rule options also feed the load plans: if you raised Codex's `project_doc_max_bytes` in
+`~/.codex/config.toml`, set the `maxBytes` option of `instr/codex-size-budget` and `context` uses
+the same limit. A value in the repository's `.codex/config.toml` is read directly. See
 [configuration](docs/configuration.md) for all options.
 
 ## How rules are decided
@@ -461,7 +479,8 @@ that could not be verified is never an error. See [ADR 0004](docs/adr/0004-evide
 
 Load plans follow the same evidence: every entry cites its sources, and anything neither
 documentation nor source code confirms is marked `unverified` and shown with "?". See
-[ADR 0007](docs/adr/0007-model-what-each-agent-loads.md).
+[ADR 0007](docs/adr/0007-model-what-each-agent-loads.md) and
+[ADR 0009](docs/adr/0009-coverage-of-copilot-gemini-devin-cline-and-codex-toml.md).
 
 Before release, every rule, load plan and fix was run against 80 public repositories with agent
 configuration. Each finding class was reviewed by hand for false positives. A
@@ -520,17 +539,23 @@ as described in [SECURITY.md](SECURITY.md).
 - **Static analysis only.** agentcheckup reads files and applies each agent's documented loading
   behavior. It never starts an agent, so it cannot see a remote flag, an experiment or a bug
   that changes what the agent does.
-- **Repository scope only.** User, managed, team and account settings, such as `~/.claude`,
-  `~/.codex/config.toml` or Cursor User Rules, are not visible. Each plan lists them.
+- **Repository scope only.** User, managed, team and account settings are not visible: for
+  example `~/.claude`, `~/.codex/config.toml`, `~/.copilot`, `~/.gemini`, `~/.config/devin`,
+  `~/.cline`, Cursor User Rules, and the Copilot cloud agent's MCP servers, which live in the
+  repository's settings on GitHub.com. Each plan lists them.
 - **Assumptions are stated.** Each plan says what it assumed: the instructions mode, a minimum
-  version, a trusted workspace, Codex's byte limit. Change them with rule options or flags such
-  as `--context-window`.
-- **Three agents have load plans today:** Claude Code, Codex and Cursor. GitHub Copilot, Gemini
-  CLI, Devin Desktop and Cline are covered by rules, and load plans for them will follow.
+  version, a trusted workspace, Codex's byte limit, VS Code settings, Devin Desktop outside
+  Restricted Mode, every Cline rule toggle on. Some can be changed with rule options or flags
+  such as `--context-window`.
+- **Not every surface has a plan.** Copilot Chat and code review on GitHub.com, VS Code's other
+  agent harnesses, Devin Desktop's older Cascade agent and Antigravity CLI are covered by rules
+  only. Copilot, Devin and Cursor do not document the order of their instructions, and the plans
+  say so.
 - **Token counts are estimates:** characters divided by 4, shown with "≈". They are rough for
   code and non-Latin text.
-- **`.codex/config.toml` is not read yet.** MCP servers and hooks declared there are reported as
-  not analyzed, never guessed.
+- **What is not analyzed is reported, never guessed:** a `.codex/config.toml` in UTF-16 or past
+  the parser's limits, Cline hook scripts and plugins, Cline rules in `.txt` or `.markdown`
+  files.
 - **Words and tasks are checked, not judged.** agentcheckup checks that your answer in `fix -i`
   or an agent's change resolves the finding and breaks no rule, not that the text is right.
   Review what an agent changed as you would any diff.
