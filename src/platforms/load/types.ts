@@ -243,6 +243,14 @@ export type SkipCode =
   | 'not-read';
 
 /**
+ * How the fix that removes a skip is applied: its class (`safe`, `review`), or `input` when it
+ * needs the user's words first (`Fix.input`), which only `agentcheckup fix -i` asks for. Not a
+ * FixClass: a fix that needs words still has a class, which says how much trust the completed
+ * fix needs.
+ */
+export type SkipFix = FixClass | 'input';
+
+/**
  * A file or item the agent would consider but skips. Named SkippedLoad because
  * src/core/types.ts already has SkippedEntry for files the walker did not read.
  */
@@ -265,10 +273,10 @@ export interface SkippedLoad {
    */
   readonly size?: Size;
   /**
-   * The class of the fix on the finding with the same `ruleId` and `path`, set when plans are
+   * How the fix on the finding with the same `ruleId` and `path` is applied, set when plans are
    * assembled. Absent when no unsuppressed finding of that rule carries a fix.
    */
-  readonly fix?: FixClass;
+  readonly fix?: SkipFix;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
 }

@@ -29,6 +29,7 @@ import {
   type ImpactRow,
   INPUT_FIX_LABEL,
   needsWords,
+  skipFixLabel,
 } from './feedback.js';
 import { newRuleSet } from './gate.js';
 import {
@@ -260,7 +261,7 @@ function impactRow(row: ImpactRow): string {
       ? label
       : `${text(row.importer, MAX_PATH_LENGTH)} imports it, but ${label}`;
   const tokens = row.tokens === undefined ? '' : ` (≈${formatInteger(row.tokens)} tokens)`;
-  return `| ${row.agentName} | ${what} | ${why}${tokens} | ${row.fix ?? '—'} |`;
+  return `| ${row.agentName} | ${what} | ${why}${tokens} | ${row.fix === undefined ? '—' : skipFixLabel(row.fix)} |`;
 }
 
 /**

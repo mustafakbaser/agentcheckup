@@ -1,12 +1,55 @@
 import { GATE_CLASSES } from '../core/baseline.js';
 import { CONFIG_FILE_NAME, REPOSITORY_URL, TOOL_NAME } from '../core/meta.js';
 import { PLATFORM_IDS } from '../core/types.js';
-import { CONTEXT_AGENTS } from '../platforms/load/types.js';
+import { contextAgentsOf } from '../platforms/load/index.js';
+import { AGENT_NAMES, CONTEXT_AGENTS } from '../platforms/load/types.js';
+import { joinNames, readerList } from '../rules/shared/format.js';
 import { DEFAULT_MAX_TASKS, MAX_TASKS } from '../tasks/index.js';
+import { AGENT_PLATFORMS, ALL_AGENTS } from './args.js';
+import { skillReaders } from './skill.js';
 
 const FOOTER = `agentcheckup makes no network requests and collects no telemetry.
 Docs: ${REPOSITORY_URL}#readme
 `;
+
+/** Where an option's description starts, and the width its lines stay within. */
+const OPTION_INDENT = 27;
+const OPTION_WIDTH = 84;
+
+/** `text` wrapped at word boundaries, continuation lines indented under the option text. */
+function optionText(text: string): string {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line !== '' && OPTION_INDENT + line.length + 1 + word.length > OPTION_WIDTH) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line === '' ? word : `${line} ${word}`;
+    }
+  }
+  lines.push(line);
+  return lines.join(`\n${' '.repeat(OPTION_INDENT)}`);
+}
+
+/** `claude-code, …, windsurf (Devin Local), cline`: agent ids, named where the id is not. */
+const AGENT_IDS = CONTEXT_AGENTS.map((agent) =>
+  agent === 'windsurf' ? `${agent} (${AGENT_NAMES[agent]})` : agent,
+).join(', ');
+
+const AGENT_OPTION = optionText(
+  `Comma-separated agents: ${AGENT_IDS}.` +
+    AGENT_PLATFORMS.map(
+      (platform) => ` ${platform} stands for ${joinNames(contextAgentsOf([platform]))}.`,
+    ).join('') +
+    ` ${ALL_AGENTS} plans every agent. Default: those among the configured targets`,
+);
+
+const SKILL_DIR_OPTION = optionText(
+  `claude (.claude/skills: ${readerList(skillReaders('claude'))}) or agents ` +
+    `(.agents/skills: ${readerList(skillReaders('agents'))}). Default: claude when the ` +
+    'configured targets include claude-code, else agents',
+);
 
 export const HELP = `Usage: ${TOOL_NAME} [path] [options]
        ${TOOL_NAME} fix [path] [options]
@@ -166,8 +209,7 @@ directory. Text and Markdown output show paths relative to [path]; JSON output
 uses paths relative to the current directory, as a scan does.
 
 Options
-      --agent <list>       Comma-separated agents: ${CONTEXT_AGENTS.join(', ')}.
-                           Default: those among the configured targets
+      --agent <list>       ${AGENT_OPTION}
       --cwd <dir>          Plan a session started in this directory, relative to [path].
                            Default: the root
       --matrix             Also plan Codex in each directory with an AGENTS.md, and show
@@ -213,10 +255,7 @@ symlink, and refuses when the skill is already in .claude/skills or
 and refuses on any finding.
 
 Options
-      --dir <name>         claude (.claude/skills: Claude Code, Cursor, GitHub
-                           Copilot) or agents (.agents/skills: Codex, Cursor,
-                           GitHub Copilot, Gemini CLI). Default: claude when the
-                           configured targets include claude-code, else agents
+      --dir <name>         ${SKILL_DIR_OPTION}
   -y, --yes                Install without asking. Without it, skill install
                            needs a terminal
   -h, --help               Show this help

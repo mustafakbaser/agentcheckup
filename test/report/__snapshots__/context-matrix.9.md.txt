@@ -1,0 +1,21 @@
+## Files by agent
+
+| File | Claude Code | Codex | Cursor | Copilot CLI | Copilot in VS Code | Copilot cloud agent | Gemini CLI | Devin Local | Cline |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| \.agents/skills/release\-notes | — | listed | listed | listed | listed | listed | listed | listed | listed |
+| \.claude/rules/testing\.md | on-path | — | — | — | on-path | — | — | — | — |
+| \.claude/skills/deploy | listed | — | listed | listed | listed | listed | — | listed | listed |
+| \.codex/config\.toml | — | unknown | — | — | — | — | — | — | — |
+| \.cursor/rules/api\.mdc | — | — | on-path | — | — | — | — | on-path | — |
+| \.cursor/rules/style\.md | — | — | skipped | — | — | — | — | manual | — |
+| \.github/copilot\-instructions\.md | — | — | — | startup | startup | startup | — | — | — |
+| \.github/instructions/api\.instructions\.md | — | — | — | on-path | model-selected | on-path | — | — | — |
+| \.mcp\.json | skipped | — | — | startup | startup | — | — | startup | — |
+| AGENTS\.md | skipped | startup | startup | startup | startup | startup | — | startup | startup |
+| CLAUDE\.md | startup | — | startup | startup | startup | startup | — | startup | — |
+| GEMINI\.md | — | — | — | startup | — | startup | startup | — | — |
+| packages/api/AGENTS\.md | skipped | start-dir | on-path | on-path | — | on-path | — | on-path | — |
+| packages/web/AGENTS\.md | on-path | partial | on-path | on-path | — | on-path | — | on-path | — |
+| services/billing/ledger/export/AGENTS\.md | on-path | start-dir | on-path | on-path | — | on-path | — | on-path | — |
+
+startup: loaded at session start · on-path: loaded when the agent opens a file it covers · start-dir: loaded when a session starts in its directory · listed: in the skills listing; the body loads when used · model-selected: loaded when the model picks it · manual: loaded only when you ask for it · partial: loaded, but cut by a limit · skipped: not loaded; the plan says why · unknown: not documented, or not analyzed · —: not read by this agent

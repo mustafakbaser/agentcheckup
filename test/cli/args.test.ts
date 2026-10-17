@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseCommand, UsageError } from '../../src/cli/args.js';
+import { CONTEXT_AGENTS } from '../../src/platforms/load/types.js';
 
 describe('parseCommand', () => {
   it('defaults to scanning the current directory', () => {
@@ -239,7 +240,31 @@ describe('parseCommand: context', () => {
   });
 
   it.each([
-    [['context', '--agent', 'copilot'], /does not model what copilot loads yet/],
+    [['codex'], ['codex']],
+    // Agent ids, in report order without repeats, whatever the flag's order.
+    [['cline,windsurf,cline'], ['windsurf', 'cline']],
+    // A platform id stands for its agents: Copilot's three surfaces.
+    [['copilot'], ['copilot-cli', 'copilot-vscode', 'copilot-cloud']],
+    [['copilot-vscode,copilot'], ['copilot-cli', 'copilot-vscode', 'copilot-cloud']],
+    // A platform whose id is its agent's.
+    [['gemini, claude-code'], ['claude-code', 'gemini']],
+    [['all'], [...CONTEXT_AGENTS]],
+    [['codex,all'], [...CONTEXT_AGENTS]],
+  ])('--agent %j plans %j', (value, agents) => {
+    expect(parseCommand(['context', '--agent', ...value])).toMatchObject({ options: { agents } });
+  });
+
+  it('lists every form --agent takes when a value is not one of them', () => {
+    expect(() => parseCommand(['context', '--agent', 'devin'])).toThrow(
+      'Unknown agent "devin". --agent takes an agent (claude-code, codex, cursor, copilot-cli, ' +
+        'copilot-vscode, copilot-cloud, gemini, windsurf, cline), a platform (copilot) or all.',
+    );
+  });
+
+  it.each([
+    [['context', '--agent', 'Copilot'], /Unknown agent "Copilot"/],
+    [['context', '--agent', 'copilot-desktop'], /Unknown agent "copilot-desktop"/],
+    [['context', '--agent', 'codex,everything'], /Unknown agent "everything"/],
     [['context', '--agent', 'vim'], /Unknown agent "vim"/],
     [['context', '--agent', ' , '], /--agent needs at least one agent/],
     [['context', '--cwd', '../other'], /"\.\." is not allowed/],

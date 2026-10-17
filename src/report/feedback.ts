@@ -7,7 +7,8 @@
  * - what the root load plans add to a finding: the size of what the agent misses and which
  *   other agents still load the file (the `why` line);
  * - the impact summary, "what each agent misses": one row per skip in a root load plan, with
- *   the class of the fix that would remove it.
+ *   the class of the fix that would remove it, or "needs your words" for one only `fix -i` can
+ *   complete.
  *
  * Strings here are raw. Paths, names, fix titles and guidance come from the scanned repository,
  * so each formatter passes every string through its own sanitizer when it writes it. Pure.
@@ -16,11 +17,12 @@ import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { ruleDocsUrl } from '../core/meta.js';
-import type { Finding, Fix, FixClass, RuleMeta } from '../core/types.js';
+import type { Finding, Fix, RuleMeta } from '../core/types.js';
 import {
   CONTEXT_AGENTS,
   type ContextAgent,
   type LoadPlan,
+  type SkipFix,
   type SkippedLoad,
 } from '../platforms/load/types.js';
 import { AGENT_NAMES, SKIP_LABELS } from './context-view.js';
@@ -71,6 +73,14 @@ export function fixOf(finding: Finding, channel: Channel): Fix | undefined {
 
 /** How a report names a fix that needs the user's words: `agentcheckup fix -i` asks for them. */
 export const INPUT_FIX_LABEL = 'needs your words (fix -i)';
+
+/**
+ * How a report names the fix that removes a skip (`SkippedLoad.fix`): its class, or
+ * {@link INPUT_FIX_LABEL} for a fix that needs the user's words.
+ */
+export function skipFixLabel(fix: SkipFix): string {
+  return fix === 'input' ? INPUT_FIX_LABEL : fix;
+}
 
 /**
  * True for a fix that needs the user's words before it changes anything (`Fix.input`). Its
@@ -314,8 +324,11 @@ export interface ImpactRow {
   readonly label: string;
   /** Estimated tokens the agent misses, when known and not zero. */
   readonly tokens?: number;
-  /** Class of the fix that removes the skip; absent when a person has to fix it. */
-  readonly fix?: FixClass;
+  /**
+   * How the fix that removes the skip is applied: its class, or `input` when it needs the
+   * user's words; absent when a person has to fix it.
+   */
+  readonly fix?: SkipFix;
   readonly ruleId?: string;
 }
 

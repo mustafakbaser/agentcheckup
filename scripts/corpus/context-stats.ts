@@ -23,6 +23,7 @@ import { matrixPlans } from '../../src/platforms/load/matrix.js';
 import { skillDirectoryOf } from '../../src/platforms/location.js';
 import { inPayloadFolder } from '../../src/platforms/paths.js';
 import {
+  AGENT_NAMES,
   CONTEXT_AGENTS,
   type ContextAgent,
   type LoadEntry,
@@ -31,6 +32,7 @@ import {
   type SkipCode,
 } from '../../src/platforms/load/types.js';
 import { builtinRules } from '../../src/rules/index.js';
+import { joinNames } from '../../src/rules/shared/format.js';
 
 /** Codex's documented `project_doc_max_bytes` limit, as the Codex loader reports it. */
 const CODEX_BUDGET_KEY = 'codex.project_doc_max_bytes';
@@ -38,17 +40,8 @@ const CODEX_BUDGET_KEY = 'codex.project_doc_max_bytes';
 /** Roles that put instruction text in the prompt: instruction files, their imports, rules. */
 const INSTRUCTION_ROLES: ReadonlySet<LoadRole> = new Set(['instructions', 'import', 'rule']);
 
-const AGENT_LABELS: Readonly<Record<ContextAgent, string>> = {
-  'claude-code': 'Claude Code',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  'copilot-cli': 'Copilot CLI',
-  'copilot-vscode': 'Copilot in VS Code',
-  'copilot-cloud': 'Copilot cloud agent',
-  gemini: 'Gemini CLI',
-  windsurf: 'Devin Local',
-  cline: 'Cline',
-};
+/** The row that compares the agents' instructions, and the note that explains it. */
+const DIFFERENT_INSTRUCTIONS = 'The agents load different instructions';
 
 type EnvClass = Exclude<EnvItem['class'], 'other'>;
 const ENV_CLASSES: readonly EnvClass[] = ['endpoint', 'credential', 'tls', 'code-exec'];
@@ -388,10 +381,11 @@ export function renderContextSection(
     .map(([code, repos]) => [`\`${code}\``, SKIP_LABELS[code], number(repos)]);
 
   const lines = [
-    'What Claude Code, Codex and Cursor load from each repository, as `agentcheckup context ' +
-      '--matrix` plans it: every agent in the root directory, plus Codex in each directory with ' +
-      'an `AGENTS.md`. Repository scope only: user and managed settings are not visible. Token ' +
-      'counts are estimates (characters ÷ 4). See [docs/context.md](../docs/context.md).',
+    `What ${joinNames(agents.map((agent) => AGENT_NAMES[agent]))} load from each repository, ` +
+      'as `agentcheckup context --matrix` plans it: every agent in the root directory, plus Codex ' +
+      'in each directory with an `AGENTS.md`. Repository scope only: user and managed settings ' +
+      'are not visible. Token counts are estimates (characters ÷ 4). See ' +
+      '[docs/context.md](../docs/context.md).',
     '',
     table(
       ['', 'Repositories'],
@@ -401,14 +395,8 @@ export function renderContextSection(
           'Some agent loads instructions at session start, root directory',
           number(withInstructions.length),
         ],
-        [
-          'The three agents load different instruction files',
-          ratio(differ.length, withInstructions.length),
-        ],
-        [
-          'One of the three loads no instructions at all',
-          ratio(someAgentWithout.length, differ.length),
-        ],
+        [DIFFERENT_INSTRUCTIONS, ratio(differ.length, withInstructions.length)],
+        ['Some agent loads no instructions at all', ratio(someAgentWithout.length, differ.length)],
         ['Root `AGENTS.md`', number(rootAgentsMd)],
         [
           'Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead',
@@ -422,7 +410,7 @@ export function renderContextSection(
           number(count((item) => item.skippingAgents.length > 0)),
         ],
         ...agents.map((agent) => [
-          `${AGENT_LABELS[agent]} skips one`,
+          `${AGENT_NAMES[agent]} skips one`,
           number(count((item) => item.skippingAgents.includes(agent))),
         ]),
         [
@@ -437,8 +425,8 @@ export function renderContextSection(
       ],
     ),
     '',
-    '"The three agents load different instruction files" compares the instruction files, imports ' +
-      'and rules each agent has in context at session start, by real path. Working directories ' +
+    `"${DIFFERENT_INSTRUCTIONS}" compares the instruction files, imports and rules each agent ` +
+      'has in context at session start, by real path. Working directories ' +
       'are the root and each directory with an `AGENTS.md`, except inside skills, dot ' +
       'directories, and templates, examples or fixtures folders, as `instr/codex-size-budget` ' +
       'decides. A skip counts only when the agent does not read the same file through another ' +
@@ -457,13 +445,13 @@ export function renderContextSection(
       ['---', '---:', '---:', '---:', '---:'],
       agents.flatMap((agent) => [
         distribution(
-          `${AGENT_LABELS[agent]}: instructions`,
+          `${AGENT_NAMES[agent]}: instructions`,
           facts
             .filter((item) => item.startupInstructions[agent].length > 0)
             .map((item) => item.instructionTokens[agent]),
         ),
         distribution(
-          `${AGENT_LABELS[agent]}: with the skills listing`,
+          `${AGENT_NAMES[agent]}: with the skills listing`,
           facts
             .filter((item) => item.loadsAtStartup[agent])
             .map((item) => item.startupTokens[agent]),

@@ -33,7 +33,7 @@ import { parseFrontmatter } from '../parse/frontmatter.js';
 import { splitToolRules } from '../platforms/permissions.js';
 import { SKILL_ROOTS } from '../platforms/skills.js';
 import { forTerminal } from '../report/sanitize.js';
-import { platformList } from '../rules/shared/format.js';
+import { readerList } from '../rules/shared/format.js';
 import { type SkillCommandOptions, type SkillDir, UsageError } from './args.js';
 import { EXIT, type ExitCode, type Io, loadConfig, type Prompt, scanOptionsFor } from './common.js';
 
@@ -180,7 +180,7 @@ export async function skill(
   }
 
   const tools = allowedTools(files.find((file) => file.path === 'SKILL.md')?.text ?? '');
-  io.stdout(planText(files, tools, target, skillsDirectory, shown));
+  io.stdout(planText(files, tools, target, dir, shown));
   if (prompt !== undefined) {
     const answer = await prompt.ask('Install the skill? [y/N] ');
     if (answer === undefined) {
@@ -255,19 +255,21 @@ function existingSkill(
   const other: SkillDir = dir === 'claude' ? 'agents' : 'claude';
   const elsewhere = `${SKILL_DIRECTORIES[other]}/${SKILL_NAME}`;
   if (pathStatus(snapshot, elsewhere) === 'missing') return undefined;
-  const agentsReaders = readersOf(SKILL_DIRECTORIES.agents);
-  const both = readersOf(SKILL_DIRECTORIES.claude).filter((platform) =>
-    agentsReaders.includes(platform),
-  );
+  const agentsReaders = skillReaders('agents');
+  const both = skillReaders('claude').filter((platform) => agentsReaders.includes(platform));
   return (shown) =>
-    `the skill is already in ${shown(elsewhere)}. ${platformList(both)} read both ` +
+    `the skill is already in ${shown(elsewhere)}. ${readerList(both)} read both ` +
     `${SKILL_DIRECTORIES.claude} and ${SKILL_DIRECTORIES.agents}, so a second copy would give ` +
     `them two skills named "${SKILL_NAME}" (skill/duplicate-name). Keep that copy, or remove it ` +
     `and install again.`;
 }
 
-/** The agents that load skills from the skills directory `segment`. */
-function readersOf(segment: string): PlatformId[] {
+/**
+ * The platforms whose agents load skills from the skills directory of `--dir`, in
+ * SKILL_ROOTS order. Messages name them with `readerList`: Devin Local, not Windsurf.
+ */
+export function skillReaders(dir: SkillDir): PlatformId[] {
+  const segment = SKILL_DIRECTORIES[dir];
   const root = SKILL_ROOTS.find((candidate) => candidate.segment === segment);
   return root?.readers.map((reader) => reader.platform) ?? [];
 }
@@ -319,13 +321,13 @@ function planText(
   files: readonly SkillFile[],
   tools: readonly string[],
   target: string,
-  skillsDirectory: string,
+  dir: SkillDir,
   shown: (path: string) => string,
 ): string {
   const lines = [
     `Install the agentcheckup skill in ${shown(target)}:`,
     ...files.map((file) => `  ${shown(`${target}/${file.path}`)}`),
-    `${platformList(readersOf(skillsDirectory))} load skills from ${skillsDirectory}.`,
+    `${readerList(skillReaders(dir))} load skills from ${SKILL_DIRECTORIES[dir]}.`,
     'Checked in memory with every rule: the skill adds no finding.',
   ];
   if (tools.length > 0) {

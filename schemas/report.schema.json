@@ -842,8 +842,8 @@
           "$ref": "#/$defs/size"
         },
         "fix": {
-          "description": "The class of the fix on the finding of `ruleId` on `path`, when it has one.",
-          "$ref": "#/$defs/fixClass"
+          "description": "How the fix on the finding of `ruleId` on `path` is applied, when it has one: its class (`safe`, `review`), or `input` when it needs your words, which only `agentcheckup fix -i` asks for.",
+          "enum": ["safe", "review", "input"]
         },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "$ref": "#/$defs/sourceKeys" }

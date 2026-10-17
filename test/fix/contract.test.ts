@@ -270,9 +270,10 @@ describe('the public fix contract', () => {
     expectTypeOf<Finding['guidance']>().toEqualTypeOf<string | undefined>();
   });
 
-  it('adds a size and a fix class to skipped loads', () => {
+  it('adds a size and a fix label to skipped loads: a fix class, or input, which is no class', () => {
     expectTypeOf<SkippedLoad['size']>().toEqualTypeOf<Size | undefined>();
-    expectTypeOf<SkippedLoad['fix']>().toEqualTypeOf<FixClass | undefined>();
+    expectTypeOf<SkippedLoad['fix']>().toEqualTypeOf<FixClass | 'input' | undefined>();
+    expectTypeOf<'input'>().not.toExtend<FixClass>();
   });
 
   it('gives source files an identity that src/io can compare', () => {

@@ -49,7 +49,12 @@ import {
   own,
   type ParsedJson,
 } from '../../parse/json-access.js';
-import type { FrontmatterResult, ImportReference, JsonDocument } from '../../parse/types.js';
+import type {
+  FrontmatterResult,
+  ImportDialect,
+  ImportReference,
+  JsonDocument,
+} from '../../parse/types.js';
 import { classify, isCandidateBasename } from '../classify.js';
 import {
   copilotActivation,
@@ -493,6 +498,60 @@ interface Reached {
   readonly caseMismatch: boolean;
 }
 
+/** Every path that reaches `artifact`: its own, then its symlink aliases that classify. */
+function reachedOf(artifact: Artifact): Reached[] {
+  const reached: Reached[] = [
+    {
+      path: artifact.path,
+      artifact,
+      kind: artifact.kind,
+      caseMismatch: artifact.caseMismatch !== undefined,
+    },
+  ];
+  for (const alias of artifact.aliases) {
+    // An alias is what the agent sees at that path, so its own name decides its role.
+    const classification = classify(alias);
+    if (classification === undefined) continue;
+    reached.push({
+      path: alias,
+      artifact,
+      kind: classification.kind,
+      caseMismatch: classification.caseMismatch !== undefined,
+    });
+  }
+  return reached;
+}
+
+/**
+ * How Copilot CLI finds `@path` references: its tokenization is not documented, so Claude Code's
+ * is reused, resolution relative to the file included.
+ */
+export const COPILOT_CLI_IMPORT_DIALECT: ImportDialect = 'claude';
+
+/**
+ * The files whose `@path` references Copilot CLI inlines when it loads them as instruction
+ * files: `.github/copilot-instructions.md`, AGENTS.md, CLAUDE.md and `.claude/CLAUDE.md` in any
+ * directory, reached by their exact names. The CLI reads them in the directories from the
+ * repository root to the working directory, and in the directories of the files it works on.
+ * The walker's import pass (src/io/imports.ts) starts from these files too.
+ */
+export function copilotCliImportRoots(artifacts: readonly Artifact[]): Artifact[] {
+  return artifacts.filter((artifact) =>
+    reachedOf(artifact).some((file) => {
+      const slot = slotOf(file.path, file.kind);
+      return !file.caseMismatch && slot !== undefined && IMPORTING_SLOTS.has(slot.name);
+    }),
+  );
+}
+
+/**
+ * True when Copilot CLI inlines the references in a file of `kind` that a reference reached: in
+ * every file but GEMINI.md and `*.instructions.md` files.
+ */
+export function copilotCliExpandsImported(kind: ArtifactKind): boolean {
+  return kind !== 'gemini-md' && kind !== 'copilot-path-instructions';
+}
+
 interface Access {
   readonly trigger: 'startup' | 'on-path';
   readonly certainty: Certainty;
@@ -562,27 +621,7 @@ class CopilotLoader {
     this.#chain = selfAndAncestors(cwd)
       .filter((directory) => within(directory, this.#root))
       .reverse();
-    const reached: Reached[] = [];
-    for (const artifact of view.artifacts) {
-      reached.push({
-        path: artifact.path,
-        artifact,
-        kind: artifact.kind,
-        caseMismatch: artifact.caseMismatch !== undefined,
-      });
-      for (const alias of artifact.aliases) {
-        // An alias is what the agent sees at that path, so its own name decides its role.
-        const classification = classify(alias);
-        if (classification === undefined) continue;
-        reached.push({
-          path: alias,
-          artifact,
-          kind: classification.kind,
-          caseMismatch: classification.caseMismatch !== undefined,
-        });
-      }
-    }
-    this.#reached = reached;
+    this.#reached = view.artifacts.flatMap(reachedOf);
   }
 
   build(): LoadPlan {
@@ -763,7 +802,7 @@ class CopilotLoader {
     const graph = this.#importGraph();
     const doc = this.#view.markdown(artifact);
     if (!doc.analysis.complete) this.#incomplete.add(`markdown-budget:${artifact.path}`);
-    const edges = graph.edges(artifact, 'claude');
+    const edges = graph.edges(artifact, COPILOT_CLI_IMPORT_DIALECT);
     if (!graph.spend(edges.length)) return undefined;
     return { artifact, path, via, edges, hop, next: 0 };
   }
@@ -839,7 +878,7 @@ class CopilotLoader {
       });
       this.#hops.push({ path: target, value: hop });
       // References are not expanded in GEMINI.md or `*.instructions.md` files.
-      if (imported.kind === 'gemini-md' || imported.kind === 'copilot-path-instructions') continue;
+      if (!copilotCliExpandsImported(imported.kind)) continue;
       const next = this.#frame(imported, target, via, hop);
       if (next === undefined) {
         this.#incomplete.add(`import-budget:${rootPath}`);

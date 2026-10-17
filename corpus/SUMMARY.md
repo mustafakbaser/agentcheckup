@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 59 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 62 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -10,46 +10,64 @@ Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 59 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7603 |
+| Artifacts                   | 7615 |
 | Errors                      |  698 |
-| Warnings                    | 1235 |
+| Warnings                    | 1238 |
 | Infos                       | 1542 |
 | Repositories with findings  |   70 |
 | Rules that crashed          |    0 |
 
 ## What agents load
 
-What Claude Code, Codex and Cursor load from each repository, as `agentcheckup context --matrix` plans it: every agent in the root directory, plus Codex in each directory with an `AGENTS.md`. Repository scope only: user and managed settings are not visible. Token counts are estimates (characters ÷ 4). See [docs/context.md](../docs/context.md).
+What Claude Code, Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Gemini CLI, Devin Local and Cline load from each repository, as `agentcheckup context --matrix` plans it: every agent in the root directory, plus Codex in each directory with an `AGENTS.md`. Repository scope only: user and managed settings are not visible. Token counts are estimates (characters ÷ 4). See [docs/context.md](../docs/context.md).
 
 |                                                                        | Repositories |
 | ---------------------------------------------------------------------- | -----------: |
-| Some agent loads instructions at session start, root directory         |           71 |
-| The three agents load different instruction files                      |     41 of 71 |
-| One of the three loads no instructions at all                          |     13 of 41 |
+| Some agent loads instructions at session start, root directory         |           73 |
+| The agents load different instructions                                 |     72 of 73 |
+| Some agent loads no instructions at all                                |     68 of 72 |
 | Root `AGENTS.md`                                                       |           55 |
 | Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead |     11 of 55 |
-| Some agent skips an agent-config file or item                          |           30 |
+| Some agent skips an agent-config file or item                          |           33 |
 | Claude Code skips one                                                  |           24 |
 | Codex skips one                                                        |            5 |
 | Cursor skips one                                                       |            4 |
+| Copilot CLI skips one                                                  |            3 |
+| Copilot in VS Code skips one                                           |            7 |
+| Copilot cloud agent skips one                                          |            5 |
+| Gemini CLI skips one                                                   |            1 |
+| Devin Local skips one                                                  |            1 |
+| Cline skips one                                                        |            0 |
 | `AGENTS.md` chain over Codex's 32 KiB default, root directory          |            5 |
 | `AGENTS.md` chain over Codex's 32 KiB default, any working directory   |           14 |
 | Loader crashes                                                         |            0 |
 
-"The three agents load different instruction files" compares the instruction files, imports and rules each agent has in context at session start, by real path. Working directories are the root and each directory with an `AGENTS.md`, except inside skills, dot directories, and templates, examples or fixtures folders, as `instr/codex-size-budget` decides. A skip counts only when the agent does not read the same file through another path, such as an `AGENTS.md` and a `CLAUDE.md` symlinked to one file.
+"The agents load different instructions" compares the instruction files, imports and rules each agent has in context at session start, by real path. Working directories are the root and each directory with an `AGENTS.md`, except inside skills, dot directories, and templates, examples or fixtures folders, as `instr/codex-size-budget` decides. A skip counts only when the agent does not read the same file through another path, such as an `AGENTS.md` and a `CLAUDE.md` symlinked to one file.
 
 ### Session-start context, root directory
 
 In ≈tokens. "Instructions" are instruction files, imports and rules, after documented cuts such as Codex's byte limit; only repositories where the agent loads one are counted. "With the skills listing" adds skill names and descriptions as the repository writes them, before an agent shortens a long listing; only repositories where the agent loads anything at session start are counted. Percentiles use the nearest-rank method.
 
-|                                      | Repositories | Median | 90th percentile | Largest |
-| ------------------------------------ | -----------: | -----: | --------------: | ------: |
-| Claude Code: instructions            |           70 |  2,020 |           9,743 |  27,396 |
-| Claude Code: with the skills listing |           70 |  2,649 |           9,743 |  28,191 |
-| Codex: instructions                  |           58 |  2,200 |           7,323 |   8,189 |
-| Codex: with the skills listing       |           59 |  2,892 |           8,186 |  48,675 |
-| Cursor: instructions                 |           70 |  2,966 |          10,941 |  27,396 |
-| Cursor: with the skills listing      |           70 |  3,997 |          12,380 |  71,481 |
+|                                              | Repositories | Median | 90th percentile | Largest |
+| -------------------------------------------- | -----------: | -----: | --------------: | ------: |
+| Claude Code: instructions                    |           70 |  2,020 |           9,743 |  27,396 |
+| Claude Code: with the skills listing         |           70 |  2,649 |           9,743 |  28,191 |
+| Codex: instructions                          |           58 |  2,200 |           7,323 |   8,189 |
+| Codex: with the skills listing               |           59 |  2,892 |           8,186 |  48,675 |
+| Cursor: instructions                         |           70 |  2,966 |          10,941 |  27,396 |
+| Cursor: with the skills listing              |           70 |  3,997 |          12,380 |  71,481 |
+| Copilot CLI: instructions                    |           71 |  3,347 |           9,743 |  28,093 |
+| Copilot CLI: with the skills listing         |           71 |  4,142 |           9,743 |  28,224 |
+| Copilot in VS Code: instructions             |           70 |  3,500 |          11,316 |  27,396 |
+| Copilot in VS Code: with the skills listing  |           70 |  4,610 |          12,380 |  37,616 |
+| Copilot cloud agent: instructions            |           71 |  3,500 |          11,316 |  28,093 |
+| Copilot cloud agent: with the skills listing |           71 |  4,610 |          12,380 |  37,616 |
+| Gemini CLI: instructions                     |            7 |  1,153 |           4,136 |   4,136 |
+| Gemini CLI: with the skills listing          |           33 |    818 |           4,136 |  50,794 |
+| Devin Local: instructions                    |           70 |  2,918 |          10,941 |  27,396 |
+| Devin Local: with the skills listing         |           72 |  3,997 |          12,380 |  53,119 |
+| Cline: instructions                          |           58 |  2,238 |           9,610 |  27,141 |
+| Cline: with the skills listing               |           64 |  2,557 |          11,977 |  42,508 |
 
 ### Why agents skip files
 
@@ -59,8 +77,12 @@ Repositories where a modeled agent skips a file or item for this reason, in a pl
 | ----------------------- | --------------------------------------------- | -----------: |
 | `shadowed-by-claude-md` | AGENTS.md hidden by a CLAUDE.md (Claude Code) |           24 |
 | `over-byte-budget`      | over a byte limit                             |            5 |
+| `invalid-frontmatter`   | invalid frontmatter                           |            4 |
 | `not-mdc`               | not an .mdc file (Cursor)                     |            3 |
+| `wrong-location`        | not in a location the agent reads             |            3 |
+| `no-apply-to`           | no valid applyTo (Copilot)                    |            2 |
 | `blank-file`            | blank file                                    |            1 |
+| `no-frontmatter`        | no frontmatter                                |            1 |
 
 ### MCP servers, hooks, permissions and env overrides
 
@@ -68,18 +90,18 @@ From the security inventory, which lists every item whether or not an agent load
 
 |                                            | Repositories | Items |
 | ------------------------------------------ | -----------: | ----: |
-| MCP servers                                |           29 |   119 |
-| Local MCP servers (started from a command) |           22 |    89 |
-| Unpinned local MCP servers                 |           19 |    77 |
-| Remote MCP servers (URL)                   |           17 |    30 |
+| MCP servers                                |           30 |   132 |
+| Local MCP servers (started from a command) |           23 |    97 |
+| Unpinned local MCP servers                 |           20 |    85 |
+| Remote MCP servers (URL)                   |           17 |    35 |
 | Hooks                                      |           28 |   215 |
 | Hooks that fail open                       |           12 |    36 |
-| Broad permissions                          |           23 |   739 |
+| Broad permissions                          |           23 |   741 |
 | Env overrides: endpoint                    |            0 |     0 |
 | Env overrides: credential                  |            2 |    21 |
 | Env overrides: tls                         |            0 |     0 |
 | Env overrides: code-exec                   |            3 |     5 |
-| `.codex/config.toml`, not analyzed         |            6 |     - |
+| `.codex/config.toml`, not analyzed         |            0 |     - |
 
 ## Artifacts by kind
 
@@ -102,7 +124,9 @@ From the security inventory, which lists every item whether or not an agent load
 | `cline-rule`                |         9 |            1 |
 | `cline-workflow`            |         7 |            1 |
 | `cursor-mcp`                |         7 |            7 |
+| `codex-config`              |         6 |            6 |
 | `codex-hooks`               |         6 |            6 |
+| `imported-file`             |         6 |            2 |
 | `cursor-hooks`              |         5 |            5 |
 | `vscode-mcp`                |         5 |            5 |
 | `cursor-legacy-rules`       |         4 |            4 |
@@ -135,12 +159,15 @@ Repository columns count repositories with at least one finding of that severity
 | Rule                                | Severity | Errors | Warnings | Infos | Repos with errors | Repos with warnings | Repos with infos | Repos affected | Applicable repos |
 | ----------------------------------- | -------- | -----: | -------: | ----: | ----------------: | ------------------: | ---------------: | -------------: | ---------------: |
 | `analysis/partial`                  | info     |      0 |        0 |     5 |                 0 |                   0 |                3 |              3 |               79 |
+| `codex/config-invalid`              | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                6 |
+| `codex/ignored-project-key`         | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |                6 |
 | `copilot/apply-to`                  | warn     |      0 |        2 |    33 |                 0 |                   2 |                4 |              5 |                8 |
 | `copilot/instructions-misplaced`    | error    |      0 |        6 |     0 |                 0 |                   3 |                0 |              3 |               19 |
 | `cursor/legacy-cursorrules`         | info     |      0 |        0 |     4 |                 0 |                   0 |                4 |              4 |                4 |
 | `cursor/md-file-ignored`            | error    |     84 |        0 |     0 |                 3 |                   0 |                0 |              3 |                3 |
 | `cursor/rule-frontmatter`           | warn     |      0 |        0 |     8 |                 0 |                   0 |                3 |              3 |               10 |
 | `cursor/rule-never-applied`         | info     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               10 |
+| `gemini/settings-key-ignored`       | warn     |      0 |        2 |     0 |                 0 |                   2 |                0 |              2 |                4 |
 | `hooks/fails-open`                  | info     |      0 |        0 |    36 |                 0 |                   0 |               12 |             12 |               44 |
 | `hooks/script-missing`              | error    |      1 |        0 |     0 |                 1 |                   0 |                0 |              1 |               40 |
 | `hooks/timeout-units`               | warn     |      0 |       86 |     0 |                 0 |                   3 |                0 |              3 |               44 |
@@ -162,10 +189,10 @@ Repository columns count repositories with at least one finding of that severity
 | `instr/windsurf-rule-too-long`      | info     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |                3 |
 | `json/duplicate-key`                | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               59 |
 | `json/invalid-syntax`               | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               58 |
-| `mcp/env-syntax-mismatch`           | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               38 |
+| `mcp/env-syntax-mismatch`           | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               39 |
 | `mcp/gemini-server-name`            | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                4 |
 | `mcp/gemini-trust`                  | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                4 |
-| `mcp/insecure-transport`            | warn     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |               39 |
+| `mcp/insecure-transport`            | warn     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |               40 |
 | `mcp/literal-secret`                | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               59 |
 | `mcp/url-without-type`              | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               34 |
 | `risk/hidden-comment`               | info     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               79 |
@@ -204,13 +231,13 @@ What agentcheckup offers for the findings above, as the scan reports it: a safe 
 | With a fix that needs review     | 1,528 |   44% |           54 |
 | With a fix that needs your words |   811 |   23% |           44 |
 | A task for a coding agent        |   925 |   27% |           50 |
-| None of these: left to you       |    63 |    2% |           23 |
+| None of these: left to you       |    66 |    2% |           24 |
 
 Scores after applying the fixes in memory and verifying them, as `agentcheckup fix --write` and `fix --write --review` do. `mcp/literal-secret` stays opt-in and is not applied. The median gain is over the repositories whose score rises.
 
 |                                  | After safe fixes | After safe and review fixes |
 | -------------------------------- | ---------------: | --------------------------: |
-| Repositories with a higher score |               12 |                          30 |
+| Repositories with a higher score |               11 |                          30 |
 | Median gain                      |               +3 |                          +3 |
 | Repositories with a lower score  |                0 |                           0 |
 | Fix runs that crashed            |                0 |                           0 |

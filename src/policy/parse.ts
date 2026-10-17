@@ -12,7 +12,7 @@ import { normalizeRelative } from '../core/paths.js';
 import { npmPin } from '../inventory/package-spec.js';
 import { HOOK_EVENTS, HOOK_PLATFORMS, type HookPlatform } from '../platforms/hooks.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
-import { platformName, quote } from '../rules/shared/format.js';
+import { quote, readerName } from '../rules/shared/format.js';
 import { nearest } from './text.js';
 import {
   COMMAND_NAME,
@@ -562,7 +562,7 @@ function checkRequirement(v: Validator, value: unknown, path: string): HookRequi
 
 /** Why `event` is not one of the agent's hook events, with the nearest name when there is one. */
 function unknownEvent(agent: HookPlatform, event: string): string {
-  const label = platformName(agent);
+  const label = readerName(agent);
   const events = HOOK_EVENTS[agent];
   const lower = event.toLowerCase();
   const guess = events.find((name) => name.toLowerCase() === lower) ?? nearest(event, events, 3);
@@ -571,7 +571,7 @@ function unknownEvent(agent: HookPlatform, event: string): string {
   }
   const owner = HOOK_PLATFORMS.find((other) => HOOK_EVENTS[other].includes(event));
   if (owner !== undefined) {
-    return `${quote(event)} is a ${platformName(owner)} hook event, not a ${label} one.`;
+    return `${quote(event)} is a ${readerName(owner)} hook event, not a ${label} one.`;
   }
   return `${quote(event)} is not a ${label} hook event.`;
 }

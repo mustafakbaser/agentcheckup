@@ -694,6 +694,36 @@ describe('agents that share a platform, severities and skips no rule reports', (
     ).toEqual([`finding-without-skip copilot/apply-to copilot-cloud ${path}`]);
   });
 
+  it('takes only Claude Code import-depth findings of warn or error as a skip: a cycle loads nothing new', () => {
+    const cycle = check({ 'CLAUDE.md': '@a.md\n', 'a.md': '@CLAUDE.md\n' }, { imported: ['a.md'] });
+    const depth = cycle.result.findings.filter((f) => f.ruleId === 'instr/import-depth');
+    expect(depth.map((f) => `${f.severity} ${f.path} ${f.platforms.join()}`)).toEqual([
+      'info a.md claude-code',
+    ]);
+    expect(cycle.report.mismatches).toEqual([]);
+    const claude = cycle.plans.find((p) => p.agent === 'claude-code' && p.cwd === '');
+    expect(claude?.entries.map((e) => e.path)).toEqual(['CLAUDE.md', 'a.md']);
+    expect(claude?.skipped).toEqual([]);
+
+    // Five hops: an error, and Claude Code skips the fifth file.
+    const name = (i: number): string => `d${String(i)}.md`;
+    const files: Record<string, string> = { 'CLAUDE.md': `@${name(1)}\n` };
+    for (let i = 1; i <= 4; i++) files[name(i)] = `@${name(i + 1)}\n`;
+    files[name(5)] = 'End.\n';
+    const deep = check(files, { imported: Object.keys(files).slice(1) });
+    expect(
+      deep.result.findings
+        .filter((f) => f.ruleId === 'instr/import-depth')
+        .map((f) => `${f.severity} ${f.path}`),
+    ).toEqual(['error d4.md']);
+    expect(deep.report.mismatches).toEqual([]);
+    expect(
+      deep.plans
+        .find((p) => p.agent === 'claude-code' && p.cwd === '')
+        ?.skipped.map((s) => `${s.path} ${s.code} ${s.ruleId ?? '-'}`),
+    ).toEqual(['d4.md import-too-deep instr/import-depth']);
+  });
+
   it('accepts skips that no rule reports: disabled, shadowed-by-preferred, never-active', () => {
     const plans = [
       plan('windsurf', {

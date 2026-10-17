@@ -9,7 +9,7 @@
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
 import { normalizeRelative } from '../../core/paths.js';
-import type { Finding, FixClass, PlatformId, RuleSource } from '../../core/types.js';
+import type { Finding, PlatformId, RuleSource } from '../../core/types.js';
 import { SOURCES } from '../sources.js';
 import { loadClaudeCode } from './claude-code.js';
 import { loadCline } from './cline.js';
@@ -27,6 +27,7 @@ import {
   type LoadEntry,
   type LoadPlan,
   type OutOfScope,
+  type SkipFix,
   type SkippedLoad,
   type SourceKey,
   TRIGGER_RANK,
@@ -303,38 +304,48 @@ export interface ContextReportInput {
   readonly plans: readonly LoadPlan[];
   readonly matrix?: ContextReport['matrix'];
   /**
-   * The scan's findings. A skip gets `fix`, the class of the fix on the unsuppressed finding of
-   * its rule on its file ({@link withFixClasses}). Without them, skips keep what they have.
+   * The scan's findings. A skip gets `fix`, how the fix on the unsuppressed finding of its rule
+   * on its file is applied ({@link withFixClasses}). Without them, skips keep what they have.
    */
   readonly findings?: readonly Finding[];
 }
 
+/** How hard each way of applying a fix is: the skip is gone only once the hardest is done. */
+const SKIP_FIX_RANK: Readonly<Record<SkipFix, number>> = { safe: 0, review: 1, input: 2 };
+
 /**
- * The fix class of each (rule, file): from the unsuppressed findings that carry a fix. When
- * several do, `review` wins: the skip is gone only once every one of them is applied.
+ * How the fix of each (rule, file) is applied, from the unsuppressed findings that carry a fix:
+ * `input` when it needs the user's words, else its class. When several findings do, the
+ * hardest wins (`input`, then `review`): the skip is gone only once every one of them is
+ * applied.
  */
-function fixClasses(findings: readonly Finding[]): Map<string, FixClass> {
-  const classes = new Map<string, FixClass>();
+function skipFixes(findings: readonly Finding[]): Map<string, SkipFix> {
+  const fixes = new Map<string, SkipFix>();
   for (const finding of findings) {
     if (finding.suppressed !== undefined || finding.fix === undefined) continue;
     const key = `${finding.ruleId}\u0000${finding.path}`;
-    if (classes.get(key) !== 'review') classes.set(key, finding.fix.class);
+    const fix: SkipFix = finding.fix.input === undefined ? finding.fix.class : 'input';
+    const previous = fixes.get(key);
+    if (previous === undefined || SKIP_FIX_RANK[fix] > SKIP_FIX_RANK[previous]) {
+      fixes.set(key, fix);
+    }
   }
-  return classes;
+  return fixes;
 }
 
 /**
  * `plan` with `fix` set on each skip a rule reports, from the finding of that rule on the same
  * path (`SkippedLoad.ruleId`, `SkippedLoad.path`) when it carries a fix, and removed otherwise.
+ * `fix` is `input` when that fix needs the user's words.
  */
 export function withFixClasses(plan: LoadPlan, findings: readonly Finding[]): LoadPlan {
-  const classes = fixClasses(findings);
+  const fixes = skipFixes(findings);
   return {
     ...plan,
     skipped: plan.skipped.map((skip) => {
       const { fix: _previous, ...rest } = skip;
       const fix =
-        skip.ruleId === undefined ? undefined : classes.get(`${skip.ruleId}\u0000${skip.path}`);
+        skip.ruleId === undefined ? undefined : fixes.get(`${skip.ruleId}\u0000${skip.path}`);
       return fix === undefined ? rest : { ...rest, fix };
     }),
   };

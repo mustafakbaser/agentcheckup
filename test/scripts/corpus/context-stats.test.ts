@@ -116,7 +116,14 @@ describe('renderContextSection', () => {
   it('adds up counts across repositories', () => {
     const text = renderContextSection(repos);
     // Gemini CLI reads only GEMINI.md without context.fileName, so it loads none of these.
-    expect(text).toContain('| The three agents load different instruction files | 2 of 2 |');
+    expect(text).toContain('| The agents load different instructions | 2 of 2 |');
+    expect(text).toContain('| Some agent loads no instructions at all | 2 of 2 |');
+    expect(text).toContain('| Devin Local skips one | 0 |');
+    expect(text).toContain('| Gemini CLI: instructions | 0 | 0 | 0 | 0 |');
+    expect(text.split('\n')[0]).toMatch(
+      /^What Claude Code, Codex, Cursor, .* Devin Local and Cline load /,
+    );
+    expect(text).not.toContain('three');
     expect(text).toContain(
       '| Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead | 1 of 2 |',
     );

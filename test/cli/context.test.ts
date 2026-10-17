@@ -5,6 +5,7 @@ import { CONTEXT_HELP } from '../../src/cli/help.js';
 import { contextExitCode, EXIT, run } from '../../src/cli/run.js';
 import type { ScanResult } from '../../src/core/engine.js';
 import { scanSnapshot } from '../../src/core/engine.js';
+import { CONTEXT_AGENTS } from '../../src/platforms/load/types.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { snapshotFrom } from '../helpers/lint.js';
 import { capture, CONTEXT_FIXTURE, removeTempDirs, tempDir, writeFiles } from './helpers.js';
@@ -127,17 +128,34 @@ describe('agentcheckup context', () => {
     expect(report.context?.agents).toEqual(['claude-code', 'cursor']);
   });
 
+  it('plans every surface of a platform named with --agent, and every agent with all', async () => {
+    const copilot = await contextJson(['--agent', 'copilot']);
+    expect(copilot.context?.agents).toEqual(['copilot-cli', 'copilot-vscode', 'copilot-cloud']);
+    expect(copilot.context?.plans.map((plan) => plan.agent)).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
+    ]);
+    const all = await contextJson(['--agent', 'all']);
+    expect(all.context?.agents).toEqual([...CONTEXT_AGENTS]);
+  });
+
   it('prints the matrix with --matrix', async () => {
     const io = capture(CONTEXT_FIXTURE);
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
-    expect(text).toMatch(
-      /^Files by agent +Claude Code +Codex +Cursor +Copilot CLI +Copilot in VS Code +Copilot cloud agent +Gemini CLI +Devin Local +Cline$/m,
-    );
+    // Nine columns: one letter per cell under grouped short labels, within 80 characters.
+    expect(text).toMatch(/^Files by agent +Claude Codex Cursor Copilot +Gemini Devin Cline$/m);
+    expect(text).toMatch(/^ +CLI VSC Cloud$/m);
     // Gemini CLI reads GEMINI.md unless its settings name AGENTS.md.
-    expect(text).toMatch(/^AGENTS\.md(?: +startup){6} +— +startup +startup$/m);
-    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir(?: +—){7}$/m);
-    expect(text).toMatch(/^start-dir {7}loaded when a session starts in its directory$/m);
+    expect(text).toMatch(/^AGENTS\.md(?: +S){6} +— +S +S$/m);
+    // A path wider than its column gets a line of its own.
+    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md\n +— +D(?: +—){7}$/m);
+    expect(text).toMatch(/^D {2}start-dir {7}loaded when a session starts in its directory$/m);
+    const matrix = text.slice(text.indexOf('Files by agent'));
+    for (const line of matrix.split('\n')) {
+      if (line.includes(' ')) expect(line.length).toBeLessThanOrEqual(80);
+    }
 
     const report = await contextJson(['--matrix']);
     expect(report.context?.matrix?.rows.length).toBeGreaterThan(10);

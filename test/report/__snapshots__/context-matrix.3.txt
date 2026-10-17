@@ -1,0 +1,22 @@
+Files by agent                             Claude Code   Codex       Cursor
+.agents/skills/release-notes               —             listed      listed
+.claude/rules/testing.md                   on-path       —           —
+.claude/skills/deploy                      listed        —           listed
+.codex/config.toml                         —             unknown     —
+.cursor/rules/api.mdc                      —             —           on-path
+.cursor/rules/style.md                     —             —           skipped
+.mcp.json                                  skipped       —           —
+AGENTS.md                                  skipped       startup     startup
+CLAUDE.md                                  startup       —           startup
+packages/api/AGENTS.md                     skipped       start-dir   on-path
+packages/web/AGENTS.md                     on-path       partial     on-path
+services/billing/ledger/export/AGENTS.md   on-path       start-dir   on-path
+
+startup    loaded at session start
+on-path    loaded when the agent opens a file it covers
+start-dir  loaded when a session starts in its directory
+listed     in the skills listing; the body loads when used
+partial    loaded, but cut by a limit
+skipped    not loaded; the plan says why
+unknown    not documented, or not analyzed
+—          not read by this agent

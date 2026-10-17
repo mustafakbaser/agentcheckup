@@ -3,19 +3,23 @@
  * reads what the planner asks for (Walker.readImports in walk.ts), and scripts/corpus replays the
  * same plan from a git tree.
  *
- * Claude Code expands `@path` imports in the instruction files it loads, and Gemini CLI in
- * GEMINI.md, so an imported README.md or docs/guide.md is part of what the agent loads although
- * it is not agent configuration. The walk reads only configuration; without this pass the import
- * rules and the load plans could not size such a file or follow the imports inside it.
+ * Claude Code expands `@path` imports in the instruction files it loads, Gemini CLI in
+ * GEMINI.md, and Copilot CLI `@path` references in its instruction files, so an imported
+ * README.md or docs/guide.md is part of what the agent loads although it is not agent
+ * configuration. The walk reads only configuration; without this pass the import rules and the
+ * load plans could not size such a file or follow the imports inside it.
  *
- * The plan uses the import rules' own code (src/platforms/load/imports.ts): the same roots
- * (importRoots, which include a file that a symlinked CLAUDE.md or GEMINI.md points to), the same
- * extraction (ImportGraph.edges over the engine's Markdown parser, with a budget of its own), the
- * same resolution relative to the importing file (or to the symlink it was loaded through),
+ * The plan uses the import rules' and loaders' own code (src/platforms/load/imports.ts and
+ * copilot.ts): the same roots (importRoots, which include a file that a symlinked CLAUDE.md or
+ * GEMINI.md points to, and copilotCliImportRoots), the same extraction (ImportGraph.edges over the
+ * engine's Markdown parser, with a budget of its own; Copilot CLI's references as Claude Code's),
+ * the same resolution relative to the importing file (or to the symlink it was loaded through),
  * imports inside HTML comments skipped for Claude Code, and the same hop limits (MAX_HOPS: 4 for
- * Claude Code, 5 for Gemini CLI). It is a breadth-first search, one hop per round, so when a cap
- * stops the pass the files closest to the instruction files are the ones that were read. Within
- * a round targets are sorted, so the result does not depend on timing.
+ * Claude Code, 5 for Gemini CLI; Copilot CLI documents none, so only the caps below stop it).
+ * Copilot CLI does not expand references in GEMINI.md or `*.instructions.md` files it reached
+ * through one. It is a breadth-first search, one hop per round, so when a cap stops the pass the
+ * files closest to the instruction files are the ones that were read. Within a round targets are
+ * sorted, so the result does not depend on timing.
  *
  * A target is read only when the walk listed it as a file (inside the root, not ignored, not
  * below an opaque directory, not a link whose target was not looked at), it is text by its name
@@ -27,6 +31,11 @@ import { EMPTY_CONFIG } from '../core/config.js';
 import { analyze, buildArtifacts } from '../core/engine.js';
 import type { Artifact, Snapshot, SourceFile } from '../core/types.js';
 import type { ImportDialect } from '../parse/types.js';
+import {
+  COPILOT_CLI_IMPORT_DIALECT,
+  copilotCliExpandsImported,
+  copilotCliImportRoots,
+} from '../platforms/load/copilot.js';
 import { ImportGraph, importRoots, inHtmlComment, MAX_HOPS } from '../platforms/load/imports.js';
 import { isTextImportTarget } from './filters.js';
 
@@ -49,10 +58,30 @@ export const MAX_IMPORTED_BYTES = 8 * 1024 * 1024;
 export const IMPORT_MARKDOWN_BUDGET = 4 * 1024 * 1024;
 export const IMPORT_MARKDOWN_LINE_BUDGET = 150_000;
 
-const DIALECTS: readonly ImportDialect[] = ['claude', 'gemini'];
+/** One agent's way of following imports: the import rules' dialects, and Copilot CLI's. */
+type Search = ImportDialect | 'copilot-cli';
+
+const SEARCHES: readonly Search[] = ['claude', 'gemini', 'copilot-cli'];
+
+/** How each search finds and resolves the imports in a file. */
+const SEARCH_DIALECT: Readonly<Record<Search, ImportDialect>> = {
+  claude: 'claude',
+  gemini: 'gemini',
+  'copilot-cli': COPILOT_CLI_IMPORT_DIALECT,
+};
+
+/** Hops each search follows. Copilot CLI documents no limit; the pass's caps bound it. */
+const SEARCH_MAX_HOPS: Readonly<Record<Search, number>> = {
+  ...MAX_HOPS,
+  'copilot-cli': Number.POSITIVE_INFINITY,
+};
+
+function perSearch<T>(value: () => T): Record<Search, T> {
+  return { claude: value(), gemini: value(), 'copilot-cli': value() };
+}
 
 interface Waiting {
-  readonly dialect: ImportDialect;
+  readonly search: Search;
   readonly hop: number;
 }
 
@@ -76,11 +105,11 @@ export class ImportPlanner {
   readonly #index: Map<string, Artifact>;
   /** Paths that need no read: files of the walk, targets it skipped, targets asked for. */
   readonly #settled: Set<string>;
-  readonly #hops: Record<ImportDialect, Map<Artifact, number>>;
-  /** Relative targets each dialect has met, at any hop. */
-  readonly #met: Record<ImportDialect, Set<string>>;
-  /** Files to expand in the next round, per dialect. */
-  #frontier: Record<ImportDialect, Artifact[]>;
+  readonly #hops: Record<Search, Map<Artifact, number>>;
+  /** Relative targets each search has met, at any hop. */
+  readonly #met: Record<Search, Set<string>>;
+  /** Files to expand in the next round, per search. */
+  #frontier: Record<Search, Artifact[]>;
   /** Targets handed out by the last `next()`, and the searches waiting for each. */
   readonly #pending = new Map<string, Waiting[]>();
 
@@ -101,14 +130,18 @@ export class ImportPlanner {
       ...snapshot.files.map((file) => file.path),
       ...snapshot.skipped.map((entry) => entry.path),
     ]);
-    this.#hops = { claude: new Map(), gemini: new Map() };
-    this.#met = { claude: new Set(), gemini: new Set() };
-    this.#frontier = { claude: [], gemini: [] };
-    for (const dialect of DIALECTS) {
-      for (const root of importRoots(this.#graph, dialect)) {
-        if (this.#hops[dialect].has(root)) continue;
-        this.#hops[dialect].set(root, 0);
-        this.#frontier[dialect].push(root);
+    this.#hops = perSearch(() => new Map<Artifact, number>());
+    this.#met = perSearch(() => new Set<string>());
+    this.#frontier = perSearch((): Artifact[] => []);
+    for (const search of SEARCHES) {
+      const roots =
+        search === 'copilot-cli'
+          ? copilotCliImportRoots(analysis.artifacts)
+          : importRoots(this.#graph, search);
+      for (const root of roots) {
+        if (this.#hops[search].has(root)) continue;
+        this.#hops[search].set(root, 0);
+        this.#frontier[search].push(root);
       }
     }
   }
@@ -119,7 +152,7 @@ export class ImportPlanner {
    * previous call must have been reported with `done` first.
    */
   next(): string[] {
-    while (DIALECTS.some((dialect) => this.#frontier[dialect].length > 0)) {
+    while (SEARCHES.some((search) => this.#frontier[search].length > 0)) {
       if (!this.#graph.hasBudget()) return [];
       const wanted = this.#expand();
       if (wanted.size > 0) {
@@ -138,36 +171,42 @@ export class ImportPlanner {
     const artifact = this.#artifactOf(file);
     if (artifact === undefined) return;
     this.#index.set(path, artifact);
-    for (const { dialect, hop } of waiting) this.#reach(dialect, artifact, hop);
+    for (const { search, hop } of waiting) this.#reach(search, artifact, hop);
+  }
+
+  /** Whether `search` follows the imports in `file`, reached at `hop`. */
+  #expands(search: Search, file: Artifact, hop: number): boolean {
+    // The agent does not follow the imports of a file at its hop limit. Without an `@` there is
+    // no import, and no need to parse the file.
+    if (hop >= SEARCH_MAX_HOPS[search] || !file.decoded.text.includes('@')) return false;
+    return search !== 'copilot-cli' || hop === 0 || copilotCliExpandsImported(file.kind);
   }
 
   /** One round: expands every frontier file and returns the unread targets it imports. */
   #expand(): Map<string, Waiting[]> {
     const wanted = new Map<string, Waiting[]>();
-    for (const dialect of DIALECTS) {
-      const frontier = this.#frontier[dialect];
-      this.#frontier[dialect] = [];
+    for (const search of SEARCHES) {
+      const frontier = this.#frontier[search];
+      this.#frontier[search] = [];
       for (const file of frontier) {
-        const hop = this.#hops[dialect].get(file) ?? 0;
-        // The agent does not follow the imports of a file at its hop limit. Without an `@`
-        // there is no import, and no need to parse the file.
-        if (hop >= MAX_HOPS[dialect] || !file.decoded.text.includes('@')) continue;
-        const edges = this.#graph.edges(file, dialect);
+        const hop = this.#hops[search].get(file) ?? 0;
+        if (!this.#expands(search, file, hop)) continue;
+        const edges = this.#graph.edges(file, SEARCH_DIALECT[search]);
         if (!this.#graph.spend(edges.length)) return wanted;
         for (const { reference, target } of edges) {
-          if (target === undefined || this.#met[dialect].has(target)) continue;
-          if (dialect === 'claude' && inHtmlComment(this.#graph.markdown(file), reference)) {
+          if (target === undefined || this.#met[search].has(target)) continue;
+          if (search === 'claude' && inHtmlComment(this.#graph.markdown(file), reference)) {
             continue;
           }
-          this.#met[dialect].add(target);
+          this.#met[search].add(target);
           const known = this.#index.get(target);
           if (known !== undefined) {
-            this.#reach(dialect, known, hop + 1);
+            this.#reach(search, known, hop + 1);
             continue;
           }
           if (!this.#readable(target)) continue;
           const list = wanted.get(target) ?? [];
-          list.push({ dialect, hop: hop + 1 });
+          list.push({ search, hop: hop + 1 });
           wanted.set(target, list);
         }
       }
@@ -176,10 +215,10 @@ export class ImportPlanner {
     return wanted;
   }
 
-  #reach(dialect: ImportDialect, artifact: Artifact, hop: number): void {
-    if (this.#hops[dialect].has(artifact)) return;
-    this.#hops[dialect].set(artifact, hop);
-    this.#frontier[dialect].push(artifact);
+  #reach(search: Search, artifact: Artifact, hop: number): void {
+    if (this.#hops[search].has(artifact)) return;
+    this.#hops[search].set(artifact, hop);
+    this.#frontier[search].push(artifact);
   }
 
   /** A listed text file, not read and not tried yet. */

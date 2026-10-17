@@ -12,16 +12,22 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, MatrixCell, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  EMPTY_MATRIX_NOTE,
+  EMPTY_PLAN_NOTE,
   fixableNote,
   ignoredNote,
   MATRIX_CELL_LABELS,
+  MATRIX_CELL_LETTERS,
   MATRIX_LEGEND,
+  type MatrixColumn,
   matrixView,
   type MatrixView,
+  notShownNote,
   type Part,
   type PlanView,
   type StartupRow,
 } from './context-view.js';
+import { INPUT_FIX_LABEL } from './feedback.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle, type Style } from './stylish.js';
 import { displayWidth, plural, truncate } from './text.js';
@@ -80,6 +86,20 @@ const LINE_WIDTH = 100;
 const MAX_NOT_READ = 5;
 const GAP = '  ';
 const MATRIX_GAP = '   ';
+/**
+ * A matrix with more columns than this shows one letter per cell under a two-row header of short,
+ * grouped agent labels, with a key underneath: nine agents with full labels need about 175
+ * characters. Decided by the column count alone, so the output does not depend on the terminal.
+ */
+const MAX_FULL_LABEL_COLUMNS = 4;
+/** The compact matrix fits this width when its paths do: its path column shrinks to fit. */
+const COMPACT_MATRIX_WIDTH = 80;
+/** The compact matrix's path column is never wider than this. */
+const MAX_COMPACT_PATH_WIDTH = 40;
+/** Between the path column and the cells of the compact matrix. */
+const COMPACT_PATH_GAP = '  ';
+/** Between the cells of the compact matrix. */
+const COMPACT_GAP = ' ';
 
 interface Context {
   readonly style: Style;
@@ -293,9 +313,11 @@ function renderSkipped(view: PlanView, context: Context): string[] {
         detail += `${padding(row.reason, reasonWidth)}${GAP}${style.gray(row.rule)}`;
       }
       if (row.fix !== undefined) {
-        const tag = `fix: ${row.fix}`;
-        const paint = row.fix === 'safe' ? style.green : style.yellow;
-        detail += `${padding(row.rule, ruleWidth)}${GAP}${paint(tag)}`;
+        const tag =
+          row.fix === 'input'
+            ? style.blue(INPUT_FIX_LABEL)
+            : (row.fix === 'safe' ? style.green : style.yellow)(`fix: ${row.fix}`);
+        detail += `${padding(row.rule, ruleWidth)}${GAP}${tag}`;
       }
       lines.push(...columns(row.where, whereWidth, detail));
     }
@@ -341,7 +363,9 @@ function renderIgnored(view: PlanView, context: Context): string[] {
 function renderPlan(view: PlanView, context: Context): string[][] {
   const { style, symbols } = context;
   const where = view.cwd === '' ? './' : cleanPath(view.cwd, context);
-  const header = [style.bold(`${view.agentName} context ${symbols.dot} ${where}`)];
+  const title = style.bold(`${view.agentName} context ${symbols.dot} ${where}`);
+  if (view.empty) return [[`${title}: ${EMPTY_PLAN_NOTE}`]];
+  const header = [title];
   if (view.assumptions.length > 0) {
     const items = view.assumptions.map((text) => clean(text, context));
     header.push(...wrapItems('Assumes ', items).map((line) => style.dim(line)));
@@ -381,58 +405,212 @@ function paintCell(cell: MatrixCell, text: string, style: Style): string {
   }
 }
 
-/** The matrix, then a key to the states it shows; no blocks without a matrix. */
-function renderMatrix(view: MatrixView | undefined, options: Context): string[][] {
+/**
+ * The matrix, then a key to the states it shows; no blocks without a matrix, and one line for a
+ * matrix without rows. Columns of agents that read none of the files are left out, and a line
+ * under the rows names those agents.
+ */
+function renderMatrix(view: MatrixView | undefined, context: Context): string[][] {
   if (view === undefined) return [];
-  const { style, symbols } = options;
-  const label = (cell: MatrixCell): string =>
-    cell === 'not-read' ? symbols.notRead : MATRIX_CELL_LABELS[cell];
-  const title = 'Files by agent';
-  const paths = view.rows.map((row) => cleanPath(row.path, options));
-  const pathWidth = columnWidth(paths, title.length);
-  const widths = view.agents.map((agent, index) =>
-    Math.max(
-      displayWidth(agent),
-      ...view.rows.map((row) => {
-        const cell = row.cells[index];
-        return cell === undefined ? 0 : displayWidth(label(cell));
-      }),
-    ),
-  );
-  /** Painted cells, padded by the width of their plain text; the last column is not padded. */
-  const cells = (painted: readonly string[], plain: readonly string[]): string =>
+  if (view.rows.length === 0) return [[EMPTY_MATRIX_NOTE]];
+  const compact = view.columns.length > MAX_FULL_LABEL_COLUMNS;
+  const lines = compact ? compactMatrix(view, context) : fullMatrix(view, context);
+  const note = notShownNote(view);
+  if (note !== undefined) lines.push(context.style.dim(note));
+  const used = new Set(view.rows.flatMap((row) => row.cells));
+  const key = matrixKey(used, compact, context);
+  return key.length === 0 ? [lines] : [lines, key];
+}
+
+/** A cell's text from `labels`, with the formatter's own dash for `not-read`. */
+function cellText(
+  cell: MatrixCell,
+  labels: Readonly<Record<MatrixCell, string>>,
+  context: Context,
+): string {
+  return cell === 'not-read' ? context.symbols.notRead : labels[cell];
+}
+
+/** Cells padded to `widths` by the width of their plain text, joined by `gap`; the last is not padded. */
+function joinCells(
+  widths: readonly number[],
+  gap: string,
+): (painted: readonly string[], plain: readonly string[]) => string {
+  return (painted, plain) =>
     painted
       .map((cell, index) =>
         index === painted.length - 1
           ? cell
           : `${cell}${padding(plain[index] ?? '', widths[index] ?? 0)}`,
       )
-      .join(MATRIX_GAP);
+      .join(gap);
+}
 
-  const lines = [
-    `${style.bold(title)}${padding(title, pathWidth)}${MATRIX_GAP}` +
-      cells(view.agents.map(style.bold), view.agents),
-  ];
-  const used = new Set<MatrixCell>();
-  view.rows.forEach((row, index) => {
-    const path = paths[index] ?? '';
-    for (const cell of row.cells) used.add(cell);
-    const plain = row.cells.map(label);
-    const painted = row.cells.map((cell) => paintCell(cell, label(cell), style));
+/** The path, then the cells; a path wider than its column gets a line of its own. */
+function matrixRows(
+  view: MatrixView,
+  context: Context,
+  layout: {
+    readonly pathWidth: number;
+    readonly gap: string;
+    readonly widths: readonly number[];
+    readonly cellGap: string;
+    readonly labels: Readonly<Record<MatrixCell, string>>;
+  },
+): string[] {
+  const { pathWidth, gap, labels } = layout;
+  const cells = joinCells(layout.widths, layout.cellGap);
+  const lines: string[] = [];
+  for (const row of view.rows) {
+    const path = cleanPath(row.path, context);
+    const plain = row.cells.map((cell) => cellText(cell, labels, context));
+    const painted = row.cells.map((cell, index) =>
+      paintCell(cell, plain[index] ?? '', context.style),
+    );
     const states = cells(painted, plain);
     if (displayWidth(path) <= pathWidth) {
-      lines.push(`${path}${padding(path, pathWidth)}${MATRIX_GAP}${states}`);
+      lines.push(`${path}${padding(path, pathWidth)}${gap}${states}`);
     } else {
-      lines.push(path, `${' '.repeat(pathWidth)}${MATRIX_GAP}${states}`);
+      lines.push(path, `${' '.repeat(pathWidth)}${gap}${states}`);
     }
-  });
-  // What the states in this matrix mean.
+  }
+  return lines;
+}
+
+const MATRIX_TITLE = 'Files by agent';
+
+/** Full agent names over full state labels, for a few columns. */
+function fullMatrix(view: MatrixView, context: Context): string[] {
+  const { style } = context;
+  const names = view.columns.map((column) => column.name);
+  const pathWidth = columnWidth(
+    view.rows.map((row) => cleanPath(row.path, context)),
+    MATRIX_TITLE.length,
+  );
+  const widths = names.map((name, index) =>
+    Math.max(
+      displayWidth(name),
+      ...view.rows.map((row) => {
+        const cell = row.cells[index];
+        return cell === undefined ? 0 : displayWidth(cellText(cell, MATRIX_CELL_LABELS, context));
+      }),
+    ),
+  );
+  const header =
+    `${style.bold(MATRIX_TITLE)}${padding(MATRIX_TITLE, pathWidth)}${MATRIX_GAP}` +
+    joinCells(widths, MATRIX_GAP)(names.map(style.bold), names);
+  return [
+    header,
+    ...matrixRows(view, context, {
+      pathWidth,
+      gap: MATRIX_GAP,
+      widths,
+      cellGap: MATRIX_GAP,
+      labels: MATRIX_CELL_LABELS,
+    }),
+  ];
+}
+
+/** Consecutive columns of one group, such as the Copilot surfaces, with their widths. */
+interface ColumnGroup {
+  readonly label: string;
+  readonly columns: MatrixColumn[];
+  readonly widths: number[];
+}
+
+function spanOf(widths: readonly number[]): number {
+  return widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * COMPACT_GAP.length;
+}
+
+/**
+ * The columns grouped under their group labels. A column is as wide as its surface label, or as
+ * its group label when it is the only column of its group; a group label wider than its columns
+ * widens the last of them.
+ */
+function columnGroups(columns: readonly MatrixColumn[]): ColumnGroup[] {
+  const groups: ColumnGroup[] = [];
+  for (const column of columns) {
+    const last = groups.at(-1);
+    if (last?.label === column.group) last.columns.push(column);
+    else groups.push({ label: column.group, columns: [column], widths: [] });
+  }
+  for (const group of groups) {
+    for (const column of group.columns) {
+      const own = column.surface ?? (group.columns.length === 1 ? group.label : '');
+      group.widths.push(Math.max(1, displayWidth(own)));
+    }
+    const extra = displayWidth(group.label) - spanOf(group.widths);
+    const last = group.widths.length - 1;
+    if (extra > 0) group.widths[last] = (group.widths[last] ?? 1) + extra;
+  }
+  return groups;
+}
+
+/**
+ * One letter per cell under short agent labels: the group on the first header row and the
+ * surface (Copilot's CLI, VSC and Cloud) on the second. The path column shrinks so that all nine
+ * agents fit in 80 characters; a longer path gets a line of its own.
+ */
+function compactMatrix(view: MatrixView, context: Context): string[] {
+  const { style } = context;
+  const groups = columnGroups(view.columns);
+  const widths = groups.flatMap((group) => group.widths);
+  const paths = view.rows.map((row) => cleanPath(row.path, context));
+  const pathWidth = Math.max(
+    MATRIX_TITLE.length,
+    Math.min(
+      MAX_COMPACT_PATH_WIDTH,
+      COMPACT_MATRIX_WIDTH - COMPACT_PATH_GAP.length - spanOf(widths),
+      Math.max(0, ...paths.map(displayWidth)),
+    ),
+  );
+  const first = groups.map(
+    (group) => `${style.bold(group.label)}${padding(group.label, spanOf(group.widths))}`,
+  );
+  const second = groups.flatMap((group) =>
+    group.columns.map((column, index) => {
+      const surface = column.surface ?? '';
+      return `${style.bold(surface)}${padding(surface, group.widths[index] ?? 0)}`;
+    }),
+  );
+  const lines = [
+    `${style.bold(MATRIX_TITLE)}${padding(MATRIX_TITLE, pathWidth)}${COMPACT_PATH_GAP}` +
+      first.join(COMPACT_GAP),
+  ];
+  if (view.columns.some((column) => column.surface !== undefined)) {
+    lines.push(`${' '.repeat(pathWidth)}${COMPACT_PATH_GAP}${second.join(COMPACT_GAP)}`);
+  }
+  lines.push(
+    ...matrixRows(view, context, {
+      pathWidth,
+      gap: COMPACT_PATH_GAP,
+      widths,
+      cellGap: COMPACT_GAP,
+      labels: MATRIX_CELL_LETTERS,
+    }),
+  );
+  return lines;
+}
+
+/**
+ * What the states in the matrix mean, in legend order: `startup  loaded at session start`, or
+ * with the compact matrix `S  startup  loaded at session start`.
+ */
+function matrixKey(used: ReadonlySet<MatrixCell>, compact: boolean, context: Context): string[] {
+  const { style } = context;
   const legend = MATRIX_LEGEND.filter((item) => used.has(item.cell));
+  if (compact) {
+    const nameWidth = Math.max(0, ...legend.map((item) => item.cell.length));
+    return legend.map((item) => {
+      const letter = cellText(item.cell, MATRIX_CELL_LETTERS, context);
+      return style.dim(`${letter}${GAP}${item.cell.padEnd(nameWidth)}${GAP}${item.text}`);
+    });
+  }
+  const label = (cell: MatrixCell): string => cellText(cell, MATRIX_CELL_LABELS, context);
   const keyWidth = Math.max(0, ...legend.map((item) => displayWidth(label(item.cell))));
-  const key = legend.map((item) =>
+  return legend.map((item) =>
     style.dim(`${label(item.cell)}${padding(label(item.cell), keyWidth)}${GAP}${item.text}`),
   );
-  return key.length === 0 ? [lines] : [lines, key];
 }
 
 function contextOf(options: ContextTextOptions): Context {
@@ -462,8 +640,10 @@ function footnotes(views: readonly PlanView[], context: Context): string[] {
 }
 
 /**
- * The file-by-agent matrix (`--matrix`): one row per file, one column per agent, "—" where the
- * agent does not read the file. Empty string when the report has no matrix.
+ * The file-by-agent matrix (`--matrix`): one row per file, one column per agent that reads any
+ * of them, "—" where the agent does not read the file. Up to four columns show full names and
+ * states; more show one letter per state under a grouped header, with a key. Empty string when
+ * the report has no matrix.
  */
 export function formatMatrixText(
   context: ContextReport | undefined,
@@ -471,6 +651,20 @@ export function formatMatrixText(
 ): string {
   const blocks = renderMatrix(matrixView(context), contextOf(options));
   return blocks.length === 0 ? '' : finish(blocks);
+}
+
+/** Each plan's blocks; the one-line blocks of consecutive empty plans become one block. */
+function planBlocks(views: readonly PlanView[], context: Context): string[][] {
+  const blocks: string[][] = [];
+  let previousEmpty = false;
+  for (const view of views) {
+    const rendered = renderPlan(view, context);
+    const last = blocks.at(-1);
+    if (view.empty && previousEmpty && last !== undefined) last.push(...rendered.flat());
+    else blocks.push(...rendered);
+    previousEmpty = view.empty;
+  }
+  return blocks;
 }
 
 /**
@@ -481,7 +675,7 @@ export function formatMatrixText(
 export function formatContextText(result: ScanResult, options: ContextTextOptions = {}): string {
   const context = contextOf(options);
   const view = contextView(result);
-  const blocks = view.plans.flatMap((plan) => renderPlan(plan, context));
+  const blocks = planBlocks(view.plans, context);
   blocks.push(...renderMatrix(view.matrix, context));
   if (blocks.length === 0) return finish([['No load plans in this report.']]);
   if (view.pathBase !== '') {

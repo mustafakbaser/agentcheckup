@@ -1,0 +1,32 @@
+Files by agent              Claude Codex Cursor Copilot       Gemini Devin Cline
+                                                CLI VSC Cloud
+.agents/skills/release-notes
+                            —      L     L      L   L   L     L      L     L
+.claude/rules/testing.md    P      —     —      —   P   —     —      —     —
+.claude/skills/deploy       L      —     L      L   L   L     —      L     L
+.codex/config.toml          —      ?     —      —   —   —     —      —     —
+.cursor/rules/api.mdc       —      —     P      —   —   —     —      P     —
+.cursor/rules/style.md      —      —     X      —   —   —     —      U     —
+.github/copilot-instructions.md
+                            —      —     —      S   S   S     —      —     —
+.github/instructions/api.instructions.md
+                            —      —     —      P   M   P     —      —     —
+.mcp.json                   X      —     —      S   S   —     —      S     —
+AGENTS.md                   X      S     S      S   S   S     —      S     S
+CLAUDE.md                   S      —     S      S   S   S     —      S     —
+GEMINI.md                   —      —     —      S   —   S     S      —     —
+packages/api/AGENTS.md      X      D     P      P   —   P     —      P     —
+packages/web/AGENTS.md      P      C     P      P   —   P     —      P     —
+services/billing/ledger/export/AGENTS.md
+                            P      D     P      P   —   P     —      P     —
+
+S  startup         loaded at session start
+P  on-path         loaded when the agent opens a file it covers
+D  start-dir       loaded when a session starts in its directory
+L  listed          in the skills listing; the body loads when used
+M  model-selected  loaded when the model picks it
+U  manual          loaded only when you ask for it
+C  partial         loaded, but cut by a limit
+X  skipped         not loaded; the plan says why
+?  unknown         not documented, or not analyzed
+—  not-read        not read by this agent

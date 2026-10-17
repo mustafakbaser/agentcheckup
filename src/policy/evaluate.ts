@@ -30,7 +30,7 @@ import { type HookPlatform, hookPlatformOf } from '../platforms/hooks.js';
 import { canonicalJson } from '../platforms/inventory-ids.js';
 import { AGENT_NAMES, ALL_CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { broadGrant } from '../platforms/permissions.js';
-import { joinNames, platformName, quote, quotePath } from '../rules/shared/format.js';
+import { joinNames, quote, quotePath, readerName } from '../rules/shared/format.js';
 import { grantsTool, isShellTool, shellProgram, toolRule } from './grants.js';
 import { allowForm, entryAllows, serverTarget, type ServerTarget } from './mcp.js';
 import {
@@ -485,7 +485,7 @@ function permissionMessage(item: PermissionItem, name: ForbidName): string {
     case 'broad-shell':
     case 'broad-write': {
       const grant = broadGrant(item.value);
-      const who = grant === undefined ? 'the agent' : platformName(grant.platform);
+      const who = grant === undefined ? 'the agent' : readerName(grant.platform);
       const capability = grant?.capability ?? 'does more';
       return `${setting}: ${who} ${capability} without asking; ${forbids}${ineffective(item)}`;
     }
@@ -568,7 +568,7 @@ function satisfies(hook: HookItem, requirement: HookRequirement, rootFile: strin
 function hookMissing(requirement: HookRequirement): Found {
   const { agent, event, matcher, script, command } = requirement;
   const parts = [agent, event];
-  let hook = `${platformName(agent)} ${event} hook`;
+  let hook = `${readerName(agent)} ${event} hook`;
   if (matcher !== undefined) {
     parts.push(`matcher ${quote(matcher)}`);
     hook += ` with matcher ${quote(matcher)}`;

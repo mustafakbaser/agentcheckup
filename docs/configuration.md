@@ -130,16 +130,17 @@ out, and `--verbose` shows the same as the default in both formats.
 
 `agentcheckup context [path]` shows the load plan of each modeled agent: what is in context when a
 session starts, what loads on demand, the MCP servers and hooks it starts, and what it skips and
-why. A skip that `agentcheckup fix` can remove ends with `fix: safe` or `fix: review`. It never
-fails on findings. [What each agent loads](context.md) explains the output.
+why. A skip that `agentcheckup fix` can remove ends with `fix: safe`, `fix: review`, or
+`needs your words (fix -i)`. It never fails on findings. [What each agent loads](context.md)
+explains the output.
 
-| Option                 | Meaning                                                                                                                                                        |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--agent <list>`       | `claude-code`, `codex`, `cursor`, comma-separated. Default: those among the configured targets. Another platform id is a usage error: it has no load plan yet. |
-| `--cwd <dir>`          | Plan a session started in this directory, relative to the scanned path. No `..`; the directory must exist. Default: the root.                                  |
-| `--matrix`             | Also plan Codex in each directory with an `AGENTS.md`, and show which agent reads which file. Cannot be combined with `--cwd`.                                 |
-| `--context-window <n>` | The model's context window in tokens, for limits that depend on it, such as the skills listing.                                                                |
-| `--format <name>`      | `text` (default), `json` or `markdown`. JSON is the same report a scan writes.                                                                                 |
+| Option                 | Meaning                                                                                                                                                                                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--agent <list>`       | Agents, comma-separated: `claude-code`, `codex`, `cursor`, `copilot-cli`, `copilot-vscode`, `copilot-cloud`, `gemini`, `windsurf` (Devin Local), `cline`. `copilot` stands for its three surfaces, `all` for every agent. Default: those among the configured targets. |
+| `--cwd <dir>`          | Plan a session started in this directory, relative to the scanned path. No `..`; the directory must exist. Default: the root.                                                                                                                                          |
+| `--matrix`             | Also plan Codex in each directory with an `AGENTS.md`, and show which agent reads which file. Cannot be combined with `--cwd`.                                                                                                                                         |
+| `--context-window <n>` | The model's context window in tokens, for limits that depend on it, such as the skills listing.                                                                                                                                                                        |
+| `--format <name>`      | `text` (default), `json` or `markdown`. JSON is the same report a scan writes.                                                                                                                                                                                         |
 
 The command also takes `--output`, `--baseline`, `--gate`, `--config`, `--no-config`,
 `--untrusted` and `--no-gitignore`, with the same meaning as for a scan. Rule options feed the

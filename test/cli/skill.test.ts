@@ -118,7 +118,7 @@ describe('agentcheckup skill install', () => {
     expect(out).toContain(`Install the agentcheckup skill in ${CLAUDE_TARGET}:\n`);
     expect(out).toContain(`  ${CLAUDE_TARGET}/references/tasks.md\n`);
     expect(out).toContain(
-      'Claude Code, Cursor, GitHub Copilot, Windsurf and Cline load skills from .claude/skills.',
+      'Claude Code, Cursor, GitHub Copilot, Devin Local and Cline load skills from .claude/skills.',
     );
     expect(out).toContain('Checked in memory with every rule: the skill adds no finding.');
     expect(out).toContain(`  Bash(npx agentcheckup@${VERSION} tasks --check *)\n`);
@@ -161,7 +161,7 @@ describe('agentcheckup skill install', () => {
     const io = capture(codex);
     expect(await install(io, ['--yes'])).toBe(EXIT.ok);
     expect(io.output()).toContain(
-      'Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf and Cline load skills from .agents/skills.',
+      'Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local and Cline load skills from .agents/skills.',
     );
     expect(await installed(codex, AGENTS_TARGET)).toEqual(await skillBytes());
 
@@ -188,7 +188,7 @@ describe('agentcheckup skill install', () => {
     expect(await install(io, ['--yes'])).toBe(EXIT.findings);
     expect(io.errors()).toContain(`Not installed: the skill is already in ${AGENTS_TARGET}.`);
     expect(io.errors()).toContain(
-      'Cursor, GitHub Copilot, Windsurf and Cline read both .claude/skills and .agents/skills',
+      'Cursor, GitHub Copilot, Devin Local and Cline read both .claude/skills and .agents/skills',
     );
     expect(io.errors()).toContain('(skill/duplicate-name)');
     expect((await tree(root)).some((path) => path.startsWith('.claude/'))).toBe(false);
@@ -417,6 +417,13 @@ describe('skill install arguments', () => {
       expect(io.output()).toBe(SKILL_HELP);
     }
     expect(SKILL_HELP).toContain('Usage: agentcheckup skill install [path] [options]');
+    // The agents that read each directory, by agent name: Devin Local, not Windsurf.
+    const dir = SKILL_HELP.slice(SKILL_HELP.indexOf('--dir'), SKILL_HELP.indexOf('-y, --yes'));
+    expect(dir.replaceAll(/\s+/g, ' ')).toContain(
+      'claude (.claude/skills: Claude Code, Cursor, GitHub Copilot, Devin Local and Cline) or ' +
+        'agents (.agents/skills: Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local and Cline)',
+    );
+    expect(SKILL_HELP).not.toContain('Windsurf');
     const io = capture();
     expect(await run(['skill'], io)).toBe(EXIT.usage);
     expect(io.errors()).toContain('Run "agentcheckup skill --help" for usage.');

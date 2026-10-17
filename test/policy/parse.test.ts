@@ -314,5 +314,18 @@ describe('errors', () => {
     ).toEqual([
       'hooks.require[0].event: "afterFileEdit" is a Cursor hook event, not a Gemini CLI one.',
     ]);
+    // Agents by name: the windsurf hooks are Devin Local's.
+    expect(
+      errorsOf({ ...minimal, hooks: { require: [{ agent: 'windsurf', event: 'afterFileEdit' }] } }),
+    ).toEqual([
+      'hooks.require[0].event: "afterFileEdit" is a Cursor hook event, not a Devin Local one.',
+    ]);
+    expect(
+      'policy' in
+        parsePolicy({
+          ...minimal,
+          hooks: { require: [{ agent: 'windsurf', event: 'SessionStart' }] },
+        }),
+    ).toBe(true);
   });
 });

@@ -78,7 +78,13 @@ export const SKIP_RULES: readonly SkipRule[] = [
     codes: ['shadowed-by-claude-md'],
   },
   { ruleId: 'instr/filename-case', agent: 'claude-code', codes: ['case-mismatch'] },
-  { ruleId: 'instr/import-depth', agent: 'claude-code', codes: ['import-too-deep'] },
+  // instr/import-depth also reports import cycles, as information: the file is loaded.
+  {
+    ruleId: 'instr/import-depth',
+    agent: 'claude-code',
+    codes: ['import-too-deep'],
+    minSeverity: 'warn',
+  },
   { ruleId: 'instr/import-outside-root', agent: 'claude-code', codes: ['import-outside-root'] },
   { ruleId: 'instr/import-unresolved', agent: 'claude-code', codes: ['import-unresolved'] },
   { ruleId: 'instr/subagent-invalid', agent: 'claude-code', codes: ['invalid-subagent'] },

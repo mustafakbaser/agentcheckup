@@ -8,16 +8,20 @@ import { formatInteger } from '../core/format.js';
 import type { ContextReport, Size } from '../platforms/load/types.js';
 import {
   contextView,
+  EMPTY_MATRIX_NOTE,
+  EMPTY_PLAN_NOTE,
   fixableNote,
   ignoredNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
   matrixView,
   type MatrixView,
+  notShownNote,
   type Part,
   type PlanView,
   type StartupRow,
 } from './context-view.js';
+import { skipFixLabel } from './feedback.js';
 import { cappedRows, escaped, omittedNote, paragraphs, ruleLink } from './markdown-common.js';
 import { plural } from './text.js';
 
@@ -168,7 +172,7 @@ function skippedSection(view: PlanView, maxRows: number): string[] {
           row.name === undefined ? path(row.path) : `${path(row.path)} › ${text(row.name)}`;
         const rule = row.ruleId === undefined ? '' : ruleLink(row.ruleId, MAX_PATH_LENGTH);
         const cells = `| ${where} | ${text(row.reason)}${row.unverified ? ' ?' : ''} | ${rule} |`;
-        return withFix ? `${cells} ${row.fix ?? ''} |` : cells;
+        return withFix ? `${cells} ${row.fix === undefined ? '' : skipFixLabel(row.fix)} |` : cells;
       },
       maxRows,
       MAX_TABLE_CHARACTERS,
@@ -234,13 +238,14 @@ function ignoredBlock(view: PlanView): string[] {
 
 function planBlocks(view: PlanView, maxRows: number): string[][] {
   const where = view.cwd === '' ? './' : path(view.cwd);
-  const header = [`## ${view.agentName} context · ${where}`];
+  const title = `## ${view.agentName} context · ${where}`;
+  if (view.empty) return [[`${title}: ${EMPTY_PLAN_NOTE}`]];
   const notes: string[] = [];
   if (view.assumptions.length > 0) {
     notes.push(`**Assumes:** ${view.assumptions.map(text).join(', ')}`);
   }
   return [
-    header,
+    [title],
     paragraphs(notes),
     hiddenList(view),
     startupSection(view, maxRows),
@@ -251,8 +256,13 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
   ].filter((block) => block.length > 0);
 }
 
+/**
+ * The matrix with full agent names, then a line naming the agents left out because they read
+ * none of the files, then the legend. One line for a matrix without rows.
+ */
 function matrixBlock(view: MatrixView | undefined, maxRows: number): string[] {
   if (view === undefined) return [];
+  if (view.rows.length === 0) return [`${EMPTY_MATRIX_NOTE}.`];
   const { rows } = cappedRows(
     view.rows,
     (row) =>
@@ -264,16 +274,19 @@ function matrixBlock(view: MatrixView | undefined, maxRows: number): string[] {
   const legend = MATRIX_LEGEND.filter((item) => used.has(item.cell)).map(
     (item) => `${MATRIX_CELL_LABELS[item.cell]}: ${item.text}`,
   );
+  const names = view.columns.map((column) => column.name);
+  const note = notShownNote(view);
   return [
     '## Files by agent',
     '',
     ...table(
-      `| File | ${view.agents.join(' | ')} |`,
-      `| :--- |${view.agents.map(() => ' :--- |').join('')}`,
+      `| File | ${names.join(' | ')} |`,
+      `| :--- |${names.map(() => ' :--- |').join('')}`,
       rows,
       view.rows.length,
       'file',
     ),
+    ...(note === undefined ? [] : ['', `${note}.`]),
     ...(legend.length > 0 ? ['', legend.join(' · ')] : []),
   ];
 }

@@ -11,7 +11,6 @@ import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
-import type { FixClass } from '../core/types.js';
 import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../inventory/types.js';
 import {
   AGENT_NAMES,
@@ -24,7 +23,9 @@ import {
   type MatrixCell,
   type Size,
   type SkipCode,
+  type SkipFix,
 } from '../platforms/load/types.js';
+import { joinNames } from '../rules/shared/format.js';
 import { toJsonContext, toJsonInventory } from './json.js';
 
 export { AGENT_NAMES };
@@ -104,6 +105,23 @@ export const MATRIX_CELL_LABELS: Readonly<Record<MatrixCell, string>> = {
   'not-read': '—',
 };
 
+/**
+ * One-letter matrix cells, for a matrix too wide for {@link MATRIX_CELL_LABELS}. `not-read` keeps
+ * its dash, which formatters may replace (ASCII output).
+ */
+export const MATRIX_CELL_LETTERS: Readonly<Record<MatrixCell, string>> = {
+  startup: 'S',
+  'on-path': 'P',
+  'start-dir': 'D',
+  listed: 'L',
+  'model-selected': 'M',
+  manual: 'U',
+  partial: 'C',
+  skipped: 'X',
+  unknown: '?',
+  'not-read': '—',
+};
+
 /** What each matrix state means, in the order a legend lists them. */
 export const MATRIX_LEGEND: readonly { readonly cell: MatrixCell; readonly text: string }[] = [
   { cell: 'startup', text: 'loaded at session start' },
@@ -128,11 +146,13 @@ const ORIGIN_LABELS: Readonly<Record<Assumption['origin'], string>> = {
 /**
  * How a known assumption reads in a sentence. `setting`: the value is an agent setting the
  * user can change, so a default is marked "(default)". Phrases are listed in the order they
- * are shown; unknown keys follow as `key = value (origin)`, in key order.
+ * are shown; unknown keys follow as `key = value (origin)`, in key order. A phrase of
+ * undefined adds nothing to the plan's heading, such as the Copilot surface the heading names;
+ * JSON output keeps the assumption.
  */
 interface AssumptionPhrase {
   readonly key: string;
-  readonly phrase: (value: string | number | boolean) => string;
+  readonly phrase: (value: string | number | boolean) => string | undefined;
   readonly setting?: boolean;
 }
 
@@ -177,6 +197,82 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
       `third-party configs ${value === true ? 'on' : value === false ? 'off' : valueText(value)}`,
   },
   { key: 'cursor.trustedWorkspace', phrase: (value) => trusted(value, 'workspace') },
+  { key: 'copilot.surface', phrase: (value) => surfaceText(value) },
+  { key: 'copilot-cli.trusted_folder', phrase: (value) => trusted(value, 'folder') },
+  {
+    key: 'vscode.agent_harness',
+    phrase: (value) => (value === 'local' ? 'Local agent harness' : `${valueText(value)} harness`),
+  },
+  {
+    key: 'vscode.github.copilot.chat.codeGeneration.useInstructionFiles',
+    phrase: (value) => `instruction files ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useAgentsMdFile',
+    phrase: (value) => `AGENTS.md ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useNestedAgentsMdFiles',
+    phrase: (value) => `nested AGENTS.md files ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useClaudeMdFile',
+    phrase: (value) => `CLAUDE.md ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useClaudeHooks',
+    phrase: (value) => `Claude Code hooks ${onOff(value)}`,
+    setting: true,
+  },
+  { key: 'vscode.workspace_trusted', phrase: (value) => trusted(value, 'workspace') },
+  {
+    key: 'gemini.context.fileName',
+    phrase: (value) => contextFilesText(value),
+    setting: true,
+  },
+  {
+    key: 'gemini.folder_trust',
+    phrase: (value) => `folder trust ${onOff(value)}`,
+    setting: true,
+  },
+  { key: 'gemini.access', phrase: (value) => `access through ${valueText(value)}` },
+  {
+    key: 'devin.agent',
+    phrase: (value) =>
+      value === 'devin-local' ? 'Devin Local, not Cascade' : `${valueText(value)} agent`,
+  },
+  {
+    key: 'devin.restrictedMode',
+    phrase: (value) => `Restricted Mode ${onOff(value)}`,
+    setting: true,
+  },
+  ...(
+    [
+      ['agents_standard', 'AGENTS.md standard'],
+      ['claude', 'Claude Code'],
+      ['copilot', 'Copilot'],
+      ['cursor', 'Cursor'],
+      ['windsurf', 'Windsurf'],
+    ] as const
+  ).map(([source, name]): AssumptionPhrase => ({
+    key: `devin.read_config_from.${source}`,
+    phrase: (value) => importText(value, name),
+    setting: true,
+  })),
+  {
+    key: 'cline.surface',
+    phrase: (value) => (value === 'vscode' ? 'VS Code extension' : `${valueText(value)} surface`),
+  },
+  {
+    key: 'cline.ruleToggles',
+    phrase: (value) =>
+      value === 'all on' ? 'every rule toggle on' : `rule toggles ${valueText(value)}`,
+    setting: true,
+  },
 ];
 
 const PHRASE_ORDER: ReadonlyMap<string, number> = new Map(
@@ -258,8 +354,8 @@ export interface SkipRow {
   readonly name?: string;
   readonly reason: string;
   readonly ruleId?: string;
-  /** Class of the fix that removes the skip (`SkippedLoad.fix`). */
-  readonly fix?: FixClass;
+  /** How the fix that removes the skip is applied (`SkippedLoad.fix`). */
+  readonly fix?: SkipFix;
   readonly unverified: boolean;
 }
 
@@ -297,12 +393,14 @@ export interface PlanView {
   readonly ignored: number;
   /** True when any row is unverified, so the "?" needs its footnote. */
   readonly unverified: boolean;
+  /**
+   * True when the agent loads nothing from the repository, skips nothing, and nothing was left
+   * unanalyzed or ignored: formatters show such a plan in one line. Files it does not read at
+   * all may be listed in `notRead`.
+   */
+  readonly empty: boolean;
 }
 
-/**
- * The note for {@link PlanView.ignored}, without the label, or undefined when nothing was left
- * out. Example: `22 files are not shown; Cursor may still load them`.
- */
 /**
  * `3 of 4 skips can be fixed`, counting the skipped rows of every plan, or undefined when none
  * can be.
@@ -314,6 +412,10 @@ export function fixableNote(views: readonly Pick<PlanView, 'skipped'>[]): string
   return `${formatInteger(fixable)} of ${formatInteger(rows.length)} ${rows.length === 1 ? 'skip' : 'skips'} can be fixed`;
 }
 
+/**
+ * The note for {@link PlanView.ignored}, without the label, or undefined when nothing was left
+ * out. Example: `22 files are not shown; Cursor may still load them`.
+ */
 export function ignoredNote(view: Pick<PlanView, 'ignored' | 'agentName'>): string | undefined {
   if (view.ignored <= 0) return undefined;
   const one = view.ignored === 1;
@@ -323,9 +425,26 @@ export function ignoredNote(view: Pick<PlanView, 'ignored' | 'agentName'>): stri
   );
 }
 
+/** One column of the matrix: an agent with its full name and its short, grouped labels. */
+export interface MatrixColumn {
+  readonly agent: ContextAgent;
+  /** {@link AGENT_NAMES}. */
+  readonly name: string;
+  /** {@link AGENT_COLUMNS}. */
+  readonly group: string;
+  readonly surface?: string;
+}
+
+/**
+ * The matrix as text and Markdown show it: only the columns of agents that read at least one of
+ * the files. JSON keeps every column.
+ */
 export interface MatrixView {
-  readonly agents: readonly string[];
+  readonly columns: readonly MatrixColumn[];
+  /** Cells follow `columns`. */
   readonly rows: readonly { readonly path: string; readonly cells: readonly MatrixCell[] }[];
+  /** Names of the agents left out because every cell of theirs is `not-read`, in report order. */
+  readonly omitted: readonly string[];
 }
 
 function valueText(value: string | number | boolean): string {
@@ -338,6 +457,42 @@ function trusted(value: string | number | boolean, what: string): string {
   if (value === true) return `trusted ${what}`;
   if (value === false) return `untrusted ${what}`;
   return `${what} trust ${valueText(value)}`;
+}
+
+/** `on` and `off` for a boolean setting; anything else as it is. */
+function onOff(value: string | number | boolean): string {
+  if (value === true) return 'on';
+  if (value === false) return 'off';
+  return valueText(value);
+}
+
+/** The Copilot surfaces the loaders model, each an agent whose name heads its plan. */
+const COPILOT_SURFACES: ReadonlySet<string | number | boolean> = new Set([
+  'cli',
+  'vscode',
+  'cloud-agent',
+]);
+
+/** Nothing for a surface the plan's heading names already; anything else as it is. */
+function surfaceText(value: string | number | boolean): string | undefined {
+  return COPILOT_SURFACES.has(value) ? undefined : `surface ${valueText(value)}`;
+}
+
+/** Devin Local's `read_config_from`: whether it imports the files of `name`. */
+function importText(value: string | number | boolean, name: string): string {
+  if (value === true) return `${name} files imported`;
+  if (value === false) return `${name} files not imported`;
+  return `${name} files ${valueText(value)}`;
+}
+
+/**
+ * Gemini CLI's context file names, which the loader joins with `, `: `context file GEMINI.md`,
+ * `context files GEMINI.md and AGENTS.md`. Not joined with commas: the phrase is one item of a
+ * comma-separated list.
+ */
+function contextFilesText(value: string | number | boolean): string {
+  const names = valueText(value).split(', ');
+  return `context file${names.length === 1 ? '' : 's'} ${names.join(' and ')}`;
 }
 
 function contextWindowText(value: string | number | boolean): string {
@@ -375,14 +530,16 @@ function assumptionTexts(assumptions: readonly Assumption[]): string[] {
   // A stable sort keeps the canonical key order among unknown keys.
   return [...assumptions]
     .sort((a, b) => rank(a) - rank(b))
-    .map((assumption) => {
+    .flatMap((assumption) => {
       const entry = known.get(assumption.key);
       const origin = ORIGIN_LABELS[assumption.origin];
       if (entry === undefined) {
-        return `${assumption.key} = ${valueText(assumption.value)} (${origin})`;
+        return [`${assumption.key} = ${valueText(assumption.value)} (${origin})`];
       }
+      const phrase = entry.phrase(assumption.value);
+      if (phrase === undefined) return [];
       const marked = assumption.origin !== 'default' || entry.setting === true;
-      return `${entry.phrase(assumption.value)}${marked ? ` (${origin})` : ''}`;
+      return [`${phrase}${marked ? ` (${origin})` : ''}`];
     });
 }
 
@@ -651,6 +808,11 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     notRead,
     incomplete: plan.incomplete.map(incompleteRow),
     ignored: plan.ignored ?? 0,
+    empty:
+      plan.entries.length === 0 &&
+      skipped.length === 0 &&
+      plan.incomplete.length === 0 &&
+      (plan.ignored ?? 0) === 0,
     unverified:
       startup.some((row) => row.unverified) ||
       services.some((row) => row.unverified) ||
@@ -698,12 +860,46 @@ export function contextView(result: ScanResult): ContextView {
   };
 }
 
-/** The matrix in canonical order, or undefined when the report has none. */
+/**
+ * The matrix in canonical order without the columns of agents that read none of its files, or
+ * undefined when the report has none.
+ */
 export function matrixView(context: ContextReport | undefined): MatrixView | undefined {
   if (context?.matrix === undefined) return undefined;
   const canonical = toJsonContext(context);
+  const rows = canonical.matrix?.rows ?? [];
+  const shown = canonical.agents.flatMap((_, index) =>
+    rows.some((row) => (row.cells[index] ?? 'not-read') !== 'not-read') ? [index] : [],
+  );
   return {
-    agents: canonical.agents.map((agent) => AGENT_NAMES[agent]),
-    rows: (canonical.matrix?.rows ?? []).map((row) => ({ path: row.path, cells: row.cells })),
+    columns: shown.flatMap((index) => {
+      const agent = canonical.agents[index];
+      return agent === undefined
+        ? []
+        : [{ agent, name: AGENT_NAMES[agent], ...AGENT_COLUMNS[agent] }];
+    }),
+    rows: rows.map((row) => ({
+      path: row.path,
+      cells: shown.map((index) => row.cells[index] ?? 'not-read'),
+    })),
+    omitted: canonical.agents
+      .filter((_, index) => !shown.includes(index))
+      .map((agent) => AGENT_NAMES[agent]),
   };
 }
+
+/**
+ * The line under a matrix that leaves out agents: `Not shown: Gemini CLI reads none of these
+ * files`. Undefined when no column is left out. Agent names only: no repository text.
+ */
+export function notShownNote(view: Pick<MatrixView, 'omitted'>): string | undefined {
+  const names = view.omitted;
+  if (names.length === 0) return undefined;
+  return `Not shown: ${joinNames(names)} ${names.length === 1 ? 'reads' : 'read'} none of these files`;
+}
+
+/** The single line for a matrix without rows: no agent reads a configuration file here. */
+export const EMPTY_MATRIX_NOTE = 'Files by agent: no agent reads a configuration file here';
+
+/** What follows the heading of an empty plan ({@link PlanView.empty}), on the same line. */
+export const EMPTY_PLAN_NOTE = 'loads nothing from this repository';

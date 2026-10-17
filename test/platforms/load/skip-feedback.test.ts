@@ -166,6 +166,47 @@ describe('SkippedLoad.fix', () => {
     ]);
   });
 
+  it('is input when the fix needs your words, whatever its class, and wins over the classes', () => {
+    const words = (fixClass: Fix['class']): Fix => ({
+      ...fix(fixClass),
+      changes: [],
+      input: {
+        field: 'cursor-globs',
+        question: 'Which files?',
+        label: '"globs" patterns',
+        target: { kind: 'frontmatter', path: 'a.md', key: 'globs' },
+      },
+    });
+    const withWords: Finding[] = [
+      finding(md, 'a.md', 'x', { fix: words('review') }),
+      finding(md, 'b.md', 'x', { fix: words('safe') }),
+      // With a ready fix, the skip is gone only once the one that needs words is completed too.
+      finding(md, 'c.md', 'x', { fix: fix('review') }),
+      finding(md, 'c.md', 'y', { fix: words('safe') }),
+      finding(md, 'd.md', 'x', { fix: words('safe') }),
+      finding(md, 'd.md', 'y', { fix: fix('review') }),
+    ];
+    const labels = withFixClasses(cursor, withWords).skipped.map((item) => item.fix ?? '-');
+    expect(labels).toEqual(['input', 'input', 'input', 'input', '-']);
+    // Without words, nothing is input.
+    expect(withFixClasses(cursor, findings).skipped.some((item) => item.fix === 'input')).toBe(
+      false,
+    );
+  });
+
+  it('is input for a skill without a description and without a line to copy, in a real scan', () => {
+    const path = '.agents/skills/empty/SKILL.md';
+    const plans = plansOf({ [path]: '---\nname: empty\n---\n' });
+    expect(skipOf(plans, 'codex', path)).toMatchObject({
+      code: 'no-description',
+      ruleId: 'skill/description-missing',
+      fix: 'input',
+    });
+    // With a line to copy, the fix is ready and needs review.
+    const copied = plansOf({ [path]: '---\nname: empty\n---\nDrafts release notes.\n' });
+    expect(skipOf(copied, 'codex', path)?.fix).toBe('review');
+  });
+
   it('carries the class of the fix a built-in rule attaches in a real scan', () => {
     const plans = plansOf({ 'AGENTS.md': 'Rules.\n', 'CLAUDE.md': '# Project\n' });
     expect(skipOf(plans, 'claude-code', 'AGENTS.md')?.fix).toBe('safe');

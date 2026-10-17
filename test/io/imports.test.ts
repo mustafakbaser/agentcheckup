@@ -45,7 +45,8 @@ describe('walk: import pass', () => {
   it('reads an import chain through README.md up to the hops Claude Code follows', async () => {
     const root = await makeTempDir();
     await writeTree(root, {
-      'CLAUDE.md': '# Project\n\n@README.md\n',
+      // Copilot CLI, which follows references without a hop limit, does not read CLAUDE.local.md.
+      'CLAUDE.local.md': '# Project\n\n@README.md\n',
       'README.md': 'Read @docs/guide.md first.\n',
       'docs/guide.md': 'Details: @deep.md\n',
       'docs/deep.md': '@deeper.md\n',
@@ -178,19 +179,65 @@ describe('walk: import pass', () => {
     },
   );
 
-  it('only follows imports of files the agents load, outside HTML comments', async () => {
+  it('only follows imports of files the agents load, outside HTML comments for Claude Code', async () => {
     const root = await makeTempDir();
     await writeTree(root, {
-      'CLAUDE.md': 'Root.\n<!-- @commented.md -->\n',
-      // Claude Code reads no AGENTS.md below a CLAUDE.md, and nothing expands imports in commands.
-      'AGENTS.md': '@from-agents.md\n',
+      'CLAUDE.md': 'Root.\n',
+      // Only Claude Code expands imports in its rules, and not inside HTML comments.
+      '.claude/rules/style.md': 'Style.\n<!-- @commented.md -->\n',
+      // Nothing expands imports in commands, path-specific instructions or GEMINI.md for Copilot.
       '.claude/commands/ship.md': '@from-command.md\n',
+      '.github/instructions/ts.instructions.md': '@../../from-instructions.md\n',
       'commented.md': 'x',
-      'from-agents.md': 'x',
       'from-command.md': 'x',
+      'from-instructions.md': 'x',
     });
 
     expect(imported(await walk(root))).toEqual([]);
+  });
+
+  it('follows Copilot CLI references as its loader does: from its files, without a hop limit', async () => {
+    const root = await makeTempDir();
+    const chain: Record<string, string> = {};
+    for (let i = 1; i <= 6; i++) chain[`docs/d${String(i)}.md`] = `@d${String(i + 1)}.md\n`;
+    await writeTree(root, {
+      // Relative to .github/, as the loader resolves it.
+      '.github/copilot-instructions.md': 'Read @../docs/d1.md\n',
+      ...chain,
+      'docs/d7.md':
+        'Seven hops: past Claude Code and Gemini CLI. @../.github/instructions/a.instructions.md\n',
+      // Reached through a reference: Copilot CLI does not expand it.
+      '.github/instructions/a.instructions.md': '---\napplyTo: "**"\n---\n@../../not-followed.md\n',
+      'not-followed.md': 'x',
+      // Claude Code reads CLAUDE.md instead of this AGENTS.md; Copilot CLI reads both, and
+      // tokenizes references as Claude Code does, outside HTML comments.
+      'CLAUDE.md': 'Root.\n',
+      'AGENTS.md': 'See @from-agents.md\n<!-- @commented.md -->\n',
+      'from-agents.md': 'From AGENTS.md.\n',
+      'commented.md': 'x',
+      'unrelated.md': 'Nobody refers to this.\n',
+    });
+
+    const snapshot = await walk(root);
+    expect(imported(snapshot)).toEqual([
+      'docs/d1.md',
+      'docs/d2.md',
+      'docs/d3.md',
+      'docs/d4.md',
+      'docs/d5.md',
+      'docs/d6.md',
+      'docs/d7.md',
+      'from-agents.md',
+    ]);
+
+    const result = scanWithContext(snapshot, { ...OPTIONS, agents: ['copilot-cli'] });
+    const plan = result.context.plans[0];
+    const sized = plan?.entries
+      .filter((entry) => entry.role === 'import')
+      .map((entry) => [entry.path, entry.size?.bytes]);
+    expect(sized).toContainEqual(['docs/d7.md', expect.any(Number)]);
+    expect(sized).toContainEqual(['from-agents.md', Buffer.byteLength('From AGENTS.md.\n')]);
+    expect(plan?.incomplete.filter((item) => item.startsWith('unread:'))).toEqual([]);
   });
 
   it('can be turned off', async () => {
@@ -408,8 +455,9 @@ describe('ImportPlanner: edge budget', () => {
     return asked;
   }
 
-  // CLAUDE.md has one import, a.md two: three edge visits in two rounds.
-  const files = { 'CLAUDE.md': '@a.md\n' };
+  // CLAUDE.local.md has one import, a.md two: three edge visits in two rounds. Only Claude Code
+  // reads CLAUDE.local.md; Copilot CLI would visit the imports of a CLAUDE.md a second time.
+  const files = { 'CLAUDE.local.md': '@a.md\n' };
   const targets = { 'a.md': '@b.md @c.md\n', 'b.md': 'B.\n', 'c.md': 'C.\n' };
 
   it('reads every round within the budget', () => {
@@ -422,9 +470,16 @@ describe('ImportPlanner: edge budget', () => {
     expect(rounds(files, targets, 0)).toEqual([]);
   });
 
+  it('counts the visits of each agent that follows the imports', () => {
+    // Claude Code and Copilot CLI both expand CLAUDE.md: the second round needs four visits.
+    const shared = { 'CLAUDE.md': '@a.md\n' };
+    expect(rounds(shared, targets, 4)).toEqual([['a.md'], ['b.md', 'c.md']]);
+    expect(rounds(shared, targets, 3)).toEqual([['a.md']]);
+  });
+
   it('still reads what the round found before the budget ran out, and nothing after', () => {
-    // The roots expand in path order: CLAUDE.md fits, sub/CLAUDE.md does not.
-    const twoRoots = { 'CLAUDE.md': '@a.md\n', 'sub/CLAUDE.md': '@x.md @y.md\n' };
+    // The roots expand in path order: CLAUDE.local.md fits, sub/CLAUDE.local.md does not.
+    const twoRoots = { 'CLAUDE.local.md': '@a.md\n', 'sub/CLAUDE.local.md': '@x.md @y.md\n' };
     const more = { ...targets, 'sub/x.md': 'X.\n', 'sub/y.md': 'Y.\n' };
     expect(rounds(twoRoots, more)).toEqual([
       ['a.md', 'sub/x.md', 'sub/y.md'],

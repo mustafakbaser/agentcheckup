@@ -121,16 +121,18 @@ try {
   if (!runCli(['context', repo], 0).includes('Claude Code context')) {
     fail('context printed no Claude Code plan');
   }
-  // One cell per agent; Claude Code, Codex and Cursor read the root AGENTS.md at session start.
+  // One cell per agent, as each agent reads a file of the fixture; Claude Code, Codex and Cursor
+  // read the root AGENTS.md at session start. Above four columns a cell is one letter: S.
   const matrix = runCli(['context', repo, '--matrix'], 0).split('\n');
   const cells = matrix
     .find((line) => line.startsWith('AGENTS.md '))
     ?.split(' ')
     .filter(Boolean)
     .slice(1);
+  const startup = CONTEXT_AGENTS.length > 4 ? 'S' : 'startup';
   if (
     cells?.length !== CONTEXT_AGENTS.length ||
-    cells.slice(0, 3).some((cell) => cell !== 'startup')
+    cells.slice(0, 3).some((cell) => cell !== startup)
   ) {
     fail('context --matrix printed no matrix row for AGENTS.md');
   }

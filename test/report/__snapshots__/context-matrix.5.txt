@@ -1,0 +1,26 @@
+Files by agent                            Claude Codex Cursor Copilot Gemini
+                                                              CLI
+.agents/skills/release-notes              —      L     L      L       L
+.claude/rules/testing.md                  P      —     —      —       —
+.claude/skills/deploy                     L      —     L      L       —
+.codex/config.toml                        —      ?     —      —       —
+.cursor/rules/api.mdc                     —      —     P      —       —
+.cursor/rules/style.md                    —      —     X      —       —
+.github/copilot-instructions.md           —      —     —      S       —
+.github/instructions/api.instructions.md  —      —     —      P       —
+.mcp.json                                 X      —     —      S       —
+AGENTS.md                                 X      S     S      S       —
+CLAUDE.md                                 S      —     S      S       —
+GEMINI.md                                 —      —     —      S       S
+packages/api/AGENTS.md                    X      D     P      P       —
+packages/web/AGENTS.md                    P      C     P      P       —
+services/billing/ledger/export/AGENTS.md  P      D     P      P       —
+
+S  startup    loaded at session start
+P  on-path    loaded when the agent opens a file it covers
+D  start-dir  loaded when a session starts in its directory
+L  listed     in the skills listing; the body loads when used
+C  partial    loaded, but cut by a limit
+X  skipped    not loaded; the plan says why
+?  unknown    not documented, or not analyzed
+—  not-read   not read by this agent

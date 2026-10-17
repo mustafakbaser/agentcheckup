@@ -196,6 +196,7 @@ describe('formatContextText wording and layout', () => {
   it('phrases known assumptions and keeps unknown keys as they are', () => {
     const output = single(
       plan('codex', {
+        entries: [entry('instructions', 'AGENTS.md', { position: 1, size: size(8) })],
         assumptions: [
           { key: 'codex.context_window', value: 200_000, origin: 'flag', evidence: [] },
           {
@@ -233,6 +234,7 @@ describe('formatContextText wording and layout', () => {
   it('sums up hidden scopes: names as they are, home directories for paths, no system paths', () => {
     const output = single(
       plan('claude-code', {
+        entries: [entry('instructions', 'CLAUDE.md', { position: 1, size: size(8) })],
         hidden: [
           { scope: 'managed', locations: ['/etc/a/CLAUDE.md', 'C:\\A\\CLAUDE.md'], roles: [] },
           { scope: 'user', locations: ['~/.claude/rules/', '$HOME_X/AGENTS.md', '~'], roles: [] },

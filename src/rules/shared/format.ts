@@ -8,6 +8,7 @@
  */
 import { formatInteger } from '../../core/format.js';
 import type { PlatformId } from '../../core/types.js';
+import { AGENT_NAMES, ALL_CONTEXT_AGENTS, CONTEXT_PLATFORM } from '../../platforms/load/types.js';
 
 export { formatInteger };
 
@@ -65,6 +66,22 @@ export function joinNames(names: readonly string[]): string {
 /** `['codex', 'gemini']` -> `Codex and Gemini CLI`. */
 export function platformList(platforms: readonly PlatformId[]): string {
   return joinNames(platforms.map(platformName));
+}
+
+/**
+ * Who reads a platform's files, by name: its agent when it has one, such as Devin Local for
+ * `windsurf` (AGENT_NAMES), and the platform when several agents share it, such as GitHub
+ * Copilot for its CLI, VS Code and cloud agent.
+ */
+export function readerName(platform: PlatformId): string {
+  const agents = ALL_CONTEXT_AGENTS.filter((agent) => CONTEXT_PLATFORM[agent] === platform);
+  const [only] = agents;
+  return agents.length === 1 && only !== undefined ? AGENT_NAMES[only] : platformName(platform);
+}
+
+/** `['copilot', 'windsurf']` -> `GitHub Copilot and Devin Local`. */
+export function readerList(platforms: readonly PlatformId[]): string {
+  return joinNames(platforms.map(readerName));
 }
 
 /**

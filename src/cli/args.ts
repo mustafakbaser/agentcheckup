@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import { parseGateClasses } from '../core/baseline.js';
 import type { GateClass } from '../core/baseline-types.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from '../core/types.js';
-import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
+import { contextAgentsOf, isContextAgent } from '../platforms/load/index.js';
+import { ALL_CONTEXT_AGENTS, CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import type { DetailLevel } from '../report/feedback.js';
 import { DEFAULT_MAX_TASKS, MAX_TASKS, TASK_ID_PATTERN } from '../tasks/index.js';
 
@@ -144,28 +145,53 @@ function parseTargets(value: string | undefined): PlatformId[] | undefined {
   return ids.map((id) => oneOf(id, PLATFORM_IDS, '--targets'));
 }
 
-function isContextAgent(id: string): id is ContextAgent {
-  return (CONTEXT_AGENTS as readonly string[]).includes(id);
+/** `--agent all`: every agent with a load model. */
+export const ALL_AGENTS = 'all';
+
+/**
+ * Platforms `--agent` takes besides the agent ids: those whose id is not an agent id, standing
+ * for every agent of the platform that is turned on, such as `copilot` for its three surfaces.
+ */
+export const AGENT_PLATFORMS: readonly PlatformId[] = PLATFORM_IDS.filter(
+  (platform) => !isContextAgent(platform) && contextAgentsOf([platform]).length > 0,
+);
+
+function isPlatformId(id: string): id is PlatformId {
+  return (PLATFORM_IDS as readonly string[]).includes(id);
 }
 
+/**
+ * The agents of `--agent`: agent ids, platform ids for all of a platform's agents, and `all`,
+ * comma-separated. In the order agentcheckup lists agents, without repeats, so output does not
+ * depend on the flag's order.
+ */
 function parseAgents(value: string | undefined): ContextAgent[] | undefined {
   if (value === undefined) return undefined;
   const ids = list(value);
   if (ids.length === 0) throw new UsageError('--agent needs at least one agent.');
-  const modeled = CONTEXT_AGENTS.join(', ');
+  const platforms =
+    AGENT_PLATFORMS.length === 0 ? '' : `, a platform (${AGENT_PLATFORMS.join(', ')})`;
+  const takes = `--agent takes an agent (${CONTEXT_AGENTS.join(', ')})${platforms} or ${ALL_AGENTS}.`;
   const agents = new Set<ContextAgent>();
   for (const id of ids) {
-    if (isContextAgent(id)) {
-      agents.add(id);
-    } else if ((PLATFORM_IDS as readonly string[]).includes(id)) {
+    const named: readonly ContextAgent[] =
+      id === ALL_AGENTS
+        ? CONTEXT_AGENTS
+        : isContextAgent(id)
+          ? [id]
+          : isPlatformId(id)
+            ? contextAgentsOf([id])
+            : [];
+    if (named.length === 0) {
+      // An agent or platform without a load model that is turned on.
       throw new UsageError(
-        `agentcheckup does not model what ${id} loads yet. --agent takes: ${modeled}.`,
+        isPlatformId(id) || (ALL_CONTEXT_AGENTS as readonly string[]).includes(id)
+          ? `agentcheckup does not model what ${id} loads yet. ${takes}`
+          : `Unknown agent "${id}". ${takes}`,
       );
-    } else {
-      throw new UsageError(`Unknown agent "${id}". --agent takes: ${modeled}.`);
     }
+    for (const agent of named) agents.add(agent);
   }
-  // In the order agentcheckup lists agents, so output does not depend on the flag's order.
   return CONTEXT_AGENTS.filter((agent) => agents.has(agent));
 }
 

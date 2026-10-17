@@ -586,7 +586,11 @@ function renderImpact(result: ScanResult, context: Context): string[] {
     const name = index > 0 && shown[index - 1]?.agent === row.agent ? '' : row.agentName;
     const padding = ' '.repeat(Math.max(0, textWidth - displayWidth(text)));
     const tag =
-      row.fix === undefined ? style.dim('manual') : paintClass(row.fix, `fix: ${row.fix}`, style);
+      row.fix === undefined
+        ? style.dim('manual')
+        : row.fix === 'input'
+          ? style.blue(INPUT_FIX_LABEL)
+          : paintClass(row.fix, `fix: ${row.fix}`, style);
     lines.push(`  ${name.padEnd(nameWidth)}  ${text}${padding}  ${tag}`);
   });
   if (rows.length > shown.length) {
