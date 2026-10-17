@@ -26,6 +26,14 @@ This is documented behavior, so the finding is advice. To fail closed, set `"onF
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
 - [Gemini CLI: Hooks](https://geminicli.com/docs/hooks/), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Sets "onFailure": "block" on the Claude Code hook or "failClosed": true on the Cursor hook. Codex and Gemini CLI have no such setting, so their scripts must be changed by hand.
+
+Preview the fix with `agentcheckup fix --rule hooks/fails-open`.
+
 ## Configuration
 
 ```json

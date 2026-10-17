@@ -28,6 +28,10 @@ Fix the path or add the script.
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
 - [Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

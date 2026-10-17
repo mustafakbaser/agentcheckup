@@ -31,6 +31,14 @@ Rename the key to an event the agent fires.
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRegistry.ts (invalid event names are skipped)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Renames the key to the event the message names: the same name in the right case, or the event within two edits of it. Always a review fix, because the hooks under it start to run. Not offered when the file already has that event.
+
+Preview the fix with `agentcheckup fix --rule hooks/unknown-event`.
+
 ## Configuration
 
 ```json

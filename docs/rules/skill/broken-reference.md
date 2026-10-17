@@ -28,6 +28,14 @@ Fix the path, or move the file into the skill directory.
 - [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
 - [Claude API: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces backslashes in a link with `/` (safe), or writes the link in the letter case of the only file it matches (review). Other broken links are left to you.
+
+Preview the fix with `agentcheckup fix --rule skill/broken-reference`.
+
 ## Configuration
 
 ```json

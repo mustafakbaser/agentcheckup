@@ -12,7 +12,13 @@ import type {
 } from '../../src/core/types.js';
 import { insertLine } from '../../src/fix/edits.js';
 import type { FixPlan, FixSelection } from '../../src/fix/index.js';
-import { LITERAL_SECRET_RULE, MAX_FIXES, type PlanOptions, planFixes } from '../../src/fix/plan.js';
+import {
+  leftSteps,
+  LITERAL_SECRET_RULE,
+  MAX_FIXES,
+  type PlanOptions,
+  planFixes,
+} from '../../src/fix/plan.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../helpers/lint.js';
 import { ALL_CLASSES, SAFE_ONLY, testRule } from './helpers.js';
 
@@ -511,5 +517,39 @@ describe('limits and order', () => {
         },
       ),
     );
+  });
+});
+
+describe('leftSteps', () => {
+  it('lists each finding left with its guidance, the fallback or why a path was refused', () => {
+    const snapshot = snapshotFrom(
+      { 'AGENTS.md': '# A\n', 'CLAUDE.md': '# A\n' },
+      { symlinks: { 'CLAUDE.md': 'AGENTS.md' } },
+    );
+    const analysis = analyze(snapshot);
+    const result = runRules(analysis, {
+      rules: [
+        rule({ id: 'test/guided', changes: () => [edit(0, 0, 'x')], guidance: 'do it by hand' }),
+        rule({ id: 'test/declined', at: 1, changes: () => [edit(1, 0, 'y')] }),
+        rule({ id: 'test/silent', at: 2, changes: () => [edit(2, 0, 'z')] }),
+        rule({ id: 'test/manual', at: 3, guidance: 'check it' }),
+        rule({ id: 'test/linked', changes: () => [edit(0, 0, 'w', 'CLAUDE.md')] }),
+        rule({ id: 'test/other', guidance: 'not selected' }),
+      ],
+    });
+    const selected = ['test/guided', 'test/declined', 'test/silent', 'test/manual', 'test/linked'];
+    const steps = leftSteps(
+      analysis,
+      result,
+      { ...ALL_CLASSES, ruleIds: new Set(selected) },
+      (finding) => (finding.ruleId === 'test/declined' ? 'Declined fix' : undefined),
+    );
+    // test/silent has neither guidance nor a fallback; test/other is not selected.
+    expect(steps.map((step) => [step.ruleId, step.line, step.guidance])).toEqual([
+      ['test/declined', 1, 'Declined fix'],
+      ['test/guided', 1, 'do it by hand'],
+      ['test/linked', 1, 'CLAUDE.md is reached through a symbolic link; edit AGENTS.md by hand'],
+      ['test/manual', 1, 'check it'],
+    ]);
   });
 });

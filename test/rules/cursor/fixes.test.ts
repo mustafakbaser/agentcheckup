@@ -6,18 +6,11 @@ import {
   LinkReferences,
   mergeEdits,
   pathTaken,
-  rewriteYamlEntry,
 } from '../../../src/rules/cursor/fixes.js';
-import { artifactOf, edited } from '../../fix/helpers.js';
+import { artifactOf } from '../../fix/helpers.js';
 import { snapshotFrom } from '../../helpers/lint.js';
 
 const PATH = '.cursor/rules/x.mdc';
-
-function rewrite(text: string, key: string, change: { key?: string; value?: string }) {
-  const { analysis, artifact } = artifactOf(PATH, text);
-  const result = rewriteYamlEntry(analysis, artifact, analysis.frontmatter(artifact), key, change);
-  return result === undefined ? undefined : edited(artifact, result);
-}
 
 describe('joinPatterns', () => {
   it('joins one-line patterns', () => {
@@ -36,38 +29,6 @@ describe('joinPatterns', () => {
     ['an empty item', ['']],
   ])('refuses %s', (_label, value) => {
     expect(joinPatterns(value, ',')).toBeUndefined();
-  });
-});
-
-describe('rewriteYamlEntry', () => {
-  it('renames a key and replaces a list value in a flow mapping', () => {
-    expect(
-      rewrite('---\n{paths: [a, b], x: 1}\n---\n', 'paths', { key: 'globs', value: 'a, b' }),
-    ).toBe('---\n{globs: "a, b", x: 1}\n---\n');
-  });
-
-  it('escapes what a double-quoted YAML string needs', () => {
-    expect(rewrite("---\nglobs: ['a\"b\\\\c']\n---\n", 'globs', { value: 'a"b\\c' })).toBe(
-      '---\nglobs: "a\\"b\\\\c"\n---\n',
-    );
-  });
-
-  it.each([
-    ['frontmatter that is not valid', '---\npaths: [a\n---\n', 'paths', { key: 'globs' }],
-    ['an explicit key', '---\n? paths\n: a\n---\n', 'paths', { key: 'globs' }],
-    ['a missing key', '---\nx: 1\n---\n', 'paths', { key: 'globs' }],
-    ['an existing new key', '---\npaths: a\nglobs: b\n---\n', 'paths', { key: 'globs' }],
-    ['no change', '---\npaths: a\n---\n', 'paths', {}],
-    ['an empty value', '---\npaths:\n---\n', 'paths', { value: 'a' }],
-    ['a tag', '---\npaths: !!seq [a]\n---\n', 'paths', { value: 'a' }],
-    [
-      'a trailing comment inside the value',
-      '---\npaths: [a, # x\n  b]\n---\n',
-      'paths',
-      { value: 'a, b' },
-    ],
-  ])('refuses %s', (_label, text, key, change) => {
-    expect(rewrite(text, key, change)).toBeUndefined();
   });
 });
 

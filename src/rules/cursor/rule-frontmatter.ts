@@ -64,7 +64,7 @@ function checkFields(context: Context, artifact: Artifact, frontmatter: ValidFro
       ...(alias
         ? attach(
             artifact,
-            () => globsFromAlias(context, artifact, frontmatter, key),
+            () => globsFromAlias(artifact, frontmatter, key),
             {
               variant: 'globs-key',
               class: 'review',
@@ -111,7 +111,7 @@ function checkFields(context: Context, artifact: Artifact, frontmatter: ValidFro
       severity: 'info',
       message:
         '"globs" is a YAML list. Cursor documents "globs" only as one comma-separated string, such as "src/**/*.ts, test/**/*.ts".',
-      ...attach(artifact, () => globsString(context, artifact, frontmatter), {
+      ...attach(artifact, () => globsString(artifact, frontmatter), {
         variant: 'globs-string',
         class: 'safe',
         title: `Write "globs" as one comma-separated string in ${artifact.path}`,

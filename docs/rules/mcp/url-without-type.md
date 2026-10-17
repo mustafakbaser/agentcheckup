@@ -24,6 +24,14 @@ Add `"type": "http"`, or `"sse"` or `"ws"` to match the server.
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
 - [Claude Code: Plugins reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Adds "type" as the first property of the server: "ws" for ws:// and wss:// URLs, "sse" when the path ends in /sse, otherwise "http". Always a review fix, because it lets Claude Code start the server.
+
+Preview the fix with `agentcheckup fix --rule mcp/url-without-type`.
+
 ## Configuration
 
 ```json

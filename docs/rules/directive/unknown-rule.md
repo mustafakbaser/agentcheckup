@@ -23,6 +23,14 @@ Check the id against the rule catalog; usually it is misspelled.
 
 - [agentcheckup inline suppression directives](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces the id with the only rule id within two edits of it, which makes the directive suppress that rule.
+
+Preview the fix with `agentcheckup fix --rule directive/unknown-rule`.
+
 ## Configuration
 
 ```json

@@ -26,6 +26,14 @@ Move the file to `.github/copilot-instructions.md` or into `.github/instructions
 - [GitHub Copilot: Repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), verified, checked 2026-10-14
 - [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Moves a file found elsewhere in a .github folder to .github/copilot-instructions.md or into .github/instructions/. A letter-case difference, a .github folder in a subdirectory and an existing target are left to the user, with the commands to run.
+
+Preview the fix with `agentcheckup fix --rule copilot/instructions-misplaced`.
+
 ## Configuration
 
 ```json

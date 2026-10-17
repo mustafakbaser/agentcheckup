@@ -23,6 +23,10 @@ Add the rule ids and a short reason.
 
 - [agentcheckup inline suppression directives](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

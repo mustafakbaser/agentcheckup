@@ -25,6 +25,14 @@ Rename the field to `description`, `globs` or `alwaysApply`, and write `alwaysAp
 
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Safe: writes alwaysApply: "true" as the boolean true and joins a globs list into one comma-separated string. For review: renames "paths" or "applyTo" to "globs".
+
+Preview the fix with `agentcheckup fix --rule cursor/rule-frontmatter`.
+
 ## Configuration
 
 ```json

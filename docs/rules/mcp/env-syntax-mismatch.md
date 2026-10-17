@@ -30,6 +30,14 @@ Rewrite the reference in the syntax of the agent that reads the file.
 - [Gemini CLI: Configuration (environment variables in settings)](https://geminicli.com/docs/reference/configuration/), verified, checked 2026-10-14
 - [Gemini CLI source: envVarResolver.ts](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/utils/envVarResolver.ts), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Rewrites every reference in the string in the syntax of the agent that reads the file: "${NAME}" for Claude Code, "$NAME" for Gemini CLI. Not offered for Cursor built-ins such as "${workspaceFolder}", which the other agents do not have, or for a file that other paths link to.
+
+Preview the fix with `agentcheckup fix --rule mcp/env-syntax-mismatch`.
+
 ## Configuration
 
 ```json

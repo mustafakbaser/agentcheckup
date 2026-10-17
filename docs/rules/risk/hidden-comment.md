@@ -29,6 +29,10 @@ Move instructions you intend into visible text, or delete them.
 - [Cursor: Rules (does not say whether HTML comments reach the model)](https://cursor.com/docs/rules), unverified, checked 2026-10-14
 - [GitHub Copilot: Repository custom instructions (does not say whether HTML comments reach the model)](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), unverified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

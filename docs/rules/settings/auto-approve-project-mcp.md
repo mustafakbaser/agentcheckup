@@ -24,6 +24,14 @@ List the servers you trust by name in `enabledMcpjsonServers` instead.
 - [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-14
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces "enableAllProjectMcpServers": true with "enabledMcpjsonServers" listing the servers the project's .mcp.json declares today, so later additions need approval. Not offered when the file already has such a list or .mcp.json cannot be read.
+
+Preview the fix with `agentcheckup fix --rule settings/auto-approve-project-mcp`.
+
 ## Configuration
 
 ```json

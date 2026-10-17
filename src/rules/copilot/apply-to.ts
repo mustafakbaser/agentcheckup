@@ -1,7 +1,8 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, ReportDescriptor, Span } from '../../core/types.js';
 import type { FrontmatterData, FrontmatterResult } from '../../parse/types.js';
-import { isLinked, joinPatterns, linkedGuidance, rewriteYamlEntry } from '../cursor/fixes.js';
+import { yamlReplaceValue } from '../../fix/edits.js';
+import { isLinked, joinPatterns, linkedGuidance } from '../cursor/fixes.js';
 import { defineRule } from '../define.js';
 import { quote } from '../shared/format.js';
 import { describeValue, issueDetail, yamlSyntaxError } from '../instructions/yaml.js';
@@ -23,7 +24,6 @@ type Parse = Parameters<typeof meantForCopilot>[0];
 
 /** Joins an `applyTo` YAML list into one comma-separated string. */
 function listFix(
-  parse: Parse,
   artifact: Artifact,
   frontmatter: ValidFrontmatter,
 ): Pick<ReportDescriptor, 'fix' | 'guidance'> {
@@ -32,7 +32,7 @@ function listFix(
   const change =
     joined === undefined
       ? undefined
-      : rewriteYamlEntry(parse, artifact, frontmatter, 'applyTo', { value: joined });
+      : yamlReplaceValue(artifact, frontmatter, 'applyTo', joined, { style: 'double' });
   if (change === undefined) {
     return {
       guidance:
@@ -52,11 +52,7 @@ function listFix(
 const NOT_APPLIED =
   'Copilot cloud agent and code review never apply this file, and VS Code uses it only when you attach it to a chat.';
 
-function applyToFindings(
-  parse: Parse,
-  artifact: Artifact,
-  frontmatter: ValidFrontmatter,
-): Finding[] {
+function applyToFindings(artifact: Artifact, frontmatter: ValidFrontmatter): Finding[] {
   const { data } = frontmatter;
   const { values } = data;
   if (!Object.hasOwn(values, 'applyTo')) {
@@ -109,7 +105,7 @@ function applyToFindings(
         severity: 'info',
         message:
           '"applyTo" is a YAML list. GitHub documents "applyTo" only as one string of comma-separated patterns, such as "**/*.ts,**/*.tsx".',
-        ...listFix(parse, artifact, frontmatter),
+        ...listFix(artifact, frontmatter),
       },
     ];
   }
@@ -185,10 +181,7 @@ function findingsFor(context: Parse, artifact: Artifact): Finding[] {
       ];
     }
     case 'valid':
-      return [
-        ...applyToFindings(context, artifact, frontmatter),
-        ...excludeAgentFindings(frontmatter.data),
-      ];
+      return [...applyToFindings(artifact, frontmatter), ...excludeAgentFindings(frontmatter.data)];
   }
 }
 

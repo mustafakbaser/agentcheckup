@@ -1,6 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix, Span } from '../../core/types.js';
-import { quoteYaml } from '../../fix/index.js';
+import { yamlReplaceScalar } from '../../fix/index.js';
 import { parseFrontmatter } from '../../parse/frontmatter.js';
 import type { FrontmatterData, ParseIssue } from '../../parse/types.js';
 import { defineRule } from '../define.js';
@@ -15,7 +15,7 @@ import {
   type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
-import { checkedYamlEdit, editable, type FixOrGuidance, fixFields, ownerKey } from './fixes.js';
+import { editable, type FixOrGuidance, fixFields } from './fixes.js';
 
 const sameSpan = (a: Span | undefined, b: Span): boolean =>
   a?.offset === b.offset && a.length === b.length;
@@ -82,41 +82,18 @@ function quoteScalar(
     warning.code === 'yaml11-boolean'
       ? 'put the value in double quotes, or write true or false'
       : QUOTE_GUIDANCE;
-  const first = source.charAt(0);
-  const owner = ownerKey(frontmatter.data, warning.span);
-  if (
-    !editable(artifact) ||
-    owner === undefined ||
-    source.trim() !== source ||
-    source === '' ||
-    first === '"' ||
-    first === "'" ||
-    source.includes('\n') ||
-    source.includes('\r')
-  ) {
-    return { guidance };
-  }
-  const quoted = checkedYamlEdit(
-    artifact,
-    frontmatter,
-    owner,
-    warning.span,
-    quoteYaml(source, 'double'),
-    () => true,
-  );
+  if (!editable(artifact)) return { guidance };
+  const quoted = yamlReplaceScalar(artifact, frontmatter, warning.span, source, {
+    style: 'double',
+  });
   if (quoted === undefined) return { guidance };
-  const topValue = sameSpan(frontmatter.data.valueSpan(owner), warning.span);
+  const { data } = frontmatter;
+  // A top-level value may also become a boolean; `yes` in a list or a nested map stays quoted.
+  const topValue = data.keys.some((key) => sameSpan(data.valueSpan(key), warning.span));
   const yaml11 = ['y', 'yes', 'on'].includes(source.toLowerCase());
   const boolean =
     warning.code === 'yaml11-boolean' && topValue
-      ? checkedYamlEdit(
-          artifact,
-          frontmatter,
-          owner,
-          warning.span,
-          String(yaml11),
-          (value) => value === yaml11,
-        )
+      ? yamlReplaceScalar(artifact, frontmatter, warning.span, yaml11)
       : undefined;
   const fix: Fix = {
     id: 'skill/yaml-portability#quote',

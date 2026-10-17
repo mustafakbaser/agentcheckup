@@ -4,10 +4,10 @@
  * Cursor documents. See src/platforms/cursor-rules.ts for how the fields decide when a rule
  * applies.
  */
-import type { Artifact, FileChange, ParseServices } from '../../core/types.js';
-import { yamlSetScalar } from '../../fix/edits.js';
+import type { Artifact, FileChange } from '../../core/types.js';
+import { yamlRenameKey, yamlReplaceValue, yamlSetScalar } from '../../fix/edits.js';
 import type { FrontmatterResult } from '../../parse/types.js';
-import { joinPatterns, rewriteYamlEntry } from './fixes.js';
+import { joinPatterns } from './fixes.js';
 
 type ValidFrontmatter = Extract<FrontmatterResult, { kind: 'valid' }>;
 
@@ -60,16 +60,12 @@ export function alwaysApplyBoolean(artifact: Artifact, frontmatter: ValidFrontma
 }
 
 /** Joins a `globs` YAML list into one comma-separated string. */
-export function globsString(
-  parse: Pick<ParseServices, 'frontmatter'>,
-  artifact: Artifact,
-  frontmatter: ValidFrontmatter,
-): Repair {
+export function globsString(artifact: Artifact, frontmatter: ValidFrontmatter): Repair {
   const joined = joinPatterns(frontmatter.data.values['globs'], GLOB_SEPARATOR);
   const change =
     joined === undefined
       ? undefined
-      : rewriteYamlEntry(parse, artifact, frontmatter, 'globs', { value: joined });
+      : yamlReplaceValue(artifact, frontmatter, 'globs', joined, { style: 'double' });
   if (change === undefined) {
     return manual(
       `write the patterns as one comma-separated string by hand, such as ${GLOBS_EXAMPLE}; expand a pattern with a comma, such as "src/{a,b}/**", into one pattern per alternative`,
@@ -83,7 +79,6 @@ export function globsString(
  * frontmatter has `globs` or both aliases already, or the value is not patterns.
  */
 export function globsFromAlias(
-  parse: Pick<ParseServices, 'frontmatter'>,
   artifact: Artifact,
   frontmatter: ValidFrontmatter,
   key: string,
@@ -98,13 +93,16 @@ export function globsFromAlias(
   const value = values[key];
   let change: FileChange | undefined;
   if (typeof value === 'string' && value.trim() !== '') {
-    change = rewriteYamlEntry(parse, artifact, frontmatter, key, { key: 'globs' });
+    change = yamlRenameKey(artifact, frontmatter, key, 'globs');
   } else {
     const joined = joinPatterns(value, GLOB_SEPARATOR);
     change =
       joined === undefined
         ? undefined
-        : rewriteYamlEntry(parse, artifact, frontmatter, key, { key: 'globs', value: joined });
+        : yamlReplaceValue(artifact, frontmatter, key, joined, {
+            renameTo: 'globs',
+            style: 'double',
+          });
   }
   if (change === undefined) {
     return manual(

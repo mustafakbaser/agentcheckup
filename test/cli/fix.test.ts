@@ -467,6 +467,94 @@ describe('agentcheckup fix -i', () => {
   });
 });
 
+describe('agentcheckup fix -i: what is left', () => {
+  // test/footer (review) is asked about first, test/heading (safe) second. test/todo has a
+  // manual step; test/heading-name has one only once the heading fix is applied.
+  const TODO = 'Use pnpm.\nTODO\n';
+  const FOOTER = 'AGENTS.md:1 test/footer (Append "Reviewed." to AGENTS.md)';
+  const HEADING = 'AGENTS.md:1 test/heading (Add "# Agents" as line 1 of AGENTS.md)';
+  const HEADING_NAME = 'AGENTS.md:1 test/heading-name (name the project in the heading)';
+
+  /** The "Left:" block of the summary, one entry per line without its lead. */
+  function left(output: string): string[] {
+    const lines = output.split('\n');
+    const start = lines.findIndex((line) => line.startsWith('Left: '));
+    if (start === -1) return [];
+    const block = [lines[start] ?? ''];
+    for (const line of lines.slice(start + 1)) {
+      if (!line.startsWith('      ')) break;
+      block.push(line);
+    }
+    return block.map((line) => line.slice('Left: '.length));
+  }
+
+  async function session(answers: readonly string[]): Promise<{ root: string; io: Captured }> {
+    const root = await repo({ 'AGENTS.md': TODO });
+    const io = terminal(root, scripted(answers));
+    expect(await run(['fix', '-i'], io)).toBe(EXIT.ok);
+    return { root, io };
+  }
+
+  it('lists a declined fix and the steps the written files still need', async () => {
+    const { root, io } = await session(['n', 'y']);
+    expect(await text(root, 'AGENTS.md')).toBe('# Agents\n\nUse pnpm.\nTODO\n');
+    expect(left(io.output())).toEqual([
+      FOOTER,
+      HEADING_NAME,
+      'AGENTS.md:4 test/todo (resolve the TODO)',
+    ]);
+  });
+
+  it('leaves out a step that only an unapplied fix would bring', async () => {
+    const { root, io } = await session(['y', 'n']);
+    expect(await text(root, 'AGENTS.md')).toBe('Use pnpm.\nTODO\nReviewed.\n');
+    expect(left(io.output())).toEqual([HEADING, 'AGENTS.md:2 test/todo (resolve the TODO)']);
+  });
+
+  it('lists every finding as it was when every fix is declined or the user quits', async () => {
+    for (const answers of [['n', 'n'], ['q']]) {
+      const { root, io } = await session(answers);
+      expect(await text(root, 'AGENTS.md')).toBe(TODO);
+      expect(io.output()).toContain('No fixes applied.');
+      expect(left(io.output())).toEqual([
+        FOOTER,
+        HEADING,
+        'AGENTS.md:2 test/todo (resolve the TODO)',
+      ]);
+    }
+  });
+
+  it('lists nothing but the remaining manual steps when every fix is accepted', async () => {
+    const { root, io } = await session(['y', 'y']);
+    expect(await text(root, 'AGENTS.md')).toBe('# Agents\n\nUse pnpm.\nTODO\nReviewed.\n');
+    expect(left(io.output())).toEqual([HEADING_NAME, 'AGENTS.md:4 test/todo (resolve the TODO)']);
+  });
+
+  it('writes the same steps to JSON', async () => {
+    const root = await repo({ 'AGENTS.md': TODO });
+    const output = join(await tempDir(), 'fix.json');
+    const io = terminal(root, scripted(['y', 'n']));
+    expect(await run(['fix', '-i', '--format', 'json', '--output', output], io)).toBe(EXIT.ok);
+    const report = parseReport(await readFile(output, 'utf8'));
+    expect(report.manual).toEqual([
+      {
+        ruleId: 'test/heading',
+        path: 'AGENTS.md',
+        line: 1,
+        guidance: 'Add "# Agents" as line 1 of AGENTS.md',
+      },
+      { ruleId: 'test/todo', path: 'AGENTS.md', line: 2, guidance: 'resolve the TODO' },
+    ]);
+  });
+
+  it('keeps to the rules named with --rule', async () => {
+    const root = await repo({ 'AGENTS.md': TODO });
+    const io = terminal(root, scripted(['n']));
+    expect(await run(['fix', '-i', '--rule', 'test/heading'], io)).toBe(EXIT.ok);
+    expect(left(io.output())).toEqual([HEADING]);
+  });
+});
+
 describe('agentcheckup fix arguments', () => {
   it('prints its help', async () => {
     for (const args of [

@@ -26,6 +26,14 @@ Rename the file to `.mdc` and add frontmatter, or move plain Markdown instructio
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-14
 - [Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)](https://docs.devin.ai/cli/extensibility/rules), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs".
+
+Preview the fix with `agentcheckup fix --rule cursor/md-file-ignored`.
+
 ## Configuration
 
 ```json

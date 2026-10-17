@@ -11,7 +11,8 @@
  *
  * Builders that edit structured text (YAML frontmatter, JSON) parse their result again and return
  * `undefined` when the edit would not give exactly the intended value, would change another
- * value, or would delete a comment. The rule then offers no fix, or a manual step. They throw a
+ * value, or would delete a comment. The rule then offers no fix, or a manual step. Rules never
+ * parse an edited text themselves: every check of an edit's result lives here. They throw a
  * RangeError only for arguments a rule controls: a span outside the text, a key that is not a
  * plain identifier, a line with a line break, a path that is not normalized.
  *
@@ -22,6 +23,7 @@
  * Pure. See docs/adr/0008-write-fixes-to-the-scanned-repository.md.
  */
 import { type Node as JsonNode, parseTree, type ParseError } from 'jsonc-parser';
+import { lineText } from '../core/text.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJsonWithComments } from '../parse/json.js';
 import type { FrontmatterResult } from '../parse/types.js';
@@ -578,6 +580,259 @@ export function prependFrontmatter(
     [{ offset: 0, length: 0, text: block }],
     expected,
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// YAML frontmatter: whole entries, scalars inside values, the block itself
+// ---------------------------------------------------------------------------------------------
+
+/** True when an anchor, an alias or a tag is in the frontmatter: one node may serve two keys. */
+function sharesNodes(frontmatter: ValidFrontmatter): boolean {
+  return frontmatter.warnings.some((issue) => issue.code === 'alias' || issue.code === 'tag');
+}
+
+/** Offset of the `:` after a key and any spaces or tabs; undefined for an explicit `? key`. */
+function colonAfter(text: string, keySpan: Span): number | undefined {
+  let colon = keySpan.offset + keySpan.length;
+  while (text.charAt(colon) === ' ' || text.charAt(colon) === '\t') colon++;
+  return text.charAt(colon) === ':' ? colon : undefined;
+}
+
+const contains = (outer: Span | undefined, inner: Span): boolean =>
+  outer !== undefined &&
+  inner.offset >= outer.offset &&
+  inner.offset + inner.length <= outer.offset + outer.length;
+
+/**
+ * Applies `edits` and parses the frontmatter again: the change stands only when the new
+ * frontmatter is valid, has the same top-level keys in the same order (`owner` renamed to
+ * `renamedTo`), every other value unchanged, and `accept` agrees with the new value of `owner`.
+ */
+function checkedEntryEdit(
+  artifact: Artifact,
+  before: ValidFrontmatter,
+  edits: readonly TextEdit[],
+  owner: string,
+  accept: (value: unknown) => boolean,
+  renamedTo = owner,
+): FileChange | undefined {
+  const { text } = artifact.decoded;
+  if (editProblem(text, edits) !== undefined) return undefined;
+  const after = parseFrontmatter(applyEdits(text, edits));
+  if (after.kind !== 'valid') return undefined;
+  const keys = before.data.keys.map((key) => (key === owner ? renamedTo : key));
+  const afterKeys = after.data.keys;
+  if (afterKeys.length !== keys.length || keys.some((key, index) => afterKeys[index] !== key)) {
+    return undefined;
+  }
+  for (const key of before.data.keys) {
+    if (key === owner) {
+      if (!accept(after.data.values[renamedTo])) return undefined;
+    } else if (!sameValue(after.data.values[key], before.data.values[key])) {
+      return undefined;
+    }
+  }
+  return editChange(artifact, edits);
+}
+
+/** The new scalar of {@link rewriteEntry}. */
+interface NewValue {
+  readonly value: YamlScalar;
+  readonly style: YamlStyle;
+}
+
+/** Renames top-level key `key` to `newKey`, replaces its value, or both, checked by a re-parse. */
+function rewriteEntry(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  key: string,
+  newKey: string,
+  replacement: NewValue | undefined,
+): FileChange | undefined {
+  checkYamlKey(key);
+  checkYamlKey(newKey);
+  if (frontmatter.kind !== 'valid' || sharesNodes(frontmatter)) return undefined;
+  const { data } = frontmatter;
+  if (newKey !== key && Object.hasOwn(data.values, newKey)) return undefined;
+  const keySpan = data.keySpan(key);
+  if (keySpan === undefined) return undefined;
+  const { text } = artifact.decoded;
+  const colon = colonAfter(text, keySpan);
+  if (colon === undefined) return undefined;
+
+  const edits: TextEdit[] = [];
+  if (newKey !== key) edits.push({ offset: keySpan.offset, length: keySpan.length, text: newKey });
+  if (replacement !== undefined) {
+    const valueSpan = data.valueSpan(key);
+    if (valueSpan === undefined || valueSpan.length === 0) return undefined;
+    const end = valueSpan.offset + valueSpan.length;
+    // Everything from the colon to the end of the value is replaced: a comment there would go.
+    if (end <= colon || text.slice(colon + 1, end).includes('#')) return undefined;
+    edits.push({
+      offset: colon + 1,
+      length: end - colon - 1,
+      text: ` ${yamlScalarText(replacement.value, replacement.style)}`,
+    });
+  }
+  if (edits.length === 0) return undefined;
+  const wanted = replacement === undefined ? data.values[key] : replacement.value;
+  return checkedEntryEdit(
+    artifact,
+    frontmatter,
+    edits,
+    key,
+    (value) => sameValue(value, wanted),
+    newKey,
+  );
+}
+
+export interface YamlReplaceOptions extends YamlValueOptions {
+  /** A new name for the key, written in place of the old one. */
+  readonly renameTo?: string;
+}
+
+/**
+ * Replaces the whole value of top-level frontmatter key `key`, which may be a scalar, a block or
+ * flow list, or a nested mapping, with one scalar on the key's line, and renames the key to
+ * `renameTo` when given: `globs:\n  - a\n  - b` becomes `globs: "a, b"`. Strings are written
+ * plain unless `style` says otherwise or a parser could read them as something else.
+ *
+ * Undefined when the frontmatter is not valid or has an anchor, an alias or a tag, the key is
+ * absent or not followed by `:`, its value is empty (use {@link yamlSetScalar}), a comment lies
+ * between the colon and the end of the value, `renameTo` exists, or the edited frontmatter does
+ * not parse to exactly the intended data with the keys in the same order.
+ */
+export function yamlReplaceValue(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  key: string,
+  value: YamlScalar,
+  options: YamlReplaceOptions = {},
+): FileChange | undefined {
+  return rewriteEntry(artifact, frontmatter, key, options.renameTo ?? key, {
+    value,
+    style: options.style ?? 'plain',
+  });
+}
+
+/**
+ * Renames top-level frontmatter key `key` to `newKey`, keeping its value and position:
+ * `paths: src/**` becomes `globs: src/**`. Undefined when the frontmatter is not valid or has an
+ * anchor, an alias or a tag, the key is absent or not followed by `:`, `newKey` exists, or the
+ * edited frontmatter does not parse to the same data with the key renamed in place.
+ */
+export function yamlRenameKey(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  key: string,
+  newKey: string,
+): FileChange | undefined {
+  return rewriteEntry(artifact, frontmatter, key, newKey, undefined);
+}
+
+/**
+ * Replaces the plain scalar at `span` with `value`, wherever the scalar is in a top-level entry:
+ * the value, a list item, a nested key or value. `version: 1.0` with the string `"1.0"` and
+ * style `double` becomes `version: "1.0"`, which every YAML parser reads as that text. Strings
+ * are written plain unless `style` says otherwise or a parser could read them as something else.
+ *
+ * Undefined when the frontmatter is not valid, `span` is not inside a top-level entry or not a
+ * one-line plain scalar (empty, quoted, with surrounding spaces, an anchor, an alias or a tag),
+ * or the edited frontmatter is not valid with the same top-level keys in the same order and every
+ * other top-level value unchanged. When `span` is a whole top-level value, that value must also
+ * parse to `value`.
+ */
+export function yamlReplaceScalar(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  span: Span,
+  value: YamlScalar,
+  options: YamlValueOptions = {},
+): FileChange | undefined {
+  checkSpan(artifact, span);
+  if (frontmatter.kind !== 'valid') return undefined;
+  const { data } = frontmatter;
+  const owner = data.keys.find(
+    (key) => contains(data.valueSpan(key), span) || contains(data.keySpan(key), span),
+  );
+  if (owner === undefined) return undefined;
+  const source = artifact.decoded.text.slice(span.offset, span.offset + span.length);
+  if (source === '' || source.trim() !== source || hasLineBreak(source)) return undefined;
+  if ('"\'&*!'.includes(source.charAt(0))) return undefined;
+  const text = yamlScalarText(value, options.style ?? 'plain');
+  const whole = data.valueSpan(owner);
+  const topValue = whole?.offset === span.offset && whole.length === span.length;
+  return checkedEntryEdit(
+    artifact,
+    frontmatter,
+    [{ offset: span.offset, length: span.length, text }],
+    owner,
+    (after) => !topValue || sameValue(after, value),
+  );
+}
+
+/** Spaces and tabs at the start of `line`, or undefined when other whitespace is among them. */
+function blankIndent(line: string): string | undefined {
+  const indent = line.slice(0, line.length - line.trimStart().length);
+  for (const char of indent) if (char !== ' ' && char !== '\t') return undefined;
+  return indent;
+}
+
+/**
+ * Moves a frontmatter block that opens on line `openLine` and closes on line `closeLine` (1-based)
+ * to the start of the file: the lines before it are deleted, and indented delimiter lines lose
+ * their indentation. When every non-blank line between them starts with the opening line's
+ * indentation, the whole block is dedented, so its YAML keeps its structure.
+ *
+ * Undefined when there is nothing to move, an indentation is not spaces and tabs, or the file
+ * does not then start with valid frontmatter. Throws a RangeError when the lines are not in the
+ * file or `closeLine` is not after `openLine`.
+ */
+export function moveFrontmatterToTop(
+  artifact: Artifact,
+  openLine: number,
+  closeLine: number,
+): FileChange | undefined {
+  const { decoded } = artifact;
+  const lines = decoded.lineStarts.length;
+  if (
+    !Number.isSafeInteger(openLine) ||
+    !Number.isSafeInteger(closeLine) ||
+    openLine < 1 ||
+    closeLine <= openLine ||
+    closeLine > lines
+  ) {
+    throw new RangeError(`Lines ${openLine}..${closeLine} are not a block in 1..${lines}.`);
+  }
+  const indent = blankIndent(lineText(decoded, openLine));
+  const closeIndent = blankIndent(lineText(decoded, closeLine));
+  if (indent === undefined || closeIndent === undefined) return undefined;
+  const start = (line: number): number => decoded.lineStarts[line - 1] ?? 0;
+
+  const edits: TextEdit[] = [];
+  const dedent = (line: number, length: number): void => {
+    if (length > 0) edits.push({ offset: start(line), length, text: '' });
+  };
+  // The lines before the block go, with the opening line's indentation.
+  if (openLine > 1) edits.push({ offset: 0, length: start(openLine) + indent.length, text: '' });
+  else dedent(openLine, indent.length);
+  const inner: number[] = [];
+  for (let line = openLine + 1; line < closeLine; line++) inner.push(line);
+  const whole =
+    indent !== '' &&
+    inner.every((line) => {
+      const text = lineText(decoded, line);
+      return text.trim() === '' || text.startsWith(indent);
+    });
+  if (whole) {
+    for (const line of inner) {
+      if (lineText(decoded, line).startsWith(indent)) dedent(line, indent.length);
+    }
+  }
+  dedent(closeLine, closeIndent.length);
+  if (edits.length === 0 || editProblem(decoded.text, edits) !== undefined) return undefined;
+  if (parseFrontmatter(applyEdits(decoded.text, edits)).kind !== 'valid') return undefined;
+  return editChange(artifact, edits);
 }
 
 // ---------------------------------------------------------------------------------------------

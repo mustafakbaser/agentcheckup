@@ -25,6 +25,14 @@ Start the file with the `---` line, add the missing field, and fix the name or t
 
 - [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Deletes the blank lines before the frontmatter. Missing fields, names and YAML errors are left to you.
+
+Preview the fix with `agentcheckup fix --rule instr/subagent-invalid`.
+
 ## Configuration
 
 ```json

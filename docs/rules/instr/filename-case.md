@@ -28,6 +28,10 @@ Rename the file to the exact name if it holds agent instructions, or to a differ
 - [Gemini CLI: GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), verified, checked 2026-10-14
 - [Devin Desktop (Cascade): AGENTS.md ("Both AGENTS.md and agents.md are recognized")](https://docs.devin.ai/desktop/cascade/agents-md), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

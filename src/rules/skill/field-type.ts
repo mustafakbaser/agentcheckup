@@ -1,7 +1,7 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix, Span } from '../../core/types.js';
-import { quoteYaml } from '../../fix/index.js';
+import { yamlReplaceValue } from '../../fix/index.js';
 import { codexRejectsMetadata } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
@@ -23,7 +23,7 @@ import {
   type ValidFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
-import { checkedYamlEdit, editable, type FixOrGuidance, fixFields } from './fixes.js';
+import { editable, type FixOrGuidance, fixFields } from './fixes.js';
 
 const MAX_COMPATIBILITY = 500;
 const MAX_LISTED_KEYS = 3;
@@ -51,40 +51,14 @@ function allowedToolsString(
   frontmatter: ValidFrontmatter,
   guidance: string,
 ): FixOrGuidance {
-  const { data } = frontmatter;
-  const value = data.values['allowed-tools'];
-  const keySpan = data.keySpan('allowed-tools');
-  const valueSpan = data.valueSpan('allowed-tools');
-  if (
-    !editable(artifact) ||
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    keySpan === undefined ||
-    valueSpan === undefined
-  ) {
-    return { guidance };
-  }
+  const value = frontmatter.data.values['allowed-tools'];
+  if (!editable(artifact) || !Array.isArray(value) || value.length === 0) return { guidance };
   const items: string[] = [];
   for (const item of value as readonly unknown[]) {
     if (typeof item !== 'string' || item === '' || WHITESPACE.test(item)) return { guidance };
     items.push(item);
   }
-  const joined = items.join(' ');
-  const { text } = artifact.decoded;
-  let colon = keySpan.offset + keySpan.length;
-  while (text.charAt(colon) === ' ' || text.charAt(colon) === '\t') colon++;
-  const end = valueSpan.offset + valueSpan.length;
-  if (text.charAt(colon) !== ':' || end <= colon || text.slice(colon, end).includes('#')) {
-    return { guidance };
-  }
-  const change = checkedYamlEdit(
-    artifact,
-    frontmatter,
-    'allowed-tools',
-    { offset: colon + 1, length: end - colon - 1 },
-    ` ${quoteYaml(joined)}`,
-    (after) => after === joined,
-  );
+  const change = yamlReplaceValue(artifact, frontmatter, 'allowed-tools', items.join(' '));
   if (change === undefined) return { guidance };
   const fix: Fix = {
     id: 'skill/field-type#allowed-tools-string',

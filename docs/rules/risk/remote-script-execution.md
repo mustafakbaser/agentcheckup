@@ -26,6 +26,10 @@ Pin the download to a version and checksum, or install from a package manager or
 - [Claude Code: Security (network command approval)](https://code.claude.com/docs/en/security), verified, checked 2026-10-14
 - [AGENTS.md open format](https://agents.md/), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

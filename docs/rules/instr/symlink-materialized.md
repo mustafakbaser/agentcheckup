@@ -24,6 +24,14 @@ For `CLAUDE.md`, replace the symlink with a file that contains the import `@AGEN
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
 - [Git: core.symlinks](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces the path in a CLAUDE.md or GEMINI.md with an import of the file it links to; other files need symlinks enabled in Git.
+
+Preview the fix with `agentcheckup fix --rule instr/symlink-materialized`.
+
 ## Configuration
 
 ```json

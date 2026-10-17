@@ -27,6 +27,14 @@ Use the types from the specification, and quote values that YAML would read as n
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Writes an `allowed-tools` list as a space-separated string when no tool rule contains a space. Other types are left to you.
+
+Preview the fix with `agentcheckup fix --rule skill/field-type`.
+
 ## Configuration
 
 ```json

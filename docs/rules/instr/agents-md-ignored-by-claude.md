@@ -25,6 +25,14 @@ Add the line `@AGENTS.md` to the `CLAUDE.md`; Claude Code never reads an importe
 
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Adds "@AGENTS.md" as the first line of the CLAUDE.md in the same directory (safe), or creates a CLAUDE.md with that line when the CLAUDE file Claude Code reads instead is in a parent directory or is a CLAUDE.local.md (review).
+
+Preview the fix with `agentcheckup fix --rule instr/agents-md-ignored-by-claude`.
+
 ## Configuration
 
 ```json

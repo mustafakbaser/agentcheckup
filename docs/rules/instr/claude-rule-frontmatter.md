@@ -25,6 +25,14 @@ Rename `globs` or `applyTo` to `paths`, fix the YAML, and escape a literal brack
 
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Renames "globs" or "applyTo" to "paths", turning a comma-separated string into a list, and escapes an unclosed "[" as "\\[". Invalid YAML is left to you.
+
+Preview the fix with `agentcheckup fix --rule instr/claude-rule-frontmatter`.
+
 ## Configuration
 
 ```json

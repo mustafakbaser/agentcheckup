@@ -64,7 +64,7 @@ function addAlwaysApply(artifact: Artifact, frontmatter: ValidFrontmatter): File
  * correct would raise a cursor/rule-frontmatter warning on the renamed file, so it leaves the
  * file to the user.
  */
-function planValid(context: Context, artifact: Artifact, frontmatter: ValidFrontmatter): Plan {
+function planValid(artifact: Artifact, frontmatter: ValidFrontmatter): Plan {
   const { values, keys } = frontmatter.data;
   const edits: FileChange[] = [];
   const steps: string[] = [];
@@ -80,7 +80,7 @@ function planValid(context: Context, artifact: Artifact, frontmatter: ValidFront
     if (!GLOB_ALIASES.includes(key)) {
       return manual(`rename "${key}" to "${SUGGESTIONS[key] ?? ''}", then rename the file`);
     }
-    const repair = globsFromAlias(context, artifact, frontmatter, key);
+    const repair = globsFromAlias(artifact, frontmatter, key);
     if (!repair.ok) return manual(`${repair.guidance}, then rename the file`);
     edits.push(repair.change);
     steps.push(`rename "${key}" to "globs"`);
@@ -138,7 +138,7 @@ function plan(context: Context, artifact: Artifact, renamed: string): Plan {
       };
     }
     case 'valid':
-      return planValid(context, artifact, frontmatter);
+      return planValid(artifact, frontmatter);
     case 'invalid':
       return {
         ok: true,

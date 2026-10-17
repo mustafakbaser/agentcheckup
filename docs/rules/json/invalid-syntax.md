@@ -32,6 +32,14 @@ The finding points at the first syntax error. Fix it and run agentcheckup again.
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
 - [Cursor forum: "The mcp.json parser can't handle JavaScript comments" (user report)](https://forum.cursor.com/t/92529), unverified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Deletes the trailing commas and comments (in Gemini CLI settings, which allow comments, only the trailing commas) when they are the only syntax errors. Other syntax errors are left to you.
+
+Preview the fix with `agentcheckup fix --rule json/invalid-syntax`.
+
 ## Configuration
 
 ```json

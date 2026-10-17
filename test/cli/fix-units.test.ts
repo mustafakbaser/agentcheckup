@@ -1,6 +1,12 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { changedFile, decide, verifyOnDisk, writeGroups } from '../../src/cli/fix.js';
+import {
+  changedFile,
+  decide,
+  declinedTitles,
+  verifyOnDisk,
+  writeGroups,
+} from '../../src/cli/fix.js';
 import { terminalPrompt } from '../../src/cli/prompt.js';
 import type {
   AnyRule,
@@ -266,6 +272,44 @@ describe('verifyOnDisk', () => {
     expect(verification.resolved).toBe(1);
     expect(verification.remaining).toBe(3);
     expect(verification.introduced.map((item) => item.fingerprint)).toEqual(['new5']);
+  });
+});
+
+describe('declinedTitles', () => {
+  const declined = (title: string, ...findings: string[]): PlannedFix => ({
+    ...planned({ ...fixOf([edit('X.md')], 'test/a#x', 'review'), title }, 'test/a'),
+    findings,
+  });
+  const withFix = { fix: fixOf([edit('X.md')], 'test/a#x', 'review') };
+
+  it('finds unchanged findings by fingerprint, edited ones by rule and path', () => {
+    const before = [
+      finding('test/a', 'X.md', 'fp1'),
+      finding('test/a', 'X.md', 'fp2'),
+      finding('test/a', 'old.md', 'fp3'),
+      finding('test/a', 'Y.md', 'fp4'),
+    ];
+    const after = [
+      finding('test/a', 'X.md', 'fp1', withFix),
+      // fp2 moved: matched by rule and path; only as many as were declined there.
+      finding('test/a', 'X.md', 'moved2', withFix),
+      finding('test/a', 'X.md', 'other', withFix),
+      // fp3's file was renamed by a written fix.
+      finding('test/a', 'new.md', 'moved3', withFix),
+      // fp4 is gone; a finding without a fix is a manual step, not a declined fix.
+      finding('test/a', 'Y.md', 'manual'),
+    ];
+    const titles = declinedTitles(
+      [declined('One', 'fp1', 'fp2'), declined('Two', 'fp3', 'fp4'), declined('Later', 'r2')],
+      { findings: before },
+      { findings: after },
+      new Map([['old.md', 'new.md']]),
+    );
+    expect([...titles]).toEqual([
+      ['fp1', 'One'],
+      ['moved2', 'One'],
+      ['moved3', 'Two'],
+    ]);
   });
 });
 

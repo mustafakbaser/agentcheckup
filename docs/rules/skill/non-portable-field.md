@@ -30,6 +30,10 @@ Keep extension fields in skills that only their agents load, and move your own d
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
 - [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

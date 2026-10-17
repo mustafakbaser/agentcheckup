@@ -11,14 +11,21 @@
  *    warning.
  * 4. `-i` asks about each verified fix, then plans again with only the accepted ones (an
  *    alternative the user picked takes the place of the rule's fix in its finding) and writes
- *    those as `--write` does.
+ *    those as `--write` does. What is left to the user comes from the scan from disk: the
+ *    findings of declined fixes and the manual steps of the findings still there.
  *
  * Every file access goes through src/io; this module only decides and prints.
  */
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { compareStrings } from '../core/compare.js';
-import { scanSnapshot, type ScanResult } from '../core/engine.js';
+import {
+  type Analysis,
+  analyze,
+  type RuleResult,
+  runRules,
+  type ScanResult,
+} from '../core/engine.js';
 import { decode } from '../core/text.js';
 import type { AnyRule, FileChange, Finding, Fix, FixClass, RuleContext } from '../core/types.js';
 import {
@@ -30,6 +37,7 @@ import {
   type FixSelection,
   type FixSkipReason,
   type FixVerification,
+  leftSteps,
   LITERAL_SECRET_RULE,
   type ManualStep,
   type PlannedFix,
@@ -256,6 +264,10 @@ interface WriteOutcome {
   readonly files: readonly ChangedFile[];
   /** The scan of the repository after writing, against the scan before. */
   readonly verification: FixVerification;
+  /** The repository after writing, walked and scanned from disk. */
+  readonly after: { readonly analysis: Analysis; readonly result: RuleResult };
+  /** Old path → new path of each file a written fix renamed. */
+  readonly renames: ReadonlyMap<string, string>;
   /** The exit code for a run whose fixes are `fixes`. */
   readonly exit: (fixes: readonly PlannedFix[]) => ExitCode;
 }
@@ -318,7 +330,8 @@ async function writeAndVerify(
   });
   const fixes = applied.map((planned) => outcome.get(planned) ?? planned);
 
-  const after = scanSnapshot(await walk(session.root, session.walkOptions), session.scanOptions);
+  const analysis = analyze(await walk(session.root, session.walkOptions), session.scanOptions);
+  const after = runRules(analysis, session.scanOptions);
   const renames = new Map<string, string>();
   for (const file of written) if (file.from !== undefined) renames.set(file.from, file.path);
   const check = verifyOnDisk(
@@ -342,6 +355,8 @@ async function writeAndVerify(
     fixes,
     files: [...written].sort((a, b) => compareStrings(a.path, b.path)).map(changedFile),
     verification: check.verification,
+    after: { analysis, result: after },
+    renames,
     exit: (all) => {
       if (after.ruleFailures.length > 0) return EXIT.internal;
       return problems || notApplied(all) ? EXIT.findings : EXIT.ok;
@@ -382,11 +397,25 @@ async function interactive(
   // Fixes the dry run could not apply were never offered; they stay as they were.
   const notOffered = [...rounds.deferred, ...rounds.skipped];
   const declined = answers.declined.map((planned) => skip(planned, 'declined'));
+  // What is left is read from the files as they are after writing: the findings of declined
+  // fixes, and the manual steps of the findings still there.
+  const leftSelection: FixSelection = {
+    classes: BOTH_CLASSES,
+    ...(ruleIds === undefined ? {} : { ruleIds }),
+    literalSecret: true,
+  };
   // A blank line between the last answer and the summary.
   if (rounds.applied.length > 0 && session.options.output === undefined) io.stdout('\n');
 
   if (answers.accepted.size === 0) {
-    const view = viewOf(session, 'interactive', [...declined, ...notOffered], [], rounds.manual, {
+    const titles = declinedTitles(answers.declined, rounds.before, rounds.before, new Map());
+    const left = leftSteps(
+      analyze(session.snapshot, session.scanOptions),
+      rounds.before,
+      leftSelection,
+      (finding) => titles.get(finding.fingerprint),
+    );
+    const view = viewOf(session, 'interactive', [...declined, ...notOffered], [], left, {
       resolved: 0,
       remaining: rounds.before.findings.filter((finding) => finding.suppressed === undefined)
         .length,
@@ -420,6 +449,15 @@ async function interactive(
   );
   const outcome = await writeAndVerify(session, rerun.applied, rerun.files, rerun.before);
   if (outcome === undefined) return EXIT.findings;
+  const titles = declinedTitles(
+    [...answers.declined, ...decided.withheld],
+    rounds.before,
+    outcome.after.result,
+    outcome.renames,
+  );
+  const left = leftSteps(outcome.after.analysis, outcome.after.result, leftSelection, (finding) =>
+    titles.get(finding.fingerprint),
+  );
   const view = viewOf(
     session,
     'interactive',
@@ -432,11 +470,49 @@ async function interactive(
       ...notOffered,
     ],
     outcome.files,
-    rounds.manual,
+    left,
     outcome.verification,
   );
   await emit(render(session, view), session.options, io);
   return outcome.exit(view.fixes);
+}
+
+/**
+ * The titles of `declined` fixes, keyed by the fingerprint of each of their findings that `after`
+ * still has. `after` is a scan of the repository once the accepted fixes are written, and
+ * `before` the scan their findings come from. A finding no fix changed keeps its fingerprint;
+ * one in a file another fix edited is matched by rule and path (following `renames`) among the
+ * findings of `after` that still carry a fix, as many as the declined fixes had there.
+ */
+export function declinedTitles(
+  declined: readonly PlannedFix[],
+  before: Pick<RuleResult, 'findings'>,
+  after: Pick<RuleResult, 'findings'>,
+  renames: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const keyOf = (ruleId: string, path: string): string => `${ruleId}\u0000${path}`;
+  const present = new Set(after.findings.map((finding) => finding.fingerprint));
+  const earlier = new Map(before.findings.map((finding) => [finding.fingerprint, finding]));
+  const titles = new Map<string, string>();
+  const pending = new Map<string, string[]>();
+  for (const planned of declined) {
+    for (const fingerprint of planned.findings) {
+      if (present.has(fingerprint)) {
+        if (!titles.has(fingerprint)) titles.set(fingerprint, planned.fix.title);
+        continue;
+      }
+      const finding = earlier.get(fingerprint);
+      if (finding === undefined) continue;
+      const key = keyOf(finding.ruleId, renames.get(finding.path) ?? finding.path);
+      pending.set(key, [...(pending.get(key) ?? []), planned.fix.title]);
+    }
+  }
+  for (const finding of after.findings) {
+    if (finding.fix === undefined || titles.has(finding.fingerprint)) continue;
+    const title = pending.get(keyOf(finding.ruleId, finding.path))?.shift();
+    if (title !== undefined) titles.set(finding.fingerprint, title);
+  }
+  return titles;
 }
 
 function render(session: Session, view: FixView): string {

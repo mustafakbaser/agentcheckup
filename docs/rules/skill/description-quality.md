@@ -28,6 +28,10 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
 - [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-10-14
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

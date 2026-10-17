@@ -210,6 +210,16 @@ does. A fix that only a declined fix made possible is not applied. The fixes of
 `directive/unused` and `directive/unknown-rule` apply all or none: when you decline one, the
 others of that rule stay as they are too.
 
+The `Left:` list at the end comes from the scan of the files as written. It names the findings
+of the fixes you declined, with the fix's title when the rule gives no manual step, and the
+manual steps of the findings still there. A step that only a fix you did not apply would bring
+up is not listed. Here the `mcp/url-without-type` fix was declined:
+
+```text
+Left: .mcp.json:3 mcp/url-without-type (Add "type": "sse" to MCP server "docs")
+      CLAUDE.md:5 instr/import-unresolved (create "docs/setup.md" or correct the path; no file named "setup.md" exists)
+```
+
 `-i` needs a terminal on stdin and stdout and exits 2 without one. With `--format json` it
 needs `--output`, because the questions go to stdout.
 
@@ -319,10 +329,13 @@ hunks as in the diff.
 
 ## Rules with fixes
 
-37 of the 62 rules can attach a fix. The others give a manual step where they can name one. This
-table lists each rule's fix classes and what its fix does, as `agentcheckup explain <rule-id>`
-prints them; each rule's page in the [rule catalog](rules/README.md) has the same classes in its
-`Fixable` row.
+This table lists each rule's fix classes and what its fix does, as `agentcheckup explain <rule-id>`
+prints them. The page of each rule in the [rule catalog](rules/README.md) has the same in its Fix
+section.
+
+<!-- Start of the fixable rules, generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
+
+37 of the 62 rules can attach a fix. The others give a manual step where they can name one.
 
 | Rule                                                                              | Classes          | What the fix does                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -363,3 +376,5 @@ prints them; each rule's page in the [rule catalog](rules/README.md) has the sam
 | [`skill/name-format`](rules/skill/name-format.md)                                 | `safe`, `review` | Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. A non-ASCII name or an invalid directory name is left to you.                                                                                                                                                 |
 | [`skill/name-missing`](rules/skill/name-missing.md)                               | `safe`           | Sets `name` to the directory name when that is a valid skill name.                                                                                                                                                                                                                                                       |
 | [`skill/yaml-portability`](rules/skill/yaml-portability.md)                       | `review`         | Puts a value that YAML 1.1 reads as a boolean, or YAML 1.2 as a number, in double quotes. Anchors, aliases, tags and empty values are left to you.                                                                                                                                                                       |
+
+<!-- End of the fixable rules. -->

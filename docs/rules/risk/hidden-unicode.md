@@ -29,6 +29,14 @@ Delete the characters. If they came from copy and paste, retype the affected tex
 - [Unicode Technical Standard #51: Unicode Emoji (emoji tag sequences, Annex C)](https://www.unicode.org/reports/tr51/), verified, checked 2026-10-14
 - [Paul Butler: Smuggling arbitrary data through an emoji](https://paulbutler.org/2025/smuggling-arbitrary-data-through-an-emoji/), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Deletes every run of tag characters and zero-width characters in the file, and every variation selector after a run's first. Bidirectional controls are left to you, because right-to-left text can need them.
+
+Preview the fix with `agentcheckup fix --rule risk/hidden-unicode`.
+
 ## Configuration
 
 ```json

@@ -46,6 +46,14 @@ Revoke and rotate the credential; deleting it from the file does not remove it f
 - [Doppler: Auth token formats](https://docs.doppler.com/reference/auth-token-formats), verified, checked 2026-10-14
 - [gitleaks default rules (token lengths that vendors do not document)](https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml), unverified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.
+
+Preview the fix with `agentcheckup fix --rule mcp/literal-secret`.
+
 ## Configuration
 
 ```json

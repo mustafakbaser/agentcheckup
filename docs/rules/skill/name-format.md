@@ -32,6 +32,14 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. A non-ASCII name or an invalid directory name is left to you.
+
+Preview the fix with `agentcheckup fix --rule skill/name-format`.
+
 ## Configuration
 
 ```json

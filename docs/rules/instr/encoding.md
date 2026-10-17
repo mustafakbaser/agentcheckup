@@ -27,6 +27,14 @@ Save the file as UTF-8.
 - [Gemini CLI source: memoryDiscovery.ts (reads GEMINI.md as UTF-8)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts), verified, checked 2026-10-14
 - [Claude Code: Memory (file encoding is not documented)](https://code.claude.com/docs/en/memory), unverified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Converts a UTF-16 file that decodes without errors to UTF-8 without a byte order mark, keeping its text and line endings. Invalid UTF-8 is left to you.
+
+Preview the fix with `agentcheckup fix --rule instr/encoding`.
+
 ## Configuration
 
 ```json

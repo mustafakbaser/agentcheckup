@@ -23,6 +23,14 @@ Set the mode in `~/.claude/settings.json` or managed settings, or pass `--permis
 
 - [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Removes "defaultMode" from the project or local settings. A review fix: Claude Code before v2.1.257 applied "bypassPermissions" from these files.
+
+Preview the fix with `agentcheckup fix --rule settings/ignored-permission-mode`.
+
 ## Configuration
 
 ```json

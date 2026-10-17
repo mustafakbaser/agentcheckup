@@ -23,6 +23,14 @@ Remove `trust`, or allow only the specific tools you need with the server's `inc
 
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Removes "trust" from the server, so Gemini CLI asks before each tool call again.
+
+Preview the fix with `agentcheckup fix --rule mcp/gemini-trust`.
+
 ## Configuration
 
 ```json

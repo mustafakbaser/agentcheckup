@@ -21,6 +21,14 @@ None of the rules the directive names reports a finding where it applies, so it 
 
 - [agentcheckup inline suppression directives](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/configuration.md#inline-suppressions), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Removes the directive, and its line when nothing else is on it, when every rule it names checked the file in this scan.
+
+Preview the fix with `agentcheckup fix --rule directive/unused`.
+
 ## Configuration
 
 ```json

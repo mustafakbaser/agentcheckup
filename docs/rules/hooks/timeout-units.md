@@ -30,6 +30,14 @@ Write the timeout in the unit of the agent that reads the file.
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRunner.ts (timeout in milliseconds)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRunner.ts), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Rewrites the number in the unit the agent reads: divided by 1,000 and rounded up for Claude Code, Codex and Cursor, multiplied by 1,000 for Gemini CLI. Only the number changes.
+
+Preview the fix with `agentcheckup fix --rule hooks/timeout-units`.
+
 ## Configuration
 
 ```json

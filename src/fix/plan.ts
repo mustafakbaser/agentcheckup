@@ -282,15 +282,45 @@ export function planFixes(
       compareStrings(a.kind, b.kind) ||
       (order.get(a.loser) ?? 0) - (order.get(b.loser) ?? 0),
   );
-  return {
-    fixes: ordered,
-    conflicts,
-    manual: [...manual.values()].sort(
-      (a, b) =>
-        compareStrings(a.path, b.path) ||
-        a.line - b.line ||
-        compareStrings(a.ruleId, b.ruleId) ||
-        compareStrings(a.guidance, b.guidance),
-    ),
-  };
+  return { fixes: ordered, conflicts, manual: sortedSteps(manual.values()) };
+}
+
+/** Manual steps by path, line, rule and guidance. */
+function sortedSteps(steps: Iterable<ManualStep>): ManualStep[] {
+  return [...steps].sort(
+    (a, b) =>
+      compareStrings(a.path, b.path) ||
+      a.line - b.line ||
+      compareStrings(a.ruleId, b.ruleId) ||
+      compareStrings(a.guidance, b.guidance),
+  );
+}
+
+/**
+ * What a scan leaves to the user when no more fixes are applied, as after `fix -i` wrote the
+ * accepted fixes: the manual steps {@link planFixes} lists for the selection, and a step for each
+ * finding whose fix stays unapplied: its `guidance` or, without one, the step `fallback` names
+ * (`-i` names the title of a fix the user declined). Findings without either are left out. Sorted
+ * as {@link planFixes} sorts manual steps.
+ */
+export function leftSteps(
+  analysis: Analysis,
+  result: Pick<RuleResult, 'findings'>,
+  selection: FixSelection,
+  fallback: (finding: Finding) => string | undefined,
+): ManualStep[] {
+  const plan = planFixes(analysis, result, selection);
+  const steps = new Map(plan.manual.map((step) => [manualKey(step), step]));
+  const byFingerprint = new Map(result.findings.map((finding) => [finding.fingerprint, finding]));
+  for (const planned of plan.fixes) {
+    // planFixes already gave these findings their steps, with the reason a path was refused.
+    if (planned.reason === 'refused-path' || planned.reason === 'verification-failed') continue;
+    for (const fingerprint of planned.findings) {
+      const finding = byFingerprint.get(fingerprint);
+      if (finding === undefined) continue;
+      const step = manualStep(finding, finding.guidance ?? fallback(finding));
+      if (step !== undefined) steps.set(manualKey(step), step);
+    }
+  }
+  return sortedSteps(steps.values());
 }

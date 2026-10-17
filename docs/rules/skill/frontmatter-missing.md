@@ -26,6 +26,14 @@ Start the file with `---`, add `name` and `description`, and close the block wit
 - [Gemini CLI source: skillLoader.ts](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-14
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Moves the frontmatter to line 1 and removes the indentation of its delimiters (safe), or adds frontmatter with the directory name and the first body line as the description (review). An unclosed block is left to you.
+
+Preview the fix with `agentcheckup fix --rule skill/frontmatter-missing`.
+
 ## Configuration
 
 ```json

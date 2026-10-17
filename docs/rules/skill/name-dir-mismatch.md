@@ -30,6 +30,14 @@ Rename the directory or change `name` so that they match.
 - [Claude API: Using Agent Skills with the API](https://platform.claude.com/docs/en/build-with-claude/skills-guide), verified, checked 2026-10-14
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. Directories are never renamed.
+
+Preview the fix with `agentcheckup fix --rule skill/name-dir-mismatch`.
+
 ## Configuration
 
 ```json

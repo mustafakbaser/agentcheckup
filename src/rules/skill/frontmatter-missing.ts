@@ -1,7 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText } from '../../core/text.js';
 import type { Artifact, DecodedText, Fix, PlatformId, Span } from '../../core/types.js';
-import { prependFrontmatter, type YamlEntry } from '../../fix/index.js';
+import { moveFrontmatterToTop, prependFrontmatter, type YamlEntry } from '../../fix/index.js';
 import type { FrontmatterResult } from '../../parse/types.js';
 import { codexFrontmatterClose, isCodexDelimiter } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
@@ -23,7 +23,6 @@ import {
   editable,
   type FixOrGuidance,
   fixFields,
-  frontmatterToLineOne,
 } from './fixes.js';
 
 /** Span of line `line` (1-based), without its line terminator. */
@@ -44,6 +43,9 @@ function findLine(
   return undefined;
 }
 
+/** A line that starts with a space or a tab. */
+const INDENTED = /^[\t ]/;
+
 const SKIP = ['skips', 'skip'] as const;
 const CLAUDE_READS_AS_INSTRUCTIONS = 'Claude Code reads the frontmatter as instructions';
 
@@ -62,16 +64,19 @@ const ADD_FRONTMATTER =
  * when indentation goes, `#blank-lines` when only blank lines before it do.
  */
 function moveToLineOne(artifact: Artifact, openLine: number, guidance: string): FixOrGuidance {
-  const moved = editable(artifact) ? frontmatterToLineOne(artifact, openLine) : undefined;
-  if (moved === undefined) return { guidance };
-  const { edits, dedent } = moved;
+  const { decoded } = artifact;
+  const closeLine = findLine(decoded, openLine, isCodexDelimiter);
+  if (!editable(artifact) || closeLine === undefined) return { guidance };
+  const change = moveFrontmatterToTop(artifact, openLine, closeLine);
+  if (change === undefined) return { guidance };
+  const dedent = [openLine, closeLine].some((line) => INDENTED.test(lineText(decoded, line)));
   const fix: Fix = {
     id: `skill/frontmatter-missing#${dedent ? 'dedent' : 'blank-lines'}`,
     class: 'safe',
     title: dedent
       ? `Remove the indentation of the frontmatter delimiters in ${artifact.path}`
       : `Delete the blank lines before the frontmatter in ${artifact.path}`,
-    changes: [{ kind: 'edit', path: artifact.path, edits }],
+    changes: [change],
   };
   return { fix, guidance };
 }

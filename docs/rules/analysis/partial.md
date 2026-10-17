@@ -25,6 +25,10 @@ An instruction file this large is costly for agents too: Codex reads at most 32 
 
 - [ADR 0003: Treat scanned repositories as hostile](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/adr/0003-treat-scanned-repositories-as-hostile.md), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

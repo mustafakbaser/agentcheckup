@@ -11,6 +11,9 @@
  * - mcp/literal-secret (replaces the built-in rule, which emits no fix yet): a `token: <value>`
  *   line. Review fix: replace the value with `${TOKEN}`, with the rotation warning.
  * - test/crash: throws on a file that contains `CRASH`.
+ * - test/todo: a `TODO` line. No fix, a manual step.
+ * - test/heading-name (info): `# Agents` on line 1 of a file with a `TODO` line. No fix, a manual
+ *   step: it appears only once test/heading's fix is applied.
  */
 import type { AnyRule, Artifact } from '../../src/core/types.js';
 import { createFile, insertLine, renameFile, replaceSpan } from '../../src/fix/edits.js';
@@ -140,4 +143,43 @@ const crash = testRule({
   },
 });
 
-export const FIX_TEST_RULES: readonly AnyRule[] = [heading, footer, notes, move, secret, crash];
+const todo = testRule({
+  id: 'test/todo',
+  check(context, artifact) {
+    // The offset of the line in the text, found after a line break put in front of it.
+    const offset = `\n${artifact.decoded.text}`.indexOf('\nTODO\n');
+    if (offset === -1) return;
+    context.report({
+      artifact,
+      message: 'AGENTS.md has a TODO.',
+      span: { offset, length: 'TODO'.length },
+      guidance: 'resolve the TODO',
+    });
+  },
+});
+
+const headingName = testRule({
+  id: 'test/heading-name',
+  severity: 'info',
+  check(context, artifact) {
+    if (!artifact.decoded.text.startsWith('# Agents\n') || !lines(artifact).includes('TODO'))
+      return;
+    context.report({
+      artifact,
+      message: 'The heading does not name the project.',
+      span: { offset: 0, length: '# Agents'.length },
+      guidance: 'name the project in the heading',
+    });
+  },
+});
+
+export const FIX_TEST_RULES: readonly AnyRule[] = [
+  heading,
+  footer,
+  notes,
+  move,
+  secret,
+  crash,
+  todo,
+  headingName,
+];

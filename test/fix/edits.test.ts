@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { decode } from '../../src/core/text.js';
+import type { Span } from '../../src/core/types.js';
 import {
   createFile,
   insertLine,
@@ -9,6 +10,7 @@ import {
   jsonRemoveProperty,
   jsonRenameKey,
   jsonReplaceValue,
+  moveFrontmatterToTop,
   prependFrontmatter,
   quoteJson,
   quoteYaml,
@@ -18,6 +20,9 @@ import {
   safeCopiedText,
   skillSlug,
   yamlInsertKey,
+  yamlRenameKey,
+  yamlReplaceScalar,
+  yamlReplaceValue,
   yamlSetScalar,
 } from '../../src/fix/edits.js';
 import { snapshotFrom } from '../helpers/lint.js';
@@ -474,6 +479,261 @@ describe('YAML frontmatter', () => {
         { key: 'a', value: 2 },
       ]),
     ).toBeUndefined();
+  });
+});
+
+describe('YAML frontmatter: whole entries', () => {
+  const RULE = '.cursor/rules/x.mdc';
+  const replace = (
+    content: string | Uint8Array,
+    key: string,
+    value: string | number | boolean | null,
+    options?: Parameters<typeof yamlReplaceValue>[4],
+  ) => {
+    const { analysis, artifact } = artifactOf(RULE, content);
+    const change = yamlReplaceValue(artifact, analysis.frontmatter(artifact), key, value, options);
+    return change === undefined ? undefined : edited(artifact, change);
+  };
+  const rename = (content: string, key: string, newKey: string) => {
+    const { analysis, artifact } = artifactOf(RULE, content);
+    const change = yamlRenameKey(artifact, analysis.frontmatter(artifact), key, newKey);
+    return change === undefined ? undefined : edited(artifact, change);
+  };
+  const double = { style: 'double' } as const;
+
+  it('replaces a block list with one scalar on the key line', () => {
+    expect(
+      replace(
+        '---\nglobs:\n  - a/**\n  - b/*.ts\nx: 1\n---\nBody.\n',
+        'globs',
+        'a/**, b/*.ts',
+        double,
+      ),
+    ).toBe('---\nglobs: "a/**, b/*.ts"\nx: 1\n---\nBody.\n');
+    expect(
+      replace('---\nallowed-tools:\n- Read\n- Bash\n---\n', 'allowed-tools', 'Read Bash'),
+    ).toBe('---\nallowed-tools: Read Bash\n---\n');
+  });
+
+  it('replaces a flow list, also inside a flow mapping', () => {
+    expect(replace('---\nglobs: [a, b]\n---\n', 'globs', 'a, b')).toBe('---\nglobs: "a, b"\n---\n');
+    expect(
+      replace('---\n{paths: [a, b], x: 1}\n---\n', 'paths', 'a, b', {
+        ...double,
+        renameTo: 'globs',
+      }),
+    ).toBe('---\n{globs: "a, b", x: 1}\n---\n');
+  });
+
+  it('replaces a nested mapping and keeps the entries around it', () => {
+    expect(
+      replace(
+        '---\nname: n\nmetadata:\n  a: 1\n  b:\n    - c\nlicense: MIT\n---\n',
+        'metadata',
+        'none',
+      ),
+    ).toBe('---\nname: n\nmetadata: none\nlicense: MIT\n---\n');
+  });
+
+  it('quotes what a parser would read as something else, and escapes', () => {
+    expect(replace('---\nv: [a]\n---\n', 'v', 'yes')).toBe('---\nv: "yes"\n---\n');
+    expect(replace('---\nv: [a]\n---\n', 'v', '1.0')).toBe('---\nv: "1.0"\n---\n');
+    expect(replace("---\nglobs: ['a\"b\\\\c']\n---\n", 'globs', 'a"b\\c', double)).toBe(
+      '---\nglobs: "a\\"b\\\\c"\n---\n',
+    );
+    expect(replace('---\nv: [a]\n---\n', 'v', 'a\u202Eb')).toBe('---\nv: "a\\u202Eb"\n---\n');
+    expect(replace('---\nv: [a]\n---\n', 'v', 2)).toBe('---\nv: 2\n---\n');
+  });
+
+  it('keeps a comment after the value and refuses one inside it', () => {
+    expect(replace('---\nglobs: [a, b] # all\n---\n', 'globs', 'a, b', double)).toBe(
+      '---\nglobs: "a, b" # all\n---\n',
+    );
+    expect(replace('---\nglobs:\n  - a # first\n  - b\n---\n', 'globs', 'a, b')).toBeUndefined();
+    expect(replace('---\nglobs: [a, # x\n  b]\n---\n', 'globs', 'a, b')).toBeUndefined();
+    expect(replace('---\nglobs: # list\n  - a\n---\n', 'globs', 'a')).toBeUndefined();
+  });
+
+  it('refuses anchors, aliases and tags anywhere in the frontmatter', () => {
+    expect(replace('---\nglobs: &g [a, b]\nx: *g\n---\n', 'globs', 'a, b')).toBeUndefined();
+    expect(replace('---\nbase: &b a\nglobs: [*b, c]\n---\n', 'globs', 'a, c')).toBeUndefined();
+    expect(replace('---\nx: &x 1\nglobs: [a]\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(replace('---\nglobs: !!seq [a]\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(rename('---\npaths: &p a\n---\n', 'paths', 'globs')).toBeUndefined();
+  });
+
+  it('refuses a value it cannot replace in place', () => {
+    expect(replace('---\nglobs:\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(replace('---\nx: 1\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(replace('---\n? globs\n: [a]\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(replace('---\nglobs: [a\n---\n', 'globs', 'a')).toBeUndefined();
+    expect(replace('No frontmatter.\n', 'globs', 'a')).toBeUndefined();
+    expect(
+      replace('---\npaths: [a]\nglobs: b\n---\n', 'paths', 'a', { renameTo: 'globs' }),
+    ).toBeUndefined();
+  });
+
+  it('renames a key in place and keeps its value', () => {
+    expect(rename('---\ndescription: d\npaths: src/**\nx: 1\n---\n', 'paths', 'globs')).toBe(
+      '---\ndescription: d\nglobs: src/**\nx: 1\n---\n',
+    );
+    expect(rename('---\napplyTo:\n  - a\n---\n', 'applyTo', 'globs')).toBe(
+      '---\nglobs:\n  - a\n---\n',
+    );
+    expect(rename('---\npaths: a\nglobs: b\n---\n', 'paths', 'globs')).toBeUndefined();
+    expect(rename('---\npaths: a\n---\n', 'paths', 'paths')).toBeUndefined();
+    expect(rename('---\nx: 1\n---\n', 'paths', 'globs')).toBeUndefined();
+  });
+
+  it('keeps CRLF line endings and a byte order mark', () => {
+    expect(
+      replace(
+        '---\r\nglobs:\r\n  - a\r\n  - b\r\nx: 1\r\n---\r\nBody.\r\n',
+        'globs',
+        'a, b',
+        double,
+      ),
+    ).toBe('---\r\nglobs: "a, b"\r\nx: 1\r\n---\r\nBody.\r\n');
+    expect(
+      bytesAfter(RULE, utf8Bom('---\r\nglobs: [a, b]\r\n---\r\n'), ({ analysis, artifact }) =>
+        yamlReplaceValue(artifact, analysis.frontmatter(artifact), 'globs', 'a, b', double),
+      ),
+    ).toEqual(utf8Bom('---\r\nglobs: "a, b"\r\n---\r\n'));
+  });
+
+  it('rejects keys that are not plain', () => {
+    const { analysis, artifact } = artifactOf(RULE, '---\nglobs: [a]\n---\n');
+    const frontmatter = analysis.frontmatter(artifact);
+    expect(() => yamlReplaceValue(artifact, frontmatter, 'a b', 'x')).toThrow(RangeError);
+    expect(() => yamlRenameKey(artifact, frontmatter, 'globs', 'a: b')).toThrow(RangeError);
+  });
+});
+
+describe('YAML frontmatter: scalars inside values', () => {
+  const at = (text: string, scalar: string): Span => {
+    const offset = text.indexOf(scalar);
+    if (offset === -1) throw new Error(`${scalar} is not in the text`);
+    return { offset, length: scalar.length };
+  };
+  const scalar = (
+    content: string,
+    span: Span,
+    value: string | number | boolean | null,
+    options?: Parameters<typeof yamlReplaceScalar>[4],
+  ) => {
+    const { analysis, artifact } = artifactOf(SKILL, content);
+    const change = yamlReplaceScalar(
+      artifact,
+      analysis.frontmatter(artifact),
+      span,
+      value,
+      options,
+    );
+    return change === undefined ? undefined : edited(artifact, change);
+  };
+  const quote = (content: string, source: string) =>
+    scalar(content, at(content, source), source, { style: 'double' });
+
+  it('quotes a top-level value, a list item and a nested value', () => {
+    expect(quote('---\nbeta: yes\n---\n', 'yes')).toBe('---\nbeta: "yes"\n---\n');
+    expect(quote('---\nv: [1.0, on]\n---\n', 'on')).toBe('---\nv: [1.0, "on"]\n---\n');
+    expect(quote('---\ntools:\n  - Read\n  - 1.0\n---\n', '1.0')).toBe(
+      '---\ntools:\n  - Read\n  - "1.0"\n---\n',
+    );
+    expect(quote('---\nname: n\nmetadata:\n  version: 1.0\n  beta: yes\n---\n', '1.0')).toBe(
+      '---\nname: n\nmetadata:\n  version: "1.0"\n  beta: yes\n---\n',
+    );
+  });
+
+  it('writes a top-level value as another scalar only when it parses to that value', () => {
+    expect(scalar('---\nbeta: yes # x\n---\n', { offset: 10, length: 3 }, true)).toBe(
+      '---\nbeta: true # x\n---\n',
+    );
+    // A key is not a value: writing `true` there would rename it.
+    expect(scalar('---\nyes: 1\n---\n', { offset: 4, length: 3 }, true)).toBeUndefined();
+  });
+
+  it('refuses quoted scalars, anchors, aliases, tags and spans outside an entry', () => {
+    expect(quote("---\nv: 'yes'\n---\n", "'yes'")).toBeUndefined();
+    expect(quote('---\nv: "1.0"\n---\n', '"1.0"')).toBeUndefined();
+    expect(quote('---\na: &x 1\nb: 2\n---\n', '&x')).toBeUndefined();
+    expect(quote('---\na: &x 1\nb: *x\n---\n', '*x')).toBeUndefined();
+    expect(quote('---\na: !!str 1\n---\n', '!!str')).toBeUndefined();
+    expect(quote('---\na: x y\n---\n', ' y')).toBeUndefined();
+    expect(scalar('---\na: 1\n---\n', { offset: 0, length: 3 }, 'x')).toBeUndefined();
+    expect(scalar('---\na: 1\n---\n', { offset: 7, length: 0 }, 'x')).toBeUndefined();
+    expect(scalar('No frontmatter.\n', { offset: 0, length: 2 }, 'x')).toBeUndefined();
+  });
+
+  it('refuses an edit that changes another value', () => {
+    // Quoting the anchored scalar would leave the alias without its anchor.
+    expect(quote('---\na: &x 1.0\nb: *x\n---\n', '1.0')).toBeUndefined();
+  });
+
+  it('keeps CRLF line endings and a byte order mark', () => {
+    const text = '---\r\nmetadata:\r\n  beta: on\r\n---\r\nBody.\r\n';
+    expect(quote(text, 'on')).toBe('---\r\nmetadata:\r\n  beta: "on"\r\n---\r\nBody.\r\n');
+    expect(
+      bytesAfter(SKILL, utf8Bom(text), ({ analysis, artifact }) =>
+        yamlReplaceScalar(artifact, analysis.frontmatter(artifact), at(text, 'on'), 'on', {
+          style: 'double',
+        }),
+      ),
+    ).toEqual(utf8Bom('---\r\nmetadata:\r\n  beta: "on"\r\n---\r\nBody.\r\n'));
+  });
+
+  it('rejects a span outside the text', () => {
+    const { analysis, artifact } = artifactOf(SKILL, '---\na: 1\n---\n');
+    expect(() =>
+      yamlReplaceScalar(artifact, analysis.frontmatter(artifact), { offset: 9, length: 9 }, 'x'),
+    ).toThrow(RangeError);
+  });
+});
+
+describe('YAML frontmatter: the block', () => {
+  const move = (content: string, open: number, close: number) => {
+    const { artifact } = artifactOf(SKILL, content);
+    const change = moveFrontmatterToTop(artifact, open, close);
+    return change === undefined ? undefined : edited(artifact, change);
+  };
+
+  it('deletes the lines before the block', () => {
+    expect(move('\n\n---\nname: x\n---\nBody.\n', 3, 5)).toBe('---\nname: x\n---\nBody.\n');
+    expect(move('Draft\n---\nname: x\n---\n', 2, 4)).toBe('---\nname: x\n---\n');
+  });
+
+  it('removes the indentation of the delimiters, or of the whole block', () => {
+    expect(move('  ---\nname: x\n  ---\n', 1, 3)).toBe('---\nname: x\n---\n');
+    expect(move('  ---\n  name: x\n  metadata:\n    a: 1\n\n  ---\n', 1, 6)).toBe(
+      '---\nname: x\nmetadata:\n  a: 1\n\n---\n',
+    );
+    expect(move('\n\t---\n\tname: x\n\t---\n', 2, 4)).toBe('---\nname: x\n---\n');
+  });
+
+  it('keeps CRLF line endings and a byte order mark', () => {
+    expect(move('\r\n  ---\r\n  name: x\r\n  ---\r\nBody.\r\n', 2, 4)).toBe(
+      '---\r\nname: x\r\n---\r\nBody.\r\n',
+    );
+    expect(
+      bytesAfter(SKILL, utf8Bom('\r\n---\r\nname: x\r\n---\r\n'), ({ artifact }) =>
+        moveFrontmatterToTop(artifact, 2, 4),
+      ),
+    ).toEqual(utf8Bom('---\r\nname: x\r\n---\r\n'));
+  });
+
+  it('refuses nothing to move, other whitespace and a block that does not parse', () => {
+    expect(move('---\nname: x\n---\n', 1, 3)).toBeUndefined();
+    expect(move('\u00a0---\nname: x\n---\n', 1, 3)).toBeUndefined();
+    expect(move('\n---\nname: [x\n---\n', 2, 4)).toBeUndefined();
+    // Only the delimiters move: the indented key under an unindented one breaks the mapping.
+    expect(move('\n  ---\nname: x\n  b: 1\n  ---\n', 2, 5)).toBeUndefined();
+  });
+
+  it('rejects lines that are not a block in the file', () => {
+    const { artifact } = artifactOf(SKILL, '\n---\nname: x\n---\n');
+    expect(() => moveFrontmatterToTop(artifact, 2, 2)).toThrow(RangeError);
+    expect(() => moveFrontmatterToTop(artifact, 0, 2)).toThrow(RangeError);
+    expect(() => moveFrontmatterToTop(artifact, 2, 99)).toThrow(RangeError);
   });
 });
 

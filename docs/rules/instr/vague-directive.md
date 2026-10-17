@@ -30,6 +30,10 @@ Replace it with the specific command, convention or path you mean, or delete it.
 - [Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)](https://arxiv.org/abs/2602.11988), verified, checked 2026-10-14
 - [Augment Code: How to write good AGENTS.md files](https://www.augmentcode.com/blog/how-to-write-good-agents-dot-md-files), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

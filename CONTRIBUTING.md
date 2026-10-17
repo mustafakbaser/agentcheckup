@@ -111,11 +111,12 @@ Rules only describe fixes: `src/fix` plans, applies and verifies them in memory,
    ```
 
 3. **Build every change with the builders in `src/fix/edits.ts`:** `insertLine`, `replaceSpan`,
-   `yamlSetScalar`, `yamlInsertKey`, `prependFrontmatter`, the `json*` builders, `renameFile`,
-   `createFile` and `reencode`. Never compute offsets or parse raw text yourself. The builders
-   take line endings, indentation and quote style from the neighboring lines. The YAML and JSON
-   builders return `undefined` when an edit would not give exactly the intended value; then
-   offer no fix. Text copied from the repository goes through `safeCopiedText` and is written
+   `yamlSetScalar`, `yamlInsertKey`, `yamlReplaceValue`, `yamlRenameKey`, `yamlReplaceScalar`,
+   `prependFrontmatter`, `moveFrontmatterToTop`, the `json*` builders, `renameFile`,
+   `createFile` and `reencode`. Never compute offsets or parse raw text yourself, not even to
+   check an edit. The builders take line endings, indentation and quote style from the
+   neighboring lines. The YAML and JSON builders parse their result again and return `undefined`
+   when an edit would not give exactly the intended value; then offer no fix. Text copied from the repository goes through `safeCopiedText` and is written
    with `quoteYaml` or `quoteJson`; names derived from content go through `skillSlug`.
 4. **Choose the class.** `safe` only when the fix is deterministic, has one correct form and
    keeps the author's prose. A fix that activates or changes an MCP server, a hook, a permission
@@ -130,8 +131,8 @@ Rules only describe fixes: `src/fix` plans, applies and verifies them in memory,
    or warning, and that a second run plans nothing. Add cases that must not be fixed, such as a
    file reached through a symlink, and hostile input such as copied text with a line break or
    hidden Unicode. Check that every class the rule attaches is in `meta.fix.classes`.
-7. **Regenerate docs** with `pnpm docs:generate`, update the table in
-   [docs/fix.md](docs/fix.md#rules-with-fixes), and run the corpus fix replay below.
+7. **Regenerate docs** with `pnpm docs:generate`, which writes the rule's Fix section and its
+   row in [docs/fix.md](docs/fix.md#rules-with-fixes), and run the corpus fix replay below.
 
 ## Changing what an agent loads
 

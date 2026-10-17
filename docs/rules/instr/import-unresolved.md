@@ -30,6 +30,14 @@ Fix the path, or put a mention you do not want imported in backticks.
 - [Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)](https://code.claude.com/docs/en/memory), unverified, checked 2026-10-15
 - [Gemini CLI source: memoryDiscovery.ts (reads each GEMINI.md at the path it found, through symlinks, and resolves its imports from that path's directory)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts), verified, checked 2026-10-15
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Points the import at the only file in the repository with the name it asks for. Without exactly one such file, the path is left to you.
+
+Preview the fix with `agentcheckup fix --rule instr/import-unresolved`.
+
 ## Configuration
 
 ```json

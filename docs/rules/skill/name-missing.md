@@ -29,6 +29,14 @@ Add `name` with the directory name, in lowercase letters, digits and hyphens.
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
 - [Codex source: skill loader (default name from the directory)](https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Sets `name` to the directory name when that is a valid skill name.
+
+Preview the fix with `agentcheckup fix --rule skill/name-missing`.
+
 ## Configuration
 
 ```json

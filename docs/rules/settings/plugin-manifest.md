@@ -26,6 +26,14 @@ Fix the field the finding points to.
 - [Claude Code: Plugins reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-14
 - [Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)](https://code.claude.com/docs/en/plugins/troubleshooting), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Adds the missing "./" in front of a component path that exists (a review fix when the plugin declares hooks or servers, which then load), and renames a plugin whose name is not kebab-case (review). Other problems are left to you.
+
+Preview the fix with `agentcheckup fix --rule settings/plugin-manifest`.
+
 ## Configuration
 
 ```json

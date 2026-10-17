@@ -28,6 +28,10 @@ Move instructions for one part of the repository into an `AGENTS.md` in that dir
 - [Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)](https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml), verified, checked 2026-10-14
 - [Codex source: find_up.rs (nearest ancestor with a project root marker)](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/find_up.rs), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

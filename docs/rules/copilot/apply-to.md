@@ -27,6 +27,14 @@ Add `applyTo` with the patterns the instructions are for, such as `applyTo: "**/
 - [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-14
 - [GitHub changelog, 2025-11-12: agent-specific instructions ("coding-agent")](https://github.blog/changelog/2025-11-12-copilot-code-review-and-coding-agent-now-support-agent-specific-instructions/), unverified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Joins an "applyTo" YAML list into one comma-separated string.
+
+Preview the fix with `agentcheckup fix --rule copilot/apply-to`.
+
 ## Configuration
 
 ```json

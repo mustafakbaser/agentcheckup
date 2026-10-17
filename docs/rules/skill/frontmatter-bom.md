@@ -28,6 +28,14 @@ Save SKILL.md as UTF-8 without a byte order mark.
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `safe` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Saves SKILL.md as UTF-8 without the byte order mark.
+
+Preview the fix with `agentcheckup fix --rule skill/frontmatter-bom`.
+
 ## Configuration
 
 ```json

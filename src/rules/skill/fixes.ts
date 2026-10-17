@@ -9,23 +9,15 @@
  *   rename, or a SKILL.md at a plugin root or the scan root is left to the user.
  * - Text copied from the body goes through {@link safeCopiedText} and is written double-quoted;
  *   the rules never write prose of their own.
- * - Edits of YAML values that the builders in src/fix/edits.ts cannot express (a list replaced by
- *   a string, a nested scalar) are checked by parsing the edited frontmatter again: the edit
- *   stands only when the frontmatter stays valid and no other top-level value changes.
+ * - Frontmatter edits use the builders in src/fix/edits.ts, which parse their own result again.
  */
-import { lineText } from '../../core/text.js';
-import type { Artifact, FileChange, Fix, Span, TextEdit } from '../../core/types.js';
+import type { Artifact, Fix } from '../../core/types.js';
 import {
-  editedText,
   MAX_SKILL_NAME_LENGTH,
-  replaceSpan,
   safeCopiedText,
   skillSlug,
   yamlSetScalar,
 } from '../../fix/index.js';
-import { parseFrontmatter } from '../../parse/frontmatter.js';
-import type { FrontmatterData, FrontmatterResult } from '../../parse/types.js';
-import { isCodexDelimiter } from '../../platforms/codex-skills.js';
 import { pluginRootOf } from '../../platforms/location.js';
 import { quote } from '../shared/format.js';
 import type { SkillScope, ValidFrontmatter } from './shared.js';
@@ -248,126 +240,3 @@ export function copiedDescription(body: string): string | undefined {
 /** The note of a fix that copies a description from the body. */
 export const COPIED_NOTE =
   'Copied from the first line of the body; reword it to say what the skill does and when to use it.';
-
-// ---------------------------------------------------------------------------------------------
-// Frontmatter delimiters
-// ---------------------------------------------------------------------------------------------
-
-/** Spaces and tabs at the start of `text`, or undefined when other whitespace is among them. */
-function blankIndent(text: string): string | undefined {
-  const indent = text.slice(0, text.length - text.trimStart().length);
-  return trimStartBlank(indent) === '' ? indent : undefined;
-}
-
-/**
- * Edits that move a frontmatter block opened on `openLine` (1-based) to the start of the file:
- * the blank lines before it are deleted, and indented delimiters lose their indentation. When
- * every non-blank line of the block carries the opening line's indentation, the whole block is
- * dedented, so the YAML keeps its structure. Undefined when there is no closing line, when the
- * indentation is not spaces and tabs, or when the result is not valid frontmatter.
- */
-export function frontmatterToLineOne(
-  artifact: Artifact,
-  openLine: number,
-): { readonly edits: readonly TextEdit[]; readonly dedent: boolean } | undefined {
-  const { decoded } = artifact;
-  const lines = decoded.lineStarts.length;
-  let closeLine: number | undefined;
-  for (let line = openLine + 1; line <= lines; line++) {
-    if (isCodexDelimiter(lineText(decoded, line))) {
-      closeLine = line;
-      break;
-    }
-  }
-  if (closeLine === undefined) return undefined;
-  const indent = blankIndent(lineText(decoded, openLine));
-  const closeIndent = blankIndent(lineText(decoded, closeLine));
-  if (indent === undefined || closeIndent === undefined) return undefined;
-  const start = (line: number): number => decoded.lineStarts[line - 1] ?? 0;
-
-  const edits: TextEdit[] = [];
-  if (openLine > 1) edits.push({ offset: 0, length: start(openLine), text: '' });
-  const inner: number[] = [];
-  for (let line = openLine + 1; line < closeLine; line++) inner.push(line);
-  const whole =
-    indent !== '' &&
-    inner.every((line) => {
-      const text = lineText(decoded, line);
-      return text.trim() === '' || text.startsWith(indent);
-    });
-  const dedent = (line: number, length: number): void => {
-    if (length > 0) edits.push({ offset: start(line), length, text: '' });
-  };
-  if (openLine > 1) {
-    // The deletion before it reaches the opening line's start: extend it over the indentation.
-    const first = edits[0];
-    if (first !== undefined && indent !== '') {
-      edits[0] = { ...first, length: first.length + indent.length };
-    }
-  } else {
-    dedent(openLine, indent.length);
-  }
-  if (whole) {
-    for (const line of inner) {
-      if (lineText(decoded, line).startsWith(indent)) dedent(line, indent.length);
-    }
-  }
-  dedent(closeLine, closeIndent.length);
-  if (edits.length === 0) return undefined;
-  const result = parseFrontmatter(editedText(decoded, edits));
-  if (result.kind !== 'valid') return undefined;
-  return { edits, dedent: indent !== '' || closeIndent !== '' };
-}
-
-// ---------------------------------------------------------------------------------------------
-// Checked YAML edits
-// ---------------------------------------------------------------------------------------------
-
-const contains = (outer: Span | undefined, inner: Span): boolean =>
-  outer !== undefined &&
-  inner.offset >= outer.offset &&
-  inner.offset + inner.length <= outer.offset + outer.length;
-
-function sameValue(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-/** The top-level key whose key or value contains `span`, if any. */
-export function ownerKey(data: FrontmatterData, span: Span): string | undefined {
-  return data.keys.find(
-    (key) => contains(data.valueSpan(key), span) || contains(data.keySpan(key), span),
-  );
-}
-
-/**
- * Replaces `span`, which lies in the entry of top-level key `owner`, with `text`. The change
- * stands only when the edited frontmatter is valid, has the same top-level keys in the same
- * order, every other top-level value is unchanged, and `accept` agrees with the new value of
- * `owner`.
- */
-export function checkedYamlEdit(
-  artifact: Artifact,
-  frontmatter: ValidFrontmatter,
-  owner: string,
-  span: Span,
-  text: string,
-  accept: (value: unknown) => boolean,
-): FileChange | undefined {
-  const { data } = frontmatter;
-  if (!data.keys.includes(owner)) return undefined;
-  const change = replaceSpan(artifact, span, text);
-  if (change.kind !== 'edit') return undefined;
-  const after: FrontmatterResult = parseFrontmatter(editedText(artifact.decoded, change.edits));
-  if (after.kind !== 'valid') return undefined;
-  const keys = after.data.keys;
-  if (keys.length !== data.keys.length || keys.some((key, index) => key !== data.keys[index])) {
-    return undefined;
-  }
-  for (const key of keys) {
-    if (key === owner) continue;
-    if (!sameValue(after.data.values[key], data.values[key])) return undefined;
-  }
-  return accept(after.data.values[owner]) ? change : undefined;
-}

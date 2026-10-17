@@ -26,6 +26,10 @@ Review these commands before you invoke the skill, or set `disableSkillShellExec
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
 - [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

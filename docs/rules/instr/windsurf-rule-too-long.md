@@ -26,6 +26,10 @@ Split the rule into several rule files with their own activation modes, or move 
 - [Devin Desktop (Windsurf): Memories and rules](https://docs.devin.ai/desktop/cascade/memories), verified, checked 2026-10-14
 - [Devin Desktop (Windsurf): what happens past the 12,000-character limit is not documented](https://docs.devin.ai/desktop/cascade/memories), unverified, checked 2026-10-14
 
+## Fix
+
+Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+
 ## Configuration
 
 ```json

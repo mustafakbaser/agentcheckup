@@ -23,6 +23,14 @@ Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead 
 
 - [Cursor Help: Rules](https://cursor.com/help/customization/rules), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Moves the file to .cursor/rules/cursorrules.mdc with "alwaysApply: true", as Cursor's migration steps do. `fix -i` also offers renaming it to AGENTS.md when the directory has none.
+
+Preview the fix with `agentcheckup fix --rule cursor/legacy-cursorrules`.
+
 ## Configuration
 
 ```json

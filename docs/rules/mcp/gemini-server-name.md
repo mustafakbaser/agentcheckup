@@ -25,6 +25,14 @@ Use hyphens instead, for example `my-server`.
 - [Gemini CLI: Policy engine (MCP server names and underscores)](https://geminicli.com/docs/reference/policy-engine/), verified, checked 2026-10-14
 - [Gemini CLI source: mcp-tool.ts (FQN parsing)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/tools/mcp-tool.ts), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Renames the server, replacing each "_" with "-". Not offered when another server has that name or "mcp.allowed" or "mcp.excluded" names the server.
+
+Preview the fix with `agentcheckup fix --rule mcp/gemini-server-name`.
+
 ## Configuration
 
 ```json

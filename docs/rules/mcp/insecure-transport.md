@@ -28,6 +28,14 @@ Use `https://` or `wss://`.
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
 
+## Fix
+
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Changes http:// to https:// and ws:// to wss:// in the server URL. Moving off the deprecated SSE transport is left to you.
+
+Preview the fix with `agentcheckup fix --rule mcp/insecure-transport`.
+
 ## Configuration
 
 ```json

@@ -1,19 +1,14 @@
 /**
  * Fix helpers shared by the Cursor and GitHub Copilot rules: renames that must not collide with
- * another file, the symlink guard of ADR 0008, the links that still name a renamed file, and
- * frontmatter edits the builders in src/fix/edits.ts do not cover (a YAML list written as one
- * string, a key renamed).
- *
- * Every frontmatter edit is checked by parsing the edited text through the rule's own
- * `frontmatter()` service: it stands only when the result is valid YAML with the same keys in
- * the same order, the intended value, and every other value unchanged.
+ * another file, the symlink guard of ADR 0008, the links that still name a renamed file, and the
+ * glob patterns a fix joins into one string. Frontmatter edits use the builders in
+ * src/fix/edits.ts, which check their own result.
  */
 import { dirnamePosix, joinRelative, pathStatus } from '../../core/paths.js';
 import type { Artifact, FileChange, ParseServices, Snapshot, TextEdit } from '../../core/types.js';
-import { quoteYaml, safeCopiedText } from '../../fix/edits.js';
+import { safeCopiedText } from '../../fix/edits.js';
 import { foldPath, pathProblem } from '../../fix/paths.js';
-import { applyEdits, compareEdits } from '../../fix/text.js';
-import type { FrontmatterResult } from '../../parse/types.js';
+import { compareEdits } from '../../fix/text.js';
 import { joinNames, plural, quotePath } from '../shared/format.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -189,86 +184,4 @@ export function joinPatterns(value: unknown, separator: string): string | undefi
     items.push(item);
   }
   return items.join(separator);
-}
-
-// ---------------------------------------------------------------------------------------------
-// Frontmatter
-// ---------------------------------------------------------------------------------------------
-
-/** What {@link rewriteYamlEntry} changes about a top-level key. */
-export interface YamlEntryChange {
-  /** A new name for the key. */
-  readonly key?: string;
-  /** A new value, written as a double-quoted YAML string. */
-  readonly value?: string;
-}
-
-/** Same value for the checks: JSON-like data from the YAML parser. */
-function sameValue(a: unknown, b: unknown): boolean {
-  return a === b || JSON.stringify(a) === JSON.stringify(b);
-}
-
-/**
- * Renames the top-level frontmatter key `key`, or replaces its value with a one-line string, or
- * both, keeping everything else as it is. Unlike `yamlSetScalar`, the old value may be a list.
- * Undefined when the frontmatter is not valid, has anchors, aliases or tags, already has the new
- * key, the key is not followed by `:`, a comment would be lost, or the edited frontmatter does
- * not parse to exactly the intended data.
- */
-export function rewriteYamlEntry(
-  parse: Pick<ParseServices, 'frontmatter'>,
-  artifact: Artifact,
-  frontmatter: FrontmatterResult,
-  key: string,
-  change: YamlEntryChange,
-): FileChange | undefined {
-  if (frontmatter.kind !== 'valid') return undefined;
-  const { data } = frontmatter;
-  const newKey = change.key ?? key;
-  if (newKey !== key && Object.hasOwn(data.values, newKey)) return undefined;
-  if (frontmatter.warnings.some((issue) => issue.code === 'alias' || issue.code === 'tag')) {
-    return undefined;
-  }
-  const keySpan = data.keySpan(key);
-  if (keySpan === undefined) return undefined;
-  const { text } = artifact.decoded;
-  let colon = keySpan.offset + keySpan.length;
-  while (text.charAt(colon) === ' ' || text.charAt(colon) === '\t') colon++;
-  if (text.charAt(colon) !== ':') return undefined;
-
-  const edits: TextEdit[] = [];
-  if (newKey !== key) {
-    edits.push({ offset: keySpan.offset, length: keySpan.length, text: newKey });
-  }
-  if (change.value !== undefined) {
-    const valueSpan = data.valueSpan(key);
-    if (valueSpan === undefined || valueSpan.length === 0) return undefined;
-    const end = valueSpan.offset + valueSpan.length;
-    // Everything from the colon to the end of the value is replaced: a comment there would go.
-    if (end <= colon || text.slice(colon + 1, end).includes('#')) return undefined;
-    edits.push({
-      offset: colon + 1,
-      length: end - colon - 1,
-      text: ` ${quoteYaml(change.value, 'double')}`,
-    });
-  }
-  if (edits.length === 0) return undefined;
-
-  const edited: Artifact = {
-    ...artifact,
-    decoded: { ...artifact.decoded, text: applyEdits(text, edits) },
-  };
-  const after = parse.frontmatter(edited);
-  if (after.kind !== 'valid') return undefined;
-  const keys = data.keys.map((name) => (name === key ? newKey : name));
-  const afterKeys = after.data.keys;
-  if (afterKeys.length !== keys.length || keys.some((name, index) => afterKeys[index] !== name)) {
-    return undefined;
-  }
-  for (const name of data.keys) {
-    const now = after.data.values[name === key ? newKey : name];
-    const wanted = name === key && change.value !== undefined ? change.value : data.values[name];
-    if (!sameValue(now, wanted)) return undefined;
-  }
-  return { kind: 'edit', path: artifact.path, edits };
 }
