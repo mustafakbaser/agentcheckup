@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { codePointLength } from '../../src/core/measure.js';
+import { VERSION } from '../../src/core/version.js';
 import { buildTasks, judgmentCount, taskId } from '../../src/tasks/index.js';
 import { MAX_VALUE_CHARS, MAX_VALUE_LINES } from '../../src/tasks/excerpt.js';
 import { GITHUB_TOKEN, SAMPLE_REPO, scanOf } from './fixture.js';
@@ -132,7 +133,7 @@ describe('buildTasks', () => {
     expect(only.steps).toEqual([]);
     expect(only.forYou).toEqual([]);
     expect(only.rerun.command).toBe(
-      'npx agentcheckup@0.0.0 tasks --rule skill/description-quality',
+      `npx agentcheckup@${VERSION} tasks --rule skill/description-quality`,
     );
 
     const two = buildTasks(sample, { max: 2 });
