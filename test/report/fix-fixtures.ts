@@ -10,9 +10,15 @@ import type { ChangedFile, FileVersion, FixRun } from '../../src/report/fix-diff
 import { HOSTILE, HOSTILE_ALL } from './hostile.js';
 
 /** A GitHub token that mcp/literal-secret's detector reports: `ghp_` and 36 base62 characters. Built from parts so that secret scanners do not flag the source. */
-export const GITHUB_TOKEN = `ghp_${'Zq8Lm2Xv9Rt4Wp7Ks1Nd6Hf3Jb5Gc0Ty8Ua2'}`;
+export const GITHUB_TOKEN = ['ghp', 'Zq8Lm2Xv9Rt4Wp7Ks1Nd6Hf3Jb5Gc0Ty8Ua2'].join('_');
 /** An OpenAI-style key (marker `T3BlbkFJ`), found only by the detector in the tests. Built from parts so that secret scanners do not flag the source. */
-export const OPENAI_KEY = `sk-proj-${'Ab3Cd5Ef7Gh9'}T3Blbk${'FJ'}${'Km2Np4Qr6St8Uv0Wx1Yz3Bc5De7'}`;
+export const OPENAI_KEY = [
+  'sk-proj-',
+  'Ab3Cd5Ef7Gh9',
+  'T3Blbk',
+  'FJ',
+  'Km2Np4Qr6St8Uv0Wx1Yz3Bc5De7',
+].join('');
 
 function lineEndingOf(text: string): LineEnding {
   let lf = 0;

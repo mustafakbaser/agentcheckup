@@ -368,12 +368,14 @@ describe('bad baselines', () => {
 
   it('reads __proto__ and constructor keys as plain data', async () => {
     const report = await readFile(baseReport, 'utf8');
-    const hostile = report
-      .replace('{', '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"x": 1}},')
-      .replace(
-        '"findings": [',
-        '"findings": [{"ruleId": "a/b", "path": "x", "fingerprint": "f:1", "__proto__": {"polluted": true}},',
-      );
+    // Hostile keys right after the opening brace of the top-level object.
+    const hostile = (
+      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"x": 1}},' +
+      report.slice(report.indexOf('{') + 1)
+    ).replace(
+      '"findings": [',
+      '"findings": [{"ruleId": "a/b", "path": "x", "fingerprint": "f:1", "__proto__": {"polluted": true}},',
+    );
     const file = join(work, 'hostile.json');
     await writeFile(file, hostile);
     const io = capture(CONTEXT_FIXTURE);

@@ -1525,10 +1525,10 @@ describe('validateBaseline', () => {
 
   describe('hostile input', () => {
     it('reads own properties only and never pollutes prototypes', () => {
-      const text = JSON.stringify(json(full)).replace(
-        '{',
-        '{"__proto__":{"polluted":true,"schemaVersion":2},"constructor":{"prototype":{"polluted":true}},',
-      );
+      // Insert hostile keys right after the opening brace of the top-level object.
+      const text =
+        '{"__proto__":{"polluted":true,"schemaVersion":2},"constructor":{"prototype":{"polluted":true}},' +
+        JSON.stringify(json(full)).slice(1);
       const parsed = parse(text);
       const result = validateBaseline(parsed);
       expect(result.ok).toBe(true);

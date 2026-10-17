@@ -8,7 +8,7 @@
  * Only the `instr-*` and `directive-*` directories belong to this test; other rule families
  * test their own.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -33,10 +33,10 @@ function metaOf(ruleId: string): RuleMeta {
 /** Every file below `dir`, by POSIX path relative to it. */
 function diskFiles(dir: string): Map<string, Buffer> {
   const files = new Map<string, Buffer>();
-  for (const entry of readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
-    const path = join(dir, entry);
-    if (statSync(path).isFile())
-      files.set(relative(dir, path).split(sep).join('/'), readFileSync(path));
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
+    files.set(relative(dir, path).split(sep).join('/'), readFileSync(path));
   }
   return files;
 }

@@ -497,7 +497,9 @@ describe('credential redaction', () => {
     }
     const text = plain(secretRun);
     expect(text).toContain('-        "GITHUB_TOKEN": "ghp_…(40 chars)"');
-    expect(text).toContain('+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"');
+    // The fix writes the literal environment reference `${GITHUB_TOKEN}`, not a template.
+    const envReference = ['$', '{GITHUB_TOKEN}'].join('');
+    expect(text).toContain(`+        "GITHUB_TOKEN": "${envReference}"`);
     expect(text).toContain(`export OPENAI_API_KEY=sk-p…(${OPENAI_KEY.length} chars)`);
     expect(text).toContain('note: replaces ghp_…(40 chars)');
   });

@@ -67,10 +67,13 @@ function substitute(text: string): string {
 export function readTree(dir: string): Record<string, string> {
   const files: Record<string, string> = {};
   const visit = (current: string, prefix: string): void => {
-    for (const name of readdirSync(current).sort()) {
-      const path = join(current, name);
-      const relative = prefix === '' ? name : `${prefix}/${name}`;
-      if (statSync(path).isDirectory()) visit(path, relative);
+    const entries = readdirSync(current, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+    for (const entry of entries) {
+      const path = join(current, entry.name);
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) visit(path, relative);
       else files[relative] = substitute(readFileSync(path, 'utf8'));
     }
   };
