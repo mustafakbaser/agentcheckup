@@ -38,7 +38,7 @@
  * redirect or overwrite that one write. rename() itself never follows a symlink at the target.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { type BigIntStats, constants } from 'node:fs';
+import { constants } from 'node:fs';
 import {
   type FileHandle,
   link,
@@ -828,29 +828,23 @@ async function verifyFile(
   absolute: string,
   expected: FileState,
 ): Promise<number> {
-  let stats: BigIntStats;
-  try {
-    stats = await lstat(absolute, { bigint: true });
-  } catch (error) {
-    const code = errorCode(error);
-    if (code === 'ENOENT') throw changed(relativePath, 'it is gone');
-    throw writeFailed(relativePath, error);
-  }
-  if (stats.isSymbolicLink()) throw refused(relativePath, 'it is a symbolic link');
-  if (!stats.isFile()) throw refused(relativePath, 'it is not a regular file');
+  // Every decision is made on the opened handle, never on a separate check of the path: what
+  // was opened is what is compared. O_NOFOLLOW refuses a symlink where the platform has it;
+  // where it does not (Windows), a symlink swapped in leads to another file, whose device and
+  // inode differ from the scanned ones. O_NONBLOCK keeps a FIFO from blocking the open.
   let handle: FileHandle;
   try {
     handle = await open(absolute, SAFE_OPEN_FLAGS);
   } catch (error) {
     const code = errorCode(error);
     if (code === 'ELOOP') throw refused(relativePath, 'it is a symbolic link');
+    if (code === 'EISDIR') throw refused(relativePath, 'it is not a regular file');
     if (code === 'ENOENT') throw changed(relativePath, 'it is gone');
     throw writeFailed(relativePath, error);
   }
   try {
-    // The handle, not the path: what was opened is what is compared. Anything swapped in after
-    // the lstat (a FIFO, a directory, another file) has another device or inode.
     const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile()) throw refused(relativePath, 'it is not a regular file');
     if (!sameFile(opened, expected.identity)) {
       throw changed(relativePath, 'another file replaced it since the scan');
     }
