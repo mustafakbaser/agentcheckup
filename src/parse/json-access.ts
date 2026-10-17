@@ -4,29 +4,47 @@
  */
 import type { Span } from '../core/types.js';
 import { JSON_ISSUE } from './json.js';
+import { TOML_ISSUE } from './toml.js';
 import type { JsonDocument, JsonPathSegment, ParseIssue } from './types.js';
 
 export type JsonObject = Readonly<Record<string, unknown>>;
 export type JsonPath = readonly JsonPathSegment[];
 export type ParsedJson = Extract<JsonDocument, { ok: true }>;
 
-export type IssueKind = 'comment' | 'trailing-comma' | 'limit' | 'other';
+/**
+ * `limit` and `unsupported` are not syntax errors: the agent may read the file fine, so callers
+ * mark it incomplete instead of reporting it. `comment` and `trailing-comma` occur in JSON only.
+ */
+export type IssueKind = 'comment' | 'trailing-comma' | 'limit' | 'unsupported' | 'other';
 
 /**
- * Limits of agentcheckup's own parser, not syntax errors: agents' `JSON.parse` accepts such files.
- * An unterminated comment (`unexpected-end-of-comment`) is a real error and stays `other`.
+ * Limits of agentcheckup's own parsers, not syntax errors: agents' `JSON.parse` and Codex's TOML
+ * parser accept such files. An unterminated comment (`unexpected-end-of-comment`) is a real
+ * error and stays `other`.
  */
 const LIMIT_CODES: ReadonlySet<string> = new Set([
   JSON_ISSUE.tooLarge,
   JSON_ISSUE.tooDeep,
-  'parse-failed',
+  TOML_ISSUE.tooManyNodes,
+  TOML_ISSUE.parseFailed,
 ]);
 
-/** What kind of problem a JSON parse issue is: a comment, a trailing comma, a limit, or other. */
+/** Input the TOML parser does not read: TOML 1.1 syntax, a byte order mark, UTF-16 text. */
+const UNSUPPORTED_CODES: ReadonlySet<string> = new Set([
+  TOML_ISSUE.unsupported,
+  TOML_ISSUE.bom,
+  TOML_ISSUE.utf16,
+]);
+
+/**
+ * What kind of problem a JSON or TOML parse issue is: a comment, a trailing comma, a limit,
+ * unsupported input, or other (a syntax error).
+ */
 export function issueKind(issue: ParseIssue): IssueKind {
   if (issue.code === JSON_ISSUE.comment) return 'comment';
   if (issue.code === JSON_ISSUE.trailingComma) return 'trailing-comma';
   if (LIMIT_CODES.has(issue.code)) return 'limit';
+  if (UNSUPPORTED_CODES.has(issue.code)) return 'unsupported';
   return 'other';
 }
 

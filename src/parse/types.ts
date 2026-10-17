@@ -153,3 +153,57 @@ export type JsonDocument =
       readonly ok: false;
       readonly errors: readonly ParseIssue[];
     };
+
+// ---------------------------------------------------------------------------------------------
+// TOML
+// ---------------------------------------------------------------------------------------------
+
+/** The four TOML date-time types. Values are validated and kept opaque (see `TomlDatetime`). */
+export type TomlDatetimeKind = 'offset-datetime' | 'local-datetime' | 'local-date' | 'local-time';
+
+/** The TOML type of a value: tells integers from floats, and date-times from strings. */
+export type TomlValueType =
+  'table' | 'array' | 'string' | 'integer' | 'float' | 'boolean' | TomlDatetimeKind;
+
+/**
+ * The value a span points at in a parsed TOML document. A span on a key, or on a whole
+ * key/value pair, points at the value the key names. `type` maps tables to `object`, integers
+ * and floats to `number`, and date-times to `string`, so JSON helpers and fingerprints work
+ * unchanged. `canonical()` writes integers with all their digits (even past 2^53), infinities
+ * and NaN as `inf`, `-inf` and `nan`, and date-times as JSON strings.
+ */
+export interface TomlLocation extends JsonLocation {
+  readonly tomlType: TomlValueType;
+}
+
+/**
+ * A parsed TOML document, in the same shape as {@link JsonDocument} so the JSON helpers
+ * (`own`, `keySpanOf`, `collectStrings`, `hookHandlers`) and the engine fingerprints accept it.
+ *
+ * - `value` is the root table. Tables are frozen null-prototype objects (`__proto__` and
+ *   `constructor` are plain keys), arrays are frozen arrays, integers and floats are numbers
+ *   (an integer past 2^53 loses precision here, not in `canonical()`), date-times are
+ *   `TomlDatetime` objects with no own properties.
+ * - `valueSpan` of a scalar, array or inline table slices back to its source text. A table from
+ *   a `[header]` spans the header and its key/value pairs; an array-of-tables element spans its
+ *   `[[header]]` and pairs. A table or array of tables created only by a key (`[a.b]` creates
+ *   `a`, `a.b = 1` creates `a`, `[[a]]` creates the array `a`) spans that key.
+ * - `keySpan` is the key as written (quotes included): the last key of the pair or header that
+ *   defined the value, or the key that created it; undefined for the root and array elements.
+ * - `locate` maps keys, whole pairs, header bodies and values to the value they stand for.
+ * - On failure, `errors` holds exactly one issue: the first problem in the text.
+ */
+export type TomlDocument =
+  | {
+      readonly ok: true;
+      readonly value: unknown;
+      /** Always empty: TOML has no construct that parses but loses information. */
+      readonly warnings: readonly ParseIssue[];
+      valueSpan(path: readonly JsonPathSegment[]): Span | undefined;
+      keySpan(path: readonly JsonPathSegment[]): Span | undefined;
+      locate(span: Span): TomlLocation | undefined;
+    }
+  | {
+      readonly ok: false;
+      readonly errors: readonly ParseIssue[];
+    };
