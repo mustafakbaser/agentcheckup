@@ -2,8 +2,10 @@
  * Generates docs/rules/<family>/<name>.md for every rule, docs/rules/README.md (the catalog),
  * the table of rules with fixes in docs/fix.md (between the FIXABLE_START and FIXABLE_END
  * markers; the rest of that page is written by hand), and schemas/config.schema.json, from rule
- * metadata, and schemas/policy.schema.json from POLICY_JSON_SCHEMA. Run with `pnpm docs:generate`.
- * CI runs it with `--check` and fails if the committed files are stale.
+ * metadata; schemas/policy.schema.json from POLICY_JSON_SCHEMA; and the table of how
+ * `agentcheckup tasks` handles each rule in docs/tasks.md (between the TASK_RULES_START and
+ * TASK_RULES_END markers) and schemas/tasks.schema.json, from src/tasks. Run with
+ * `pnpm docs:generate`. CI runs it with `--check` and fails if the committed files are stale.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -15,6 +17,9 @@ import { CONFIG_FILE_NAME, RULESET_VERSION } from '../src/core/meta.js';
 import type { RuleMeta } from '../src/core/types.js';
 import { POLICY_JSON_SCHEMA } from '../src/policy/schema.js';
 import { builtinRules } from '../src/rules/index.js';
+import { forYouReason } from '../src/tasks/for-you.js';
+import { TASKS_JSON_SCHEMA } from '../src/tasks/schema.js';
+import { TEMPLATE_RULE_IDS } from '../src/tasks/templates.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const check = process.argv.includes('--check');
@@ -187,6 +192,40 @@ function withFixableRules(page: string, generated: string): string {
   return `${page.slice(0, start + FIXABLE_START.length)}\n\n${generated}\n\n${page.slice(end)}`;
 }
 
+/** The markers around the generated part of docs/tasks.md. */
+const TASK_RULES_START =
+  '<!-- Start of the task rules, generated from rule metadata and src/tasks by scripts/generate-docs.ts. Do not edit. -->';
+const TASK_RULES_END = '<!-- End of the task rules. -->';
+
+/** How `agentcheckup tasks` handles each rule's findings without a ready fix. */
+function taskRules(rules: readonly RuleMeta[]): string {
+  const templates = new Set(TEMPLATE_RULE_IDS);
+  const rows = rules.map((meta) => {
+    const handled = meta.appliesTo.every((kind) => forYouReason(meta.id, kind) !== undefined)
+      ? 'for you'
+      : templates.has(meta.id)
+        ? 'task, own template'
+        : 'task, generic';
+    return `| [\`${meta.id}\`](rules/${meta.id}.md) | ${handled} |`;
+  });
+  const own = rules.filter((meta) => templates.has(meta.id)).length;
+  return `${own} of the ${rules.length} rules have a task template of their own. Findings in JSON files (settings, MCP configuration, hooks and plugin manifests) are always for you, whatever the rule.
+
+| Rule | Without a ready fix |
+| --- | --- |
+${rows.join('\n')}`;
+}
+
+/** `page` with the text between the task-rules markers replaced by `generated`. */
+function withTaskRules(page: string, generated: string): string {
+  const start = page.indexOf(TASK_RULES_START);
+  const end = page.indexOf(TASK_RULES_END);
+  if (start === -1 || end < start) {
+    throw new Error(`docs/tasks.md must contain ${TASK_RULES_START} and then ${TASK_RULES_END}.`);
+  }
+  return `${page.slice(0, start + TASK_RULES_START.length)}\n\n${generated}\n\n${page.slice(end)}`;
+}
+
 const outputs = new Map<string, string>();
 const rules = [...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES].sort((a, b) =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
@@ -220,6 +259,15 @@ outputs.set(
     null,
     2,
   )}\n`,
+);
+
+outputs.set(
+  join('docs', 'tasks.md'),
+  withTaskRules(await readFile(join(root, 'docs', 'tasks.md'), 'utf8'), taskRules(rules)),
+);
+outputs.set(
+  join('schemas', 'tasks.schema.json'),
+  `${JSON.stringify(TASKS_JSON_SCHEMA, null, 2)}\n`,
 );
 
 let stale = 0;

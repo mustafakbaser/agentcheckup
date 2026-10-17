@@ -2,6 +2,7 @@ import { GATE_CLASSES } from '../core/baseline.js';
 import { CONFIG_FILE_NAME, REPOSITORY_URL, TOOL_NAME } from '../core/meta.js';
 import { PLATFORM_IDS } from '../core/types.js';
 import { CONTEXT_AGENTS } from '../platforms/load/types.js';
+import { DEFAULT_MAX_TASKS, MAX_TASKS } from '../tasks/index.js';
 
 const FOOTER = `agentcheckup makes no network requests and collects no telemetry.
 Docs: ${REPOSITORY_URL}#readme
@@ -9,14 +10,16 @@ Docs: ${REPOSITORY_URL}#readme
 
 export const HELP = `Usage: ${TOOL_NAME} [path] [options]
        ${TOOL_NAME} fix [path] [options]
+       ${TOOL_NAME} tasks [path] [options]
        ${TOOL_NAME} context [path] [options]
        ${TOOL_NAME} rules [--json]
        ${TOOL_NAME} explain <rule-id>
 
 Check AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules, Copilot instructions and MCP
 configs against how coding agents actually load them. "${TOOL_NAME} fix" repairs
-what it can, and "${TOOL_NAME} context" shows what each agent loads; run either
-with --help for its options.
+what it can, "${TOOL_NAME} tasks" writes the rest as tasks for a coding agent, and
+"${TOOL_NAME} context" shows what each agent loads; run any of them with --help
+for its options.
 
 Options
   -f, --format <name>      stylish (default), json, sarif, github, markdown, badge
@@ -102,6 +105,45 @@ Exit codes
      file that changed since the scan, a refused path or a failed check
   2  Invalid arguments or configuration, an unknown --rule, or -i without a
      terminal
+  3  Internal error (a rule or the scanner crashed)
+
+${FOOTER}`;
+
+export const TASKS_HELP = `Usage: ${TOOL_NAME} tasks [path] [options]
+       ${TOOL_NAME} tasks [path] --check [ids...]
+
+Write the findings that need judgment as tasks for a coding agent: a Markdown
+prompt with rules for every task, one section per task and a final check, such
+as claude "$(npx ${TOOL_NAME} tasks)". [path] is the repository root; default:
+the current directory.
+
+Findings that "${TOOL_NAME} fix" can fix are never tasks: step 0 tells the agent
+to preview them and to ask you before it applies them. Credentials, hidden
+content, MCP servers, hooks, permissions and settings are listed for you and
+never given to an agent. Repository text in the prompt is marked as data.
+
+Options
+  -f, --format <name>      markdown (default), json
+      --rule <ids>         Comma-separated rule ids: only these rules
+      --max <n>            List at most n tasks, 1 to ${MAX_TASKS}. Default: ${DEFAULT_MAX_TASKS}
+  -o, --output <file>      Write the tasks to a file instead of stdout
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration. Adds a
+                           banner: review the prompt before you give it to an agent
+      --check [ids...]     Check instead of listing: exit 0 when none of the given
+                           tasks, or no task at all, is open. Takes no other option,
+                           so it never writes a file. Ids look like ac-7f3c91d2
+  -h, --help               Show this help
+
+The configuration file of the repository applies, as in a scan. tasks takes no
+--config or --targets, so that tasks --check, which takes no options, checks the
+same findings.
+
+Exit codes
+  0  No task is open (with --check: none of the given tasks)
+  1  A task is open
+  2  Invalid arguments or configuration, an unknown --rule, or --check with
+     another option
   3  Internal error (a rule or the scanner crashed)
 
 ${FOOTER}`;

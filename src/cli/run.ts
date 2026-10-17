@@ -47,10 +47,18 @@ import {
   styleFor,
 } from './common.js';
 import { fix } from './fix.js';
-import { CONTEXT_HELP, FIX_HELP, HELP } from './help.js';
+import { CONTEXT_HELP, FIX_HELP, HELP, TASKS_HELP } from './help.js';
 import { ansiStyle } from './style.js';
+import { tasks } from './tasks.js';
 
 export { EXIT, type ExitCode, type Io, type Prompt } from './common.js';
+
+const HELP_TOPICS = {
+  main: HELP,
+  context: CONTEXT_HELP,
+  fix: FIX_HELP,
+  tasks: TASKS_HELP,
+} as const;
 
 /** Entry point with injected I/O, so the whole CLI is testable without spawning processes. */
 export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
@@ -58,9 +66,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     const command = parseCommand(argv);
     switch (command.kind) {
       case 'help':
-        io.stdout(
-          command.topic === 'context' ? CONTEXT_HELP : command.topic === 'fix' ? FIX_HELP : HELP,
-        );
+        io.stdout(HELP_TOPICS[command.topic ?? 'main']);
         return EXIT.ok;
       case 'version':
         io.stdout(`${VERSION}\n`);
@@ -76,13 +82,15 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return await context(command.options, io);
       case 'fix':
         return await fix(command.options, io);
+      case 'tasks':
+        return await tasks(command.options, io);
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
       // The first argument that is not a flag names the command, as in parseCommand.
       const first = argv.find((arg) => !arg.startsWith('-'));
       const help =
-        first === 'context' || first === 'fix'
+        first === 'context' || first === 'fix' || first === 'tasks'
           ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
       io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);

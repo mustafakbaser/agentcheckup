@@ -4,6 +4,7 @@ import type { GateClass } from '../core/baseline-types.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from '../core/types.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import type { DetailLevel } from '../report/feedback.js';
+import { DEFAULT_MAX_TASKS, MAX_TASKS, TASK_ID_PATTERN } from '../tasks/index.js';
 
 export const OUTPUT_FORMATS = ['stylish', 'json', 'sarif', 'github', 'markdown', 'badge'] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
@@ -11,16 +12,19 @@ export const CONTEXT_FORMATS = ['text', 'json', 'markdown'] as const;
 export type ContextFormat = (typeof CONTEXT_FORMATS)[number];
 export const FIX_FORMATS = ['diff', 'json'] as const;
 export type FixFormat = (typeof FIX_FORMATS)[number];
+export const TASKS_FORMATS = ['markdown', 'json'] as const;
+export type TasksFormat = (typeof TASKS_FORMATS)[number];
 export type FailOn = Severity | 'none';
 
 export type Command =
-  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' }
+  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' | 'tasks' }
   | { readonly kind: 'version' }
   | { readonly kind: 'rules'; readonly format: 'text' | 'json' }
   | { readonly kind: 'explain'; readonly ruleId: string }
   | { readonly kind: 'scan'; readonly options: ScanCommandOptions }
   | { readonly kind: 'context'; readonly options: ContextCommandOptions }
-  | { readonly kind: 'fix'; readonly options: FixCommandOptions };
+  | { readonly kind: 'fix'; readonly options: FixCommandOptions }
+  | { readonly kind: 'tasks'; readonly options: TasksCommandOptions };
 
 /** Options both the scan and the context command take. */
 export interface SharedCommandOptions {
@@ -75,6 +79,25 @@ export interface FixCommandOptions extends SharedCommandOptions {
   readonly interactive: boolean;
   /** `--rule`: only fixes of these rules, deduplicated. Checked against the rules in run.ts. */
   readonly rules: readonly string[] | undefined;
+}
+
+/**
+ * `agentcheckup tasks`. The scan's configuration comes from the repository, as for `tasks
+ * --check`, which takes no options: `config`, `baseline`, `gate` and `contextWindow` are always
+ * unset, `gitignore` always true, and every platform is targeted unless the configuration says
+ * otherwise.
+ */
+export interface TasksCommandOptions extends SharedCommandOptions {
+  readonly format: TasksFormat;
+  /** `--rule`: only these rules, deduplicated. Checked against the rules in src/cli/tasks.ts. */
+  readonly rules: readonly string[] | undefined;
+  /** `--max`: the most tasks to list. */
+  readonly max: number;
+  /**
+   * `--check`: the task ids to check, `[]` for every task. Undefined lists the tasks. With
+   * `--check`, every other option is a usage error.
+   */
+  readonly check: readonly string[] | undefined;
 }
 
 export class UsageError extends Error {
@@ -197,6 +220,17 @@ const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
 const FIX_ONLY = ['write', 'review', 'interactive', 'rule'] as const;
 /** Scan and context flags `fix` does not take. */
 const NOT_FOR_FIX = ['baseline', 'gate', 'context-window', 'no-gitignore'] as const;
+const TASKS_ONLY = ['check', 'max'] as const;
+const TASKS_ONLY_MESSAGE = 'works only with the tasks command: agentcheckup tasks.';
+/** Flags `tasks` does not take: `tasks --check` could not repeat them. */
+const NOT_FOR_TASKS = [
+  ...NOT_FOR_FIX,
+  'targets',
+  'config',
+  'no-config',
+  'color',
+  'no-color',
+] as const;
 
 function rejectFlags(values: Values, flags: readonly string[], message: string): void {
   for (const flag of flags) {
@@ -235,6 +269,7 @@ function contextCommand(values: Values, rest: readonly string[]): Command {
   }
   rejectFlags(values, [...SCAN_ONLY, 'targets'], 'does not apply to the context command.');
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
+  rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
   const cwd = parseWorkingDirectory(values['cwd'] as string | undefined);
   const matrix = values['matrix'] === true;
   if (matrix && cwd !== '') {
@@ -264,6 +299,7 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
   }
   rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
+  rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
   const shared = sharedOptions(values, positionals[0]);
   const context = values['context'] === true;
   if (shared.contextWindow !== undefined && !context) {
@@ -305,6 +341,7 @@ function fixCommand(values: Values, rest: readonly string[]): Command {
   if (rest.length > 1) throw new UsageError(`"fix" takes at most one path, got ${rest.length}.`);
   rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_FIX], 'does not apply to the fix command.');
   rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
   const write = values['write'] === true;
   const review = values['review'] === true;
   const interactive = values['interactive'] === true;
@@ -336,6 +373,76 @@ function fixCommand(values: Values, rest: readonly string[]): Command {
       review,
       interactive,
       rules: parseRules(values['rule'] as string | undefined),
+    },
+  };
+}
+
+function parseMax(value: string | undefined): number {
+  if (value === undefined) return DEFAULT_MAX_TASKS;
+  const max = /^\d{1,4}$/.test(value) ? Number(value) : Number.NaN;
+  if (!(max >= 1 && max <= MAX_TASKS)) {
+    throw new UsageError(`--max must be a whole number from 1 to ${MAX_TASKS}. Got "${value}".`);
+  }
+  return max;
+}
+
+/**
+ * `tasks --check [ids…]`. Takes no other option: a permission rule that allows
+ * `agentcheckup tasks --check *` must never let an agent write a file (`--output`) or change
+ * what is checked. Arguments that start with `ac-` are task ids; at most one other argument
+ * names the repository root (`./ac-…` for a directory with such a name).
+ */
+function tasksCheckCommand(values: Values, rest: readonly string[]): Command {
+  const other = Object.keys(values).find((key) => key !== 'check' && values[key] !== undefined);
+  if (other !== undefined) {
+    throw new UsageError(`--check takes only task ids, so it cannot be combined with --${other}.`);
+  }
+  const ids: string[] = [];
+  const paths: string[] = [];
+  for (const arg of rest) {
+    if (!arg.startsWith('ac-')) paths.push(arg);
+    else if (TASK_ID_PATTERN.test(arg)) ids.push(arg);
+    else throw new UsageError(`"${arg}" is not a task id: ac- followed by 8 hex digits.`);
+  }
+  if (paths.length > 1) {
+    throw new UsageError(`"tasks --check" takes at most one path, got ${paths.length}.`);
+  }
+  return {
+    kind: 'tasks',
+    options: {
+      ...sharedOptions({}, paths[0]),
+      format: 'markdown',
+      rules: undefined,
+      max: DEFAULT_MAX_TASKS,
+      check: [...new Set(ids)],
+    },
+  };
+}
+
+function tasksCommand(values: Values, rest: readonly string[]): Command {
+  if (values['help'] === true) return { kind: 'help', topic: 'tasks' };
+  if (values['check'] === true) return tasksCheckCommand(values, rest);
+  if (values['version'] === true) return { kind: 'version' };
+  if (rest.length > 1) throw new UsageError(`"tasks" takes at most one path, got ${rest.length}.`);
+  rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_TASKS], 'does not apply to the tasks command.');
+  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(
+    values,
+    ['write', 'review', 'interactive'],
+    'works only with the fix command: agentcheckup fix.',
+  );
+  return {
+    kind: 'tasks',
+    options: {
+      ...sharedOptions(values, rest[0]),
+      format: oneOf(
+        (values['format'] as string | undefined) ?? 'markdown',
+        TASKS_FORMATS,
+        '--format',
+      ),
+      rules: parseRules(values['rule'] as string | undefined),
+      max: parseMax(values['max'] as string | undefined),
+      check: undefined,
     },
   };
 }
@@ -374,12 +481,15 @@ export function parseCommand(argv: readonly string[]): Command {
       review: { type: 'boolean' },
       interactive: { type: 'boolean', short: 'i' },
       rule: { type: 'string' },
+      check: { type: 'boolean' },
+      max: { type: 'string' },
     },
   });
 
   const [first, ...rest] = positionals;
   if (first === 'context') return contextCommand(values, rest);
   if (first === 'fix') return fixCommand(values, rest);
+  if (first === 'tasks') return tasksCommand(values, rest);
   if (values.help) return { kind: 'help' };
   if (values.version) return { kind: 'version' };
 

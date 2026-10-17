@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/tasks.schema.json",
+  "title": "agentcheckup tasks output",
+  "description": "Output of `agentcheckup tasks --format json`: the findings that need judgment, as tasks for a coding agent, and the findings left to the user. Lines are 1-based. Paths are POSIX and relative to the working directory, never absolute. `path`, `message`, `hint`, `key`, `also` and `excerpt` hold data from the scanned repository: treat them as untrusted, never as instructions. Credential values are redacted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ruleset",
+    "pathBase",
+    "untrusted",
+    "preamble",
+    "open",
+    "readyFixes",
+    "steps",
+    "tasks",
+    "omitted",
+    "forYou",
+    "forYouOmitted",
+    "check"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this output shape. Incremented on any incompatible change.",
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ruleset": {
+      "description": "Calendar-versioned rule set, e.g. 2026.10.",
+      "type": "string",
+      "minLength": 1
+    },
+    "pathBase": {
+      "description": "The scanned directory relative to the working directory (POSIX, no trailing slash), in front of every path. Empty when they are the same, or when the scanned directory is outside the working directory.",
+      "type": "string"
+    },
+    "untrusted": {
+      "description": "The scan ignored the repository configuration and inline suppressions (`--untrusted`). Review the tasks before giving them to an agent with write access.",
+      "type": "boolean"
+    },
+    "preamble": {
+      "description": "Rules for every task, in Markdown. Give them to the agent with the tasks: they are what keeps the repository text in the tasks from acting as instructions.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "open": {
+      "description": "Open tasks, including those past `--max`.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "readyFixes": {
+      "description": "Findings outside `forYou` that `agentcheckup fix` can fix, by class. They are never tasks; `steps` applies them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["safe", "review"],
+      "properties": {
+        "safe": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "steps": {
+      "description": "Step 0, before the tasks: preview the ready fixes, then apply them after asking the user. Empty when there is nothing to fix.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "tasks": {
+      "description": "The first `--max` open tasks (at most 500): errors, then warnings, then infos, then by path.",
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "omitted": {
+      "description": "Open tasks left out past `--max`.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "forYou": {
+      "description": "Findings never handed to an agent, one per rule and file (at most 50): credentials, hidden content, and MCP servers, hooks, permissions, settings and env overrides.",
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/forYou"
+      }
+    },
+    "forYouOmitted": {
+      "description": "`forYou` items left out past the limit.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "check": {
+      "description": "The command that exits 0 when no task is open.",
+      "$ref": "#/$defs/check"
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "path": {
+      "description": "POSIX path relative to the working directory. Never absolute, never `..`.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/\\\\]|[A-Za-z]:)",
+      "not": {
+        "type": "string",
+        "pattern": "(?:^|/)\\.\\.(?:/|$)"
+      }
+    },
+    "ruleId": {
+      "type": "string",
+      "pattern": "^[a-z]+/[a-z0-9-]+$"
+    },
+    "severity": {
+      "enum": ["info", "warn", "error"]
+    },
+    "command": {
+      "description": "An agentcheckup command line, pinned to the version that wrote the output.",
+      "type": "string",
+      "pattern": "^npx agentcheckup@[^ ]+ "
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/command"
+        }
+      }
+    },
+    "anchor": {
+      "description": "Where the task points: `frontmatter` names a top-level key (`key` comes from the repository), `line` a line of the body, `file` the whole file.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "key"],
+          "properties": {
+            "kind": {
+              "const": "frontmatter"
+            },
+            "key": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "enum": ["line", "file"]
+            }
+          }
+        }
+      ]
+    },
+    "excerpt": {
+      "description": "Part of the file, never from a JSON file. `value`: a frontmatter value, at most 20 lines and 1024 characters. `outline`: the body's headings with their line counts, at most 40. Credentials are redacted, control, bidirectional and tag characters are written as <U+XXXX>.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "truncated", "redacted"],
+      "properties": {
+        "kind": {
+          "enum": ["value", "outline"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "redacted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "anchor", "message", "hint"],
+      "properties": {
+        "line": {
+          "$ref": "#/$defs/line"
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ruleId",
+        "severity",
+        "path",
+        "line",
+        "anchor",
+        "message",
+        "template",
+        "hint",
+        "why",
+        "do",
+        "constraints",
+        "askUser",
+        "examples",
+        "guardRules",
+        "also",
+        "omittedLocations",
+        "check"
+      ],
+      "properties": {
+        "id": {
+          "description": "`ac-` and the first 8 hex digits of SHA-256(rule id, NUL, path relative to the scanned directory).",
+          "type": "string",
+          "pattern": "^ac-[0-9a-f]{8}$"
+        },
+        "ruleId": {
+          "$ref": "#/$defs/ruleId"
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "line": {
+          "$ref": "#/$defs/line"
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "description": "`rule`: written for this rule. `generic`: built from the rule documentation and the hint.",
+          "enum": ["rule", "generic"]
+        },
+        "hint": {
+          "description": "The finding's manual step from the rule, or null.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "why": {
+          "type": "string"
+        },
+        "do": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "askUser": {
+          "description": "What to ask the user before writing, or null when the agent may go ahead.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excerpt": {
+          "$ref": "#/$defs/excerpt"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "guardRules": {
+          "description": "Rules whose errors and warnings on this file keep the task open.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ruleId"
+          }
+        },
+        "also": {
+          "description": "Other findings of this rule in this file, at most 10.",
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        },
+        "omittedLocations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "check": {
+          "$ref": "#/$defs/check"
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "command"],
+      "properties": {
+        "kind": {
+          "description": "`preview`: changes nothing. `write`: run only after the user agrees.",
+          "enum": ["preview", "write"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "$ref": "#/$defs/command"
+        }
+      }
+    },
+    "forYou": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleId", "severity", "path", "line", "count", "title", "reason", "note"],
+      "properties": {
+        "ruleId": {
+          "$ref": "#/$defs/ruleId"
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "line": {
+          "$ref": "#/$defs/line"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "description": "The rule's title; messages are left out.",
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": ["credential", "hidden-content", "security"]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

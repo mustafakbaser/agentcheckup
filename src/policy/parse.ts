@@ -26,7 +26,7 @@ import {
   PYPI_ENTRY,
   TOOL_NAME,
 } from './schema.js';
-import { sha256Hex } from './sha256.js';
+import { sha256Hex } from '../core/sha256.js';
 import {
   type AllowEntry,
   EXISTING_MODES,

@@ -34,6 +34,9 @@
  *                                                     (fix-replay.ts); prints a summary by rule
  *                                                     and every violation (writes nothing;
  *                                                     combines with --only)
+ *   npx tsx scripts/corpus/run.ts --tasks-check       build the `agentcheckup tasks` output for
+ *                                                     every repository and check it
+ *                                                     (tasks-check.ts; combines with --only)
  *
  * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
@@ -87,6 +90,12 @@ import {
   serializeGolden,
 } from './golden.js';
 import { loadSnapshot } from './snapshot.js';
+import { tasksCheckMain } from './tasks-check.js';
+
+// --tasks-check is a mode of its own, with its own options (tasks-check.ts).
+if (process.argv.includes('--tasks-check')) {
+  process.exit(await tasksCheckMain(process.argv.slice(2)));
+}
 
 const { values } = parseArgs({
   options: {
