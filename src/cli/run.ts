@@ -47,8 +47,9 @@ import {
   styleFor,
 } from './common.js';
 import { fix } from './fix.js';
-import { CONTEXT_HELP, FIX_HELP, HELP, TASKS_HELP } from './help.js';
+import { CONTEXT_HELP, FIX_HELP, HELP, SKILL_HELP, TASKS_HELP } from './help.js';
 import { loadPolicy, policyFailure, PolicyFileError, withPolicy } from './policy.js';
+import { skill } from './skill.js';
 import { ansiStyle } from './style.js';
 import { tasks } from './tasks.js';
 
@@ -59,6 +60,7 @@ const HELP_TOPICS = {
   context: CONTEXT_HELP,
   fix: FIX_HELP,
   tasks: TASKS_HELP,
+  skill: SKILL_HELP,
 } as const;
 
 /** Entry point with injected I/O, so the whole CLI is testable without spawning processes. */
@@ -85,13 +87,15 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return await fix(command.options, io);
       case 'tasks':
         return await tasks(command.options, io);
+      case 'skill':
+        return await skill(command.options, io);
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
       // The first argument that is not a flag names the command, as in parseCommand.
       const first = argv.find((arg) => !arg.startsWith('-'));
       const help =
-        first === 'context' || first === 'fix' || first === 'tasks'
+        first === 'context' || first === 'fix' || first === 'tasks' || first === 'skill'
           ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
       io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);

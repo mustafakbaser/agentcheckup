@@ -44,6 +44,10 @@ try {
     'schemas/config.schema.json',
     'schemas/fix.schema.json',
     'schemas/report.schema.json',
+    'skills/agentcheckup/SKILL.md',
+    'skills/agentcheckup/references/context.md',
+    'skills/agentcheckup/references/fix-classes.md',
+    'skills/agentcheckup/references/tasks.md',
   ]) {
     if (!files.includes(required)) fail(`tarball is missing ${required}`);
   }
@@ -225,6 +229,38 @@ try {
     fail(`a second fix dry run still planned ${fixIds(again, 'planned')}`);
   fixCli([], 0);
   fixCli(['--untrusted', '--write'], 2);
+
+  // skill install from the installed package: it finds the skill in the package, pins the
+  // package's version, and the repository it writes to scans clean.
+  const skillRepo = join(work, 'skill-repo');
+  await mkdir(skillRepo);
+  await writeFile(
+    join(skillRepo, 'AGENTS.md'),
+    '# Acme API\n\nRun `pnpm test` before every commit.\n',
+  );
+  const install = spawnSync(process.execPath, [cli, 'skill', 'install', '--yes'], {
+    cwd: skillRepo,
+    encoding: 'utf8',
+  });
+  if (install.status !== 0) fail(`skill install exited ${install.status}: ${install.stderr}`);
+  const installedSkill = await readFile(
+    join(skillRepo, '.claude', 'skills', 'agentcheckup', 'SKILL.md'),
+    'utf8',
+  );
+  if (!installedSkill.includes(`Bash(npx agentcheckup@${manifest.version} tasks --check *)`)) {
+    fail('the installed skill does not pin the package version');
+  }
+  const skillScan = spawnSync(process.execPath, [cli, skillRepo, '--fail-on', 'info'], {
+    encoding: 'utf8',
+  });
+  if (skillScan.status !== 0)
+    fail(`the repository with the skill has findings: ${skillScan.stdout}`);
+  const secondInstall = spawnSync(process.execPath, [cli, 'skill', 'install', skillRepo, '--yes'], {
+    encoding: 'utf8',
+  });
+  if (secondInstall.status !== 1) {
+    fail(`a second skill install exited ${secondInstall.status}, expected 1`);
+  }
 
   process.stdout.write(
     `smoke: ok (${files.length} files, ${report.findings.length} findings, score ${report.score.score})\n`,

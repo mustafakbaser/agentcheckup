@@ -37,6 +37,7 @@
   "files": [
     "dist",
     "schemas",
+    "skills",
     "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {

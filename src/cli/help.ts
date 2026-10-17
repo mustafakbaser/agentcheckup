@@ -12,6 +12,7 @@ export const HELP = `Usage: ${TOOL_NAME} [path] [options]
        ${TOOL_NAME} fix [path] [options]
        ${TOOL_NAME} tasks [path] [options]
        ${TOOL_NAME} context [path] [options]
+       ${TOOL_NAME} skill install [path] [options]
        ${TOOL_NAME} rules [--json]
        ${TOOL_NAME} explain <rule-id>
 
@@ -192,5 +193,42 @@ Exit codes
   1  --gate found security-relevant changes since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)
+
+${FOOTER}`;
+
+export const SKILL_HELP = `Usage: ${TOOL_NAME} skill install [path] [options]
+
+Install the agentcheckup skill, which teaches a coding agent to run agentcheckup:
+list the work with tasks, preview and apply fixes after asking you, work through
+the tasks and check each one. [path] is the repository root; default: the
+current directory.
+
+The skill's commands are pinned to this version of agentcheckup. Its
+allowed-tools lets Claude Code run four read-only agentcheckup commands without
+asking; every command that writes asks first.
+
+The install creates files only: it never overwrites, never writes through a
+symlink, and refuses when the skill is already in .claude/skills or
+.agents/skills. It checks the installed copy in memory with every rule first,
+and refuses on any finding.
+
+Options
+      --dir <name>         claude (.claude/skills: Claude Code, Cursor, GitHub
+                           Copilot) or agents (.agents/skills: Codex, Cursor,
+                           GitHub Copilot, Gemini CLI). Default: claude when the
+                           configured targets include claude-code, else agents
+  -y, --yes                Install without asking. Without it, skill install
+                           needs a terminal
+  -h, --help               Show this help
+
+--untrusted is refused: install the skill only in a repository you trust.
+
+Exit codes
+  0  The skill was installed
+  1  Not installed: the skill exists, a check found a problem, you declined,
+     or the write was refused
+  2  Invalid arguments or configuration, --untrusted, or no terminal without
+     --yes
+  3  Internal error (a rule crashed, or the packaged skill is missing or broken)
 
 ${FOOTER}`;

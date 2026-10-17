@@ -16,8 +16,12 @@ export const TASKS_FORMATS = ['markdown', 'json'] as const;
 export type TasksFormat = (typeof TASKS_FORMATS)[number];
 export type FailOn = Severity | 'none';
 
+export const SKILL_DIRS = ['claude', 'agents'] as const;
+export type SkillDir = (typeof SKILL_DIRS)[number];
+
 export type Command =
-  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' | 'tasks' }
+  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' | 'tasks' | 'skill' }
+  | { readonly kind: 'skill'; readonly options: SkillCommandOptions }
   | { readonly kind: 'version' }
   | { readonly kind: 'rules'; readonly format: 'text' | 'json' }
   | { readonly kind: 'explain'; readonly ruleId: string }
@@ -102,6 +106,17 @@ export interface TasksCommandOptions extends SharedCommandOptions {
    * `--check`, every other option is a usage error.
    */
   readonly check: readonly string[] | undefined;
+}
+
+/**
+ * `agentcheckup skill install`. The repository's configuration file decides the default
+ * directory; the other shared options are always unset, and `untrusted` is always false.
+ */
+export interface SkillCommandOptions extends SharedCommandOptions {
+  /** `--dir`: the skills directory; undefined picks it from the configured targets. */
+  readonly dir: SkillDir | undefined;
+  /** `--yes`: install without asking, for scripts. */
+  readonly yes: boolean;
 }
 
 export class UsageError extends Error {
@@ -464,7 +479,53 @@ function tasksCommand(values: Values, rest: readonly string[]): Command {
   };
 }
 
+/**
+ * `agentcheckup skill install [path] [--dir claude|agents] [--yes]`, parsed on its own: no other
+ * command takes these flags, and `skill` takes none of theirs.
+ */
+function skillCommand(argv: readonly string[]): Command {
+  const { values, positionals } = parseArgs({
+    args: [...argv],
+    allowPositionals: true,
+    strict: true,
+    options: {
+      help: { type: 'boolean', short: 'h' },
+      dir: { type: 'string' },
+      yes: { type: 'boolean', short: 'y' },
+      untrusted: { type: 'boolean' },
+    },
+  });
+  if (values.help === true) return { kind: 'help', topic: 'skill' };
+  const [, action, ...rest] = positionals;
+  if (action !== 'install') {
+    throw new UsageError(
+      action === undefined
+        ? '"skill" needs an action: agentcheckup skill install [path].'
+        : `Unknown skill action "${action}". Use: agentcheckup skill install [path].`,
+    );
+  }
+  if (rest.length > 1) {
+    throw new UsageError(`"skill install" takes at most one path, got ${rest.length}.`);
+  }
+  if (values.untrusted === true) {
+    throw new UsageError(
+      'skill install writes to the repository, so it cannot be combined with --untrusted. ' +
+        'Install the skill only in a repository you trust.',
+    );
+  }
+  return {
+    kind: 'skill',
+    options: {
+      ...sharedOptions({}, rest[0]),
+      dir: values.dir === undefined ? undefined : oneOf(values.dir, SKILL_DIRS, '--dir'),
+      yes: values.yes === true,
+    },
+  };
+}
+
 export function parseCommand(argv: readonly string[]): Command {
+  // The first argument that is not a flag names the command, as in run.ts.
+  if (argv.find((arg) => !arg.startsWith('-')) === 'skill') return skillCommand(argv);
   const { values, positionals } = parseArgs({
     args: [...argv],
     allowPositionals: true,

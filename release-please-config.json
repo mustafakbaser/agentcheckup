@@ -20,7 +20,10 @@
   "packages": {
     ".": {
       "package-name": "agentcheckup",
-      "extra-files": ["src/core/version.ts"]
+      "extra-files": [
+        "src/core/version.ts",
+        { "type": "generic", "path": "skills/agentcheckup/SKILL.md" }
+      ]
     }
   }
 }
