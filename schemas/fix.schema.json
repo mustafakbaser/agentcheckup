@@ -47,6 +47,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/fix" }
     },
+    "awaitingInput": {
+      "description": "Selected fixes that need the user's words, such as a \"Use when ...\" clause. They change nothing until `agentcheckup fix -i` asks for the words; `--write` never applies them. Absent when there are none.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/awaitingInput" }
+    },
     "files": {
       "description": "The combined change to each file, across all planned or applied fixes.",
       "type": "array",
@@ -191,6 +196,85 @@
       "if": { "properties": { "status": { "const": "skipped" } } },
       "then": { "properties": { "reason": true }, "required": ["reason"] },
       "else": { "properties": { "reason": false } }
+    },
+    "fixInput": {
+      "description": "What a fix needs from the user. `field` decides how the answer is checked: one line without control, bidirectional or invisible characters, at most 1,024 characters for a description (`prefix` and `suffix` included), 1,000 for allowed-tools, 500 for globs and 200 for a suppression reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "question", "label", "target"],
+      "properties": {
+        "field": {
+          "enum": [
+            "skill-description",
+            "skill-when-clause",
+            "allowed-tools",
+            "cursor-globs",
+            "suppression-reason"
+          ]
+        },
+        "question": { "type": "string", "minLength": 1 },
+        "label": {
+          "description": "What is missing, as the dry run names it after `needs your words:`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "initial": { "description": "Text the prompt starts with.", "type": "string" },
+        "target": {
+          "description": "`frontmatter`: the value of top-level key `key`, written as `prefix`, the answer and `suffix`. `directive`: an `agentcheckup-disable-next-line` comment for `ruleId` with the answer as its reason, inserted before `line`.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "path", "key"],
+              "properties": {
+                "kind": { "const": "frontmatter" },
+                "path": { "$ref": "#/$defs/path" },
+                "key": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "path", "line", "ruleId"],
+              "properties": {
+                "kind": { "const": "directive" },
+                "path": { "$ref": "#/$defs/path" },
+                "line": { "$ref": "#/$defs/line" },
+                "ruleId": { "$ref": "#/$defs/ruleId" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "awaitingInput": {
+      "description": "A fix that needs the user's words before it can change anything.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ruleId", "class", "title", "findings", "path", "line", "input"],
+      "properties": {
+        "id": {
+          "description": "`<rule id>#<variant>`. Not unique: `findings` tells fixes of one rule apart.",
+          "type": "string",
+          "minLength": 1
+        },
+        "ruleId": { "$ref": "#/$defs/ruleId" },
+        "class": { "$ref": "#/$defs/fixClass" },
+        "title": { "type": "string", "minLength": 1 },
+        "findings": {
+          "description": "The findings the fix resolves once it has the words.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fingerprint" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "path": { "description": "The file of the first finding.", "$ref": "#/$defs/path" },
+        "line": { "description": "The line of the first finding.", "$ref": "#/$defs/line" },
+        "input": { "$ref": "#/$defs/fixInput" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
     },
     "fileState": {
       "type": "object",

@@ -8,6 +8,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { type ScanResult, scanSnapshot, scanWithContext } from '../../src/core/engine.js';
 import type {
+  AwaitingInput,
   Conflict,
   FixEffect,
   FixPlan,
@@ -27,6 +28,7 @@ import {
   type Finding,
   type Fix,
   type FixClass,
+  type FixInput,
   type GateClass,
   type ReportDescriptor,
   type RuleMeta,
@@ -233,6 +235,10 @@ describe('the public fix contract', () => {
     expectTypeOf<Fix['class']>().toEqualTypeOf<FixClass>();
     expectTypeOf<Fix['changes']>().toEqualTypeOf<readonly FileChange[]>();
     expectTypeOf<Fix['alternatives']>().toEqualTypeOf<readonly Fix[] | undefined>();
+    expectTypeOf<Fix['input']>().toEqualTypeOf<FixInput | undefined>();
+    expectTypeOf<FixInput['target']['kind']>().toEqualTypeOf<'frontmatter' | 'directive'>();
+    expectTypeOf<AwaitingInput['fix']['input']>().toEqualTypeOf<FixInput>();
+    expectTypeOf<FixPlan['awaitingInput']>().toEqualTypeOf<readonly AwaitingInput[]>();
     expectTypeOf<Fix>().not.toHaveProperty('safety');
     expectTypeOf<Fix>().not.toHaveProperty('edits');
     expectTypeOf<FileChange['kind']>().toEqualTypeOf<'edit' | 'create' | 'rename' | 'encoding'>();
@@ -297,7 +303,12 @@ describe('the planner types', () => {
       loser: skipped,
     };
     const manual: ManualStep = dryRun.manual[0];
-    const plan: FixPlan = { fixes: [planned, skipped], conflicts: [conflict], manual: [manual] };
+    const plan: FixPlan = {
+      fixes: [planned, skipped],
+      conflicts: [conflict],
+      manual: [manual],
+      awaitingInput: [],
+    };
     expect(plan.fixes.map((item) => item.status)).toEqual(['planned', 'skipped']);
     expectTypeOf<PlannedFix['status']>().toEqualTypeOf<FixStatus>();
     expectTypeOf({ ...decision, status: 'skipped' as const }).not.toExtend<PlannedFix>();
@@ -432,7 +443,15 @@ describe('schemas/fix.schema.json', () => {
       'rename',
       'encoding',
     ] as const satisfies readonly FileChange['kind'][];
+    const FIELDS = [
+      'skill-description',
+      'skill-when-clause',
+      'allowed-tools',
+      'cursor-globs',
+      'suppression-reason',
+    ] as const satisfies readonly FixInput['field'][];
     const exhaustive: true[] = [
+      true satisfies Exhaustive<FixInput['field'], (typeof FIELDS)[number]>,
       true satisfies Exhaustive<FixSkipReason, (typeof REASONS)[number]>,
       true satisfies Exhaustive<FixReport['mode'], (typeof MODES)[number]>,
       true satisfies Exhaustive<FixClass, (typeof CLASSES)[number]>,
@@ -441,7 +460,11 @@ describe('schemas/fix.schema.json', () => {
       true satisfies Exhaustive<DecodedText['lineEnding'], (typeof LINE_ENDINGS)[number]>,
       true satisfies Exhaustive<FileChange['kind'], (typeof CHANGE_KINDS)[number]>,
     ];
-    expect(exhaustive).toHaveLength(7);
+    expect(exhaustive).toHaveLength(8);
+    const fieldsOf = (schema: SchemaDocument) =>
+      (schema.$defs['fixInput']?.properties?.['field'] as { enum?: unknown[] } | undefined)?.enum;
+    expect(fieldsOf(fixSchema)).toEqual([...FIELDS]);
+    expect(fieldsOf(reportSchema)).toEqual([...FIELDS]);
 
     const defs = fixSchema.$defs;
     expect(defs['fix']?.properties?.['reason']?.enum).toEqual([...REASONS]);
@@ -599,6 +622,60 @@ describe('fixes and guidance in scan reports', () => {
       mutate(value);
       expect(validateReport(value), mutate.toString()).toBe(false);
     }
+  });
+
+  it('writes a fix that needs input to valid JSON, and every format takes it', () => {
+    const asking = defineRule({
+      meta: { ...fixing.meta, id: 'test/asking' },
+      defaultOptions: undefined,
+      check(context) {
+        for (const artifact of context.artifacts) {
+          context.report({
+            artifact,
+            message: 'Why keep it?',
+            fix: {
+              id: 'test/asking#keep',
+              class: 'review',
+              title: 'Keep it',
+              changes: [],
+              input: {
+                field: 'suppression-reason',
+                question: 'Keep it and record why?',
+                label: 'a reason to keep it',
+                initial: 'because',
+                target: { kind: 'directive', path: artifact.path, line: 1, ruleId: 'test/asking' },
+              },
+            },
+          });
+        }
+      },
+    });
+    const result = scanSnapshot(snapshotFrom({ 'AGENTS.md': 'text\n' }), { rules: [asking] });
+    const parsed = JSON.parse(formatJson(result)) as Json;
+    expect(validateReport(parsed), ajv.errorsText(validateReport.errors)).toBe(true);
+    const fix = at(parsed, 'findings', 0, 'fix');
+    expect(Object.keys(fix)).toEqual(['id', 'class', 'title', 'changes', 'input']);
+    expect(Object.keys(at(fix, 'input'))).toEqual([
+      'field',
+      'question',
+      'label',
+      'initial',
+      'target',
+    ]);
+    const cases: ((value: Json) => void)[] = [
+      (value) =>
+        (at(value, 'findings', 0, 'fix')['changes'] = [{ kind: 'create', path: 'x', text: '' }]),
+      (value) => (at(value, 'findings', 0, 'fix', 'input')['field'] = 'name'),
+      (value) => (at(value, 'findings', 0, 'fix', 'input', 'target')['line'] = 0),
+      (value) => (at(value, 'findings', 0, 'fix', 'input', 'target')['kind'] = 'frontmatter'),
+      (value) => delete at(value, 'findings', 0, 'fix', 'input')['label'],
+    ];
+    for (const mutate of cases) {
+      const value = JSON.parse(formatJson(result)) as Json;
+      mutate(value);
+      expect(validateReport(value), mutate.toString()).toBe(false);
+    }
+    for (const name of FORMATS) expect(() => format(result, name), name).not.toThrow();
   });
 
   it('never writes a source identity into any report', () => {

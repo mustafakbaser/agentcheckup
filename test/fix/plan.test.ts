@@ -7,6 +7,7 @@ import type {
   FileChange,
   Fix,
   FixClass,
+  FixInput,
   Severity,
   Snapshot,
 } from '../../src/core/types.js';
@@ -551,5 +552,94 @@ describe('leftSteps', () => {
       ['test/linked', 1, 'CLAUDE.md is reached through a symbolic link; edit AGENTS.md by hand'],
       ['test/manual', 1, 'check it'],
     ]);
+  });
+});
+
+describe('fixes that need input', () => {
+  /** Reports AGENTS.md at each offset with a fix that asks why to keep the finding. */
+  function asking(
+    id: string,
+    options: { cls?: FixClass; guidance?: string; changes?: FileChange[]; at?: number[] } = {},
+  ): AnyRule {
+    const input: FixInput = {
+      field: 'suppression-reason',
+      question: 'Keep it and record why?',
+      label: 'a reason to keep it',
+      target: { kind: 'directive', path: 'AGENTS.md', line: 1, ruleId: id },
+    };
+    return testRule({
+      id,
+      check(context, artifact) {
+        for (const at of options.at ?? [0]) {
+          context.report({
+            artifact,
+            message: `${id} asks.`,
+            span: { offset: at, length: 1 },
+            fix: {
+              id: `${id}#keep`,
+              class: options.cls ?? 'review',
+              title: 'Keep it',
+              changes: options.changes ?? [],
+              input,
+            },
+            ...(options.guidance === undefined ? {} : { guidance: options.guidance }),
+          });
+        }
+      },
+    });
+  }
+
+  it('lists them apart, merged, and plans only the ready fixes', () => {
+    const result = plan([
+      asking('test/asks', { at: [4, 0], guidance: 'say why' }),
+      rule({ id: 'test/ready', changes: () => [edit(0, 0, 'x')] }),
+    ]);
+    expect(statuses(result)).toEqual(['test/ready:planned']);
+    expect(result.manual).toEqual([]);
+    expect(result.awaitingInput).toHaveLength(1);
+    const [entry] = result.awaitingInput;
+    expect(entry).toMatchObject({ ruleId: 'test/asks', path: 'AGENTS.md', line: 1 });
+    expect(entry?.fix.input.label).toBe('a reason to keep it');
+    expect(entry?.findings).toHaveLength(2);
+    expect(entry?.findings).toEqual([...(entry?.findings ?? [])].sort());
+  });
+
+  it('never plans one, even with changes', () => {
+    const result = plan([asking('test/asks', { cls: 'safe', changes: [edit(0, 0, 'x')] })]);
+    expect(result.fixes).toEqual([]);
+    expect(result.awaitingInput.map((entry) => entry.fix.id)).toEqual(['test/asks#keep']);
+  });
+
+  it('leaves an input fix that is not selected to its guidance', () => {
+    const rules = [asking('test/asks', { guidance: 'say why' })];
+    expect(plan(rules, undefined, SAFE_ONLY)).toMatchObject({
+      awaitingInput: [],
+      manual: [{ ruleId: 'test/asks', line: 1, guidance: 'say why' }],
+    });
+    const other = { ...ALL_CLASSES, ruleIds: new Set(['test/other']) };
+    expect(plan(rules, undefined, other)).toMatchObject({ awaitingInput: [], manual: [] });
+    const directive = '<!-- agentcheckup-disable-next-line test/asks -- kept -->\n';
+    const suppressed = plan(
+      [asking('test/asks', { at: [directive.length], guidance: 'say why' })],
+      {
+        'AGENTS.md': `${directive}0123456789\n`,
+      },
+    );
+    expect(suppressed).toMatchObject({ fixes: [], awaitingInput: [], manual: [] });
+  });
+
+  it('gives their findings a step in leftSteps', () => {
+    const snapshot = snapshotFrom({ 'AGENTS.md': '0123456789\n' });
+    const analysis = analyze(snapshot);
+    const rules = [asking('test/guided', { guidance: 'say why' }), asking('test/silent')];
+    const result = runRules(analysis, { rules });
+    const steps = leftSteps(analysis, result, ALL_CLASSES, (finding) =>
+      finding.ruleId === 'test/silent' ? 'Keep it' : undefined,
+    );
+    expect(steps.map((step) => [step.ruleId, step.guidance])).toEqual([
+      ['test/guided', 'say why'],
+      ['test/silent', 'Keep it'],
+    ]);
+    expect(leftSteps(analysis, result, ALL_CLASSES, () => undefined)).toHaveLength(1);
   });
 });

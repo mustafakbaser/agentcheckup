@@ -28,6 +28,7 @@ import {
   type FileChange,
   type Finding,
   type Fix,
+  type FixInput,
   type PlatformId,
   type Position,
   type Range,
@@ -101,6 +102,28 @@ export function toJsonFix(value: Fix): Fix {
     ...(value.alternatives === undefined
       ? {}
       : { alternatives: value.alternatives.map(toJsonFix) }),
+    ...(value.input === undefined ? {} : { input: toJsonInput(value.input) }),
+  };
+}
+
+/** A canonical copy of a fix's input. */
+function toJsonInput(value: FixInput): FixInput {
+  const { target } = value;
+  return {
+    field: value.field,
+    question: value.question,
+    label: value.label,
+    ...(value.initial === undefined ? {} : { initial: value.initial }),
+    target:
+      target.kind === 'frontmatter'
+        ? {
+            kind: 'frontmatter',
+            path: target.path,
+            key: target.key,
+            ...(target.prefix === undefined ? {} : { prefix: target.prefix }),
+            ...(target.suffix === undefined ? {} : { suffix: target.suffix }),
+          }
+        : { kind: 'directive', path: target.path, line: target.line, ruleId: target.ruleId },
   };
 }
 

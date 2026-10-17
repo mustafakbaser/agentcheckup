@@ -5,10 +5,12 @@ import { decode } from '../../src/core/text.js';
 import type { AnyRule, Artifact, Fix } from '../../src/core/types.js';
 import { applyPlan } from '../../src/fix/apply.js';
 import {
+  createFile,
   insertLine,
   jsonInsertProperty,
   prependFrontmatter,
   renameFile,
+  replaceSpan,
 } from '../../src/fix/edits.js';
 import type { FixSelection } from '../../src/fix/index.js';
 import { planFixes } from '../../src/fix/plan.js';
@@ -218,6 +220,123 @@ describe('fixRounds', () => {
       expect(result.skipped[0]?.effects.some((effect) => effect.kind === 'gate')).toBe(true);
       expect(result.snapshot.files).toEqual(snapshotFrom(files).files);
     });
+  });
+
+  describe('the risk guard', () => {
+    const BOTH = ['agents-md', 'claude-md'] as const;
+    /** A risk finding at every PAYLOAD; its own fix lowers the word, which claims the finding. */
+    const payload = testRule({
+      id: 'test/payload',
+      appliesTo: BOTH,
+      category: 'risk',
+      check(context, artifact) {
+        for (let at = text(artifact).indexOf('PAYLOAD'); at !== -1;) {
+          context.report({
+            artifact,
+            message: 'A payload.',
+            span: { offset: at, length: 7 },
+            ...(text(artifact).includes('DEFUSE')
+              ? {
+                  fix: fix('test/payload#lower', [
+                    replaceSpan(artifact, { offset: at, length: 7 }, 'payload'),
+                  ]),
+                }
+              : {}),
+          });
+          at = text(artifact).indexOf('PAYLOAD', at + 1);
+        }
+      },
+    });
+    /** Moves the line after MOVE into notes/moved.txt, which no rule reads. */
+    const move = testRule({
+      id: 'test/move',
+      appliesTo: BOTH,
+      check(context, artifact) {
+        const start = text(artifact).indexOf('MOVE\n');
+        if (start === -1) return;
+        const from = start + 'MOVE\n'.length;
+        const end = text(artifact).indexOf('\n', from) + 1;
+        const line = text(artifact).slice(from, end);
+        context.report({
+          artifact,
+          message: 'Move the next line.',
+          fix: fix('test/move#out', [
+            replaceSpan(artifact, { offset: start, length: end - start }, ''),
+            createFile('notes/moved.txt', line),
+          ]),
+        });
+      },
+    });
+    /** Puts a directive for test/payload above the first line while claiming its own finding. */
+    const hide = testRule({
+      id: 'test/hide',
+      appliesTo: BOTH,
+      check(context, artifact) {
+        if (!text(artifact).includes('HIDE') || text(artifact).includes('agentcheckup-')) return;
+        context.report({
+          artifact,
+          message: 'Hide it.',
+          fix: fix('test/hide#directive', [
+            insertLine(artifact, 0, '<!-- agentcheckup-disable-next-line test/payload -- fine -->'),
+          ]),
+        });
+      },
+    });
+    const shout = testRule({
+      id: 'test/shout',
+      check(context, artifact) {
+        if (text(artifact).includes('SHOUT')) context.report({ artifact, message: 'Shouting.' });
+      },
+    });
+
+    it.each(['batch', 'isolated'] as const)(
+      'drops a fix that moves or suppresses a risk finding it does not claim (%s)',
+      (strategy) => {
+        const files = { 'AGENTS.md': 'MOVE\nrun PAYLOAD\n', 'CLAUDE.md': 'PAYLOAD HIDE\n' };
+        const result = fixRounds(
+          snapshotFrom(files),
+          { rules: [payload, move, hide] },
+          SAFE_ONLY,
+          3,
+          {
+            strategy,
+          },
+        );
+        expect(result.skipped.map((item) => [item.ruleId, item.reason])).toEqual([
+          ['test/move', 'verification-failed'],
+          ['test/hide', 'verification-failed'],
+        ]);
+        expect(result.applied).toEqual([]);
+        expect(result.files).toEqual([]);
+        expect(
+          result.after.findings.filter((finding) => finding.ruleId === 'test/payload'),
+        ).toHaveLength(2);
+      },
+    );
+
+    it.each(['batch', 'isolated'] as const)(
+      'keeps fixes that claim the risk finding or leave it where it is (%s)',
+      (strategy) => {
+        const files = {
+          'AGENTS.md': 'MOVE\nSHOUT\nrun PAYLOAD\n',
+          'CLAUDE.md': 'PAYLOAD DEFUSE\n',
+        };
+        const rules = [payload, move, shout];
+        const result = fixRounds(snapshotFrom(files), { rules }, SAFE_ONLY, 3, { strategy });
+        expect(result.skipped).toEqual([]);
+        expect(result.applied.map((item) => item.fix.id)).toEqual([
+          'test/move#out',
+          'test/payload#lower',
+        ]);
+        // The move took a finding of another category along; the payload in AGENTS.md stayed.
+        expect(textOf(result.snapshot, 'AGENTS.md')).toBe('run PAYLOAD\n');
+        expect(textOf(result.snapshot, 'notes/moved.txt')).toBe('SHOUT\n');
+        expect(textOf(result.snapshot, 'CLAUDE.md')).toBe('payload DEFUSE\n');
+        expect(result.after.findings.map((finding) => [finding.ruleId, finding.path])).toEqual([
+          ['test/payload', 'AGENTS.md'],
+        ]);
+      },
+    );
   });
 
   it('defers the loser of a conflict to the next round', () => {
@@ -464,6 +583,53 @@ describe('fixRounds', () => {
     expect(result.manual.map((step) => step.guidance)).toEqual([
       'docs/x.md was not read by the scan; make this change by hand',
     ]);
+  });
+
+  it('lists fixes that need input as the scan before has them, and never applies them', () => {
+    const asking = testRule({
+      id: 'test/asks',
+      check(context, artifact) {
+        const at = text(artifact).indexOf('KEEP');
+        if (at === -1) return;
+        context.report({
+          artifact,
+          message: 'Why keep it?',
+          span: { offset: at, length: 4 },
+          fix: {
+            id: 'test/asks#keep',
+            class: 'review',
+            title: 'Keep it',
+            changes: [],
+            input: {
+              field: 'suppression-reason',
+              question: 'Keep it and record why?',
+              label: 'a reason to keep it',
+              target: { kind: 'directive', path: artifact.path, line: 1, ruleId: 'test/asks' },
+            },
+          },
+        });
+      },
+    });
+    for (const selection of [SAFE_ONLY, ALL_CLASSES]) {
+      const result = run({ 'AGENTS.md': 'KEEP this\n' }, [heading, asking], selection);
+      expect(result.applied.map((item) => item.fix.id)).toEqual(['test/heading#insert']);
+      expect(textOf(result.snapshot, 'AGENTS.md')).toBe('# Rules\nKEEP this\n');
+      const asked = result.before.findings.filter((finding) => finding.ruleId === 'test/asks');
+      expect(result.awaitingInput).toEqual(
+        selection === SAFE_ONLY
+          ? []
+          : [
+              {
+                fix: asked[0]?.fix,
+                ruleId: 'test/asks',
+                findings: asked.map((finding) => finding.fingerprint),
+                path: 'AGENTS.md',
+                line: 1,
+              },
+            ],
+      );
+      expect(result.verification).toEqual({ resolved: 1, remaining: 1, introduced: [] });
+    }
   });
 
   it('accepts 1 to 3 rounds', () => {

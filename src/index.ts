@@ -86,6 +86,7 @@ export { ARTIFACT_KINDS, CATEGORIES, PLATFORM_IDS, SEVERITIES } from './core/typ
 export { VERSION } from './core/version.js';
 export {
   applyPlan,
+  type AwaitingInput,
   type Conflict,
   type DiffHunk,
   type FileDiff,
@@ -96,6 +97,7 @@ export {
   type FixPlan,
   type FixReport,
   type FixReportEntry,
+  type FixReportInput,
   fixRounds,
   type FixRun,
   type FixScanOptions,

@@ -6,12 +6,13 @@
  * A round:
  * 1. Plans the scan's fixes ({@link planFixes}).
  * 2. Judges each planned fix as if it were applied alone to the snapshot and the result scanned
- *    with root load plans. The fix passes when every finding it carries is gone and no new
- *    error, warning or rule failure appeared. Findings match by rule and path, mapped through
- *    renames, as a multiset: fingerprints change with the edits. Comparing the two scans with
- *    compareWithBaseline gives the fix's effects: startup token deltas per agent, and gate hits.
- *    A `safe` fix with a gate hit is demoted to `review`, and skipped when review fixes are not
- *    selected.
+ *    with root load plans. The fix passes when every finding it carries is gone, no new error,
+ *    warning or rule failure appeared, and no `risk` finding it does not carry is gone: a fix
+ *    that moves or rewrites text must never hide a payload, not even behind a suppression.
+ *    Findings match by rule and path, mapped through renames, as a multiset: fingerprints change
+ *    with the edits. Comparing the two scans with compareWithBaseline gives the fix's effects:
+ *    startup token deltas per agent, and gate hits. A `safe` fix with a gate hit is demoted to
+ *    `review`, and skipped when review fixes are not selected.
  * 3. Drops the fixes that failed and plans again, so a fix that lost a conflict to a failed one
  *    gets its turn.
  * 4. Applies the passing fixes together and verifies the combination. When fixes that pass
@@ -62,6 +63,7 @@ import type { Finding, Snapshot } from '../core/types.js';
 import type { LoadEntry, LoadPlan } from '../platforms/load/types.js';
 import { applyPlan, FixApplyError } from './apply.js';
 import type {
+  AwaitingInput,
   Conflict,
   FixEffect,
   FixPlan,
@@ -136,6 +138,11 @@ export interface FixRun {
   readonly conflicts: readonly Conflict[];
   /** Findings left to the user, as they are in {@link after}. */
   readonly manual: readonly ManualStep[];
+  /**
+   * Selected fixes that need the user's words, as the scan of the input has them: never applied
+   * here. `agentcheckup fix -i` completes them against the input (src/fix/input.ts).
+   */
+  readonly awaitingInput: readonly AwaitingInput[];
   /** {@link after} compared with {@link before}. */
   readonly verification: FixVerification;
   /** Rounds that applied at least one fix. */
@@ -185,8 +192,11 @@ function renamesOf(fixes: readonly PlannedFix[]): Map<string, string> {
   return new Map([...origins].map(([now, was]) => [was, now]));
 }
 
-interface ScanComparison {
-  /** Every finding the fixes carry is gone, and no error, warning or rule failure is new. */
+export interface ScanComparison {
+  /**
+   * Every finding the fixes carry is gone, no error, warning or rule failure is new, and no
+   * `risk` finding the fixes do not carry is gone.
+   */
   readonly ok: boolean;
   readonly introduced: readonly Finding[];
   readonly resolved: number;
@@ -195,9 +205,9 @@ interface ScanComparison {
 
 /**
  * Compares two scans by rule and path (mapped through `renames`) as a multiset. `claimed` are
- * the fixes whose findings must be gone.
+ * the fixes whose findings must be gone; findings of `risk` rules they do not carry must stay.
  */
-function compareScans(
+export function compareScans(
   before: Pick<Scan, 'findings' | 'ruleFailures'>,
   after: Pick<Scan, 'findings' | 'ruleFailures'>,
   renames: ReadonlyMap<string, string>,
@@ -238,6 +248,16 @@ function compareScans(
   let ok = introduced.every((finding) => finding.severity === 'info');
   for (const [key, removed] of expected) {
     if ((counts.get(key) ?? 0) > (pool.get(key) ?? 0) + removed) ok = false;
+  }
+  // A risk finding may go only when a fix claims it: gone or newly suppressed counts as lost.
+  const risks = new Map<string, number>();
+  for (const finding of previous) {
+    if (finding.category === 'risk') {
+      increment(risks, keyOf(finding.ruleId, renames.get(finding.path) ?? finding.path));
+    }
+  }
+  for (const [key, was] of risks) {
+    if ((counts.get(key) ?? 0) < was + (expected.get(key) ?? 0)) ok = false;
   }
   const failedBefore = new Set(before.ruleFailures.map((failure) => failure.ruleId));
   if (after.ruleFailures.some((failure) => !failedBefore.has(failure.ruleId))) ok = false;
@@ -867,12 +887,15 @@ export function fixRounds(
   let scan = before;
   let rounds = 0;
   let last: Round | undefined;
+  let awaitingInput: readonly AwaitingInput[] = [];
   // The scan the last round that applied fixes started from, and that round's renames.
   let lastScan = before;
   let lastRenames: ReadonlyMap<string, string> = new Map();
 
   for (let round = 1; round <= maxRounds; round++) {
     last = runRound(run, current, scan, MAX_FIXES - applied.length);
+    // Input is asked about the files as they are, before any fix.
+    if (round === 1) awaitingInput = last.plan.awaitingInput;
     if (last.result === undefined) break;
     for (const fix of last.applied) applied.push({ fix, scan });
     trackChanges(last.applied, origins, created);
@@ -956,6 +979,7 @@ export function fixRounds(
     deferred,
     conflicts,
     manual: final.manual,
+    awaitingInput,
     verification: {
       resolved: verification.resolved,
       remaining: verification.remaining,

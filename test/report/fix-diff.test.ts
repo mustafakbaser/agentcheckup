@@ -11,12 +11,16 @@ import {
   NO_NEWLINE_MARKER,
   redactCredentials,
 } from '../../src/report/fix-diff.js';
+import { HOSTILE, HOSTILE_ALL } from './hostile.js';
 import {
   applied,
+  awaiting,
   created,
   edited,
   GITHUB_TOKEN,
   hostileRun,
+  inputRun,
+  INPUTS,
   OPENAI_KEY,
   planned,
   renamed,
@@ -576,5 +580,89 @@ describe('formatFixDiff safety', () => {
       expect(plain(run)).toMatch(/[^\n]\n$/);
       expect(formatFixSummary(run)).toMatch(/[^\n]\n$/);
     }
+  });
+});
+
+describe('fixes that need input', () => {
+  const WHEN =
+    'input   skill/description-quality  .agents/skills/release-notes/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)';
+  const KEEP =
+    'input   skill/non-portable-field  .claude/skills/deploy/SKILL.md:4  needs your words: a reason to keep "user-invocable" (agentcheckup fix -i)';
+
+  it('lists them as input lines before the manual steps, without a diff, and counts them', () => {
+    const output = plain(inputRun);
+    const before = plain(sampleRun);
+    const verified = 'Verified on an in-memory copy: 5 findings resolved, 0 new, 1 left.\n';
+    expect(output.slice(0, before.indexOf('manual  '))).toBe(
+      before.slice(0, before.indexOf('manual  ')),
+    );
+    expect(output.slice(before.indexOf('manual  '))).toBe(
+      [
+        WHEN,
+        KEEP,
+        'manual  instr/import-unresolved  CLAUDE.md:3  create docs/setup.md or correct the path',
+        verified.trimEnd(),
+        '2 fixes need your words: run agentcheckup fix -i to answer them.',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('prints nothing about them when there are none', () => {
+    expect(plain({ ...sampleRun, awaitingInput: [] })).toBe(plain(sampleRun));
+    expect(formatFixSummary({ ...writtenRun, awaitingInput: [] })).toBe(
+      formatFixSummary(writtenRun),
+    );
+  });
+
+  it('does not say "Nothing to fix." when only input is missing', () => {
+    const run: FixRun = {
+      mode: 'dry-run',
+      fixes: [],
+      files: [],
+      manual: [],
+      verification: { resolved: 0, remaining: 1, introduced: [] },
+      awaitingInput: [INPUTS[1]!],
+    };
+    expect(plain(run)).toBe(
+      `${KEEP}\n1 fix needs your words: run agentcheckup fix -i to answer it.\n`,
+    );
+    expect(formatFixDiff(run, { style: tagStyle })).toContain(
+      '<blue>input</blue>   skill/non-portable-field',
+    );
+  });
+
+  it('puts pathBase in front and sanitizes what the repository controls', () => {
+    expect(plain({ ...inputRun, pathBase: 'sub' })).toContain(
+      'input   skill/non-portable-field  sub/.claude/skills/deploy/SKILL.md:4  needs your words',
+    );
+    const hostile = awaiting('evil\u001b[2J/rule', {
+      field: 'suppression-reason',
+      question: HOSTILE_ALL,
+      label: HOSTILE_ALL,
+      target: {
+        kind: 'directive',
+        path: `x${HOSTILE.osc52Clipboard}/AGENTS.md`,
+        line: 1,
+        ruleId: 'r/x',
+      },
+    });
+    const output = plain({ ...sampleRun, awaitingInput: [hostile] });
+    expect(hasEscOrBel(output)).toBe(false);
+    expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
+    expect(output).not.toMatch(/^::/m);
+  });
+
+  it('lists them in the summary after a write', () => {
+    const text = formatFixSummary({ ...writtenRun, awaitingInput: INPUTS });
+    expect(text).toContain(
+      [
+        '  safe    json/duplicate-key  Delete the first "docs" in .mcp.json: it overlaps a fix that goes first; run agentcheckup fix again',
+        WHEN,
+        KEEP,
+        '2 fixes need your words: run agentcheckup fix -i to answer them.',
+        'Left: CLAUDE.md:3 instr/import-unresolved (create docs/setup.md or correct the path)',
+      ].join('\n'),
+    );
   });
 });

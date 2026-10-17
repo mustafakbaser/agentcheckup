@@ -7,10 +7,13 @@ import type { FixReport } from '../../src/fix/index.js';
 import type { FixRun } from '../../src/report/fix-diff.js';
 import { formatFixJson, toFixReport, UnsafeReportPathError } from '../../src/report/fix-json.js';
 import {
+  awaiting,
   created,
   edited,
   GITHUB_TOKEN,
   hostileRun,
+  inputRun,
+  INPUTS,
   OPENAI_KEY,
   sampleRun,
   secretRun,
@@ -34,6 +37,7 @@ const RUNS: readonly [string, FixRun][] = [
   ['hostile', hostileRun],
   ['pathBase', { ...sampleRun, pathBase: 'packages/web' }],
   ['empty', { ...sampleRun, fixes: [], files: [], manual: [] }],
+  ['awaiting input', inputRun],
 ];
 
 describe('toFixReport', () => {
@@ -257,5 +261,124 @@ describe('toFixReport', () => {
       UnsafeReportPathError,
     );
     expect(() => toFixReport({ ...sampleRun, pathBase: '..' })).toThrow(UnsafeReportPathError);
+  });
+});
+
+describe('fixes that need input', () => {
+  type Json = Record<string, unknown>;
+  const copy = (value: unknown): Json => JSON.parse(JSON.stringify(value)) as Json;
+
+  it('lists them after the fixes, in planner order, with pathBase on every path', () => {
+    const report = toFixReport({ ...inputRun, pathBase: 'sub' });
+    expectValid(report);
+    expect(Object.keys(report)).toEqual([
+      'schemaVersion',
+      'tool',
+      'ruleset',
+      'mode',
+      'pathBase',
+      'fixes',
+      'awaitingInput',
+      'files',
+      'manual',
+      'verification',
+    ]);
+    const [when, keep] = report.awaitingInput ?? [];
+    expect(Object.keys(when!)).toEqual([
+      'id',
+      'ruleId',
+      'class',
+      'title',
+      'findings',
+      'path',
+      'line',
+      'input',
+      'notes',
+    ]);
+    expect(when).toEqual({
+      id: 'skill/description-quality#input',
+      ruleId: 'skill/description-quality',
+      class: 'review',
+      title: 'Needs a "Use when ..." clause',
+      findings: INPUTS[0]!.findings,
+      path: 'sub/.agents/skills/release-notes/SKILL.md',
+      line: 3,
+      input: {
+        field: 'skill-when-clause',
+        question: 'Add a "Use when ..." clause to the description',
+        label: 'a "Use when ..." clause',
+        initial: 'Use when ',
+        target: {
+          kind: 'frontmatter',
+          path: 'sub/.agents/skills/release-notes/SKILL.md',
+          key: 'description',
+          prefix: 'Release notes. ',
+        },
+      },
+      notes: ['agents match requests against the description'],
+    });
+    expect(keep?.input.target).toEqual({
+      kind: 'directive',
+      path: 'sub/.claude/skills/deploy/SKILL.md',
+      line: 4,
+      ruleId: 'skill/non-portable-field',
+    });
+  });
+
+  it('leaves the key out when there are none, so other output does not change', () => {
+    expect(toFixReport({ ...sampleRun, awaitingInput: [] })).toEqual(toFixReport(sampleRun));
+    expect(toFixReport(sampleRun)).not.toHaveProperty('awaitingInput');
+  });
+
+  it('redacts credentials the repository put in the prefix or the question', () => {
+    const secret = awaiting('skill/description-quality', {
+      field: 'skill-when-clause',
+      question: `Rewrite ${GITHUB_TOKEN}?`,
+      label: 'a clause',
+      target: { kind: 'frontmatter', path: 'SKILL.md', key: 'description', prefix: GITHUB_TOKEN },
+    });
+    const output = formatFixJson({ ...sampleRun, awaitingInput: [secret] });
+    expect(output).not.toContain(GITHUB_TOKEN);
+    expect(output).toContain('ghp_…(40 chars)');
+    expectValid(JSON.parse(output));
+  });
+
+  it('rejects absolute paths in them', () => {
+    const bad = awaiting('r/x', {
+      field: 'suppression-reason',
+      question: 'Why?',
+      label: 'a reason',
+      target: { kind: 'directive', path: '/etc/passwd', line: 1, ruleId: 'r/x' },
+    });
+    expect(() => toFixReport({ ...sampleRun, awaitingInput: [bad] })).toThrow(
+      UnsafeReportPathError,
+    );
+  });
+
+  it('the schema rejects malformed entries', () => {
+    const valid = copy(toFixReport(inputRun));
+    expectValid(valid);
+    const at = (value: Json, ...keys: (string | number)[]): Json =>
+      keys.reduce<unknown>((node, key) => (node as Json)[key], value) as Json;
+    const cases: ((value: Json) => void)[] = [
+      (value) => (at(value, 'awaitingInput', 0)['extra'] = 1),
+      (value) => delete at(value, 'awaitingInput', 0)['input'],
+      (value) => (at(value, 'awaitingInput', 0)['findings'] = []),
+      (value) => (at(value, 'awaitingInput', 0)['line'] = 0),
+      (value) => (at(value, 'awaitingInput', 0)['class'] = 'input'),
+      (value) => (at(value, 'awaitingInput', 0, 'input')['field'] = 'name'),
+      (value) => (at(value, 'awaitingInput', 0, 'input')['label'] = ''),
+      (value) => delete at(value, 'awaitingInput', 0, 'input')['question'],
+      (value) => (at(value, 'awaitingInput', 0, 'input', 'target')['kind'] = 'json'),
+      (value) => (at(value, 'awaitingInput', 0, 'input', 'target')['line'] = 3),
+      (value) => (at(value, 'awaitingInput', 1, 'input', 'target')['line'] = 0),
+      (value) => (at(value, 'awaitingInput', 1, 'input', 'target')['path'] = '../x'),
+      (value) => delete at(value, 'awaitingInput', 1, 'input', 'target')['ruleId'],
+    ];
+    for (const mutate of cases) {
+      const value = copy(valid);
+      mutate(value);
+      expect(validate(value), mutate.toString()).toBe(false);
+    }
   });
 });

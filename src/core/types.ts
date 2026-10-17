@@ -339,6 +339,45 @@ export type FileChange =
   | { readonly kind: 'rename'; readonly from: string; readonly to: string }
   | { readonly kind: 'encoding'; readonly path: string; readonly to: 'utf-8'; readonly bom: false };
 
+/**
+ * Words a fix needs from the user before it can change anything, such as a "Use when ..." clause
+ * or the reason of a suppression. Only `agentcheckup fix -i` asks for them; src/fix/input.ts
+ * checks the answer and turns the fix into one with changes.
+ * - `field`: what the answer is; it decides the checks (src/fix/input.ts `checkInputShape`).
+ * - `question`: one line the prompt shows, such as `Add a "Use when ..." clause`.
+ * - `label`: what is missing, for `needs your words: <label>` in the dry run.
+ * - `initial`: text to prefill the answer with.
+ * - `target`: where the answer goes. `frontmatter`: the value of top-level key `key`, written as
+ *   `prefix`, the answer and `suffix`, double-quoted. `directive`: a
+ *   `agentcheckup-disable-next-line <ruleId> -- <answer>` comment inserted before line `line`
+ *   (1-based), a `#` comment inside YAML frontmatter and an HTML comment elsewhere.
+ */
+export interface FixInput {
+  readonly field:
+    | 'skill-description'
+    | 'skill-when-clause'
+    | 'allowed-tools'
+    | 'cursor-globs'
+    | 'suppression-reason';
+  readonly question: string;
+  readonly label: string;
+  readonly initial?: string;
+  readonly target:
+    | {
+        readonly kind: 'frontmatter';
+        readonly path: string;
+        readonly key: string;
+        readonly prefix?: string;
+        readonly suffix?: string;
+      }
+    | {
+        readonly kind: 'directive';
+        readonly path: string;
+        readonly line: number;
+        readonly ruleId: string;
+      };
+}
+
 /** A repair a rule attaches to one finding. Rules only describe it; src/fix plans and applies. */
 export interface Fix {
   /** `${ruleId}#${variant}`. Stable across runs, so `-i` answers and tests can name it. */
@@ -354,6 +393,11 @@ export interface Fix {
   readonly warning?: string;
   /** Other ways to fix the same finding, offered only by `agentcheckup fix -i`. */
   readonly alternatives?: readonly Fix[];
+  /**
+   * Present when the fix needs the user's words: then `changes` is empty, the planner never
+   * plans it, and only `agentcheckup fix -i` completes it (src/fix/input.ts).
+   */
+  readonly input?: FixInput;
 }
 
 export interface RelatedLocation {

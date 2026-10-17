@@ -289,10 +289,9 @@
         "class": { "$ref": "#/$defs/fixClass" },
         "title": { "type": "string", "minLength": 1 },
         "changes": {
-          "description": "Applied in order. A change after a rename names the file by its new path.",
+          "description": "Applied in order. A change after a rename names the file by its new path. Empty exactly when the fix has `input`.",
           "type": "array",
-          "items": { "$ref": "#/$defs/fileChange" },
-          "minItems": 1
+          "items": { "$ref": "#/$defs/fileChange" }
         },
         "notes": { "type": "array", "items": { "type": "string" } },
         "warning": {
@@ -303,6 +302,58 @@
           "description": "Other fixes for the same finding, offered by `agentcheckup fix -i`.",
           "type": "array",
           "items": { "$ref": "#/$defs/fix" }
+        },
+        "input": { "$ref": "#/$defs/fixInput" }
+      },
+      "if": { "properties": { "input": true }, "required": ["input"] },
+      "then": { "properties": { "changes": { "type": "array", "maxItems": 0 } } },
+      "else": { "properties": { "changes": { "type": "array", "minItems": 1 } } }
+    },
+    "fixInput": {
+      "description": "What a fix needs from the user before it can change anything; only `agentcheckup fix -i` asks. `field` decides how the answer is checked.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "question", "label", "target"],
+      "properties": {
+        "field": {
+          "enum": [
+            "skill-description",
+            "skill-when-clause",
+            "allowed-tools",
+            "cursor-globs",
+            "suppression-reason"
+          ]
+        },
+        "question": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "initial": { "type": "string" },
+        "target": {
+          "description": "`frontmatter`: the value of top-level key `key`, written as `prefix`, the answer and `suffix`. `directive`: an `agentcheckup-disable-next-line` comment for `ruleId` with the answer as its reason, inserted before `line`.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "path", "key"],
+              "properties": {
+                "kind": { "const": "frontmatter" },
+                "path": { "$ref": "#/$defs/path" },
+                "key": { "type": "string", "minLength": 1 },
+                "prefix": { "type": "string" },
+                "suffix": { "type": "string" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "path", "line", "ruleId"],
+              "properties": {
+                "kind": { "const": "directive" },
+                "path": { "$ref": "#/$defs/path" },
+                "line": { "type": "integer", "minimum": 1 },
+                "ruleId": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
         }
       }
     },

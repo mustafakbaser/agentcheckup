@@ -9,7 +9,7 @@
  * Paths are POSIX and relative to the scan root, never absolute (see src/core/types.ts).
  */
 import type { GateClass, GateHit } from '../core/baseline-types.js';
-import type { DecodedText, Finding, Fix, FixClass, Severity } from '../core/types.js';
+import type { DecodedText, Finding, Fix, FixClass, FixInput, Severity } from '../core/types.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -140,11 +140,30 @@ export interface ManualStep {
   readonly guidance: string;
 }
 
+/**
+ * A selected fix that needs the user's words ({@link Fix.input}). The planner never plans it and
+ * `--write` never applies it: `agentcheckup fix -i` asks for the words, completes it
+ * (src/fix/input.ts) and plans the completed fix in its place.
+ */
+export interface AwaitingInput {
+  readonly fix: Fix & { readonly input: FixInput };
+  /** The rule whose findings carry the fix. */
+  readonly ruleId: string;
+  /** Fingerprints of the findings that carry it, as for a {@link PlannedFix}. */
+  readonly findings: readonly string[];
+  /** Path of its first finding in report order. */
+  readonly path: string;
+  /** 1-based line of that finding. */
+  readonly line: number;
+}
+
 /** The selected fixes of one round, in an order that depends only on the scan. */
 export interface FixPlan {
   readonly fixes: readonly PlannedFix[];
   readonly conflicts: readonly Conflict[];
   readonly manual: readonly ManualStep[];
+  /** Selected fixes that need the user's words, in report order of their first finding. */
+  readonly awaitingInput: readonly AwaitingInput[];
 }
 
 /**
@@ -219,6 +238,23 @@ export type FixReportEntry =
   | (FixReportDecision & { readonly status: 'planned' | 'applied'; readonly reason?: never })
   | (FixReportDecision & { readonly status: 'skipped'; readonly reason: FixSkipReason });
 
+/** A fix that needs the user's words, in the JSON output. */
+export interface FixReportInput {
+  /** {@link Fix.id}. */
+  readonly id: string;
+  readonly ruleId: string;
+  readonly class: FixClass;
+  readonly title: string;
+  /** Fingerprints of the findings in the scan before fixing. */
+  readonly findings: readonly string[];
+  /** Where its first finding is. */
+  readonly path: string;
+  readonly line: number;
+  /** {@link Fix.input}, with `pathBase` in front of the target's path. */
+  readonly input: FixInput;
+  readonly notes?: readonly string[];
+}
+
 /** A finding the re-scan found that the scan before did not have. */
 export interface IntroducedFinding {
   readonly ruleId: string;
@@ -238,6 +274,8 @@ export interface FixReport {
   /** The prefix added to every path, as in the scan report. Absent or `''` when there is none. */
   readonly pathBase?: string;
   readonly fixes: readonly FixReportEntry[];
+  /** Selected fixes that need the user's words: only `-i` applies them. Absent when none. */
+  readonly awaitingInput?: readonly FixReportInput[];
   readonly files: readonly FileReport[];
   readonly manual: readonly ManualStep[];
   /**
@@ -292,6 +330,16 @@ export {
   type YamlStyle,
   type YamlValueOptions,
 } from './edits.js';
+export {
+  checkInputShape,
+  completeInput,
+  INPUT_LIMITS,
+  type InputCompletion,
+  type InputParses,
+  type InputVerification,
+  UNSAFE_VALUE,
+  verifyCompletedInput,
+} from './input.js';
 export { MAX_FIX_PATH_LENGTH, pathProblem } from './paths.js';
 export {
   type FixCandidate,
@@ -299,6 +347,7 @@ export {
   leftSteps,
   LITERAL_SECRET_RULE,
   MAX_FIXES,
+  needsInput,
   planFixes,
   type PlanOptions,
 } from './plan.js';

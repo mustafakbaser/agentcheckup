@@ -8,6 +8,7 @@ import type {
   AnyRule,
   Artifact,
   ArtifactKind,
+  Category,
   FileChange,
   Fix,
   FixClass,
@@ -101,6 +102,8 @@ export interface TestRuleOptions {
   readonly id: string;
   readonly appliesTo?: readonly ArtifactKind[];
   readonly severity?: Severity;
+  /** Default `correctness`; `risk` makes verification keep the rule's findings. */
+  readonly category?: Category;
   readonly platforms?: readonly PlatformId[];
   readonly check: (context: RuleContext<undefined>, artifact: Artifact) => void;
 }
@@ -112,7 +115,7 @@ export function testRule(options: TestRuleOptions): AnyRule {
       id: options.id,
       title: 'Test rule',
       rationale: 'Test rule.',
-      category: 'correctness',
+      category: options.category ?? 'correctness',
       severity: options.severity ?? 'warn',
       appliesTo: options.appliesTo ?? ['agents-md'],
       platforms: options.platforms ?? ['codex', 'claude-code', 'cursor'],

@@ -5,7 +5,7 @@
  */
 import { compareStrings } from '../core/compare.js';
 import type { Analysis, RuleResult } from '../core/engine.js';
-import type { Finding, Fix, Severity } from '../core/types.js';
+import type { Finding, Fix, FixInput, Severity } from '../core/types.js';
 import {
   type CompiledFix,
   compileFix,
@@ -14,6 +14,7 @@ import {
   createWorkspace,
 } from './compile.js';
 import type {
+  AwaitingInput,
   Conflict,
   FixPlan,
   FixSelection,
@@ -62,6 +63,11 @@ function stableJson(value: unknown): string {
     return `{${keys.map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+/** True for a fix that needs the user's words ({@link Fix.input}): the planner never plans it. */
+export function needsInput(fix: Fix): fix is Fix & { readonly input: FixInput } {
+  return fix.input !== undefined;
 }
 
 /** Identity of a fix: equal for the same rule's fixes with the same content. */
@@ -128,6 +134,18 @@ function decision(group: Group): Omit<PlannedFix, 'status' | 'reason'> {
   };
 }
 
+function awaiting(group: Group): AwaitingInput | undefined {
+  const [first] = group.findings;
+  if (first === undefined || !needsInput(group.fix)) return undefined;
+  return {
+    fix: group.fix,
+    ruleId: group.ruleId,
+    findings: group.findings.map((finding) => finding.fingerprint).sort(compareStrings),
+    path: first.path,
+    line: first.range.start.line,
+  };
+}
+
 function skippedFix(group: Group, reason: FixSkipReason): PlannedFix {
   return { ...decision(group), status: 'skipped', reason };
 }
@@ -161,7 +179,12 @@ function manualStep(finding: Finding, guidance = finding.guidance): ManualStep |
  *    Past `maxFixes`, fixes are skipped with `limit`.
  * 4. Lists manual steps: findings in the selected rules with `guidance` and no selected fix.
  *
- * Fixes are listed in report order of their first finding; conflicts and manual steps by path.
+ * A selected fix that needs the user's words ({@link needsInput}) is neither compiled nor
+ * planned: it is listed in `awaitingInput`, merged like other fixes, and its findings get no
+ * manual step.
+ *
+ * Fixes and fixes awaiting input are listed in report order of their first finding; conflicts
+ * and manual steps by path.
  */
 export function planFixes(
   analysis: Analysis,
@@ -174,6 +197,7 @@ export function planFixes(
     selection.ruleIds === undefined || selection.ruleIds.has(ruleId);
 
   const groups = new Map<string, Group>();
+  const inputs = new Map<string, Group>();
   const manual = new Map<string, ManualStep>();
   const addManual = (step: ManualStep | undefined): void => {
     if (step !== undefined) manual.set(manualKey(step), step);
@@ -192,9 +216,10 @@ export function planFixes(
       continue;
     }
     const key = fixKey(finding.ruleId, fix);
-    const group = groups.get(key);
+    const into = needsInput(fix) ? inputs : groups;
+    const group = into.get(key);
     if (group === undefined)
-      groups.set(key, { key, ruleId: finding.ruleId, fix, findings: [finding] });
+      into.set(key, { key, ruleId: finding.ruleId, fix, findings: [finding] });
     else group.findings.push(finding);
   }
 
@@ -282,7 +307,11 @@ export function planFixes(
       compareStrings(a.kind, b.kind) ||
       (order.get(a.loser) ?? 0) - (order.get(b.loser) ?? 0),
   );
-  return { fixes: ordered, conflicts, manual: sortedSteps(manual.values()) };
+  const awaitingInput = [...inputs.values()]
+    .sort(compareGroups)
+    .map(awaiting)
+    .filter((entry): entry is AwaitingInput => entry !== undefined);
+  return { fixes: ordered, conflicts, manual: sortedSteps(manual.values()), awaitingInput };
 }
 
 /** Manual steps by path, line, rule and guidance. */
@@ -299,9 +328,9 @@ function sortedSteps(steps: Iterable<ManualStep>): ManualStep[] {
 /**
  * What a scan leaves to the user when no more fixes are applied, as after `fix -i` wrote the
  * accepted fixes: the manual steps {@link planFixes} lists for the selection, and a step for each
- * finding whose fix stays unapplied: its `guidance` or, without one, the step `fallback` names
- * (`-i` names the title of a fix the user declined). Findings without either are left out. Sorted
- * as {@link planFixes} sorts manual steps.
+ * finding whose fix stays unapplied, a fix awaiting input included: its `guidance` or, without
+ * one, the step `fallback` names (`-i` names the title of a fix the user declined). Findings
+ * without either are left out. Sorted as {@link planFixes} sorts manual steps.
  */
 export function leftSteps(
   analysis: Analysis,
@@ -312,9 +341,11 @@ export function leftSteps(
   const plan = planFixes(analysis, result, selection);
   const steps = new Map(plan.manual.map((step) => [manualKey(step), step]));
   const byFingerprint = new Map(result.findings.map((finding) => [finding.fingerprint, finding]));
-  for (const planned of plan.fixes) {
-    // planFixes already gave these findings their steps, with the reason a path was refused.
-    if (planned.reason === 'refused-path' || planned.reason === 'verification-failed') continue;
+  // planFixes already gave the findings of refused fixes their steps, with the reason.
+  const unapplied = plan.fixes.filter(
+    (planned) => planned.reason !== 'refused-path' && planned.reason !== 'verification-failed',
+  );
+  for (const planned of [...unapplied, ...plan.awaitingInput]) {
     for (const fingerprint of planned.findings) {
       const finding = byFingerprint.get(fingerprint);
       if (finding === undefined) continue;

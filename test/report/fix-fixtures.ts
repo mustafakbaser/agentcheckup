@@ -4,8 +4,14 @@
  * applier produce, so the inputs are synthetic.
  */
 import { createHash } from 'node:crypto';
-import type { Finding, Fix, LineEnding } from '../../src/core/types.js';
-import type { FileState, FixEffect, FixSkipReason, PlannedFix } from '../../src/fix/index.js';
+import type { Finding, Fix, FixInput, LineEnding } from '../../src/core/types.js';
+import type {
+  AwaitingInput,
+  FileState,
+  FixEffect,
+  FixSkipReason,
+  PlannedFix,
+} from '../../src/fix/index.js';
 import type { ChangedFile, FileVersion, FixRun } from '../../src/report/fix-diff.js';
 import { HOSTILE, HOSTILE_ALL } from './hostile.js';
 
@@ -411,3 +417,64 @@ export const hostileRun: FixRun = {
     introduced: [introduced('risk/hidden-unicode', HOSTILE_PATH, 1, HOSTILE.fakeError)],
   },
 };
+
+/** A fix that needs the user's words, as the planner lists it, with a fresh fingerprint. */
+export function awaiting(
+  ruleId: string,
+  input: FixInput,
+  options: { line?: number; title?: string; notes?: readonly string[] } = {},
+): AwaitingInput {
+  fingerprint += 0x101;
+  return {
+    fix: {
+      id: `${ruleId}#input`,
+      class: 'review',
+      title: options.title ?? `Needs ${input.label}`,
+      changes: [],
+      ...(options.notes === undefined ? {} : { notes: options.notes }),
+      input,
+    },
+    ruleId,
+    findings: [`${fingerprint.toString(16)}:1`],
+    path: input.target.path,
+    line: options.line ?? 1,
+  };
+}
+
+/** A "Use when ..." clause for the sample's skill, and a reason to keep a field elsewhere. */
+export const INPUTS: readonly AwaitingInput[] = [
+  awaiting(
+    'skill/description-quality',
+    {
+      field: 'skill-when-clause',
+      question: 'Add a "Use when ..." clause to the description',
+      label: 'a "Use when ..." clause',
+      initial: 'Use when ',
+      target: {
+        kind: 'frontmatter',
+        path: '.agents/skills/release-notes/SKILL.md',
+        key: 'description',
+        prefix: 'Release notes. ',
+      },
+    },
+    { line: 3, notes: ['agents match requests against the description'] },
+  ),
+  awaiting(
+    'skill/non-portable-field',
+    {
+      field: 'suppression-reason',
+      question: 'Keep "user-invocable" and record why?',
+      label: 'a reason to keep "user-invocable"',
+      target: {
+        kind: 'directive',
+        path: '.claude/skills/deploy/SKILL.md',
+        line: 4,
+        ruleId: 'skill/non-portable-field',
+      },
+    },
+    { line: 4 },
+  ),
+];
+
+/** The sample dry run with two fixes that need the user's words. */
+export const inputRun: FixRun = { ...sampleRun, awaitingInput: INPUTS };

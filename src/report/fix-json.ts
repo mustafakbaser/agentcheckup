@@ -5,8 +5,10 @@
  * Like the scan report (src/report/json.ts), the object is built field by field in the order of
  * the schema, so key order is fixed here and no stray runtime property reaches the output.
  * Lists whose order carries no meaning are sorted with `compareStrings`: files by path, effects
- * by agent and gate class, finding fingerprints, introduced findings by path and line. Fixes and
- * manual steps keep the planner's order, which depends only on the scan.
+ * by agent and gate class, finding fingerprints, introduced findings by path and line. Fixes,
+ * fixes awaiting input and manual steps keep the planner's order, which depends only on the scan.
+ * `awaitingInput` is left out when no fix needs the user's words, so the output of a run without
+ * such fixes is what it was before they existed.
  *
  * Paths are relative to the scan root with `pathBase` in front, as in the scan report. A path
  * that is absolute or climbs out with `..` is an internal error and throws: the report must never
@@ -16,13 +18,16 @@
  */
 import { compareStrings } from '../core/compare.js';
 import { TOOL_NAME, RULESET_VERSION } from '../core/meta.js';
+import type { FixInput } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import type {
+  AwaitingInput,
   FileReport,
   FileState,
   FixEffect,
   FixReport,
   FixReportEntry,
+  FixReportInput,
   IntroducedFinding,
   ManualStep,
   PlannedFix,
@@ -135,6 +140,47 @@ function fixEntry(value: PlannedFix, builder: Builder, base: string): FixReportE
     : { ...decision, status: value.status };
 }
 
+function inputTarget(value: FixInput['target'], builder: Builder): FixInput['target'] {
+  switch (value.kind) {
+    case 'frontmatter':
+      return {
+        kind: 'frontmatter',
+        path: builder.path(value.path),
+        key: value.key,
+        ...(value.prefix === undefined ? {} : { prefix: builder.redact(value.prefix) }),
+        ...(value.suffix === undefined ? {} : { suffix: builder.redact(value.suffix) }),
+      };
+    case 'directive':
+      return {
+        kind: 'directive',
+        path: builder.path(value.path),
+        line: value.line,
+        ruleId: value.ruleId,
+      };
+  }
+}
+
+function inputEntry(value: AwaitingInput, builder: Builder): FixReportInput {
+  const { input } = value.fix;
+  return {
+    id: value.fix.id,
+    ruleId: value.ruleId,
+    class: value.fix.class,
+    title: builder.redact(value.fix.title),
+    findings: [...new Set(value.findings)].sort(compareStrings),
+    path: builder.path(value.path),
+    line: value.line,
+    input: {
+      field: input.field,
+      question: builder.redact(input.question),
+      label: builder.redact(input.label),
+      ...(input.initial === undefined ? {} : { initial: builder.redact(input.initial) }),
+      target: inputTarget(input.target, builder),
+    },
+    ...(value.fix.notes === undefined ? {} : { notes: value.fix.notes.map(builder.redact) }),
+  };
+}
+
 function fileState(value: FileState): FileState {
   return {
     sha256: value.sha256,
@@ -200,6 +246,7 @@ export function toFixReport(run: FixRun, options: FixJsonOptions = {}): FixRepor
         compareStrings(a.path, b.path) || a.line - b.line || compareStrings(a.ruleId, b.ruleId),
     );
   const tool = options.tool ?? { name: TOOL_NAME, version: VERSION };
+  const inputs = run.awaitingInput ?? [];
   return {
     schemaVersion: 1,
     tool: { name: tool.name, version: tool.version },
@@ -207,6 +254,9 @@ export function toFixReport(run: FixRun, options: FixJsonOptions = {}): FixRepor
     mode: run.mode,
     ...(base === '' ? {} : { pathBase: base }),
     fixes: run.fixes.map((fix) => fixEntry(fix, builder, base)),
+    ...(inputs.length === 0
+      ? {}
+      : { awaitingInput: inputs.map((entry) => inputEntry(entry, builder)) }),
     files: run.files
       .map((file) => fileReport(file, builder))
       .sort((a, b) => compareStrings(a.path, b.path)),

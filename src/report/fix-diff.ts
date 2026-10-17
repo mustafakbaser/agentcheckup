@@ -27,11 +27,16 @@
  *   that ends in CRLF shows `␍` (`^M` in ASCII mode) at its end, so a change of line ending is
  *   visible, and the header explains the mark. JSON hunk lines never include line endings.
  * - A change of encoding or byte order mark is a header line: `encoding: UTF-8 with BOM → UTF-8`.
+ *
+ * Fixes that need the user's words (`FixRun.awaitingInput`) change nothing until `fix -i` asks
+ * for the words, so they have no diff: each is one `input` line next to the manual steps, and a
+ * last line counts them. `fix --format json` lists them in `awaitingInput`.
  */
 import { compareStrings } from '../core/compare.js';
 import { formatInteger } from '../core/format.js';
 import type { FileChange, FixClass } from '../core/types.js';
 import type {
+  AwaitingInput,
   DiffHunk,
   FileState,
   FixEffect,
@@ -98,6 +103,8 @@ export interface FixRun {
   readonly files: readonly ChangedFile[];
   readonly manual: readonly ManualStep[];
   readonly verification: FixVerification;
+  /** Selected fixes that need the user's words, in plan order. Absent means none. */
+  readonly awaitingInput?: readonly AwaitingInput[] | undefined;
 }
 
 export interface FixDiffOptions {
@@ -552,10 +559,11 @@ function count(value: number, singular: string, plural = `${singular}s`): string
   return `${formatInteger(value)} ${value === 1 ? singular : plural}`;
 }
 
-function classLabel(name: FixClass | 'manual', style: Style): string {
+function classLabel(name: FixClass | 'manual' | 'input', style: Style): string {
   const pad = ' '.repeat(Math.max(1, CLASS_WIDTH - name.length));
   if (name === 'safe') return `${style.green(name)}${pad}`;
   if (name === 'review') return `${style.yellow(name)}${pad}`;
+  if (name === 'input') return `${style.blue(name)}${pad}`;
   return `${style.gray(name)}${pad}`;
 }
 
@@ -750,6 +758,23 @@ function manualLine(step: ManualStep, context: Context): string {
   return `${classLabel('manual', context.style)}${clean(step.ruleId, context)}  ${cleanPath(step.path, context)}:${step.line}  ${clean(step.guidance, context)}`;
 }
 
+/** The command that asks for the words of the fixes awaiting input. */
+const INPUT_COMMAND = 'agentcheckup fix -i';
+
+function inputLine(entry: AwaitingInput, context: Context): string {
+  return `${classLabel('input', context.style)}${clean(entry.ruleId, context)}  ${cleanPath(entry.path, context)}:${entry.line}  needs your words: ${clean(entry.fix.input.label, context)} (${INPUT_COMMAND})`;
+}
+
+/** `2 fixes need your words: …`, or nothing when no fix awaits input. */
+function inputCount(entries: readonly AwaitingInput[]): string[] {
+  const n = entries.length;
+  if (n === 0) return [];
+  const verb = n === 1 ? 'needs' : 'need';
+  return [
+    `${count(n, 'fix', 'fixes')} ${verb} your words: run ${INPUT_COMMAND} to answer ${n === 1 ? 'it' : 'them'}.`,
+  ];
+}
+
 function introducedLines(verification: FixVerification, context: Context): string[] {
   return [...verification.introduced]
     .sort(
@@ -796,14 +821,17 @@ export function formatFixDiff(run: FixRun, options: FixDiffOptions = {}): string
   }
 
   const planned = run.fixes.some((fix) => fix.status !== 'skipped') || run.files.length > 0;
+  const inputs = run.awaitingInput ?? [];
   if (lines.length > 0) lines.push('');
-  if (!planned && run.fixes.length === 0) lines.push('Nothing to fix.');
+  if (!planned && run.fixes.length === 0 && inputs.length === 0) lines.push('Nothing to fix.');
+  for (const entry of inputs) lines.push(inputLine(entry, context));
   for (const step of run.manual) lines.push(manualLine(step, context));
   if (planned) {
     const lead = run.mode === 'dry-run' ? 'Verified on an in-memory copy' : 'Re-scanned';
     lines.push(`${lead}: ${verificationCounts(run.verification)}.`);
     lines.push(...introducedLines(run.verification, context));
   }
+  lines.push(...inputCount(inputs));
   return finish(lines);
 }
 
@@ -841,8 +869,8 @@ function tokenTotals(fixes: readonly PlannedFix[]): TokenTotal[] {
 
 /**
  * The summary after `--write` or `-i`: what was applied and the re-scan, the effects per agent,
- * what was not applied and why, the steps left to the user, and where to review the changes.
- * Warnings of applied fixes frame the summary.
+ * what was not applied and why, the fixes that need the user's words, the steps left to the user,
+ * and where to review the changes. Warnings of applied fixes frame the summary.
  */
 export function formatFixSummary(run: FixRun, options: FixDiffOptions = {}): string {
   const context = contextOf(run, options);
@@ -881,6 +909,9 @@ export function formatFixSummary(run: FixRun, options: FixDiffOptions = {}): str
       lines.push(`  ${fixHeader(fix, context)}: ${SKIP_REASON_TEXT[fix.reason]}`);
     }
   }
+  const inputs = run.awaitingInput ?? [];
+  for (const entry of inputs) lines.push(inputLine(entry, context));
+  lines.push(...inputCount(inputs));
   run.manual.forEach((step, index) => {
     const lead = index === 0 ? 'Left: ' : '      ';
     lines.push(
