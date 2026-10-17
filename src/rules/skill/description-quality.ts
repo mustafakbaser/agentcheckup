@@ -1,4 +1,7 @@
+import { editableFile } from '../../core/directive-fixes.js';
 import { RULESET_VERSION } from '../../core/meta.js';
+import type { Artifact, Fix } from '../../core/types.js';
+import { checkInputShape } from '../../fix/index.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { plural } from '../shared/format.js';
@@ -11,6 +14,7 @@ import {
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
 
+const ID = 'skill/description-quality';
 const MIN_WORDS = 8;
 /** Share of letters that must be ASCII before English heuristics apply. */
 const MIN_ASCII_SHARE = 0.9;
@@ -70,9 +74,61 @@ function hasTrigger(text: string): boolean {
   );
 }
 
+const SENTENCE_END = /[!.?]$/;
+
+/**
+ * The fix for a description that does not say when to use the skill: `fix -i` asks for a
+ * "Use when ..." sentence and appends it to the description (`#when-clause`). Undefined when the
+ * file cannot take an answer (reached through a symlink, linked from another path, or not decoded
+ * cleanly) or the description cannot: it spans lines, holds a control, bidirectional or invisible
+ * character, `<` or `>`, or is at the length limit.
+ */
+function whenClause(artifact: Artifact, text: string): Fix | undefined {
+  const prefix = `${text}${SENTENCE_END.test(text) ? ' ' : '. '}`;
+  if (!editableFile(artifact) || checkInputShape('skill-when-clause', `${prefix}x`) !== undefined) {
+    return undefined;
+  }
+  return {
+    id: `${ID}#when-clause`,
+    class: 'review',
+    title: `Add a "Use when ..." sentence to "description" in ${artifact.path}`,
+    changes: [],
+    input: {
+      field: 'skill-when-clause',
+      question: 'Add a sentence that says when to use this skill?',
+      label: 'a "Use when ..." clause',
+      initial: 'Use when ',
+      target: { kind: 'frontmatter', path: artifact.path, key: 'description', prefix },
+    },
+  };
+}
+
+/**
+ * The fix for a description of a few words: `fix -i` asks for a new one, prefilled with the
+ * current text when it is one plain line (`#rewrite`). Undefined for a file that cannot take an
+ * answer.
+ */
+function rewrite(artifact: Artifact, text: string): Fix | undefined {
+  if (!editableFile(artifact)) return undefined;
+  const initial = checkInputShape('skill-description', text) === undefined ? text : undefined;
+  return {
+    id: `${ID}#rewrite`,
+    class: 'review',
+    title: `Rewrite "description" in ${artifact.path}`,
+    changes: [],
+    input: {
+      field: 'skill-description',
+      question: 'Rewrite the description to say what the skill does and when to use it?',
+      label: 'a description of what the skill does and when to use it',
+      ...(initial === undefined ? {} : { initial }),
+      target: { kind: 'frontmatter', path: artifact.path, key: 'description' },
+    },
+  };
+}
+
 export const descriptionQualityRule = defineRule({
   meta: {
-    id: 'skill/description-quality',
+    id: ID,
     title: 'Skill description is too short or does not say when to use it',
     rationale: `Agents decide whether to load a skill by matching the request against its \`name\` and \`description\`. The Claude skill authoring guide and the Agent Skills specification ask for a description that says what the skill does and when to use it, with the keywords a request would contain. A description of a few words, or one without a "Use when ..." clause, gives the agent little to match.
 
@@ -90,6 +146,11 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
       SOURCES.claudeSkills,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Needs your words: `agentcheckup fix -i` asks for a "Use when ..." sentence and appends it to the description, or for a new description when it has fewer than 8 words, and checks the answer against this rule before writing it.',
+    },
   },
   defaultOptions: undefined,
   check(context) {
@@ -103,11 +164,14 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
 
       const words = text.split(/\s+/u).length;
       let message: string | undefined;
+      let fix: Fix | undefined;
       if (words < MIN_WORDS) {
         message = `The description has only ${plural(words, 'word')}, too few for agents to match requests against. Say what the skill does and when to use it.`;
+        fix = rewrite(artifact, text);
       } else if (!hasTrigger(text)) {
         message =
           'The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.';
+        fix = whenClause(artifact, text);
       }
       if (message === undefined) continue;
       const resolved = resolveImpacts(context, artifact, impactsOn(SKILL_PLATFORMS, 'info'));
@@ -119,6 +183,7 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
         severity: resolved.severity,
         platforms: resolved.platforms,
         ...(span === undefined ? {} : { span }),
+        ...(fix === undefined ? {} : { fix }),
         guidance:
           'rewrite "description" to say what the skill does, then add "Use when ..." with the words a request for it would contain',
       });

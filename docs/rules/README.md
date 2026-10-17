@@ -19,7 +19,7 @@ means guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe
 | [`cursor/legacy-cursorrules`](cursor/legacy-cursorrules.md)                 | info     | loading     | review       | .cursorrules is a legacy file that Cursor plans to deprecate          |
 | [`cursor/md-file-ignored`](cursor/md-file-ignored.md)                       | error    | loading     | safe, review | Cursor ignores .md files in .cursor/rules                             |
 | [`cursor/rule-frontmatter`](cursor/rule-frontmatter.md)                     | warn     | correctness | safe, review | Cursor rule frontmatter field is unknown or has the wrong type        |
-| [`cursor/rule-never-applied`](cursor/rule-never-applied.md)                 | info     | loading     | manual       | Cursor rule is applied only when @-mentioned                          |
+| [`cursor/rule-never-applied`](cursor/rule-never-applied.md)                 | info     | loading     | review       | Cursor rule is applied only when @-mentioned                          |
 | [`directive/missing-reason`](directive/missing-reason.md)                   | warn     | correctness | manual       | Suppression directive has no rule id or no reason                     |
 | [`directive/unknown-rule`](directive/unknown-rule.md)                       | warn     | correctness | review       | Suppression directive names a rule that does not exist                |
 | [`directive/unused`](directive/unused.md)                                   | warn     | correctness | safe         | Suppression directive does not suppress anything                      |
@@ -61,7 +61,7 @@ means guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe
 | [`skill/broad-allowed-tools`](skill/broad-allowed-tools.md)                 | warn     | risk        | review       | Skill pre-approves shell commands or file edits without limits        |
 | [`skill/broken-reference`](skill/broken-reference.md)                       | error    | correctness | safe, review | Skill links to a missing file or outside its directory                |
 | [`skill/description-missing`](skill/description-missing.md)                 | error    | loading     | review       | Skill description is missing or empty                                 |
-| [`skill/description-quality`](skill/description-quality.md)                 | info     | clarity     | manual       | Skill description is too short or does not say when to use it         |
+| [`skill/description-quality`](skill/description-quality.md)                 | info     | clarity     | review       | Skill description is too short or does not say when to use it         |
 | [`skill/description-too-long`](skill/description-too-long.md)               | error    | budget      | manual       | Skill description exceeds the upload or Claude Code listing limit     |
 | [`skill/duplicate-name`](skill/duplicate-name.md)                           | warn     | loading     | manual       | Two skills in one skills directory have the same name                 |
 | [`skill/field-type`](skill/field-type.md)                                   | warn     | correctness | review       | Skill frontmatter field has the wrong type or length                  |

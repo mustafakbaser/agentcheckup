@@ -34,7 +34,7 @@ Add a `description` that says what the skill does and when to use it.
 
 Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
 
-Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you.
+Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words.
 
 Preview the fix with `agentcheckup fix --rule skill/description-missing`.
 

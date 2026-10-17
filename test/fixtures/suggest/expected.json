@@ -37,6 +37,10 @@
       "count": 1
     },
     {
+      "reason": "needs-input",
+      "count": 1
+    },
+    {
       "reason": "renames-file",
       "count": 1
     },

@@ -1,3 +1,4 @@
+import { editableFile } from '../../core/directive-fixes.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
@@ -38,11 +39,38 @@ import {
 export { firstBodyLine } from '../../platforms/skills.js';
 
 const WRITE_DESCRIPTION = 'add a "description" that says what the skill does and when to use it';
+const WRITE_TEXT =
+  'write "description" as one line of text that says what the skill does and when to use it';
+
+/**
+ * A fix that needs the user's words (`#type`): `fix -i` asks for the description, prefilled with
+ * `initial`, and writes it double-quoted in place of the value or as a new key after `name`.
+ * Undefined for a file `fix -i` cannot write an answer into: reached through a symlink, linked
+ * from another path, or not decoded cleanly.
+ */
+function typeDescription(artifact: Artifact, initial: string | undefined): Fix | undefined {
+  if (!editableFile(artifact)) return undefined;
+  return {
+    id: 'skill/description-missing#type',
+    class: 'review',
+    title: `Write "description" in ${artifact.path}`,
+    changes: [],
+    input: {
+      field: 'skill-description',
+      question: 'Write a description that says what the skill does and when to use it?',
+      label: 'a description of what the skill does and when to use it',
+      ...(initial === undefined ? {} : { initial }),
+      target: { kind: 'frontmatter', path: artifact.path, key: 'description' },
+    },
+  };
+}
 
 /**
  * Copies the first line of the body into a missing or empty `description` (`review`): the text
- * Claude Code already uses when the key is omitted, for the author to reword. A manual step when
- * the value is not text or no line can be copied.
+ * Claude Code already uses when the key is omitted, for the author to reword. `fix -i` also
+ * offers typing it ({@link typeDescription}), prefilled with that line. When no line can be
+ * copied or the copy cannot be written in place, typing it is the fix. A manual step for a file
+ * reached through a symlink, or one that cannot take typed words either.
  */
 function copyDescription(
   artifact: Artifact,
@@ -52,7 +80,11 @@ function copyDescription(
   const manual = { guidance: WRITE_DESCRIPTION };
   if (!editable(artifact)) return manual;
   const description = copiedDescription(artifact.decoded.text.slice(frontmatter.bodyOffset));
-  if (description === undefined) return manual;
+  const typed = (initial: string | undefined): FixOrGuidance => {
+    const fix = typeDescription(artifact, initial);
+    return fix === undefined ? manual : { fix, guidance: WRITE_DESCRIPTION };
+  };
+  if (description === undefined) return typed(undefined);
   const { data } = frontmatter;
   const change =
     state === 'empty'
@@ -61,13 +93,16 @@ function copyDescription(
           style: 'double',
           position: data.keys.includes('name') ? { after: 'name' } : 'last',
         });
-  if (change === undefined) return manual;
+  // An empty block scalar, for example: typing the description replaces the value whole.
+  if (change === undefined) return typed(description);
+  const alternative = typeDescription(artifact, description);
   const fix: Fix = {
     id: 'skill/description-missing#copy-body',
     class: 'review',
     title: `Set "description" to the first line of the body in ${artifact.path}`,
     changes: [change],
     notes: [COPIED_NOTE],
+    ...(alternative === undefined ? {} : { alternatives: [alternative] }),
   };
   return { fix, guidance: WRITE_DESCRIPTION };
 }
@@ -97,7 +132,7 @@ Add a \`description\` that says what the skill does and when to use it.`,
     fix: {
       classes: ['review'],
       summary:
-        'Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you.',
+        'Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words.',
     },
   },
   defaultOptions: undefined,
@@ -137,10 +172,8 @@ Add a \`description\` that says what the skill does and when to use it.`,
       let lead: string;
       let repair: FixOrGuidance;
       if (state === 'not-text') {
-        repair = {
-          guidance:
-            'write "description" as one line of text that says what the skill does and when to use it',
-        };
+        const fix = typeDescription(artifact, undefined);
+        repair = fix === undefined ? { guidance: WRITE_TEXT } : { fix, guidance: WRITE_TEXT };
         lead = `\`description\` is ${describeType(value)}, not text.`;
         if (codex) {
           clauses.push('Codex cannot read the frontmatter and skips the skill');

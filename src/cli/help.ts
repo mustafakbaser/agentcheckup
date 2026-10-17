@@ -83,9 +83,10 @@ Options
       --write              Apply the safe fixes, then scan the files again
       --review             With --write: also apply the fixes that need review
   -i, --interactive        Ask about each fix: [y]es [n]o [d]iff [a]lternatives
-                           [q]uit, then apply the accepted ones. Enter means yes
-                           for a safe fix and no for one that needs review.
-                           Needs a terminal
+                           [s]uppress [A]ll [q]uit, then apply the accepted ones.
+                           Enter means yes for a safe fix and no for one that
+                           needs review. Also asks for the words of the fixes
+                           that need them. Needs a terminal
       --rule <ids>         Comma-separated rule ids: fix only these rules.
                            mcp/literal-secret is fixed only when named here or
                            accepted with -i

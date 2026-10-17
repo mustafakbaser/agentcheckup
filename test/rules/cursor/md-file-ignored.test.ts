@@ -41,4 +41,33 @@ describe('cursor/md-file-ignored', () => {
     const result = lint({ '.cursor/rules/style.md': 'x' }, { rules, targets: ['windsurf'] });
     expect(findings(result, RULE)).toEqual([]);
   });
+
+  it('offers asking for globs instead of "alwaysApply: true", and only then', () => {
+    const result = lint(
+      {
+        '.cursor/rules/style.md': 'Prefer named exports.\n',
+        '.cursor/rules/db.md': '---\ndescription: Database rules\n---\nx\n',
+      },
+      { rules },
+    );
+    const fixes = new Map(result.findings.map((finding) => [finding.path, finding.fix]));
+    expect(fixes.get('.cursor/rules/style.md')?.alternatives).toEqual([
+      {
+        id: 'cursor/md-file-ignored#ask-globs',
+        class: 'review',
+        title: 'Rename .cursor/rules/style.md to style.mdc and add "globs"',
+        changes: [],
+        notes: ['Devin Local in Windsurf reads the file under either name.'],
+        input: {
+          field: 'cursor-globs',
+          question: 'Attach this rule to the files that match glob patterns, such as src/**/*.ts?',
+          label: '"globs" patterns',
+          target: { kind: 'frontmatter', path: '.cursor/rules/style.md', key: 'globs' },
+        },
+      },
+    ]);
+    // The file already says when to apply it: the rename alone fixes it.
+    expect(fixes.get('.cursor/rules/db.md')?.id).toBe('cursor/md-file-ignored#rename');
+    expect(fixes.get('.cursor/rules/db.md')?.alternatives).toBeUndefined();
+  });
 });

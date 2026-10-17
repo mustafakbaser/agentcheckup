@@ -9,10 +9,13 @@
  *    {@link writeFixes} against the files the walk read. Then it walks and scans the repository
  *    again and checks on disk that each written fix resolved its findings and added no error or
  *    warning.
- * 4. `-i` asks about each verified fix, then plans again with only the accepted ones (an
- *    alternative the user picked takes the place of the rule's fix in its finding) and writes
- *    those as `--write` does. What is left to the user comes from the scan from disk: the
- *    findings of declined fixes and the manual steps of the findings still there.
+ * 4. `-i` asks about each verified fix, then about each fix that needs the user's words: it asks
+ *    for the words, completes and verifies the fix in memory (src/fix/input.ts) and shows its
+ *    diff. It also offers to suppress a warning or info with a reason. Then it plans again with
+ *    only the accepted fixes (an alternative, a completed fix or a suppression takes the place of
+ *    the rule's fix in its finding) and writes those as `--write` does. What is left to the user
+ *    comes from the scan from disk: the findings of declined fixes and the manual steps of the
+ *    findings still there.
  *
  * Every file access goes through src/io; this module only decides and prints.
  */
@@ -28,8 +31,18 @@ import {
 } from '../core/engine.js';
 import { createParseCache } from '../core/parse-cache.js';
 import { decode } from '../core/text.js';
-import type { AnyRule, FileChange, Finding, Fix, FixClass, RuleContext } from '../core/types.js';
+import type {
+  AnyRule,
+  FileChange,
+  Finding,
+  Fix,
+  FixClass,
+  FixInput,
+  RuleContext,
+} from '../core/types.js';
 import {
+  type AwaitingInput,
+  completeInput,
   type FileDiff,
   fixKey,
   fixRounds,
@@ -41,7 +54,9 @@ import {
   leftSteps,
   LITERAL_SECRET_RULE,
   type ManualStep,
+  needsInput,
   type PlannedFix,
+  verifyCompletedInput,
 } from '../fix/index.js';
 import { relativeInsideRoot } from '../io/paths.js';
 import { walk, type WalkOptions } from '../io/walk.js';
@@ -76,6 +91,7 @@ import {
   scanOptionsFor,
   styleFor,
 } from './common.js';
+import { prefillable } from './prompt.js';
 import { suggest } from './suggest.js';
 
 /** What every step of one `fix` run needs. */
@@ -186,6 +202,7 @@ async function dryRun(session: Session, rounds: FixRounds): Promise<ExitCode> {
     rounds.files.map(changedFile),
     rounds.manual,
     rounds.verification,
+    rounds.awaitingInput,
   );
   const report =
     session.options.format === 'json'
@@ -196,6 +213,8 @@ async function dryRun(session: Session, rounds: FixRounds): Promise<ExitCode> {
     reportCrashes(rounds.before, session.io);
     return EXIT.internal;
   }
+  // Fixes that need the user's words change nothing until -i asks for them: like manual steps,
+  // they do not make the dry run exit 1.
   return rounds.files.length > 0 ? EXIT.findings : EXIT.ok;
 }
 
@@ -232,6 +251,7 @@ async function write(
   );
   const outcome = await writeAndVerify(session, rounds.applied, rounds.files, rounds.before);
   if (outcome === undefined) return EXIT.findings;
+  // Fixes that need the user's words are never written: the summary says -i asks for them.
   const view = viewOf(
     session,
     'write',
@@ -239,6 +259,7 @@ async function write(
     outcome.files,
     rounds.manual,
     outcome.verification,
+    rounds.awaitingInput,
   );
 
   let report: string;
@@ -412,7 +433,8 @@ async function interactive(
     literalSecret: true,
   };
   // A blank line between the last answer and the summary.
-  if (rounds.applied.length > 0 && session.options.output === undefined) io.stdout('\n');
+  const asked = rounds.applied.length + rounds.awaitingInput.length;
+  if (asked > 0 && session.options.output === undefined) io.stdout('\n');
 
   if (answers.accepted.size === 0) {
     const titles = declinedTitles(answers.declined, rounds.before, rounds.before, new Map());
@@ -528,67 +550,416 @@ function render(session: Session, view: FixView): string {
     : formatFixSummary(view, { style: session.style });
 }
 
+/**
+ * One fix -i asks about: a verified fix, or a fix that needs the user's words (`entry`), as the
+ * planned fix that decide() takes.
+ */
+interface Offer {
+  readonly planned: PlannedFix;
+  readonly entry?: AwaitingInput;
+}
+
+/** What answering the fixes needs. */
+interface Asking {
+  readonly session: Session;
+  readonly prompt: Prompt;
+  readonly rounds: FixRounds;
+  /** The changed files of the rounds, for the diffs of verified fixes. */
+  readonly files: readonly ChangedFile[];
+  /** The files as they are, analyzed, for completing fixes that need the user's words. */
+  readonly parses: Analysis;
+}
+
+/** The answer about one fix. */
+type Answer =
+  | { readonly kind: 'yes'; readonly fix: Fix; readonly all?: boolean }
+  | { readonly kind: 'no' | 'quit' | 'abort' };
+
+const NO: Answer = { kind: 'no' };
+const QUIT: Answer = { kind: 'quit' };
+const ABORT: Answer = { kind: 'abort' };
+
+/** A fix that awaits input as the planned fix decide() swaps the completed fix in for. */
+function awaitingAsPlanned(entry: AwaitingInput): PlannedFix {
+  return {
+    fix: entry.fix,
+    ruleId: entry.ruleId,
+    findings: entry.findings,
+    effects: [],
+    status: 'planned',
+  };
+}
+
+/**
+ * Asks about each verified fix, then about each fix that needs the user's words, in plan order.
+ * [A]ll accepts a fix and the verified fixes of its rule still to come, without asking.
+ */
 async function ask(session: Session, prompt: Prompt, rounds: FixRounds): Promise<Answers> {
   const { io } = session;
-  const files = rounds.files.map(changedFile);
   const accepted = new Map<PlannedFix, Fix>();
   const declined: PlannedFix[] = [];
-  const offered = rounds.applied;
-  if (offered.length === 0) io.stdout('Nothing to fix.\n');
+  const offers: Offer[] = [
+    ...rounds.applied.map((planned) => ({ planned })),
+    ...rounds.awaitingInput.map((entry) => ({ planned: awaitingAsPlanned(entry), entry })),
+  ];
+  if (offers.length === 0) {
+    io.stdout('Nothing to fix.\n');
+    return { accepted, declined, aborted: false };
+  }
+  const asking: Asking = {
+    session,
+    prompt,
+    rounds,
+    files: rounds.files.map(changedFile),
+    parses: analyze(session.snapshot, session.scanOptions),
+  };
+  const all = new Set<string>();
 
-  for (const [index, planned] of offered.entries()) {
-    // As an interactive add shows each hunk: the fix with its diff, then the question.
-    const block = fixBlock(session, planned, offered, filesOf(planned, files));
-    io.stdout(`${index === 0 ? '' : '\n'}${block}`);
-    const alternatives = planned.fix.alternatives ?? [];
-    const safe = planned.fix.class === 'safe';
-    const question =
-      `(${index + 1}/${offered.length}) Apply? [y]es [n]o [d]iff ` +
-      `${alternatives.length > 0 ? '[a]lternatives ' : ''}[q]uit (Enter: ${safe ? 'yes' : 'no'}) `;
-    let answered = false;
-    while (!answered) {
-      const answer = await prompt.ask(question);
-      if (answer === undefined) return { accepted, declined, aborted: true };
-      switch (answer.trim().toLowerCase()) {
-        case '':
-          if (safe) accepted.set(planned, planned.fix);
-          else declined.push(planned);
-          answered = true;
-          break;
-        case 'y':
-        case 'yes':
-          accepted.set(planned, planned.fix);
-          answered = true;
-          break;
-        case 'n':
-        case 'no':
-          declined.push(planned);
-          answered = true;
-          break;
-        case 'd':
-        case 'diff':
-          io.stdout(block);
-          break;
-        case 'a':
-        case 'alternatives': {
-          const chosen = await chooseAlternative(prompt, io, alternatives);
-          if (chosen === null) return { accepted, declined, aborted: true };
-          if (chosen !== undefined) {
-            accepted.set(planned, chosen);
-            answered = true;
-          }
-          break;
+  for (const [index, offer] of offers.entries()) {
+    const { planned } = offer;
+    const ready = (other: Offer): boolean =>
+      other.entry === undefined && other.planned.ruleId === planned.ruleId;
+    if (ready(offer) && all.has(planned.ruleId)) {
+      accepted.set(planned, planned.fix);
+      continue;
+    }
+    const later = offers.slice(index + 1).filter(ready).length;
+    const answer = await askOne(asking, offer, `(${index + 1}/${offers.length})`, later, index);
+    switch (answer.kind) {
+      case 'abort':
+        return { accepted, declined, aborted: true };
+      case 'quit':
+        declined.push(...offers.slice(index).map((item) => item.planned));
+        return { accepted, declined, aborted: false };
+      case 'no':
+        declined.push(planned);
+        break;
+      case 'yes':
+        accepted.set(planned, answer.fix);
+        if (answer.all === true) {
+          all.add(planned.ruleId);
+          io.stdout(
+            `Applying the ${later === 1 ? 'other fix' : `${later} other fixes`} of ` +
+              `${forTerminal(planned.ruleId)} too, without asking.\n`,
+          );
         }
-        case 'q':
-        case 'quit':
-          declined.push(...offered.slice(index));
-          return { accepted, declined, aborted: false };
-        default:
-          io.stdout(`Answer y, n, d${alternatives.length > 0 ? ', a' : ''} or q.\n`);
-      }
+        break;
     }
   }
   return { accepted, declined, aborted: false };
+}
+
+/**
+ * Shows one fix and asks about it until the user decides. A verified fix shows its diff; a fix
+ * that needs the user's words shows its finding, and yes asks for the words. `later` counts the
+ * verified fixes of the same rule still to come, which [A]ll accepts too.
+ */
+async function askOne(
+  asking: Asking,
+  offer: Offer,
+  counter: string,
+  later: number,
+  index: number,
+): Promise<Answer> {
+  const { session, prompt, rounds } = asking;
+  const { io } = session;
+  const { planned, entry } = offer;
+  // As an interactive add shows each hunk: the fix with its diff, then the question.
+  const block =
+    entry === undefined
+      ? fixBlock(session, planned, rounds.applied, filesOf(planned, asking.files))
+      : inputBlock(asking, entry);
+  io.stdout(`${index === 0 ? '' : '\n'}${block}`);
+
+  const alternatives = planned.fix.alternatives ?? [];
+  const suppress = suppression(asking, planned);
+  const all = entry === undefined && later > 0;
+  const yesByDefault = entry === undefined && planned.fix.class === 'safe';
+  const choices: (readonly [string, string, boolean])[] = [
+    ['y', '[y]es', true],
+    ['n', '[n]o', true],
+    ['d', '[d]iff', entry === undefined],
+    ['a', '[a]lternatives', alternatives.length > 0],
+    ['s', '[s]uppress', suppress !== undefined],
+    ['A', '[A]ll', all],
+  ];
+  const offered = choices.filter(([, , shown]) => shown);
+  const lead = entry === undefined ? 'Apply?' : forTerminal(entry.fix.input.question);
+  const question =
+    `${counter} ${lead} ${offered.map(([, label]) => label).join(' ')} [q]uit ` +
+    `(Enter: ${yesByDefault ? 'yes' : 'no'}) `;
+  const letters = offered.map(([letter]) => letter).join(', ');
+  const yes = (fix: Fix): Answer => ({ kind: 'yes', fix });
+  /** The answer once the words were asked for: undefined to ask about the fix again. */
+  const worded = (fix: Fix | undefined | null): Answer | undefined =>
+    fix === null ? ABORT : fix === undefined ? undefined : yes(fix);
+
+  for (;;) {
+    const answer = await prompt.ask(question);
+    if (answer === undefined) return ABORT;
+    const text = answer.trim();
+    // [A]ll is the capital letter: lowercase a lists the alternatives.
+    if (all && (text === 'A' || text.toLowerCase() === 'all')) {
+      return { kind: 'yes', fix: planned.fix, all: true };
+    }
+    let decided: Answer | undefined;
+    switch (text.toLowerCase()) {
+      case '':
+        return yesByDefault ? yes(planned.fix) : NO;
+      case 'y':
+      case 'yes':
+        if (entry === undefined) return yes(planned.fix);
+        decided = worded(await askWords(asking, planned, entry.fix, false));
+        break;
+      case 'n':
+      case 'no':
+        return NO;
+      case 'd':
+      case 'diff':
+        if (entry === undefined) io.stdout(block);
+        else io.stdout(`Answer ${letters} or q.\n`);
+        break;
+      case 'a':
+      case 'alternatives': {
+        const chosen = await chooseAlternative(prompt, io, alternatives);
+        if (chosen === null) return ABORT;
+        if (chosen === undefined) break;
+        if (!needsInput(chosen)) return yes(chosen);
+        io.stdout(`${forTerminal(chosen.input.question)}\n`);
+        decided = worded(await askWords(asking, planned, chosen, true));
+        break;
+      }
+      case 's':
+      case 'suppress':
+        if (suppress === undefined) io.stdout(`Answer ${letters} or q.\n`);
+        else decided = worded(await askWords(asking, planned, suppress, false));
+        break;
+      case 'q':
+      case 'quit':
+        return QUIT;
+      default:
+        io.stdout(`Answer ${letters} or q.\n`);
+    }
+    if (decided !== undefined) return decided;
+  }
+}
+
+/**
+ * A fix that needs the user's words, before they are asked for: its rule, place and title, the
+ * message of its finding and its notes. Repository text goes through `forTerminal`.
+ */
+function inputBlock(asking: Asking, entry: AwaitingInput): string {
+  const { session, rounds } = asking;
+  const finding = rounds.before.findings.find((item) => entry.findings.includes(item.fingerprint));
+  const where = `${forTerminal(withBase(session.base, entry.path))}:${entry.line}`;
+  const lines = [
+    `${session.style.blue('input')}   ${forTerminal(entry.ruleId)}  ${where}  ${forTerminal(entry.fix.title)}`,
+  ];
+  if (finding !== undefined) lines.push(`  ${forTerminal(finding.message)}`);
+  for (const note of entry.fix.notes ?? []) lines.push(`  note: ${forTerminal(note)}`);
+  return `${lines.join('\n')}\n`;
+}
+
+/** The answer to `fix`, completed and verified, or why it cannot be used. */
+type Checked =
+  | {
+      readonly ok: true;
+      readonly fix: Fix;
+      readonly planned: PlannedFix;
+      readonly files: readonly ChangedFile[];
+      readonly introduced: readonly Finding[];
+    }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Completes `fix` with `answer` and verifies it on a copy in memory in place of `planned.fix`
+ * (src/fix/input.ts). An alternative (`keepRenames`) keeps the renames of the fix it replaces.
+ */
+function checkAnswer(
+  asking: Asking,
+  planned: PlannedFix,
+  fix: Fix & { readonly input: FixInput },
+  answer: string,
+  keepRenames: boolean,
+): Checked {
+  const completion = completeInput(fix, answer, asking.parses);
+  if (!completion.ok) return completion;
+  const completed = keepRenames
+    ? withRenames(planned.fix, fix.input, completion.fix)
+    : completion.fix;
+  const { session } = asking;
+  const verified = verifyCompletedInput(session.snapshot, session.scanOptions, planned, completed);
+  if (!verified.ok) return verified;
+  return {
+    ok: true,
+    fix: completed,
+    planned: verified.fix,
+    files: verified.run.files.map(changedFile),
+    introduced: verified.run.verification.introduced,
+  };
+}
+
+/**
+ * Asks for the words of `fix` (a fix that needs them, an input alternative, or a suppression),
+ * which takes the place of `planned.fix`: the `label ›` prompt, prefilled with the fix's text;
+ * then the completed fix, checked by a re-scan, with its diff, and `Use this?`. A refused answer
+ * shows why and is asked again, prefilled with that answer, as [e]dit does. Resolves with the
+ * accepted fix, undefined to go back to the question (an empty answer or [n]o), or null when
+ * input ended.
+ */
+async function askWords(
+  asking: Asking,
+  planned: PlannedFix,
+  fix: Fix & { readonly input: FixInput },
+  keepRenames: boolean,
+): Promise<Fix | undefined | null> {
+  const { session, prompt } = asking;
+  const { io, style } = session;
+  const { input } = fix;
+  let initial = input.initial;
+  for (;;) {
+    const prefill = initial !== undefined && prefillable(initial) ? initial : undefined;
+    const answer = await prompt.ask(`${forTerminal(input.label)} › `, { initial: prefill });
+    if (answer === undefined) return null;
+    if (answer.trim() === '') return undefined;
+    initial = answer;
+    const checked = checkAnswer(asking, planned, fix, answer, keepRenames);
+    if (!checked.ok) {
+      io.stdout(`${style.red('✗')} ${forTerminal(checked.message)}\n`);
+      continue;
+    }
+    io.stdout(fixBlock(session, checked.planned, asking.rounds.applied, checked.files));
+    io.stdout(`${style.green('✓')} re-scanned: ${outcomeText(planned, input, checked)}\n`);
+    for (const finding of checked.introduced) {
+      io.stdout(
+        `  new info  ${forTerminal(withBase(session.base, finding.path))}:${finding.range.start.line}  ` +
+          `${forTerminal(finding.ruleId)}  ${forTerminal(finding.message)}\n`,
+      );
+    }
+    const use = await useThis(prompt, io);
+    if (use === null) return null;
+    if (use === 'yes') return checked.fix;
+    if (use === 'no') return undefined;
+  }
+}
+
+/** `the finding is resolved; no new problem.` */
+function outcomeText(
+  planned: PlannedFix,
+  input: FixInput,
+  checked: Extract<Checked, { ok: true }>,
+): string {
+  const findings = new Set(planned.findings).size;
+  const subject = findings === 1 ? 'the finding is' : `its ${findings} findings are`;
+  const done = input.field === 'suppression-reason' ? 'suppressed' : 'resolved';
+  const added = checked.introduced.length;
+  const news =
+    added === 0 ? 'no new problem' : `${added} new info ${added === 1 ? 'finding' : 'findings'}`;
+  return `${subject} ${done}; ${news}.`;
+}
+
+/** `Use this?` until the user answers: yes, edit, no, or null when input ended. */
+async function useThis(prompt: Prompt, io: Io): Promise<'yes' | 'edit' | 'no' | null> {
+  for (;;) {
+    const answer = await prompt.ask('Use this? [y]es [e]dit [n]o (Enter: yes) ');
+    if (answer === undefined) return null;
+    switch (answer.trim().toLowerCase()) {
+      case '':
+      case 'y':
+      case 'yes':
+        return 'yes';
+      case 'e':
+      case 'edit':
+        return 'edit';
+      case 'n':
+      case 'no':
+        return 'no';
+      default:
+        io.stdout('Answer y, e or n.\n');
+    }
+  }
+}
+
+/**
+ * An input alternative keeps the renames of the fix it replaces that move the file it writes
+ * to: the answer is written into the file as it is, which is then moved as that fix moves it.
+ * cursor/md-file-ignored asks for globs this way and still renames the rule to .mdc.
+ */
+export function withRenames(replaced: Fix, input: FixInput, completed: Fix): Fix {
+  let path = input.target.path;
+  const renames: FileChange[] = [];
+  for (const change of replaced.changes) {
+    if (change.kind !== 'rename' || change.from !== path) continue;
+    renames.push(change);
+    path = change.to;
+  }
+  return renames.length === 0
+    ? completed
+    : { ...completed, changes: [...completed.changes, ...renames] };
+}
+
+/**
+ * True for a finding on a whole file, which is reported at line 1, column 1: a directive put
+ * before it would sit on line 1 itself, so no line directive suppresses it.
+ */
+function onWholeFile(finding: Finding): boolean {
+  const { start, end } = finding.range;
+  return start.line === 1 && start.column === 1 && end.line === 1 && end.column === 1;
+}
+
+/** Rules whose fixes decide() can swap: the built-in rules, not the engine's directive rules. */
+const SWAPPABLE: ReadonlySet<string> = new Set(builtinRules.map((rule) => rule.meta.id));
+
+/**
+ * The fix behind [s]uppress: a `disable-next-line` directive with a reason before the line of
+ * `planned`'s findings, which -i asks for. Offered only when every finding of the fix is a
+ * warning or info on one line of a file that takes directives, of a rule decide() can swap, as
+ * the scan of the files as they are reports it; never for a risk finding or mcp/literal-secret,
+ * which must be fixed, not silenced.
+ */
+function suppression(
+  asking: Asking,
+  planned: PlannedFix,
+): (Fix & { readonly input: FixInput }) | undefined {
+  const { ruleId } = planned;
+  if (ruleId === LITERAL_SECRET_RULE || ruleId.startsWith('risk/') || !SWAPPABLE.has(ruleId)) {
+    return undefined;
+  }
+  const carried = new Set(planned.findings);
+  const findings = asking.rounds.before.findings.filter((finding) =>
+    carried.has(finding.fingerprint),
+  );
+  const [first] = findings;
+  if (first === undefined || findings.length !== carried.size) return undefined;
+  const { path } = first;
+  const { line } = first.range.start;
+  const key = decisionKey(ruleId, planned.fix);
+  const fits = findings.every(
+    (finding) =>
+      finding.severity !== 'error' &&
+      finding.category !== 'risk' &&
+      !onWholeFile(finding) &&
+      finding.path === path &&
+      finding.range.start.line === line &&
+      // A fix that only an earlier round made possible is not what the scan reports here.
+      finding.fix !== undefined &&
+      decisionKey(ruleId, finding.fix) === key,
+  );
+  if (!fits) return undefined;
+  const fix: Fix & { readonly input: FixInput } = {
+    id: `${ruleId}#suppress`,
+    class: 'review',
+    title: `Suppress ${ruleId} on line ${line} of ${path}`,
+    changes: [],
+    input: {
+      field: 'suppression-reason',
+      question: 'Suppress this finding with a reason?',
+      label: 'reason',
+      target: { kind: 'directive', path, line, ruleId },
+    },
+  };
+  // A file or line that takes no directive, such as JSON or a frontmatter delimiter.
+  return completeInput(fix, 'reason', asking.parses).ok ? fix : undefined;
 }
 
 /**
@@ -605,7 +976,7 @@ async function chooseAlternative(
   }
   const lines = alternatives.map(
     (alternative, index) =>
-      `  ${index + 1}  ${alternative.class.padEnd(7)} ${forTerminal(alternative.title)}`,
+      `  ${index + 1}  ${(needsInput(alternative) ? 'input' : alternative.class).padEnd(7)} ${forTerminal(alternative.title)}`,
   );
   io.stdout(`Alternatives:\n${lines.join('\n')}\n`);
   for (;;) {
@@ -937,8 +1308,9 @@ function viewOf(
   files: readonly ChangedFile[],
   manual: readonly ManualStep[],
   verification: FixVerification,
+  awaitingInput: readonly AwaitingInput[] = [],
 ): FixView {
-  return { mode, pathBase: session.base, fixes, files, manual, verification };
+  return { mode, pathBase: session.base, fixes, files, manual, verification, awaitingInput };
 }
 
 function withBase(base: string, path: string): string {

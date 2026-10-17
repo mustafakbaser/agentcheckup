@@ -2,8 +2,8 @@
  * What a scan report adds to its findings so the reader knows what to do next, computed once
  * for the stylish, Markdown and GitHub formatters so they say the same thing:
  *
- * - the fix a rule attached to a finding (class and title) or, without one, its manual
- *   guidance;
+ * - the fix a rule attached to a finding (class and title, or "needs your words" for a fix that
+ *   only `agentcheckup fix -i` can complete) or, without one, its manual guidance;
  * - what the root load plans add to a finding: the size of what the agent misses and which
  *   other agents still load the file (the `why` line);
  * - the impact summary, "what each agent misses": one row per skip in a root load plan, with
@@ -69,6 +69,17 @@ export function fixOf(finding: Finding, channel: Channel): Fix | undefined {
   return finding.fix;
 }
 
+/** How a report names a fix that needs the user's words: `agentcheckup fix -i` asks for them. */
+export const INPUT_FIX_LABEL = 'needs your words (fix -i)';
+
+/**
+ * True for a fix that needs the user's words before it changes anything (`Fix.input`). Its
+ * class says how much trust the completed fix needs, but no `--write` applies it.
+ */
+export function needsWords(fix: Fix): boolean {
+  return fix.input !== undefined;
+}
+
 /** The manual step to show for a finding: none for a suppressed finding or blank guidance. */
 export function guidanceOf(finding: Finding): string | undefined {
   if (finding.suppressed !== undefined || finding.guidance === undefined) return undefined;
@@ -78,23 +89,30 @@ export function guidanceOf(finding: Finding): string | undefined {
 export interface FixCounts {
   readonly safe: number;
   readonly review: number;
+  /** Unsuppressed findings whose fix needs the user's words ({@link needsWords}). */
+  readonly input: number;
   /** Unsuppressed findings without a fix: a person has to make the change. */
   readonly manual: number;
 }
 
-/** How many unsuppressed findings have a safe fix, a fix that needs review, or none. */
+/**
+ * How many unsuppressed findings have a safe fix, a fix that needs review, a fix that needs the
+ * user's words, or none.
+ */
 export function fixCounts(findings: readonly Finding[], channel: Channel): FixCounts {
   let safe = 0;
   let review = 0;
+  let input = 0;
   let manual = 0;
   for (const finding of findings) {
     if (finding.suppressed !== undefined) continue;
     const fix = fixOf(finding, channel);
     if (fix === undefined) manual++;
+    else if (needsWords(fix)) input++;
     else if (fix.class === 'safe') safe++;
     else review++;
   }
-  return { safe, review, manual };
+  return { safe, review, input, manual };
 }
 
 /** `A`, `A and B`, `A, B and C`. */

@@ -25,6 +25,7 @@ const FIXABLE = new Set([
   'skill/broad-allowed-tools',
   'skill/broken-reference',
   'skill/description-missing',
+  'skill/description-quality',
   'skill/field-type',
   'skill/frontmatter-bom',
   'skill/frontmatter-missing',
@@ -132,7 +133,6 @@ describe('skill fix metadata', () => {
       expect(finding.guidance, finding.ruleId).toMatch(/^[a-z]/);
     }
     expect([...seen].sort()).toEqual([
-      'skill/description-quality',
       'skill/duplicate-name',
       'skill/frontmatter-invalid',
       'skill/name-reserved-word',
@@ -533,34 +533,57 @@ describe('skill/description-missing fix', () => {
     }
   });
 
-  it('leaves values that are not text and bodies without a usable line to the user', () => {
-    const cases: [string, string][] = [
+  it('asks for the words when the value is not text or no line can be copied', () => {
+    const ADD = 'add a "description" that says what the skill does and when to use it';
+    const cases: [string, string, string | undefined][] = [
       [
         '---\nname: deploy\ndescription: [a, b]\n---\nDeploys.\n',
         'write "description" as one line of text that says what the skill does and when to use it',
+        undefined,
       ],
-      [
-        '---\nname: deploy\n---\n```\ncode\n```\n',
-        'add a "description" that says what the skill does and when to use it',
-      ],
-      [
-        '---\nname: deploy\n---\n<!-- note -->\n',
-        'add a "description" that says what the skill does and when to use it',
-      ],
-      [
-        '---\nname: deploy\n---\n',
-        'add a "description" that says what the skill does and when to use it',
-      ],
-      [
-        '---\nname: deploy\ndescription: |\n---\nDeploys.\n',
-        'add a "description" that says what the skill does and when to use it',
-      ],
+      ['---\nname: deploy\n---\n```\ncode\n```\n', ADD, undefined],
+      ['---\nname: deploy\n---\n<!-- note -->\n', ADD, undefined],
+      ['---\nname: deploy\n---\n', ADD, undefined],
+      // The builders do not set an empty block scalar; typing the value replaces it whole.
+      ['---\nname: deploy\ndescription: |\n---\nDeploys.\n', ADD, 'Deploys.'],
     ];
-    for (const [text, guidance] of cases) {
+    for (const [text, guidance, initial] of cases) {
       const [finding] = found({ [PATH]: text }, 'skill/description-missing');
-      expect(finding?.fix, text).toBeUndefined();
+      expect(finding?.fix?.id, text).toBe('skill/description-missing#type');
+      expect(finding?.fix?.changes).toEqual([]);
+      expect(finding?.fix?.input).toMatchObject({
+        field: 'skill-description',
+        target: { kind: 'frontmatter', path: PATH, key: 'description' },
+      });
+      expect(finding?.fix?.input?.initial).toBe(initial);
       expect(finding?.guidance).toBe(guidance);
     }
+  });
+
+  it('offers typing the description as an alternative to the copy, prefilled with it', () => {
+    const [finding] = found(
+      { [PATH]: '---\nname: deploy\n---\n# Deploy the API\n' },
+      'skill/description-missing',
+    );
+    expect(finding?.fix?.id).toBe('skill/description-missing#copy-body');
+    expect(finding?.fix?.alternatives).toEqual([
+      expect.objectContaining({
+        id: 'skill/description-missing#type',
+        class: 'review',
+        changes: [],
+        input: expect.objectContaining({ initial: 'Deploy the API' }) as unknown,
+      }),
+    ]);
+  });
+
+  it('leaves a symlinked SKILL.md to the user, with no fix to type either', () => {
+    const [finding] = found({ [PATH]: '---\nname: deploy\n---\n' }, 'skill/description-missing', {
+      symlinks: { [PATH]: 'shared/deploy/SKILL.md' },
+    });
+    expect(finding?.fix).toBeUndefined();
+    expect(finding?.guidance).toBe(
+      'add a "description" that says what the skill does and when to use it',
+    );
   });
 });
 

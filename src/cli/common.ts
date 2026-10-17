@@ -15,6 +15,16 @@ import { builtinRules } from '../rules/index.js';
 import type { SharedCommandOptions } from './args.js';
 import { ansiStyle, shouldUseColor } from './style.js';
 
+/** How {@link Prompt.ask} asks. */
+export interface AskOptions {
+  /**
+   * Text put on the input line after the question, as if typed, for the user to edit or accept
+   * with Enter. Only a terminal gets it, and only one line of plain text: no control,
+   * bidirectional or invisible character.
+   */
+  readonly initial?: string | undefined;
+}
+
 /** Line input for `agentcheckup fix -i`. */
 export interface Prompt {
   /** Whether input comes from a terminal. `fix -i` needs one. */
@@ -23,7 +33,7 @@ export interface Prompt {
    * Writes `question` and resolves with the next line of input without its line ending, or with
    * undefined when input ends or the user interrupts it (Ctrl+C).
    */
-  readonly ask: (question: string) => Promise<string | undefined>;
+  readonly ask: (question: string, options?: AskOptions) => Promise<string | undefined>;
 }
 
 export interface Io {

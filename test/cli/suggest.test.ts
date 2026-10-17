@@ -105,7 +105,10 @@ describe('agentcheckup fix --format suggestions', () => {
     expect(code).toBe(EXIT.ok);
     const report = parseReport(io.output());
     expect(report.comments).toEqual([]);
-    expect(report.skipped).toEqual([{ reason: 'outside-diff', count: 1 }]);
+    expect(report.skipped).toEqual([
+      { reason: 'outside-diff', count: 1 },
+      { reason: 'needs-input', count: 1 },
+    ]);
   });
 
   it('suggests only the fixes of --rule and rejects an unknown rule', async () => {

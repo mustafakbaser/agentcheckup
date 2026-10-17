@@ -7,7 +7,8 @@
  * misses, from the root load plans when the result has them; each finding gets a `why` line
  * when the plans add a fact its message lacks, and a `fix` or `how` line; the summary ends with
  * the fix counts and the commands that apply them. `compact` is the output from before fixes,
- * plus a `fixable` tag; `verbose` adds each rule's docs URL, rationale and sources.
+ * plus a `fixable` tag (`needs your words (fix -i)` for a fix that needs the user's words);
+ * `verbose` adds each rule's docs URL, rationale and sources.
  */
 import type { ScanResult } from '../core/engine.js';
 import { REPOSITORY_URL } from '../core/meta.js';
@@ -28,6 +29,8 @@ import {
   guidanceOf,
   impactOf,
   type ImpactRow,
+  INPUT_FIX_LABEL,
+  needsWords,
   type PlanIndex,
   planIndex,
   tokensText,
@@ -219,6 +222,7 @@ function ruleColumn(finding: Finding, context: Context): string {
   if (context.level !== 'compact') return linked;
   const fix = fixOf(finding, 'terminal');
   if (fix === undefined) return linked;
+  if (needsWords(fix)) return `${linked}  ${style.blue(INPUT_FIX_LABEL)}`;
   const tag = fix.class === 'safe' ? 'fixable' : 'fixable (review)';
   return `${linked}  ${paintClass(fix.class, tag, style)}`;
 }
@@ -247,9 +251,10 @@ function detailLines(finding: Finding, context: Context): string[] {
   const fix = fixOf(finding, 'terminal');
   const guidance = guidanceOf(finding);
   if (fix !== undefined) {
-    lines.push(
-      line('fix', `${paintClass(fix.class, fix.class, style)}: ${clean(fix.title, context)}`),
-    );
+    const kind = needsWords(fix)
+      ? style.blue(INPUT_FIX_LABEL)
+      : paintClass(fix.class, fix.class, style);
+    lines.push(line('fix', `${kind}: ${clean(fix.title, context)}`));
   } else if (guidance !== undefined) {
     lines.push(line('how', clean(guidance, context)));
   }
@@ -600,7 +605,7 @@ function fixesLine(result: ScanResult, context: Context): string | undefined {
   if (context.level === 'compact') return undefined;
   const { style, symbols } = context;
   const counts = fixCounts(result.findings, 'terminal');
-  if (counts.safe + counts.review === 0) return undefined;
+  if (counts.safe + counts.review + counts.input === 0) return undefined;
   const parts: string[] = [];
   if (counts.safe > 0) {
     parts.push(`${style.green(`${counts.safe} safe`)} (agentcheckup fix --write)`);
@@ -608,6 +613,10 @@ function fixesLine(result: ScanResult, context: Context): string | undefined {
   if (counts.review > 0) {
     const verb = counts.review === 1 ? 'needs' : 'need';
     parts.push(`${style.yellow(`${counts.review} ${verb} review`)} (agentcheckup fix -i)`);
+  }
+  if (counts.input > 0) {
+    const verb = counts.input === 1 ? 'needs' : 'need';
+    parts.push(`${style.blue(`${counts.input} ${verb} your words`)} (agentcheckup fix -i)`);
   }
   if (counts.manual > 0) parts.push(`${counts.manual} manual`);
   return `Fixes: ${parts.join(` ${symbols.dot} `)}`;

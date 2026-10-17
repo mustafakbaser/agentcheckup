@@ -375,16 +375,37 @@ describe('cursor/legacy-cursorrules fixes', () => {
 
 describe('cursor/rule-never-applied guidance', () => {
   const RULE = 'cursor/rule-never-applied';
+  const GUIDANCE =
+    'add "globs" with the files the rule is for, a "description" of when to use it, or "alwaysApply: true"; to keep it manual on purpose, add "alwaysApply: false"';
 
   it.each([
     ['no frontmatter', 'x\n'],
     ['frontmatter without activation fields', '---\nname: x\n---\nx\n'],
-  ])('gives a manual step for %s', (_label, text) => {
+  ])('gives a manual step and asks for globs for %s', (_label, text) => {
     const finding = only(scan({ '.cursor/rules/x.mdc': text }).findings, RULE);
-    expect(finding.fix).toBeUndefined();
-    expect(finding.guidance).toBe(
-      'add "globs" with the files the rule is for, a "description" of when to use it, or "alwaysApply: true"; to keep it manual on purpose, add "alwaysApply: false"',
+    expect(finding.fix).toEqual({
+      id: 'cursor/rule-never-applied#globs',
+      class: 'review',
+      title: 'Add "globs" to .cursor/rules/x.mdc',
+      changes: [],
+      input: {
+        field: 'cursor-globs',
+        question: 'Attach this rule to the files that match glob patterns, such as src/**/*.ts?',
+        label: '"globs" patterns',
+        target: { kind: 'frontmatter', path: '.cursor/rules/x.mdc', key: 'globs' },
+      },
+    });
+    expect(finding.guidance).toBe(GUIDANCE);
+  });
+
+  it('asks nothing for a rule reached through a symlink', () => {
+    const linked = scan(
+      { '.cursor/rules/x.mdc': 'x\n' },
+      { symlinks: { '.cursor/rules/x.mdc': 'shared/x.mdc' } },
     );
+    const finding = only(linked.findings, RULE);
+    expect(finding.fix).toBeUndefined();
+    expect(finding.guidance).toBe(GUIDANCE);
   });
 });
 
@@ -413,12 +434,14 @@ describe('fix classes', () => {
       'cursor/legacy-cursorrules#agents-md review',
       'cursor/legacy-cursorrules#cursor-rule review',
       'cursor/md-file-ignored#always-apply review',
+      'cursor/md-file-ignored#ask-globs review',
       'cursor/md-file-ignored#globs review',
       'cursor/md-file-ignored#rename safe',
       'cursor/md-file-ignored#rename-unchecked review',
       'cursor/rule-frontmatter#always-apply-boolean safe',
       'cursor/rule-frontmatter#globs-key review',
       'cursor/rule-frontmatter#globs-string safe',
+      'cursor/rule-never-applied#globs review',
     ]);
   });
 });

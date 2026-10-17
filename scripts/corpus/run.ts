@@ -34,6 +34,10 @@
  *                                                     (fix-replay.ts); prints a summary by rule
  *                                                     and every violation (writes nothing;
  *                                                     combines with --only)
+ *   ... --fix-replay --answers synthetic              also answer every fix that needs the
+ *                                                     user's words as `fix -i` would, with
+ *                                                     synthetic answers, and check the result
+ *                                                     (answer-replay.ts)
  *   npx tsx scripts/corpus/run.ts --tasks-check       build the `agentcheckup tasks` output for
  *                                                     every repository and check it
  *                                                     (tasks-check.ts; combines with --only)
@@ -75,6 +79,7 @@ import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
 import { type RepoConsistency, renderConsistency, repoConsistency } from './consistency.js';
 import { type RepoContextFacts, renderContextSection, scanForSummary } from './context-stats.js';
+import { renderAnswers, type RepoAnswers, replayAnswers } from './answer-replay.js';
 import { type RepoReplay, renderReplay, replayRepo } from './fix-replay.js';
 import { fixFacts, type RepoFixFacts, renderFixSection } from './fix-stats.js';
 import {
@@ -105,6 +110,7 @@ const { values } = parseArgs({
     'ignore-fingerprints': { type: 'boolean', default: false },
     consistency: { type: 'boolean', default: false },
     'fix-replay': { type: 'boolean', default: false },
+    answers: { type: 'string' },
     agents: { type: 'string', multiple: true, default: [] },
   },
   strict: true,
@@ -124,6 +130,9 @@ if (
   (values['write-golden'] || values['check-golden'] || values.consistency)
 ) {
   throw new Error('--fix-replay combines only with --only');
+}
+if (values.answers !== undefined && (values.answers !== 'synthetic' || !values['fix-replay'])) {
+  throw new Error('--answers takes "synthetic" and works only with --fix-replay');
 }
 if (values['write-golden'] && values.only.length > 0) {
   throw new Error('--write-golden records the whole corpus and cannot be combined with --only');
@@ -899,6 +908,7 @@ const scanned: Scanned[] = [];
 const consistency: RepoConsistency[] = [];
 const contextFacts: RepoContextFacts[] = [];
 const replays: RepoReplay[] = [];
+const answered: RepoAnswers[] = [];
 const fixFactsList: RepoFixFacts[] = [];
 const fixCrashes: string[] = [];
 const loaderCrashes: string[] = [];
@@ -917,6 +927,9 @@ for (const entry of selected) {
   if (values['fix-replay']) {
     const replayed = replayRepo(repoLabel(entry), loaded.snapshot);
     replays.push(replayed.replay);
+    if (values.answers !== undefined && replayed.before !== undefined) {
+      answered.push(replayAnswers(repoLabel(entry), loaded.snapshot, replayed.before));
+    }
     // A crash of fixRounds is a violation; the scan the rest of the harness makes still runs.
     result =
       replayed.before ??
@@ -973,6 +986,11 @@ if (values['fix-replay']) {
   const rendered = renderReplay(replays);
   process.stdout.write(rendered.text);
   if (rendered.violations > 0) process.exitCode = 1;
+  if (values.answers !== undefined) {
+    const answers = renderAnswers(answered);
+    process.stdout.write(answers.text);
+    if (answers.violations > 0) process.exitCode = 1;
+  }
 }
 
 if (values['write-golden']) {

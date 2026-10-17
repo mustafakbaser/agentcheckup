@@ -100,6 +100,7 @@
           "enum": [
             "outside-diff",
             "not-safe",
+            "needs-input",
             "creates-file",
             "renames-file",
             "encoding-change",

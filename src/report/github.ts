@@ -7,11 +7,12 @@
  * Every property value and the message go through the workflow-command sanitizers, so each
  * finding is exactly one line and no untrusted text can start a command of its own.
  *
- * A finding with a fix gets `(fix: safe)` or `(fix: review)` in its title. At the `default` and
- * `verbose` levels the body adds lines, joined as `%0A`: `Why:` when the root load plans add a
- * fact the message lacks, `Fix:` (or `How:` for manual guidance) and `Docs:` with the rule's
- * documentation URL. Each added line is single-line: a line break in a fix title or guidance is
- * shown as `⏎`, so it cannot fake another line of the body.
+ * A finding with a fix gets `(fix: safe)` or `(fix: review)` in its title, or
+ * `(fix: needs your words)` when only `agentcheckup fix -i` can complete the fix. At the
+ * `default` and `verbose` levels the body adds lines, joined as `%0A`: `Why:` when the root load
+ * plans add a fact the message lacks, `Fix:` (or `How:` for manual guidance) and `Docs:` with the
+ * rule's documentation URL. Each added line is single-line: a line break in a fix title or
+ * guidance is shown as `⏎`, so it cannot fake another line of the body.
  *
  * GitHub shows at most 10 annotations of each type per step (50 per job) in the UI; the rest
  * remain in the log. GitHub resolves `file` against the repository root, so the CLI rebases
@@ -25,6 +26,7 @@ import {
   docsUrl,
   fixOf,
   guidanceOf,
+  needsWords,
   type PlanIndex,
   planIndex,
   whyText,
@@ -66,10 +68,14 @@ function command(
   return `::${name} ${list}::${data}`;
 }
 
-/** `rule/id (fix: safe)` for a finding with a fix, else the rule id. */
+/**
+ * `rule/id (fix: safe)` for a finding with a fix, `rule/id (fix: needs your words)` for one whose
+ * fix needs the user's words, else the rule id.
+ */
 function title(finding: Finding): string {
   const fix = fixOf(finding, 'pull-request');
-  return fix === undefined ? finding.ruleId : `${finding.ruleId} (fix: ${fix.class})`;
+  if (fix === undefined) return finding.ruleId;
+  return `${finding.ruleId} (fix: ${needsWords(fix) ? 'needs your words' : fix.class})`;
 }
 
 /** The message, then the Why, Fix or How, and Docs lines the level asks for. */
@@ -80,8 +86,10 @@ function body(finding: Finding, level: DetailLevel, plans: PlanIndex): string {
   if (facts !== undefined) lines.push(`Why: ${whyText(facts, '≈')}`);
   const fix = fixOf(finding, 'pull-request');
   const guidance = guidanceOf(finding);
-  if (fix !== undefined) lines.push(`Fix (${fix.class}): ${oneLine(fix.title)}`);
-  else if (guidance !== undefined) lines.push(`How: ${oneLine(guidance)}`);
+  if (fix !== undefined) {
+    const kind = needsWords(fix) ? 'needs your words, agentcheckup fix -i' : fix.class;
+    lines.push(`Fix (${kind}): ${oneLine(fix.title)}`);
+  } else if (guidance !== undefined) lines.push(`How: ${oneLine(guidance)}`);
   const url = docsUrl(finding.ruleId);
   if (url !== undefined) lines.push(`Docs: ${url}`);
   return lines.join('\n');

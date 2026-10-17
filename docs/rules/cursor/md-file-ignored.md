@@ -30,7 +30,7 @@ Rename the file to `.mdc` and add frontmatter, or move plain Markdown instructio
 
 Classes: `safe`, `review` ([fix classes](../../fix.md#safe-review-and-manual)).
 
-Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs".
+Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs". Instead of "alwaysApply: true", `agentcheckup fix -i` can ask for "globs".
 
 Preview the fix with `agentcheckup fix --rule cursor/md-file-ignored`.
 

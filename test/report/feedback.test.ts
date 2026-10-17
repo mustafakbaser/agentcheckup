@@ -20,6 +20,7 @@ import {
   impactOf,
   isDetailLevel,
   joinNames,
+  needsWords,
   planIndex,
   whyText,
 } from '../../src/report/feedback.js';
@@ -37,7 +38,7 @@ import {
   demoResult,
   hostileDemoResult,
 } from './demo.js';
-import { finding, makeResult, richResult, rule } from './fixtures.js';
+import { at, finding, makeResult, richResult, rule } from './fixtures.js';
 import { HOSTILE_ALL, hostileResult } from './hostile.js';
 import {
   ansiStyle,
@@ -121,12 +122,85 @@ describe('feedback helpers', () => {
     expect(fixCounts([active, suppressed, secret], 'terminal')).toEqual({
       safe: 1,
       review: 1,
+      input: 0,
       manual: 0,
     });
     expect(fixCounts([active, suppressed, secret], 'pull-request')).toEqual({
       safe: 1,
       review: 0,
+      input: 0,
       manual: 1,
+    });
+  });
+
+  describe('a fix that needs the user’s words', () => {
+    const meta = rule('skill/description-quality', 'clarity', 'info');
+    const words: Fix = {
+      id: 'skill/description-quality#when-clause',
+      class: 'review',
+      title: 'Add a "Use when ..." sentence to "description" in skills/pdf/SKILL.md',
+      changes: [],
+      input: {
+        field: 'skill-when-clause',
+        question: 'Add a sentence that says when to use this skill?',
+        label: 'a "Use when ..." clause',
+        initial: 'Use when ',
+        target: {
+          kind: 'frontmatter',
+          path: 'skills/pdf/SKILL.md',
+          key: 'description',
+          prefix: 'Extracts text. ',
+        },
+      },
+    };
+    const asking = finding(meta, 'skills/pdf/SKILL.md', 'The description does not say when.', {
+      fix: words,
+      range: at(3, 14, 3, 29),
+    });
+    const ready = finding(DEMO_RULES.shadowed, 'AGENTS.md', 'x', {
+      fix: DEMO_FINDINGS[3]!.fix!,
+    });
+    const result = makeResult({ findings: [asking, ready] });
+
+    it('is counted apart from fixes that need review, in every channel', () => {
+      expect(needsWords(words)).toBe(true);
+      expect(needsWords(DEMO_FINDINGS[3]!.fix!)).toBe(false);
+      for (const channel of ['terminal', 'pull-request'] as const) {
+        expect(fixCounts([asking, ready], channel)).toEqual({
+          safe: 1,
+          review: 0,
+          input: 1,
+          manual: 0,
+        });
+      }
+    });
+
+    it('reads "needs your words (fix -i)" in stylish and GitHub output, never "fixable (review)"', () => {
+      const compact = plain(result, { level: 'compact' });
+      const fixLines = (output: string): string[] =>
+        lines(output).filter((line) => line.includes('your words') || line.includes('Fixes:'));
+      expect(compact).not.toContain('fixable (review)');
+      expect(fixLines(compact)).toMatchInlineSnapshot(`
+        [
+          "  3:14  info  The description does not say when.  skill/description-quality  needs your words (fix -i)",
+        ]
+      `);
+      expect(fixLines(plain(result))).toMatchInlineSnapshot(`
+        [
+          "              fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in skills/pdf/SKILL.md",
+          "Fixes: 1 safe (agentcheckup fix --write) · 1 needs your words (agentcheckup fix -i)",
+        ]
+      `);
+      const annotation = lines(formatGithub(result)).find((line) =>
+        line.includes('skill/description-quality'),
+      );
+      expect(annotation?.split('%0A')).toMatchInlineSnapshot(`
+        [
+          "::notice file=skills/pdf/SKILL.md,line=3,col=14,endLine=3,endColumn=29,title=skill/description-quality (fix%3A needs your words)::The description does not say when.",
+          "Fix (needs your words, agentcheckup fix -i): Add a "Use when ..." sentence to "description" in skills/pdf/SKILL.md",
+          "Docs: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/skill/description-quality.md",
+        ]
+      `);
     });
   });
 

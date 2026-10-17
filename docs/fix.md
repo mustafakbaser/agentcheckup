@@ -44,7 +44,8 @@ agentcheckup from applying one fix, suppress its finding with a reason
 ## Safe, review and manual
 
 What agentcheckup can do about a finding falls into one of three classes. A scan shows the class
-on each finding's `fix` line, and `context` shows it on each skip it can remove.
+on each finding's `fix` line, and `context` shows it on each skip it can remove. Some review
+fixes also need your words before they can change anything.
 
 **Safe.** The fix is deterministic, has one correct form, keeps the author's text, passes a new
 scan with no new error or warning, and adds or changes nothing a `--gate` class flags.
@@ -65,6 +66,15 @@ scan with no new error or warning, and adds or changes nothing a `--gate` class 
 - `skill/description-missing`: copies the first line of the body into `description`, for you to
   reword.
 - `hooks/timeout-units`: rewrites a hook timeout in the unit the agent reads.
+
+**Needs your words.** The fix knows where the change goes, but only you can write it: a
+"Use when ..." sentence for a skill description, the globs of a Cursor rule. Only `fix -i` asks
+for the words; see [Fixes that need your words](#fixes-that-need-your-words). A scan shows
+`needs your words (fix -i)` on the finding, and the dry run an `input` line:
+
+```text
+input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)
+```
 
 **Manual.** The finding has no fix. Its `how` line in a scan, and its `manual` line in the dry
 run, say what to do:
@@ -196,7 +206,7 @@ After `--write`, the summary adds up the token changes per agent and lists the g
 `fix -i` prints each checked fix with its diff, effects and notes, then asks:
 
 ```text
-(4/4) Apply? [y]es [n]o [d]iff [q]uit (Enter: yes)
+(4/6) Apply? [y]es [n]o [d]iff [s]uppress [A]ll [q]uit (Enter: yes)
 ```
 
 - Enter means yes for a safe fix and no for a fix that needs review.
@@ -204,9 +214,23 @@ After `--write`, the summary adds up the token changes per agent and lists the g
 - When the rule has other ways to fix the finding, the prompt adds `[a]lternatives`, and `a`
   lists them. `cursor/legacy-cursorrules` can rename `.cursorrules` to `AGENTS.md` instead of
   moving it into `.cursor/rules/`, and `skill/yaml-portability` can write a YAML 1.1 boolean as
-  `true` or `false` instead of quoting it.
+  `true` or `false` instead of quoting it. An alternative marked `input` needs your words, as
+  below: `skill/description-missing` lets you type the description instead of copying the first
+  line of the body, and `cursor/md-file-ignored` asks for `globs` instead of adding
+  `alwaysApply: true`. Such an alternative keeps the renames of the fix it replaces: the rule is
+  still renamed to `.mdc`.
+- `s` suppresses the finding instead of fixing it. It asks for a reason and writes an
+  `agentcheckup-disable-next-line` directive before the finding's line: a `#` comment inside
+  frontmatter, an HTML comment elsewhere. It is offered for warnings and info on one line of a
+  Markdown file, never for an error, a `risk/*` finding or `mcp/literal-secret`, which must be
+  fixed.
+- `A` (capital) accepts this fix and every later fix of the same rule without asking. It is
+  offered when more fixes of the rule are to come; fixes that need your words are still asked.
 - `q` stops asking. The fixes you accepted so far are applied.
-- When input ends or you press Ctrl-C, nothing is written: `Stopped: no files were changed.`
+- When input ends or you press Ctrl-C, at any question, nothing is written:
+  `Stopped: no files were changed.`
+
+After the checked fixes, `-i` asks about the [fixes that need your words](#fixes-that-need-your-words).
 
 `-i` offers fixes of both classes, and the fix for `mcp/literal-secret`. After the last answer,
 agentcheckup plans again with only the accepted fixes, checks them and writes them, as `--write`
@@ -226,6 +250,68 @@ Left: .mcp.json:3 mcp/url-without-type (Add "type": "sse" to MCP server "docs")
 
 `-i` needs a terminal on stdin and stdout and exits 2 without one. With `--format json` it
 needs `--output`, because the questions go to stdout.
+
+## Fixes that need your words
+
+Some fixes know where a change goes but not what it says: a sentence that tells agents when to
+use a skill, the files a Cursor rule is for. Such a fix is listed, never applied, by a dry run
+and by `--write --review`:
+
+```text
+input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)
+input   cursor/rule-never-applied  .cursor/rules/tabs.mdc:1  needs your words: "globs" patterns (agentcheckup fix -i)
+2 fixes need your words: run agentcheckup fix -i to answer them.
+```
+
+Like a manual step, it does not change the exit code: a dry run that only lists such fixes exits 0. `fix --format json` lists them in `awaitingInput[]`, with the question and where the answer
+goes.
+
+`fix -i` asks about each one. `y` asks for the words, with the current text or a start such as
+`Use when ` already on the input line. agentcheckup writes the answer into a copy in memory and
+scans it again with every rule. When the finding is still there, or the answer adds an error or
+a warning, it says why, in the rule's words, and asks again with your answer on the line:
+
+```text
+input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  Add a "Use when ..." sentence to "description" in .claude/skills/pdf/SKILL.md
+  The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.
+(3/4) Add a sentence that says when to use this skill? [y]es [n]o [s]uppress [q]uit (Enter: no) y
+a "Use when ..." clause › Handles PDF files.
+✗ The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.
+a "Use when ..." clause › Use when the user asks about PDF files.
+review  skill/description-quality  Add a "Use when ..." sentence to "description" in .claude/skills/pdf/SKILL.md
+--- a/.claude/skills/pdf/SKILL.md
++++ b/.claude/skills/pdf/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: pdf
+-description: Extract text and tables from PDF files, fill forms and merge documents.
++description: "Extract text and tables from PDF files, fill forms and merge documents. Use when the user asks about PDF files."
+ ---
+
+ Run the script.
+  effect: Claude Code session start ≈22 → ≈32 tokens
+  effect: Cursor session start ≈21 → ≈31 tokens
+✓ re-scanned: the finding is resolved; no new problem.
+Use this? [y]es [e]dit [n]o (Enter: yes) y
+```
+
+- `Use this?`: Enter or `y` accepts the change, `e` asks for the words again with your answer on
+  the line, and `n` goes back to the question. An empty answer also goes back.
+- `s` writes a suppression instead, with your reason:
+  `# agentcheckup-disable-next-line skill/description-quality -- internal tool, invoked by name`.
+
+An answer is one line of plain text: a line break, a control, bidirectional or invisible
+character is refused, and so are `<` and `>` in a skill description and `-->` in a reason. A
+description can have at most 1,024 characters with the text it is added to, a reason 200 and
+globs 500. Text is written double-quoted. A refused answer goes back on the input line only when
+it is plain text.
+
+| Rule                        | What `fix -i` asks for                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `skill/description-quality` | A "Use when ..." sentence, added to a description of 8 words or more; a new description, prefilled with the current one, when it has fewer             |
+| `skill/description-missing` | The description, when no line of the body can be copied or the value is not text; otherwise an alternative to the copy, prefilled with the copied line |
+| `cursor/rule-never-applied` | `globs` for the rule, in new frontmatter when the file has none                                                                                        |
+| `cursor/md-file-ignored`    | `globs`, as an alternative to `alwaysApply: true`; the file is still renamed to `.mdc`                                                                 |
 
 ## Credentials
 
@@ -307,7 +393,7 @@ fixes that create or rename a file are refused.
 
 | Code | When                                                                                                                                                                                                                                                             |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | A dry run has nothing to change, or every selected fix was applied and verified on disk. A fix you declined in `-i` does not count                                                                                                                               |
+| 0    | A dry run has nothing to change, or every selected fix was applied and verified on disk. A fix you declined in `-i`, a manual step and a fix that needs your words do not count                                                                                  |
 | 1    | A dry run would change a file; a selected fix was not applied (a conflict, a file that changed since the scan, a refused path, a failed check, a limit, a failed write); the scan from disk still finds what a written fix fixed; or `-i` stopped before writing |
 | 2    | Invalid arguments or configuration: an unknown `--rule`, `--review` without `--write`, `--untrusted` with `--write` or `-i`, `-i` without a terminal, or `-i --format json` without `--output`                                                                   |
 | 3    | Internal error: a rule or the scanner crashed. With `--write` or `-i`, nothing is written when a rule crashed                                                                                                                                                    |
@@ -317,14 +403,15 @@ fixes that create or rename a file are refused.
 `fix --format json` writes one object that follows
 [schemas/fix.schema.json](../schemas/fix.schema.json):
 
-| Field          | What it holds                                                                                                                                                                                                    |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`         | `dry-run`, `write` (`--write`) or `interactive` (`-i`)                                                                                                                                                           |
-| `pathBase`     | The prefix added to every path when the scanned directory is not the current directory                                                                                                                           |
-| `fixes[]`      | `id` (`<rule id>#<variant>`), `ruleId`, `class`, `title`, `effects[]`, `findings[]` (the fingerprints of the findings it fixes), `notes[]`, `warning`, `status` (`planned`, `applied` or `skipped`) and `reason` |
-| `files[]`      | `path`, `op` (`edit`, `create` or `rename`), `from` for a rename, `before` and `after` (`sha256`, `encoding`, `bom`, `lineEnding`), and `hunks[]` of the unified diff                                            |
-| `manual[]`     | `ruleId`, `path`, `line` and `guidance` for each finding left to you                                                                                                                                             |
-| `verification` | `resolved`, `remaining`, and `introduced[]` with each new finding                                                                                                                                                |
+| Field             | What it holds                                                                                                                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`            | `dry-run`, `write` (`--write`) or `interactive` (`-i`)                                                                                                                                                           |
+| `pathBase`        | The prefix added to every path when the scanned directory is not the current directory                                                                                                                           |
+| `fixes[]`         | `id` (`<rule id>#<variant>`), `ruleId`, `class`, `title`, `effects[]`, `findings[]` (the fingerprints of the findings it fixes), `notes[]`, `warning`, `status` (`planned`, `applied` or `skipped`) and `reason` |
+| `files[]`         | `path`, `op` (`edit`, `create` or `rename`), `from` for a rename, `before` and `after` (`sha256`, `encoding`, `bom`, `lineEnding`), and `hunks[]` of the unified diff                                            |
+| `manual[]`        | `ruleId`, `path`, `line` and `guidance` for each finding left to you                                                                                                                                             |
+| `awaitingInput[]` | Each [fix that needs your words](#fixes-that-need-your-words): `id`, `ruleId`, `class`, `title`, `findings[]`, `path`, `line`, and `input` with the `field`, `question`, `label`, `initial` and `target`         |
+| `verification`    | `resolved`, `remaining`, and `introduced[]` with each new finding                                                                                                                                                |
 
 A skipped fix's `reason` is one of `conflict`, `changed-since-scan`, `refused-path`,
 `verification-failed`, `limit`, `write-failed` or `declined`. The fingerprints in `findings[]` are
@@ -361,7 +448,8 @@ those of `mcp/literal-secret` are never suggested.
   tag or other invisible character (`hidden-characters`) or a credential (`credential`) is not
   suggested, nor one outside the diff (`outside-diff`). Neither is a fix that creates or renames a
   file, changes an encoding, or touches a UTF-16 file, a file with a byte order mark or one with
-  CRLF line endings, because a suggestion cannot keep them. At most 50 comments are made.
+  CRLF line endings, because a suggestion cannot keep them. Review fixes are counted as
+  `not-safe`, and fixes that need your words as `needs-input`. At most 50 comments are made.
 
 ````json
 {
@@ -386,15 +474,16 @@ section.
 
 <!-- Start of the fixable rules, generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
 
-40 of the 62 rules can attach a fix. The others give a manual step where they can name one.
+42 of the 62 rules can attach a fix. The others give a manual step where they can name one.
 
 | Rule                                                                              | Classes          | What the fix does                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`copilot/apply-to`](rules/copilot/apply-to.md)                                   | `safe`           | Joins an "applyTo" YAML list into one comma-separated string.                                                                                                                                                                                                                                                            |
 | [`copilot/instructions-misplaced`](rules/copilot/instructions-misplaced.md)       | `review`         | Moves a file found elsewhere in a .github folder to .github/copilot-instructions.md or into .github/instructions/. A letter-case difference, a .github folder in a subdirectory and an existing target are left to the user, with the commands to run.                                                                   |
 | [`cursor/legacy-cursorrules`](rules/cursor/legacy-cursorrules.md)                 | `review`         | Moves the file to .cursor/rules/cursorrules.mdc with "alwaysApply: true", as Cursor's migration steps do. `fix -i` also offers renaming it to AGENTS.md when the directory has none.                                                                                                                                     |
-| [`cursor/md-file-ignored`](rules/cursor/md-file-ignored.md)                       | `safe`, `review` | Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs".                                                                                                                        |
+| [`cursor/md-file-ignored`](rules/cursor/md-file-ignored.md)                       | `safe`, `review` | Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs". Instead of "alwaysApply: true", `agentcheckup fix -i` can ask for "globs".                                             |
 | [`cursor/rule-frontmatter`](rules/cursor/rule-frontmatter.md)                     | `safe`, `review` | Safe: writes alwaysApply: "true" as the boolean true and joins a globs list into one comma-separated string. For review: renames "paths" or "applyTo" to "globs".                                                                                                                                                        |
+| [`cursor/rule-never-applied`](rules/cursor/rule-never-applied.md)                 | `review`         | Needs your words: `agentcheckup fix -i` asks for the glob patterns of the files the rule is for and writes them as "globs", adding frontmatter when the file has none.                                                                                                                                                   |
 | [`directive/unknown-rule`](rules/directive/unknown-rule.md)                       | `review`         | Replaces the id with the only rule id within two edits of it, which makes the directive suppress that rule.                                                                                                                                                                                                              |
 | [`directive/unused`](rules/directive/unused.md)                                   | `safe`           | Removes the directive, and its line when nothing else is on it, when every rule it names checked the file in this scan.                                                                                                                                                                                                  |
 | [`hooks/fails-open`](rules/hooks/fails-open.md)                                   | `review`         | Sets "onFailure": "block" on the Claude Code hook or "failClosed": true on the Cursor hook. Codex and Gemini CLI have no such setting, so their scripts must be changed by hand.                                                                                                                                         |
@@ -421,7 +510,8 @@ section.
 | [`skill/body-too-long`](rules/skill/body-too-long.md)                             | `review`         | Moves the largest sections of the body into files next to SKILL.md, leaving a link under each heading, until the body fits. The start of the body stays, as do sections with commands or placeholders Claude Code replaces, hidden text, or links that would break. Other bodies are left to you.                        |
 | [`skill/broad-allowed-tools`](rules/skill/broad-allowed-tools.md)                 | `review`         | Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell` and `bash`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line.                   |
 | [`skill/broken-reference`](rules/skill/broken-reference.md)                       | `safe`, `review` | Replaces backslashes in a link with `/` (safe), or writes the link in the letter case of the only file it matches (review). Other broken links are left to you.                                                                                                                                                          |
-| [`skill/description-missing`](rules/skill/description-missing.md)                 | `review`         | Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you.                                                                                                                                                  |
+| [`skill/description-missing`](rules/skill/description-missing.md)                 | `review`         | Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words.                        |
+| [`skill/description-quality`](rules/skill/description-quality.md)                 | `review`         | Needs your words: `agentcheckup fix -i` asks for a "Use when ..." sentence and appends it to the description, or for a new description when it has fewer than 8 words, and checks the answer against this rule before writing it.                                                                                        |
 | [`skill/field-type`](rules/skill/field-type.md)                                   | `review`         | Writes an `allowed-tools` list as a space-separated string when no tool rule contains a space. Other types are left to you.                                                                                                                                                                                              |
 | [`skill/frontmatter-bom`](rules/skill/frontmatter-bom.md)                         | `safe`           | Saves SKILL.md as UTF-8 without the byte order mark.                                                                                                                                                                                                                                                                     |
 | [`skill/frontmatter-missing`](rules/skill/frontmatter-missing.md)                 | `safe`, `review` | Moves the frontmatter to line 1 and removes the indentation of its delimiters (safe), or adds frontmatter with the directory name and the first body line as the description (review). An unclosed block is left to you.                                                                                                 |

@@ -48,7 +48,7 @@ import {
   type PlannedFix,
 } from '../fix/index.js';
 import { findSecret } from '../rules/mcp/secrets.js';
-import { fixOf, isSafeRuleId } from './feedback.js';
+import { fixOf, isSafeRuleId, needsWords } from './feedback.js';
 import { diffHunks } from './fix-diff.js';
 import { escaped, ruleLink } from './markdown-common.js';
 import { forJsonOutput, forTerminal } from './sanitize.js';
@@ -92,6 +92,7 @@ export function fenceFor(lines: readonly string[]): string {
  * - `outside-diff`: the lines it changes are not all inside one hunk of the pull request.
  * - `not-safe`: the fix needs review, or verification found it adds or changes an MCP server,
  *   hook, permission or env override.
+ * - `needs-input`: the fix needs the user's words (`agentcheckup fix -i`).
  * - `creates-file`, `renames-file`: a suggestion can only change lines of an existing file.
  * - `encoding-change`: the fix changes the encoding or byte order mark of a file.
  * - `unsupported-encoding`: the file is UTF-16 or has a byte order mark.
@@ -107,6 +108,7 @@ export function fenceFor(lines: readonly string[]): string {
 export const SUGGESTION_SKIP_REASONS = [
   'outside-diff',
   'not-safe',
+  'needs-input',
   'creates-file',
   'renames-file',
   'encoding-change',
@@ -365,18 +367,20 @@ function commentOf(suggestion: Suggestion, body: string): ReviewComment {
 }
 
 /** Review fixes of the scan, and safe fixes verification demoted: each counted once. */
-function notSafe(input: SuggestionInput): number {
-  const keys = new Set<string>();
+/** How many fixes in the scan are review fixes, and how many need the user's words. */
+function notSuggested(input: SuggestionInput): { notSafe: number; needsInput: number } {
+  const review = new Set<string>();
+  const words = new Set<string>();
   for (const finding of input.run.before.findings) {
     const fix = fixOf(finding, 'pull-request');
     if (fix?.class !== 'review') continue;
     if (input.ruleIds !== undefined && !input.ruleIds.has(finding.ruleId)) continue;
-    keys.add(fixKey(finding.ruleId, fix));
+    (needsWords(fix) ? words : review).add(fixKey(finding.ruleId, fix));
   }
   const demoted = input.run.skipped.filter(
     (planned) => planned.reason === 'verification-failed' && planned.fix.class === 'review',
   );
-  return keys.size + demoted.length;
+  return { notSafe: review.size + demoted.length, needsInput: words.size };
 }
 
 /** The report for `input`, as the module comment describes. */
@@ -388,7 +392,9 @@ export function toSuggestionsReport(
   const counter = new Counter();
   const rules = new Map(input.rules.map((meta) => [meta.id, meta]));
 
-  counter.add('not-safe', notSafe(input));
+  const { notSafe, needsInput } = notSuggested(input);
+  counter.add('not-safe', notSafe);
+  counter.add('needs-input', needsInput);
   for (const planned of run.skipped) {
     if (planned.reason === 'verification-failed' && planned.fix.class === 'review') continue;
     const reason = planned.reason === undefined ? undefined : ROUND_REASONS[planned.reason];

@@ -1,3 +1,4 @@
+import { editableFile } from '../../core/directive-fixes.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, FileChange, Fix, ReportDescriptor, RuleContext } from '../../core/types.js';
@@ -26,6 +27,7 @@ import {
   KNOWN_FIELDS,
   SUGGESTIONS,
 } from './repair.js';
+import { globsInput } from './rule-never-applied.js';
 import { CURSOR_SOURCES } from './sources.js';
 
 const ID = 'cursor/md-file-ignored';
@@ -190,14 +192,35 @@ function fixFor(
     changes.push(editAt(target, merged));
   }
   const reference = references.note(artifact.path);
+  const notes = [DEVIN_NOTE, ...(reference === undefined ? [] : [reference])];
   const fix: Fix = {
     id: `${ID}#${outcome.variant}`,
     class: outcome.variant === 'rename' ? 'safe' : 'review',
     title: `Rename ${artifact.path} to ${renamed}${outcome.steps.length > 0 ? ` and ${joinNames(outcome.steps)}` : ''}`,
     changes,
-    notes: [...outcome.notes, DEVIN_NOTE, ...(reference === undefined ? [] : [reference])],
+    notes: [...outcome.notes, ...notes],
+    // Instead of "alwaysApply: true", the files the rule is for.
+    ...(outcome.variant === 'always-apply' && editableFile(artifact)
+      ? { alternatives: [askGlobs(artifact, renamed, notes)] }
+      : {}),
   };
   return { fix };
+}
+
+/**
+ * The alternative to `alwaysApply: true` that needs the user's words (`#ask-globs`): `fix -i`
+ * asks for globs, writes them into the file as it is, then renames it as the fix it replaces does
+ * (an input alternative keeps the renames of that fix).
+ */
+function askGlobs(artifact: Artifact, renamed: string, notes: readonly string[]): Fix {
+  return {
+    id: `${ID}#ask-globs`,
+    class: 'review',
+    title: `Rename ${artifact.path} to ${renamed} and add "globs"`,
+    changes: [],
+    notes,
+    input: globsInput(artifact.path),
+  };
 }
 
 export const mdFileIgnoredRule = defineRule({
@@ -218,7 +241,7 @@ export const mdFileIgnoredRule = defineRule({
     fix: {
       classes: ['safe', 'review'],
       summary:
-        'Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs".',
+        'Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding "alwaysApply: true" or renaming "paths" or "applyTo" to "globs". Instead of "alwaysApply: true", `agentcheckup fix -i` can ask for "globs".',
     },
   },
   defaultOptions: undefined,

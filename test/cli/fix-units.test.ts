@@ -5,9 +5,10 @@ import {
   decide,
   declinedTitles,
   verifyOnDisk,
+  withRenames,
   writeGroups,
 } from '../../src/cli/fix.js';
-import { terminalPrompt } from '../../src/cli/prompt.js';
+import { prefillable, terminalPrompt } from '../../src/cli/prompt.js';
 import type {
   AnyRule,
   Artifact,
@@ -384,5 +385,82 @@ describe('terminalPrompt', () => {
     const pending = closing.ask('Apply? ');
     closing.close();
     expect(await pending).toBeUndefined();
+  });
+
+  it('prefills the input line in a terminal with plain text only', async () => {
+    const input = Object.assign(new PassThrough(), { isTTY: true });
+    const output = new PassThrough();
+    let written = '';
+    output.on('data', (chunk: Buffer) => {
+      written += chunk.toString();
+    });
+    const prompt = terminalPrompt(input, output);
+
+    const kept = prompt.ask('reason › ', { initial: 'Use when ' });
+    input.write('the user asks\r');
+    expect(await kept).toBe('Use when the user asks');
+    expect(written).toContain('Use when the user asks');
+
+    // An escape sequence or a line break is never written to the terminal as a prefill.
+    written = '';
+    const refused = prompt.ask('reason › ', { initial: '\u001b]0;title\u0007x' });
+    input.write('typed\r');
+    expect(await refused).toBe('typed');
+    expect(written).not.toContain('\u001b]0;');
+    const multiline = prompt.ask('reason › ', { initial: 'a\nb' });
+    input.write('\r');
+    expect(await multiline).toBe('');
+    prompt.close();
+  });
+
+  it('never prefills without a terminal', async () => {
+    const input = new PassThrough();
+    const prompt = terminalPrompt(input, new PassThrough());
+    const answer = prompt.ask('reason › ', { initial: 'Use when ' });
+    input.write('typed\n');
+    expect(await answer).toBe('typed');
+    prompt.close();
+  });
+});
+
+describe('prefillable', () => {
+  it('takes one line of plain text, trailing space included', () => {
+    expect(prefillable('Use when ')).toBe(true);
+    expect(prefillable('Bash(git add *) Read')).toBe(true);
+    for (const text of ['', '  ', 'a\nb', 'a\rb', '\u001b[31m', 'a‮b', 'a​b']) {
+      expect(prefillable(text), JSON.stringify(text)).toBe(false);
+    }
+  });
+});
+
+describe('withRenames', () => {
+  const globs = {
+    field: 'cursor-globs',
+    question: 'Globs?',
+    label: 'globs',
+    target: { kind: 'frontmatter', path: 'a.md', key: 'globs' },
+  } as const;
+  const completed = fixOf([edit('a.md')], 'test/rule#globs', 'review');
+
+  it('keeps the renames of the replaced fix that move the answered file, in order', () => {
+    const replaced = fixOf(
+      [
+        { kind: 'rename', from: 'a.md', to: 'b.md' },
+        edit('b.md'),
+        { kind: 'rename', from: 'other.md', to: 'x.md' },
+        { kind: 'rename', from: 'b.md', to: 'c.mdc' },
+      ],
+      'test/rule#rename',
+    );
+    expect(withRenames(replaced, globs, completed).changes).toEqual([
+      edit('a.md'),
+      { kind: 'rename', from: 'a.md', to: 'b.md' },
+      { kind: 'rename', from: 'b.md', to: 'c.mdc' },
+    ]);
+  });
+
+  it('leaves the completed fix alone when the replaced fix moves nothing it answers', () => {
+    const replaced = fixOf([edit('a.md')], 'test/rule#edit');
+    expect(withRenames(replaced, globs, completed)).toBe(completed);
   });
 });

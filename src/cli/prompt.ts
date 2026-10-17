@@ -4,11 +4,21 @@
  */
 import { createInterface, type Interface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
+import { safeCopiedText } from '../fix/edits.js';
 import type { Prompt } from './common.js';
 
 export interface TerminalPrompt extends Prompt {
   /** Releases the input, so the process can exit. */
   readonly close: () => void;
+}
+
+/**
+ * True for text that may go on the input line as it is: one line without a control,
+ * bidirectional or invisible character, so prefilling never writes an escape sequence to the
+ * terminal.
+ */
+export function prefillable(text: string): boolean {
+  return safeCopiedText(text, Number.MAX_SAFE_INTEGER) !== undefined;
 }
 
 export function terminalPrompt(
@@ -35,7 +45,7 @@ export function terminalPrompt(
 
   return {
     isTTY,
-    ask(question) {
+    ask(question, options = {}) {
       if (ended) return Promise.resolve(undefined);
       const reader = open();
       return new Promise((resolve) => {
@@ -47,6 +57,9 @@ export function terminalPrompt(
           reader.off('close', onClose);
           resolve(answer);
         });
+        // In a terminal, readline takes written text as typed: the user edits it or presses Enter.
+        const { initial } = options;
+        if (isTTY && initial !== undefined && prefillable(initial)) reader.write(initial);
       });
     },
     close() {

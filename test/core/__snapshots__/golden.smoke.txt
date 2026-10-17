@@ -135,6 +135,27 @@
         "notes": [
           "With \"alwaysApply: true\", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with \"globs\" or a \"description\".",
           "Devin Local in Windsurf reads the file under either name."
+        ],
+        "alternatives": [
+          {
+            "id": "cursor/md-file-ignored#ask-globs",
+            "class": "review",
+            "title": "Rename .cursor/rules/style.md to style.mdc and add \"globs\"",
+            "changes": [],
+            "notes": [
+              "Devin Local in Windsurf reads the file under either name."
+            ],
+            "input": {
+              "field": "cursor-globs",
+              "question": "Attach this rule to the files that match glob patterns, such as src/**/*.ts?",
+              "label": "\"globs\" patterns",
+              "target": {
+                "kind": "frontmatter",
+                "path": ".cursor/rules/style.md",
+                "key": "globs"
+              }
+            }
+          }
         ]
       }
     },
@@ -480,7 +501,7 @@
           "safe",
           "review"
         ],
-        "summary": "Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding \"alwaysApply: true\" or renaming \"paths\" or \"applyTo\" to \"globs\"."
+        "summary": "Renames the file to .mdc. Safe when its frontmatter already sets description, globs or alwaysApply; otherwise for review, adding \"alwaysApply: true\" or renaming \"paths\" or \"applyTo\" to \"globs\". Instead of \"alwaysApply: true\", `agentcheckup fix -i` can ask for \"globs\"."
       }
     },
     {
@@ -2052,7 +2073,7 @@
         "classes": [
           "review"
         ],
-        "summary": "Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. A value that is not text is left to you."
+        "summary": "Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words."
       }
     },
     {
@@ -2097,7 +2118,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Needs your words: `agentcheckup fix -i` asks for a \"Use when ...\" sentence and appends it to the description, or for a new description when it has fewer than 8 words, and checks the answer against this rule before writing it."
+      }
     },
     {
       "id": "skill/description-too-long",

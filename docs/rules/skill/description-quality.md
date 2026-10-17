@@ -10,7 +10,7 @@ Skill description is too short or does not say when to use it.
 | Category   | `clarity`                                              |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                                |
-| Fixable    | No                                                     |
+| Fixable    | Yes, `review`                                          |
 | Since      | 2026.10                                                |
 
 ## Why
@@ -30,7 +30,11 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
 
 ## Fix
 
-Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Needs your words: `agentcheckup fix -i` asks for a "Use when ..." sentence and appends it to the description, or for a new description when it has fewer than 8 words, and checks the answer against this rule before writing it.
+
+Preview the fix with `agentcheckup fix --rule skill/description-quality`.
 
 ## Configuration
 
