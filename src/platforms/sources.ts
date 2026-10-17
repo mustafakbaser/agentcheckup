@@ -142,7 +142,33 @@ export const SOURCES = {
     'https://github.com/openai/codex/blob/main/codex-rs/hooks/src/config_rules.rs',
     COVERAGE_CHECKED,
   ),
+  codexCargoLock: verified(
+    'Codex source: Cargo.lock at ce0323f (toml 0.9.11+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0)',
+    'https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/Cargo.lock',
+    COVERAGE_CHECKED,
+  ),
   tomlSpec: verified('TOML v1.0.0', 'https://toml.io/en/v1.0.0', COVERAGE_CHECKED),
+  tomlSpec11: verified('TOML v1.1.0', 'https://toml.io/en/v1.1.0', COVERAGE_CHECKED),
+  tomlParserLexer: verified(
+    'toml_parser 1.1.3 source: lexer/mod.rs (a leading UTF-8 byte order mark is skipped)',
+    'https://github.com/toml-rs/toml/blob/toml_parser-v1.1.3/crates/toml_parser/src/lexer/mod.rs',
+    COVERAGE_CHECKED,
+  ),
+  tomlParserDocument: verified(
+    'toml_parser 1.1.3 source: parser/document.rs (line breaks, comments and a trailing comma in inline tables)',
+    'https://github.com/toml-rs/toml/blob/toml_parser-v1.1.3/crates/toml_parser/src/parser/document.rs',
+    COVERAGE_CHECKED,
+  ),
+  tomlParserStrings: verified(
+    'toml_parser 1.1.3 source: decoder/string.rs (the \\e and \\xHH escapes)',
+    'https://github.com/toml-rs/toml/blob/toml_parser-v1.1.3/crates/toml_parser/src/decoder/string.rs',
+    COVERAGE_CHECKED,
+  ),
+  tomlDatetimeSource: verified(
+    'toml_datetime 0.7.5 source: datetime.rs (seconds are optional)',
+    'https://github.com/toml-rs/toml/blob/toml_datetime-v0.7.5/crates/toml_datetime/src/datetime.rs',
+    COVERAGE_CHECKED,
+  ),
   cursorRules: verified('Cursor: Rules', 'https://cursor.com/docs/rules'),
   cursorRulesHelp: verified('Cursor Help: Rules', 'https://cursor.com/help/customization/rules'),
   cursorSkills: verified('Cursor: Skills', 'https://cursor.com/docs/skills'),
@@ -225,6 +251,21 @@ export const SOURCES = {
   vscodeMcp: verified(
     'VS Code: MCP configuration reference',
     'https://code.visualstudio.com/docs/agents/reference/mcp-configuration',
+    COVERAGE_CHECKED,
+  ),
+  vscodeStandaloneConfigurations: verified(
+    'VS Code source: configuration.ts (.vscode/mcp.json is a workspace configuration file, like tasks.json)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/configuration/common/configuration.ts',
+    COVERAGE_CHECKED,
+  ),
+  vscodeConfigurationParser: verified(
+    'VS Code source: configurationModels.ts (configuration files are read with json.visit and its default options)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/platform/configuration/common/configurationModels.ts',
+    COVERAGE_CHECKED,
+  ),
+  vscodeJsonParser: verified(
+    'VS Code source: json.ts (comments are allowed, and the default options allow trailing commas)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/base/common/json.ts',
     COVERAGE_CHECKED,
   ),
   geminiMd: verified('Gemini CLI: GEMINI.md', 'https://geminicli.com/docs/cli/gemini-md/'),

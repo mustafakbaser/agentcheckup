@@ -4,14 +4,14 @@
 
 Hook timeout looks like the wrong unit.
 
-|            |                                                                     |
-| ---------- | ------------------------------------------------------------------- |
-| Severity   | `warn`                                                              |
-| Category   | `correctness`                                                       |
-| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                              |
-| Applies to | `claude-settings`, `codex-hooks`, `cursor-hooks`, `gemini-settings` |
-| Fixable    | Yes, `review`                                                       |
-| Since      | 2026.10                                                             |
+|            |                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------- |
+| Severity   | `warn`                                                                              |
+| Category   | `correctness`                                                                       |
+| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                                              |
+| Applies to | `claude-settings`, `codex-hooks`, `codex-config`, `cursor-hooks`, `gemini-settings` |
+| Fixable    | Yes, `review`                                                                       |
+| Since      | 2026.10                                                                             |
 
 ## Why
 

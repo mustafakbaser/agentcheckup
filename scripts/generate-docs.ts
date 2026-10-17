@@ -225,7 +225,7 @@ function taskRules(rules: readonly RuleMeta[]): string {
     return `| [\`${meta.id}\`](rules/${meta.id}.md) | ${handled} |`;
   });
   const own = rules.filter((meta) => templates.has(meta.id)).length;
-  return `${own} of the ${rules.length} rules have a task template of their own. Findings in JSON files (settings, MCP configuration, hooks and plugin manifests) are always for you, whatever the rule.
+  return `${own} of the ${rules.length} rules have a task template of their own. Findings in JSON and TOML files (settings, MCP configuration, hooks, plugin manifests and Codex's config.toml) are always for you, whatever the rule.
 
 | Rule | Without a ready fix |
 | --- | --- |

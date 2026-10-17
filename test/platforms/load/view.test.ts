@@ -6,6 +6,7 @@ import type {
   FrontmatterResult,
   JsonDocument,
   MarkdownDocument,
+  TomlDocument,
 } from '../../../src/parse/types.js';
 import { artifactIndex, viewOf } from '../../../src/platforms/load/view.js';
 import { snapshotFrom } from '../../helpers/lint.js';
@@ -38,6 +39,10 @@ function contextFor() {
         record('json', artifact);
         return {} as JsonDocument;
       },
+      toml: (artifact: Artifact) => {
+        record('toml', artifact);
+        return {} as TomlDocument;
+      },
     },
   };
 }
@@ -60,7 +65,13 @@ describe('viewOf', () => {
     view.frontmatter(artifact);
     view.markdown(artifact);
     view.json(artifact);
-    expect(calls).toEqual(['frontmatter AGENTS.md', 'markdown AGENTS.md', 'json AGENTS.md']);
+    view.toml(artifact);
+    expect(calls).toEqual([
+      'frontmatter AGENTS.md',
+      'markdown AGENTS.md',
+      'json AGENTS.md',
+      'toml AGENTS.md',
+    ]);
   });
 
   it('builds the index once per artifact list and never parses while building it', () => {

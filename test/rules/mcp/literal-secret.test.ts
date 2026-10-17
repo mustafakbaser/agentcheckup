@@ -266,3 +266,59 @@ describe('mcp/literal-secret with AWS access key IDs', () => {
     expect(findSecret(`x ${TOKENS.aws}`)).toMatchObject({ start: 2, identifier: true });
   });
 });
+
+describe('mcp/literal-secret in Codex config.toml', () => {
+  const FILE = '.codex/config.toml';
+  // A documentation placeholder in GitHub's token format, assembled at run time.
+  const PLACEHOLDER = ['ghp', '_', 'x'.repeat(36)].join('');
+  const lintCodex = (text: string) => lint({ [FILE]: text }, { rules });
+
+  it('reports a token in a server field, with the Codex way to read it from the environment', () => {
+    const text = [
+      '[mcp_servers.github]',
+      'command = "npx"',
+      `env = { GITHUB_TOKEN = "${TOKENS.github}" }`,
+      '[mcp_servers.remote]',
+      'url = "https://x.dev/mcp"',
+      `http_headers = { Authorization = "Bearer ${TOKENS.openai}" }`,
+      `bearer_token = "${TOKENS.anthropic}"`,
+      '[mcp_servers.remote.oauth]',
+      'client_id = "c"',
+      `client_secret = "${TOKENS.slack}"`,
+      '',
+    ].join('\n');
+    const result = lintCodex(text);
+    const found = findings(result, ID);
+    expect(found.map(({ severity, path, range }) => [severity, path, range])).toEqual([
+      ['error', FILE, rangeOf(text, `"${TOKENS.github}"`)],
+      ['error', FILE, rangeOf(text, `"Bearer ${TOKENS.openai}"`)],
+      ['error', FILE, rangeOf(text, `"${TOKENS.anthropic}"`)],
+      ['error', FILE, rangeOf(text, `"${TOKENS.slack}"`)],
+    ]);
+    expect(found.map((item) => item.message.slice(item.message.indexOf('Revoke')))).toEqual([
+      'Revoke and rotate it, then list the variable in "env_vars" and set it in the environment.',
+      'Revoke and rotate it, then move the header to "env_http_headers", which names the variable that holds it.',
+      'Revoke and rotate it, then name the variable that holds it in "bearer_token_env_var".',
+      'Revoke and rotate it, then read it from the environment.',
+    ]);
+    // No fix edits TOML.
+    expect(result.findings.every((finding) => finding.fix === undefined)).toBe(true);
+    for (const item of found) expect(item.message).not.toContain(TOKENS.github.slice(8));
+  });
+
+  it('does not report names of environment variables or placeholders', () => {
+    const text = [
+      '[mcp_servers.github]',
+      'command = "npx"',
+      'env_vars = ["GITHUB_TOKEN"]',
+      `env = { GITHUB_TOKEN = "\${GITHUB_TOKEN}", OTHER = "${PLACEHOLDER}" }`,
+      '[mcp_servers.remote]',
+      'url = "https://x.dev/mcp"',
+      'bearer_token_env_var = "REMOTE_TOKEN"',
+      'env_http_headers = { Authorization = "REMOTE_AUTH" }',
+      '',
+    ].join('\n');
+    expect(findings(lintCodex(text), ID)).toEqual([]);
+    expect(findings(lintCodex('[mcp_servers.a\n'), ID)).toEqual([]);
+  });
+});

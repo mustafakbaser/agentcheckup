@@ -234,3 +234,28 @@ describe('firstWords', () => {
     expect(pick('')).toBeUndefined();
   });
 });
+
+describe('hooks/script-missing in Codex config.toml', () => {
+  const toml = (command: string) =>
+    `[[hooks.PreToolUse]]\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ncommand = '${command}'\n`;
+
+  it('reports a missing script of an inline hook at the repository root', () => {
+    const text = toml('"$(git rev-parse --show-toplevel)/.codex/hooks/guard.sh"');
+    expect(
+      run({ '.codex/config.toml': text }, { paths: ['.git/'] }).map((finding) => finding.message),
+    ).toEqual([
+      'Hook runs ".codex/hooks/guard.sh", which does not exist. The hook fails on every run, and Codex continues without it.',
+    ]);
+  });
+
+  it('does not report a script that exists, or a relative path Codex resolves elsewhere', () => {
+    const text = toml('"$(git rev-parse --show-toplevel)/.codex/hooks/guard.sh"');
+    expect(
+      run(
+        { '.codex/config.toml': text, '.codex/hooks/guard.sh': '#!/bin/sh\n' },
+        { paths: ['.git/'] },
+      ),
+    ).toEqual([]);
+    expect(run({ '.codex/config.toml': toml('.codex/hooks/relative.sh') })).toEqual([]);
+  });
+});

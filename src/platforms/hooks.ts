@@ -6,6 +6,7 @@
 import type { Artifact, ArtifactKind } from '../core/types.js';
 import {
   isObject,
+  isTable,
   type JsonObject,
   type JsonPath,
   own,
@@ -245,8 +246,10 @@ export const CURSOR_UNSUPPORTED_CLAUDE_EVENTS: ReadonlySet<string> = new Set([
  * - `document`: the whole document is that object, as in Devin Local's `.devin/hooks.v1.json`
  *   ("no wrapper key needed", SOURCES.devinCliHooks). A file that has the wrapper anyway is read
  *   through it.
+ * - `toml`: in the `hooks` table of Codex's `config.toml`, where {@link CODEX_TOML_CONFIG_KEYS}
+ *   configure hooks rather than name events (SOURCES.codexHooks, SOURCES.codexHookConfig).
  */
-export type HookRoot = 'hooks' | 'document';
+export type HookRoot = 'hooks' | 'document' | 'toml';
 
 export interface HookSource {
   readonly platform: HookPlatform;
@@ -256,6 +259,7 @@ export interface HookSource {
 const HOOK_SOURCE_BY_KIND: Readonly<Partial<Record<ArtifactKind, HookSource>>> = {
   'claude-settings': { platform: 'claude-code', root: 'hooks' },
   'codex-hooks': { platform: 'codex', root: 'hooks' },
+  'codex-config': { platform: 'codex', root: 'toml' },
   'cursor-hooks': { platform: 'cursor', root: 'hooks' },
   'gemini-settings': { platform: 'gemini', root: 'hooks' },
   'copilot-hooks': { platform: 'copilot', root: 'hooks' },
@@ -293,8 +297,9 @@ export interface HookEvent {
 }
 
 /**
- * Keys of the events object, except Gemini CLI's configuration keys: the top-level `hooks`
- * object, or with `root: 'document'` the document itself ({@link HookRoot}).
+ * Keys of the events object, except the keys that configure hooks (Gemini CLI's, and `state` in
+ * Codex's `config.toml`): the top-level `hooks` object, or with `root: 'document'` the document
+ * itself ({@link HookRoot}).
  */
 export function hookEvents(
   doc: ParsedJson,
@@ -302,13 +307,17 @@ export function hookEvents(
   root: HookRoot = 'hooks',
 ): HookEvent[] {
   const value = doc.value;
-  if (!isObject(value)) return [];
+  if (!isTable(value)) return [];
   const wrapped = own(value, 'hooks');
-  const hooks = root === 'document' && !isObject(wrapped) ? value : wrapped;
-  if (!isObject(hooks)) return [];
+  const hooks = root === 'document' && !isTable(wrapped) ? value : wrapped;
+  if (!isTable(hooks)) return [];
   const base: JsonPath = hooks === value ? [] : ['hooks'];
   return Object.keys(hooks)
-    .filter((name) => !(platform === 'gemini' && GEMINI_CONFIG_KEYS.has(name)))
+    .filter(
+      (name) =>
+        !(platform === 'gemini' && GEMINI_CONFIG_KEYS.has(name)) &&
+        !(root === 'toml' && CODEX_TOML_CONFIG_KEYS.has(name)),
+    )
     .map((name) => ({ name, path: [...base, name], entries: hooks[name] }));
 }
 
@@ -373,7 +382,7 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
     const known = fired.includes(event.name);
     if (!Array.isArray(event.entries)) continue;
     event.entries.forEach((entry: unknown, i) => {
-      if (!isObject(entry)) return;
+      if (!isTable(entry)) return;
       if (FLAT_HANDLERS.has(platform)) {
         // Cursor and Copilot both read a handler without `type` as a command hook.
         const type = own(entry, 'type');
@@ -390,7 +399,7 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
       const inner = own(entry, 'hooks');
       if (!Array.isArray(inner)) return;
       inner.forEach((handler: unknown, j) => {
-        if (!isObject(handler)) return;
+        if (!isTable(handler)) return;
         const type = own(handler, 'type');
         out.push({
           event: event.name,

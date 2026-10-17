@@ -1,6 +1,7 @@
 import type { Artifact, ArtifactKind, PlatformId, Snapshot } from '../core/types.js';
 import {
   isObject,
+  isTable,
   type JsonObject,
   type JsonPath,
   own,
@@ -17,13 +18,34 @@ export interface McpServer {
 
 /** The object entries of `map` as servers under `base`, in document order. */
 function serversIn(map: unknown, base: JsonPath): McpServer[] {
-  if (!isObject(map)) return [];
+  if (!isTable(map)) return [];
   const out: McpServer[] = [];
   for (const name of Object.keys(map)) {
     const config = map[name];
-    if (isObject(config)) out.push({ name, config, path: [...base, name] });
+    if (isTable(config)) out.push({ name, config, path: [...base, name] });
   }
   return out;
+}
+
+/**
+ * The servers a `.mcp.json` declares as bare top-level keys, without an `mcpServers` object. The
+ * Copilot CLI reads `.mcp.json` as it reads `.github/mcp.json` ({@link copilotMcpServers},
+ * SOURCES.copilotCliMcp), so it starts them; Claude Code reads only `mcpServers`
+ * ({@link mcpServers}), so they are Copilot's alone. Empty for a file with an `mcpServers`
+ * object and for every other kind.
+ */
+export function bareMcpServers(artifact: Pick<Artifact, 'kind'>, doc: ParsedJson): McpServer[] {
+  if (artifact.kind !== 'mcp-json' || !isObject(doc.value)) return [];
+  return isObject(own(doc.value, 'mcpServers')) ? [] : copilotMcpServers(doc);
+}
+
+/**
+ * The servers of Codex's `.codex/config.toml`: the tables under `mcp_servers`, however the TOML
+ * spells them (`[mcp_servers.x]`, dotted keys, inline tables), in document order
+ * (SOURCES.codexMcp, SOURCES.codexMcpTypes).
+ */
+export function codexMcpServers(doc: ParsedJson): McpServer[] {
+  return isTable(doc.value) ? serversIn(own(doc.value, 'mcp_servers'), ['mcp_servers']) : [];
 }
 
 /**
@@ -44,19 +66,31 @@ export function copilotMcpServers(doc: ParsedJson): McpServer[] {
   const root = doc.value;
   if (!isObject(root)) return [];
   const wrapped = own(root, 'mcpServers');
-  return isObject(wrapped) ? serversIn(wrapped, ['mcpServers']) : serversIn(root, []);
+  return isObject(wrapped)
+    ? serversIn(wrapped, ['mcpServers'])
+    : serversIn(root, []).filter(namesServer);
+}
+
+/**
+ * True for a bare top-level entry that can start a server: one with a command, a URL or a
+ * transport type. Other objects, such as the `servers` map of VS Code's format, start nothing.
+ */
+function namesServer(server: McpServer): boolean {
+  return ['command', 'url', 'type'].some((key) => own(server.config, key) !== undefined);
 }
 
 /**
  * Inline MCP server entries, in document order: `mcpServers` in `.mcp.json`, `.cursor/mcp.json`,
  * `.gemini/settings.json`, `.devin/mcp_config.json` and `.devin/config.json` (where Devin Local
  * kept servers before v3000.3, SOURCES.devinCliMcp), the inline map (or array of maps) a plugin
- * manifest declares, `servers` in `.vscode/mcp.json` ({@link vscodeMcpServers}), and either form
- * of `.github/mcp.json` ({@link copilotMcpServers}).
+ * manifest declares, `servers` in `.vscode/mcp.json` ({@link vscodeMcpServers}), either form
+ * of `.github/mcp.json` ({@link copilotMcpServers}), and `mcp_servers` in Codex's
+ * `.codex/config.toml` ({@link codexMcpServers}).
  */
 export function mcpServers(artifact: Artifact, doc: ParsedJson): McpServer[] {
   if (artifact.kind === 'vscode-mcp') return vscodeMcpServers(doc);
   if (artifact.kind === 'copilot-mcp') return copilotMcpServers(doc);
+  if (artifact.kind === 'codex-config') return codexMcpServers(doc);
   const root = doc.value;
   if (!isObject(root)) return [];
   const servers = own(root, 'mcpServers');
@@ -76,9 +110,11 @@ export const MCP_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'vscode-mcp',
   'devin-mcp',
   'devin-config',
+  'codex-config',
 ]);
 
 const MCP_PLATFORM_BY_KIND: Readonly<Partial<Record<ArtifactKind, PlatformId>>> = {
+  'codex-config': 'codex',
   'mcp-json': 'claude-code',
   'claude-plugin-manifest': 'claude-code',
   'cursor-mcp': 'cursor',
@@ -138,9 +174,11 @@ const TRANSPORTS: Readonly<Record<string, McpTransport>> = {
  * `httpUrl` (streamable HTTP), else, in Devin Local's MCP files, a `url` with its `transport`
  * (`http`, the default, or `sse`; SOURCES.devinCliMcp). Any other `url` without `type` is
  * `unknown`: Claude Code skips it, and the other agents' documentation does not settle which
- * remote transport they pick.
+ * remote transport they pick. Codex has no `type`: a `command` is stdio, else a `url` is
+ * streamable HTTP ({@link codexTransport}).
  */
 export function transportOf(artifact: Pick<Artifact, 'kind'>, config: JsonObject): McpTransport {
+  if (artifact.kind === 'codex-config') return codexTransport(config);
   const type = own(config, 'type');
   if (type !== undefined) {
     return typeof type === 'string' && Object.hasOwn(TRANSPORTS, type)
@@ -160,4 +198,15 @@ export function transportOf(artifact: Pick<Artifact, 'kind'>, config: JsonObject
     if (transport === 'sse') return 'sse';
   }
   return 'unknown';
+}
+
+/**
+ * Codex's transport for a server (codex-rs/config/src/mcp_types.rs, SOURCES.codexMcpTypes):
+ * stdio when it has a `command`, else streamable HTTP when it has a `url`. Codex rejects a server
+ * with neither (`invalid transport`) or with both; `codexServerProblem` in ./codex-config.ts says
+ * which.
+ */
+export function codexTransport(config: JsonObject): McpTransport {
+  if (typeof own(config, 'command') === 'string') return 'stdio';
+  return typeof own(config, 'url') === 'string' ? 'http' : 'unknown';
 }

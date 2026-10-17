@@ -50,7 +50,8 @@ const NO_CACHE: ParseCache = {
   decoded: (_bytes, compute) => compute(),
   frontmatter: (_text, compute) => compute(),
   markdown: (_text, _windowEnd, compute) => compute(),
-  json: (_text, _comments, compute) => compute(),
+  json: (_text, _dialect, compute) => compute(),
+  toml: (_decoded, compute) => compute(),
 };
 
 interface Timed {

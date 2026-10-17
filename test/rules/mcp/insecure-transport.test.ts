@@ -106,3 +106,43 @@ describe('mcp/insecure-transport', () => {
     expect(result.map((finding) => finding.severity)).toEqual(['warn']);
   });
 });
+
+describe('mcp/insecure-transport in Codex config.toml', () => {
+  const FILE = '.codex/config.toml';
+
+  it('reports http:// to a remote host, with guidance instead of a fix', () => {
+    const text = '[mcp_servers.api]\nurl = "http://api.tools.dev/mcp"\n';
+    const result = lint({ [FILE]: text }, { rules });
+    expect(findings(result, ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'warn',
+        path: FILE,
+        message:
+          'MCP server "api" connects to "api.tools.dev" over unencrypted http://, so anyone on the network path can read and change its traffic, including credentials in headers. Use https://.',
+        range: rangeOf(text, '"http://api.tools.dev/mcp"'),
+      },
+    ]);
+    expect(result.findings[0]?.fix).toBeUndefined();
+    expect(result.findings[0]?.guidance).toBe(
+      'change the URL to https:// if the server accepts it at this address',
+    );
+  });
+
+  it('does not report https://, loopback hosts, other fields or other targets', () => {
+    const text = [
+      '[mcp_servers.secure]',
+      'url = "https://api.tools.dev/mcp"',
+      '[mcp_servers.local]',
+      'url = "http://localhost:3000/api/mcp"',
+      '[mcp_servers.other]',
+      'command = "x"',
+      'httpUrl = "http://api.tools.dev/mcp"',
+      '',
+    ].join('\n');
+    expect(run({ [FILE]: text })).toEqual([]);
+    expect(run({ [FILE]: '[mcp_servers.a]\nurl = "http://api.tools.dev"\n' }, ['cursor'])).toEqual(
+      [],
+    );
+  });
+});

@@ -222,6 +222,41 @@ describe('fingerprints of JSON findings', () => {
   });
 });
 
+describe('fingerprints of TOML findings', () => {
+  const tomlRule = defineRule({
+    meta: meta({ id: 'test/toml', appliesTo: ['codex-config'], platforms: ['codex'] }),
+    defaultOptions: undefined,
+    check(context) {
+      for (const artifact of context.artifacts) {
+        const doc = context.toml(artifact);
+        const span = doc.ok ? doc.valueSpan(['mcp_servers', 'docs', 'url']) : undefined;
+        if (span !== undefined) context.report({ artifact, message: 'x', span });
+      }
+    },
+  });
+
+  it('anchor on the value, so any spelling of the same table and lines above keep them', () => {
+    const before = fingerprints(
+      '.codex/config.toml',
+      '[mcp_servers.docs]\nurl = "https://mcp.example.com/mcp"\n',
+      [tomlRule],
+    );
+    expect(before).toHaveLength(1);
+    for (const variant of [
+      '# Servers\nmodel = "o3"\n\n[mcp_servers."docs"]\nurl = "https://mcp.example.com/mcp"\n',
+      'mcp_servers.docs.url = "https://mcp.example.com/mcp"\n',
+      'mcp_servers = { docs = {\n  url = "https://mcp.example.com/mcp",\n} }\n',
+    ]) {
+      expect(fingerprints('.codex/config.toml', variant, [tomlRule]), variant).toEqual(before);
+    }
+    expect(
+      fingerprints('.codex/config.toml', '[mcp_servers.docs]\nurl = "https://other.dev"\n', [
+        tomlRule,
+      ]),
+    ).not.toEqual(before);
+  });
+});
+
 describe('fingerprints of Markdown findings', () => {
   /** Reports the line holding "bad", or the whole file when there is none. */
   const bad: AnyRule = defineRule({

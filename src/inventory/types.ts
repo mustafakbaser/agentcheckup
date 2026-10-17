@@ -15,10 +15,10 @@ export interface Inventory {
   readonly permissions: readonly PermissionItem[];
   readonly env: readonly EnvItem[];
   /**
-   * Config files that could not be analyzed, so items may be missing: `.codex/config.toml`
-   * (TOML is not parsed), files in Cline's `.clinerules/hooks/`, `.cline/hooks/` and
-   * `.cline/plugins/` (no documented format), Cascade's `.devin/hooks.json`, files the walk
-   * skipped, and `invalid-json:<path>`.
+   * Config files that could not be analyzed, so items may be missing: files in Cline's
+   * `.clinerules/hooks/`, `.cline/hooks/` and `.cline/plugins/` (no documented format),
+   * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, files
+   * the walk skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
    */
   readonly incomplete: readonly string[];
 }
@@ -102,8 +102,11 @@ export interface HookItem extends ItemBase {
 /**
  * One permission value, such as `permissions.allow` = `Bash(curl:*)`. Keys:
  * `permissions.allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`,
- * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, a skill's `allowed-tools`, and Gemini
- * CLI trust.
+ * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, a skill's `allowed-tools`, Gemini
+ * CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
+ * `sandbox_workspace_write.network_access`, `sandbox_workspace_write.writable_roots` and MCP tool
+ * approval modes (`mcp_servers.<name>.default_tools_approval_mode`,
+ * `mcp_servers.<name>.tools.<tool>.approval_mode`).
  */
 export interface PermissionItem extends ItemBase {
   readonly key: string;

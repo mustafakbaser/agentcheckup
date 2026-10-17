@@ -200,7 +200,8 @@ function rootId(id: string, file: string, base: string): string {
     : id;
 }
 
-const INVALID_JSON = 'invalid-json:';
+/** Prefixes of inventory `incomplete` entries for files that do not parse. */
+const INVALID_PREFIXES = ['invalid-json:', 'invalid-toml:'] as const;
 
 // ---------------------------------------------------------------------------------------------
 // Collection
@@ -290,15 +291,15 @@ function collectAll(policy: Policy, subject: PolicySubject): Found[] {
 
   if (readsInventory(policy)) {
     for (const entry of inventory?.incomplete ?? []) {
-      const invalid = entry.startsWith(INVALID_JSON);
-      const path = invalid ? entry.slice(INVALID_JSON.length) : entry;
+      const prefix = INVALID_PREFIXES.find((candidate) => entry.startsWith(candidate)) ?? '';
+      const path = entry.slice(prefix.length);
       const root = stripPath(path, base);
       out.push({
-        id: `unanalyzed-config:${invalid ? INVALID_JSON : ''}${root}`,
+        id: `unanalyzed-config:${prefix}${root}`,
         check: 'unanalyzed-config',
-        entry: `${invalid ? INVALID_JSON : ''}${root}`,
+        entry: `${prefix}${root}`,
         path,
-        message: unanalyzedMessage(root, invalid),
+        message: unanalyzedMessage(prefix),
       });
     }
   }
@@ -636,12 +637,10 @@ function overBudget(
 // Unanalyzed configuration
 // ---------------------------------------------------------------------------------------------
 
-function unanalyzedMessage(path: string, invalid: boolean): string {
+function unanalyzedMessage(prefix: string): string {
   const tail = 'so what it configures cannot be checked against the policy.';
-  if (invalid) return `This file is not valid JSON, ${tail}`;
-  if (path === '.codex/config.toml' || path.endsWith('/.codex/config.toml')) {
-    return `agentcheckup does not parse TOML, ${tail}`;
-  }
+  if (prefix === 'invalid-json:') return `This file is not valid JSON, ${tail}`;
+  if (prefix === 'invalid-toml:') return `This file is not valid TOML, ${tail}`;
   return `agentcheckup cannot analyze this file, ${tail}`;
 }
 

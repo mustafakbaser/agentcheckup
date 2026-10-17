@@ -8,7 +8,7 @@ import {
   type Span,
 } from '../../core/types.js';
 import { replaceSpan } from '../../fix/edits.js';
-import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS } from '../../platforms/kinds.js';
+import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS, TOML_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { editable, mergeEdits, sharedFileGuidance } from '../json/fix-support.js';
 import { codePointLabel, formatInteger, joinNames, quote } from '../shared/format.js';
@@ -160,7 +160,11 @@ export const hiddenUnicodeRule = defineRule({
     ].join('\n\n'),
     category: 'risk',
     severity: 'error',
-    appliesTo: [...MARKDOWN_OR_IMPORTED_KINDS, ...JSON_KINDS] as readonly ArtifactKind[],
+    appliesTo: [
+      ...MARKDOWN_OR_IMPORTED_KINDS,
+      ...JSON_KINDS,
+      ...TOML_KINDS,
+    ] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [
       RISK_SOURCES.asciiSmuggling,

@@ -54,6 +54,7 @@ describe('forYouReason', () => {
     expect(forYouReason('risk/remote-script-execution', 'agents-md')).toBe('security');
     expect(forYouReason('skill/shell-preprocessing', 'skill')).toBe('security');
     expect(forYouReason('json/invalid-syntax', 'claude-settings')).toBe('security');
+    expect(forYouReason('codex/ignored-project-key', 'codex-config')).toBe('security');
     expect(forYouReason('instr/import-unresolved', undefined)).toBe('security');
   });
 

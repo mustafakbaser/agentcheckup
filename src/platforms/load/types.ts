@@ -360,8 +360,9 @@ export interface LoadPlan {
   readonly totals: { readonly startup: Size; readonly onDemand: Size };
   /**
    * Parts the loader could not analyze, so entries may be missing: `markdown-budget:<path>`
-   * (the scan's Markdown budget ran out), `unparsed:.codex/config.toml` (TOML is not parsed),
-   * `unread:<path>` (the walker did not read the file).
+   * (the scan's Markdown budget ran out), `unparsed:<path>` (a parser limit, or UTF-16 text),
+   * `unread:<path>` (the walker did not read the file), `fallback:<path>` (a Codex
+   * `project_doc_fallback_filenames` file, which plans do not follow).
    */
   readonly incomplete: readonly string[];
   /**

@@ -16,7 +16,7 @@ import { lineCount } from '../core/measure.js';
 import { positionAt } from '../core/text.js';
 import type { Artifact, ParseServices } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
-import { JSON_KINDS } from '../platforms/kinds.js';
+import { JSON_KINDS, TOML_KINDS } from '../platforms/kinds.js';
 import { forTerminal } from '../report/sanitize.js';
 import { plural, truncate } from '../report/text.js';
 import { redactSecrets } from './redact.js';
@@ -39,7 +39,7 @@ export function excerptOf(
   spec: ExcerptSpec,
   parse: ParseServices,
 ): TaskExcerpt | undefined {
-  if (JSON_KINDS.has(artifact.kind)) return undefined;
+  if (JSON_KINDS.has(artifact.kind) || TOML_KINDS.has(artifact.kind)) return undefined;
   const frontmatter = parse.frontmatter(artifact);
   switch (spec.kind) {
     case 'value':

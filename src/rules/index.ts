@@ -1,5 +1,6 @@
 import type { AnyRule } from '../core/types.js';
 import { analysisRules } from './analysis/index.js';
+import { codexRules } from './codex/index.js';
 import { copilotRules } from './copilot/index.js';
 import { cursorRules } from './cursor/index.js';
 import { geminiRules } from './gemini/index.js';
@@ -14,6 +15,7 @@ import { skillRules } from './skill/index.js';
 /** Every built-in rule, in id order. */
 export const builtinRules: readonly AnyRule[] = [
   ...analysisRules,
+  ...codexRules,
   ...copilotRules,
   ...cursorRules,
   ...geminiRules,

@@ -19,7 +19,7 @@ const CASES: readonly (readonly [ruleId: string, files: FileMap, guidance: strin
   [
     'instr/codex-size-budget',
     { 'AGENTS.md': 'Use pnpm for every script.\n'.repeat(1300) },
-    'move instructions for one part of the repository into an AGENTS.md in that directory, or cut content; if you raised project_doc_max_bytes, set the maxBytes option to match',
+    'move instructions for one part of the repository into an AGENTS.md in that directory, or cut content; if you raised project_doc_max_bytes in your user configuration, set the maxBytes option to match',
   ],
   ['instr/empty-file', { 'AGENTS.md': '' }, 'add instructions or delete the file'],
   [

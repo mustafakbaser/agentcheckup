@@ -43,6 +43,14 @@ describe('MCP servers of the new kinds', () => {
   it('reads both forms of .github/mcp.json, the mcpServers object first', () => {
     const bare = doc({ a: { command: 'x' }, note: 'text' });
     expect(copilotMcpServers(bare).map((s) => s.path)).toEqual([['a']]);
+    // VS Code's format in the wrong file: `servers` is not a server, and starts nothing.
+    const vscodeForm = doc({ servers: { v: { command: 'v' } } });
+    expect(copilotMcpServers(vscodeForm)).toEqual([]);
+    expect(
+      copilotMcpServers(doc({ r: { url: 'https://x.example.com' }, t: { type: 'stdio' } })).map(
+        (s) => s.name,
+      ),
+    ).toEqual(['r', 't']);
     const wrapped = doc({ mcpServers: { b: { command: 'y' } }, c: { command: 'z' } });
     expect(mcpServers(artifact('copilot-mcp'), wrapped).map((s) => s.path)).toEqual([
       ['mcpServers', 'b'],

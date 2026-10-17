@@ -1,4 +1,5 @@
-import type { ArtifactKind } from '../core/types.js';
+import { type Artifact, type ArtifactKind, type ParseServices, TOML_KINDS } from '../core/types.js';
+import type { JsonDocument, TomlDocument } from '../parse/types.js';
 
 /** Kinds whose content is Markdown (optionally with YAML frontmatter). */
 export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
@@ -41,6 +42,18 @@ export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
 ]);
 
 export { TOML_KINDS } from '../core/types.js';
+
+/**
+ * The parsed document of a configuration file: `toml()` for a {@link TOML_KINDS} file such as
+ * `.codex/config.toml`, `json()` otherwise. A TOML document that parses has the shape of a JSON
+ * one, so the JSON helpers (src/parse/json-access.ts) read either.
+ */
+export function configDocument(
+  parse: Pick<ParseServices, 'json' | 'toml'>,
+  artifact: Artifact,
+): JsonDocument | TomlDocument {
+  return TOML_KINDS.has(artifact.kind) ? parse.toml(artifact) : parse.json(artifact);
+}
 
 /**
  * Markdown kinds plus `imported-file`: a file that an instruction file imports with `@path`

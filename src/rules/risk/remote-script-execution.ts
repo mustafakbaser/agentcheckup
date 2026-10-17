@@ -1,9 +1,9 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { PLATFORM_IDS } from '../../core/types.js';
 import type { Artifact, ArtifactKind, PlatformId } from '../../core/types.js';
-import { MARKDOWN_KINDS } from '../../platforms/kinds.js';
+import { configDocument, MARKDOWN_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
-import { hookHandlers, hookPlatformOf } from '../hooks/walk.js';
+import { hookHandlers, hookSourceOf } from '../hooks/walk.js';
 import { at, collectStrings, type JsonPath, own, type ParsedJson, spanOf } from '../json/access.js';
 import { formatInteger, quote } from '../shared/format.js';
 import { mcpServers } from '../mcp/servers.js';
@@ -16,7 +16,7 @@ import {
 import { CommandContext } from './command-context.js';
 import { RISK_SOURCES } from './sources.js';
 
-/** JSON kinds whose hook or MCP server commands run without the agent deciding to. */
+/** JSON and TOML kinds whose hook or MCP server commands run without the agent deciding to. */
 const COMMAND_KINDS: readonly ArtifactKind[] = [
   'claude-settings',
   'codex-hooks',
@@ -25,6 +25,7 @@ const COMMAND_KINDS: readonly ArtifactKind[] = [
   'mcp-json',
   'cursor-mcp',
   'claude-plugin-manifest',
+  'codex-config',
 ];
 
 /** Findings per file; a file with more lines like this gets one summary finding. */
@@ -57,9 +58,11 @@ interface CommandString {
 /** Hook commands and MCP server command lines: strings that run without anyone reading them. */
 function commandStrings(artifact: Artifact, doc: ParsedJson): CommandString[] {
   const out: CommandString[] = [];
-  const platform = hookPlatformOf(artifact);
-  if (platform !== undefined) {
-    for (const { event, handler, path } of hookHandlers(doc, platform)) {
+  const source = hookSourceOf(artifact);
+  if (source !== undefined) {
+    for (const { event, handler, path } of hookHandlers(doc, source.platform, {
+      root: source.root,
+    })) {
       const command = own(handler, 'command');
       if (typeof command === 'string') {
         out.push({ path: [...path, 'command'], value: command, what: `This ${event} hook` });
@@ -72,7 +75,12 @@ function commandStrings(artifact: Artifact, doc: ParsedJson): CommandString[] {
     artifact.kind !== 'cursor-hooks'
   ) {
     for (const server of mcpServers(artifact, doc)) {
-      for (const field of ['command', 'args']) {
+      // Codex also runs `http_headers_helper` to get a remote server's headers.
+      const fields =
+        artifact.kind === 'codex-config'
+          ? ['command', 'args', 'http_headers_helper']
+          : ['command', 'args'];
+      for (const field of fields) {
         for (const item of collectStrings(own(server.config, field), [...server.path, field])) {
           out.push({ ...item, what: `MCP server ${quote(server.name)}` });
         }
@@ -106,7 +114,7 @@ export const remoteScriptExecutionRule = defineRule({
       );
       if (readers.length === 0) continue;
       if (!MARKDOWN_KINDS.has(artifact.kind)) {
-        const doc = context.json(artifact);
+        const doc = configDocument(context, artifact);
         if (!doc.ok) continue;
         let reported = 0;
         for (const command of commandStrings(artifact, doc)) {

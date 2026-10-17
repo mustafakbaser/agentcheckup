@@ -132,3 +132,52 @@ describe('mcp/env-syntax-mismatch', () => {
     expect(run(files)).toEqual([]);
   });
 });
+
+describe('mcp/env-syntax-mismatch in Codex config.toml', () => {
+  const FILE = '.codex/config.toml';
+
+  it('reports references Codex passes on as text, as info', () => {
+    const text = [
+      '[mcp_servers.github]',
+      'command = "npx"',
+      'args = ["--dir", "${workspaceFolder}"]',
+      'env = { GITHUB_TOKEN = "${GITHUB_TOKEN}", HOME_DIR = "$HOME" }',
+      '[mcp_servers.remote]',
+      'url = "https://x.dev/mcp"',
+      'http_headers = { Authorization = "Bearer ${env:API_TOKEN}" }',
+      '',
+    ].join('\n');
+    const result = lint({ [FILE]: text }, { rules });
+    const found = findings(result, ID);
+    expect(found.map(({ severity, range }) => [severity, range])).toEqual([
+      ['info', rangeOf(text, '"${workspaceFolder}"')],
+      ['info', rangeOf(text, '"${GITHUB_TOKEN}"')],
+      ['info', rangeOf(text, '"$HOME"')],
+      ['info', rangeOf(text, '"Bearer ${env:API_TOKEN}"')],
+    ]);
+    expect(found.map((item) => item.message)).toEqual([
+      '"${workspaceFolder}" is a Cursor variable. Codex expands no variables in config.toml, so the server gets this text unchanged.',
+      'Codex expands no variables in config.toml, so the server gets "${GITHUB_TOKEN}" as text instead of the value of GITHUB_TOKEN. To use the variable, list GITHUB_TOKEN in "env_vars" to pass it from the environment.',
+      'Codex expands no variables in config.toml, so the server gets "$HOME" as text instead of the value of HOME. To use the variable, list HOME in "env_vars" to pass it from the environment.',
+      'Codex expands no variables in config.toml, so the server gets "${env:API_TOKEN}" as text instead of the value of API_TOKEN. To use the variable, move the header to "env_http_headers", which names the variable that holds its value.',
+    ]);
+    expect(result.findings.every((finding) => finding.fix === undefined)).toBe(true);
+  });
+
+  it('does not report names, $ in arguments a shell may expand, or plain values', () => {
+    const text = [
+      '[mcp_servers.github]',
+      'command = "sh"',
+      'args = ["-c", "exec server --home $HOME"]',
+      'env_vars = ["GITHUB_TOKEN"]',
+      'env = { PRICE = "$5", ENCODED = "a%20b%20c" }',
+      '[mcp_servers.remote]',
+      'url = "https://x.dev/mcp?q=%E2%9C%93"',
+      'env_http_headers = { Authorization = "API_TOKEN" }',
+      'bearer_token_env_var = "TOKEN"',
+      '',
+    ].join('\n');
+    expect(run({ [FILE]: text })).toEqual([]);
+    expect(run({ [FILE]: '[mcp_servers.a]\ncommand = "${X}"\n' }, ['claude-code'])).toEqual([]);
+  });
+});

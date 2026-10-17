@@ -13,9 +13,19 @@
  *
  * Only files agentcheckup read can be measured. When a candidate exists but was not read, or might
  * exist, the choice in that directory is unknown and the chain stops before it.
+ *
+ * `project_doc_max_bytes` and `project_doc_fallback_filenames` can come from the repository's
+ * `.codex/config.toml` files ({@link configuredCodexChain}).
  */
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact, Snapshot } from '../../core/types.js';
+import {
+  type CodexDocSettings,
+  codexDocSettings,
+  codexFallbackNames,
+  type CodexProjectConfig,
+  codexProjectConfig,
+} from '../codex-config.js';
 import { fileExists, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { codexSeesBlank } from './codex-text.js';
 import type { LoadView } from './view.js';
@@ -29,6 +39,12 @@ export const CODEX_DEFAULT_MAX_BYTES = 32_768;
 export interface CodexChainOptions {
   /** Codex's `project_doc_max_bytes`: a positive integer. */
   readonly maxBytes: number;
+  /**
+   * Codex's `project_doc_fallback_filenames`, as `codexFallbackNames` in ../codex-config.ts
+   * cleans them. Which file Codex then picks is not modeled: a directory without AGENTS files
+   * that has one of these is unknown, and the chain stops before it.
+   */
+  readonly fallbackNames?: readonly string[];
 }
 
 /**
@@ -107,27 +123,42 @@ export interface CodexChain {
   readonly dropped: readonly CodexWholeFile[];
   /**
    * A directory whose file agentcheckup cannot tell (a candidate exists but was not read, or might
-   * exist). The chain stops before it, so later directories are not on `files`.
+   * exist, or a fallback name exists). The chain stops before it, so later directories are not on
+   * `files`.
    */
   readonly unknownAt?: string;
+  /** The candidate that makes `unknownAt` unknown, and whether it is a fallback name. */
+  readonly unknownFile?: { readonly path: string; readonly fallback: boolean };
 }
 
 type Selection =
   | { readonly kind: 'file'; readonly path: string; readonly artifact: Artifact }
   | { readonly kind: 'none' }
-  | { readonly kind: 'unknown' };
+  | { readonly kind: 'unknown'; readonly path: string; readonly fallback: boolean };
 
 /**
  * The file Codex reads in `directory`: the first of AGENTS.override.md and AGENTS.md that exists
  * as a file, even when it is empty. A candidate that exists but was not read (gitignored, too
- * large) or might exist makes the choice unknown.
+ * large) or might exist makes the choice unknown, and so does a file with a fallback name.
  */
-function selectFile(view: Pick<LoadView, 'snapshot' | 'index'>, directory: string): Selection {
+function selectFile(
+  view: Pick<LoadView, 'snapshot' | 'index'>,
+  directory: string,
+  fallbackNames: readonly string[],
+): Selection {
   for (const name of CODEX_FILE_NAMES) {
     const path = joinPath(directory, name);
     const artifact = view.index.get(path);
     if (artifact !== undefined) return { kind: 'file', path, artifact };
-    if (pathStatus(view.snapshot, path) !== 'missing') return { kind: 'unknown' };
+    if (pathStatus(view.snapshot, path) !== 'missing') {
+      return { kind: 'unknown', path, fallback: false };
+    }
+  }
+  for (const name of fallbackNames) {
+    const path = joinPath(directory, name);
+    if (pathStatus(view.snapshot, path) !== 'missing') {
+      return { kind: 'unknown', path, fallback: true };
+    }
   }
   return { kind: 'none' };
 }
@@ -165,6 +196,7 @@ export function codexChain(
   const dropped: CodexWholeFile[] = [];
   let cut: (CodexCutFile & { readonly status: 'cut' }) | undefined;
   let unknownAt: string | undefined;
+  let unknownFile: CodexChain['unknownFile'];
   let remaining = maxBytes;
   let offset = 0;
   let total = 0;
@@ -172,9 +204,10 @@ export function codexChain(
   let afterCut = false;
 
   for (const directory of chainDirectories(root, startDir)) {
-    const selection = selectFile(view, directory);
+    const selection = selectFile(view, directory, options.fallbackNames ?? []);
     if (selection.kind === 'unknown') {
       unknownAt = directory;
+      unknownFile = { path: selection.path, fallback: selection.fallback };
       break;
     }
     if (selection.kind === 'none') continue;
@@ -223,6 +256,36 @@ export function codexChain(
     total,
     ...(cut === undefined ? {} : { cut }),
     dropped,
-    ...(unknownAt === undefined ? {} : { unknownAt }),
+    ...(unknownAt === undefined || unknownFile === undefined ? {} : { unknownAt, unknownFile }),
   };
+}
+
+/** The chain for one working directory, with the project configuration that shaped it. */
+export interface ConfiguredCodexChain {
+  readonly chain: CodexChain;
+  /** The project configuration Codex reads there (../codex-config.ts). */
+  readonly config: CodexProjectConfig;
+  /** The budget and fallback names the chain used, and where each comes from. */
+  readonly settings: CodexDocSettings;
+}
+
+/**
+ * The chain Codex reads when it starts in `startDir`, with `project_doc_max_bytes` and
+ * `project_doc_fallback_filenames` as Codex applies them there: the repository's project
+ * configuration first, then `ruleMaxBytes` (the `maxBytes` option of instr/codex-size-budget,
+ * or the default). The Codex loader and instr/codex-size-budget both build chains here.
+ */
+export function configuredCodexChain(
+  view: Pick<LoadView, 'snapshot' | 'index' | 'toml'>,
+  startDir: string,
+  ruleMaxBytes: { readonly value: number; readonly origin: 'rule-option' | 'default' },
+): ConfiguredCodexChain {
+  const root = nearestGitRoot(view.snapshot, startDir) ?? startDir;
+  const config = codexProjectConfig(view, chainDirectories(root, startDir));
+  const settings = codexDocSettings(config, ruleMaxBytes);
+  const chain = codexChain(view, startDir, {
+    maxBytes: settings.maxBytes.value,
+    fallbackNames: codexFallbackNames(settings.fallbackNames.value),
+  });
+  return { chain, config, settings };
 }

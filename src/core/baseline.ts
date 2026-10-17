@@ -24,6 +24,9 @@ import type {
 } from '../inventory/types.js';
 import { classify } from '../platforms/classify.js';
 import { REDACTED } from '../inventory/redact.js';
+import { clinePlace } from '../platforms/cline-rules.js';
+import { hookSourceOf } from '../platforms/hooks.js';
+import { MCP_KINDS } from '../platforms/mcp.js';
 import { broadGrant } from '../platforms/permissions.js';
 import { coveredBy } from '../platforms/tool-rules.js';
 import type {
@@ -37,7 +40,7 @@ import type {
 import type { BaselineDiff, GateClass, GateHit, ItemDiff, PlanDelta } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import type { ScanResult } from './engine.js';
-import type { ArtifactKind, Finding, RuleMeta } from './types.js';
+import type { Finding, RuleMeta } from './types.js';
 
 // ---------------------------------------------------------------------------------------------
 // Gate classes
@@ -506,9 +509,9 @@ function gateHits(
     if (isUnpinned(server)) hit('mcp-unpinned', id, change, unpinnedSummary(server, change));
   }
   for (const entry of after.incomplete) {
-    if (!before.incomplete.has(entry) && isMcpConfig(entry)) {
-      hit('mcp', entry, 'added', incompleteSummary(entry));
-    }
+    if (before.incomplete.has(entry)) continue;
+    if (isMcpConfig(entry)) hit('mcp', entry, 'added', incompleteSummary(entry, 'MCP'));
+    if (isHookConfig(entry)) hit('hooks', entry, 'added', incompleteSummary(entry, 'hooks'));
   }
 
   const previousModes = new Map<string, string[]>();
@@ -668,32 +671,53 @@ function isAssignment(word: string): boolean {
   return equals > 0 && !word.startsWith('-');
 }
 
-const MCP_KINDS: ReadonlySet<ArtifactKind> = new Set([
-  'mcp-json',
-  'cursor-mcp',
-  'gemini-settings',
-  'claude-plugin-manifest',
-]);
-const INVALID_JSON = 'invalid-json:';
+/** Prefixes of inventory `incomplete` entries for files that do not parse. */
+const INVALID_PREFIXES = ['invalid-json:', 'invalid-toml:'] as const;
+
+/** An `incomplete` entry split into its path and the format it is not valid in, if any. */
+function incompletePath(entry: string): { readonly path: string; readonly invalid?: string } {
+  for (const prefix of INVALID_PREFIXES) {
+    if (entry.startsWith(prefix)) {
+      return {
+        path: entry.slice(prefix.length),
+        invalid: prefix === 'invalid-json:' ? 'JSON' : 'TOML',
+      };
+    }
+  }
+  return { path: entry };
+}
 
 /**
- * An inventory `incomplete` entry for a file that declares MCP servers: the kinds whose
- * `mcpServers` src/rules/mcp/servers.ts reads, any `mcp.json` (such as `.vscode/mcp.json`), and
- * `.codex/config.toml`, where Codex declares servers in TOML that is not parsed.
+ * An inventory `incomplete` entry for a file that declares MCP servers: the kinds whose servers
+ * src/platforms/mcp.ts reads (`.codex/config.toml` among them), and any `mcp.json`.
  */
 function isMcpConfig(entry: string): boolean {
-  const path = entry.startsWith(INVALID_JSON) ? entry.slice(INVALID_JSON.length) : entry;
+  const { path } = incompletePath(entry);
   if (path === 'mcp.json' || path.endsWith('/mcp.json')) return true;
-  if (path === '.codex/config.toml' || path.endsWith('/.codex/config.toml')) return true;
   const kind = classify(path)?.kind;
   return kind !== undefined && MCP_KINDS.has(kind);
 }
 
-function incompleteSummary(entry: string): string {
-  if (entry.startsWith(INVALID_JSON)) {
-    return `New MCP config ${text(entry.slice(INVALID_JSON.length))} is not valid JSON, so its servers cannot be checked`;
-  }
-  return `New MCP config ${text(entry)} is not analyzed, so its servers cannot be checked`;
+/**
+ * An inventory `incomplete` entry for a file whose hooks the inventory cannot list: a
+ * `.codex/config.toml` it could not read (it declares hooks next to MCP servers), Cascade's
+ * `.devin/hooks.json`, and the files in Cline's hook and plugin folders, which have no
+ * documented format.
+ */
+function isHookConfig(entry: string): boolean {
+  const { path } = incompletePath(entry);
+  const kind = classify(path)?.kind;
+  if (kind === 'codex-config') return true;
+  if (kind === 'devin-hooks' && hookSourceOf({ kind, path }) === undefined) return true;
+  const role = clinePlace(path)?.role;
+  return role === 'hook' || role === 'plugin';
+}
+
+function incompleteSummary(entry: string, what: 'MCP' | 'hooks'): string {
+  const { path, invalid } = incompletePath(entry);
+  const items = what === 'MCP' ? 'servers' : 'hooks';
+  const reason = invalid === undefined ? 'is not analyzed' : `is not valid ${invalid}`;
+  return `New ${what} config ${text(path)} ${reason}, so its ${items} cannot be checked`;
 }
 
 // Permissions ------------------------------------------------------------------------------------
@@ -727,7 +751,9 @@ function autoApproval(permission: PermissionItem): string | undefined {
  * true. A narrow entry such as `Bash(curl:*)` widens too: a reviewer must see every new command
  * the agent may run unasked, not only the broadest. `deny` and `ask` entries narrow what the
  * agent may do, however broad they are. `defaultMode` is handled on its own (modeSummary). Keys
- * not listed here widen, so a new kind of entry fails closed.
+ * not listed here widen, so a new kind of entry fails closed: Codex's `approval_policy`,
+ * `sandbox_mode`, `network_access`, `writable_roots` and tool approval modes, which the inventory
+ * lists only for values that let Codex act without asking, widen this way.
  */
 function widens(permission: PermissionItem): boolean {
   switch (lastSegment(permission.key)) {
@@ -795,11 +821,18 @@ function broadNote(permission: PermissionItem): string {
   if (!permission.broad) return '';
   const grant = broadGrant(permission.value);
   if (grant !== undefined) return ` (broad: ${grant.capability})`;
-  if (lastSegment(permission.key) === ADDITIONAL_DIRECTORIES) {
+  const key = lastSegment(permission.key);
+  if (key === ADDITIONAL_DIRECTORIES || key === 'writable_roots') {
     return ' (broad: the file system root or home directory)';
   }
-  return ' (broad)';
+  return CODEX_BROAD_NOTES.get(permission.key) ?? ' (broad)';
 }
+
+/** What a broad Codex setting lets Codex do (SOURCES.codexConfigReference). */
+const CODEX_BROAD_NOTES: ReadonlyMap<string, string> = new Map([
+  ['approval_policy', ' (broad: never asks before running a command)'],
+  ['sandbox_mode', ' (broad: commands run without a sandbox)'],
+]);
 
 function permissionSummary(
   permission: PermissionItem,

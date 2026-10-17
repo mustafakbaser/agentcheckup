@@ -4,8 +4,10 @@
  * Agents use `JSON.parse`, so comments and trailing commas are errors here. Gemini CLI reads its
  * settings.json as `JSON.parse(stripJsonComments(content))` (strip-json-comments 3.1.1,
  * https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts,
- * verified 2026-10-14): `parseJsonWithComments` models that exactly. Rules can also tell the
- * cases apart through `JSON_ISSUE.comment` and `JSON_ISSUE.trailingComma`.
+ * verified 2026-10-14): `parseJsonWithComments` models that exactly. VS Code reads its
+ * configuration files, `.vscode/mcp.json` among them, with its JSONC parser, which allows
+ * comments and trailing commas: `parseJsonc` reads that form. Rules can also tell the cases
+ * apart through `JSON_ISSUE.comment` and `JSON_ISSUE.trailingComma`.
  *
  * Security:
  * - Values are built here into null-prototype objects. jsonc-parser's `getNodeValue` assigns
@@ -51,9 +53,22 @@ const CLOSE_BRACKET = 4;
 const COMMA = 5;
 const EOF = 17;
 
-const PARSE_OPTIONS = {
+interface ParseOptions {
+  readonly disallowComments: boolean;
+  readonly allowTrailingComma: boolean;
+  readonly allowEmptyContent: boolean;
+}
+
+const PARSE_OPTIONS: ParseOptions = {
   disallowComments: true,
   allowTrailingComma: false,
+  allowEmptyContent: false,
+};
+
+/** JSON with comments and trailing commas, as VS Code reads its configuration files. */
+const JSONC_OPTIONS: ParseOptions = {
+  disallowComments: false,
+  allowTrailingComma: true,
   allowEmptyContent: false,
 };
 
@@ -363,6 +378,19 @@ function locator(root: JsonNode): (span: Span) => JsonLocation | undefined {
 
 /** Parses strict JSON. Never throws on any input. */
 export function parseJson(text: string): JsonDocument {
+  return parseWith(text, PARSE_OPTIONS);
+}
+
+/**
+ * Parses JSON with comments (`//` and `/* *\/`) and trailing commas, the JSONC that VS Code
+ * reads its configuration files as, `.vscode/mcp.json` among them (SOURCES.vscodeMcp). Spans
+ * refer to the original text. Never throws on any input.
+ */
+export function parseJsonc(text: string): JsonDocument {
+  return parseWith(text, JSONC_OPTIONS);
+}
+
+function parseWith(text: string, options: ParseOptions): JsonDocument {
   if (text.length > MAX_JSON_LENGTH) {
     return failure([
       {
@@ -384,7 +412,7 @@ export function parseJson(text: string): JsonDocument {
       ]);
     }
     const errors: ParseError[] = [];
-    const root = parseTree(text, errors, PARSE_OPTIONS);
+    const root = parseTree(text, errors, options);
     if (errors.length > 0 || root === undefined) {
       const issues = issuesFor(text, errors);
       return failure(

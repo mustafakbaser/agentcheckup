@@ -4,14 +4,14 @@
 
 Tool-gating hook lets the tool call proceed when it fails.
 
-|            |                                                                     |
-| ---------- | ------------------------------------------------------------------- |
-| Severity   | `info`                                                              |
-| Category   | `risk`                                                              |
-| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                              |
-| Applies to | `claude-settings`, `codex-hooks`, `cursor-hooks`, `gemini-settings` |
-| Fixable    | Yes, `review`                                                       |
-| Since      | 2026.10                                                             |
+|            |                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------- |
+| Severity   | `info`                                                                              |
+| Category   | `risk`                                                                              |
+| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                                              |
+| Applies to | `claude-settings`, `codex-hooks`, `codex-config`, `cursor-hooks`, `gemini-settings` |
+| Fixable    | Yes, `review`                                                                       |
+| Since      | 2026.10                                                                             |
 
 ## Why
 

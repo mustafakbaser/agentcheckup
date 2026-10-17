@@ -7,8 +7,10 @@
  * Results stay exactly those of a scan without the cache:
  * - Decoding depends only on the bytes, and is cached per byte array: the fix applier keeps the
  *   `SourceFile` of every file it does not change.
- * - Frontmatter and JSON parses depend only on the text (and, for JSON, on whether comments are
- *   allowed), and are cached by text.
+ * - Frontmatter and JSON parses depend only on the text (and, for JSON, on the dialect the
+ *   reading agent uses), and are cached by text.
+ * - A TOML parse depends on the text and on how it was decoded (UTF-16, a byte order mark the
+ *   decoder removed, bytes that were not valid UTF-8), and is cached by both.
  * - A Markdown parse depends on the text and on the analysis window, which the scan's Markdown
  *   budget decides (`markdownWindowEnd` of the characters left). The cache is keyed by both, so
  *   a file parsed with less budget left than before is parsed again, and the scan spends the
@@ -18,8 +20,19 @@
  * they already are between the rules of one scan. The cache keeps every version it sees: use one
  * per group of related scans, not one per process.
  */
-import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
+import type {
+  FrontmatterResult,
+  JsonDocument,
+  MarkdownDocument,
+  TomlDocument,
+} from '../parse/types.js';
 import type { DecodedText } from './types.js';
+
+/**
+ * How a JSON file is read: strict JSON (`JSON.parse`), Gemini CLI's comments stripped before
+ * `JSON.parse`, or VS Code's JSONC with comments and trailing commas.
+ */
+export type JsonDialect = 'strict' | 'comments' | 'jsonc';
 
 export interface ParseCache {
   /** The decoded text of `bytes`, from `compute` the first time. */
@@ -31,8 +44,10 @@ export interface ParseCache {
    * first time. `windowEnd` must be the window `compute` analyzes.
    */
   markdown(text: string, windowEnd: number, compute: () => MarkdownDocument): MarkdownDocument;
-  /** The JSON document of `text`, read with or without comments, from `compute` the first time. */
-  json(text: string, comments: boolean, compute: () => JsonDocument): JsonDocument;
+  /** The JSON document of `text` read in `dialect`, from `compute` the first time. */
+  json(text: string, dialect: JsonDialect, compute: () => JsonDocument): JsonDocument;
+  /** The TOML document of `decoded`, from `compute` the first time. */
+  toml(decoded: DecodedText, compute: () => TomlDocument): TomlDocument;
 }
 
 function cached<K, V>(map: Map<K, V>, key: K, compute: () => V): V {
@@ -43,13 +58,22 @@ function cached<K, V>(map: Map<K, V>, key: K, compute: () => V): V {
   return value;
 }
 
+/** What a TOML parse reads from the decoding besides the text (`TomlSource`). */
+function tomlVariant(decoded: DecodedText): string {
+  return `${decoded.encoding}:${decoded.hasBom ? 'bom' : ''}:${decoded.hadDecodeErrors ? 'invalid' : ''}`;
+}
+
 /** A new, empty cache. */
 export function createParseCache(): ParseCache {
   const decoded = new WeakMap<Uint8Array, DecodedText>();
   const frontmatter = new Map<string, FrontmatterResult>();
   const markdown = new Map<string, Map<number, MarkdownDocument>>();
-  const strictJson = new Map<string, JsonDocument>();
-  const commentedJson = new Map<string, JsonDocument>();
+  const json: Record<JsonDialect, Map<string, JsonDocument>> = {
+    strict: new Map(),
+    comments: new Map(),
+    jsonc: new Map(),
+  };
+  const toml = new Map<string, Map<string, TomlDocument>>();
   return {
     decoded(bytes, compute) {
       const hit = decoded.get(bytes);
@@ -71,6 +95,14 @@ export function createParseCache(): ParseCache {
       }
       return doc;
     },
-    json: (text, comments, compute) => cached(comments ? commentedJson : strictJson, text, compute),
+    json: (text, dialect, compute) => cached(json[dialect], text, compute),
+    toml(source, compute) {
+      let variants = toml.get(source.text);
+      if (variants === undefined) {
+        variants = new Map();
+        toml.set(source.text, variants);
+      }
+      return cached(variants, tomlVariant(source), compute);
+    },
   };
 }

@@ -694,7 +694,8 @@ describe('MCP servers', () => {
 
   it('marks files it cannot parse incomplete, and nested ones out of scope', () => {
     const { cli, vscode } = build({
-      '.vscode/mcp.json': '{ // VS Code allows comments\n "servers": {} }',
+      // Comments are fine in VS Code's JSONC; a file cut short is not.
+      '.vscode/mcp.json': '{ // VS Code allows comments\n "servers": ',
       '.github/mcp.json': '{',
       'pkg/.mcp.json': `{ "mcpServers": { ${server('p')} } }`,
       'pkg/.vscode/mcp.json': `{ "servers": { ${server('q')} } }`,

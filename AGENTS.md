@@ -35,8 +35,8 @@ files and fixes what it can. Node.js >= 22.12, pnpm 12, ESM only.
 
 ## Rules for changes
 
-- Rules read files only through `context.frontmatter()`, `context.markdown()` and
-  `context.json()`. Do not parse raw text in a rule.
+- Rules read files only through `context.frontmatter()`, `context.markdown()`,
+  `context.json()` and `context.toml()`. Do not parse raw text in a rule.
 - A rule may use severity `error` only when cited documentation or source code shows the agent
   skips, ignores, truncates or breaks the file. Cite sources in `meta.sources`.
 - A rule declares its fix classes in `meta.fix` (`{ classes, summary }`) and attaches a fix with

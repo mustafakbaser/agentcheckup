@@ -1,7 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { type Artifact, type ArtifactKind, type Fix, PLATFORM_IDS } from '../../core/types.js';
 import { replaceSpan } from '../../fix/edits.js';
-import { JSON_KINDS } from '../../platforms/kinds.js';
+import { configDocument, JSON_KINDS, TOML_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import {
   at,
@@ -51,7 +51,23 @@ function serverField(artifact: Artifact, path: JsonPath): string | undefined {
   return typeof field === 'string' ? field : undefined;
 }
 
+/**
+ * Where Codex takes a value from the environment instead (SOURCES.codexMcp): `env_vars` forwards
+ * a variable, `env_http_headers` and `bearer_token_env_var` name the variable that holds a header
+ * or the bearer token. Codex expands no `${NAME}` references.
+ */
+function codexRemedy(path: JsonPath): string {
+  const field = path[0] === 'mcp_servers' ? path[2] : undefined;
+  if (field === 'env') return 'list the variable in "env_vars" and set it in the environment';
+  if (field === 'http_headers') {
+    return 'move the header to "env_http_headers", which names the variable that holds it';
+  }
+  if (field === 'bearer_token') return 'name the variable that holds it in "bearer_token_env_var"';
+  return 'read it from the environment';
+}
+
 function remedy(artifact: Artifact, path: JsonPath, name: string): string {
+  if (artifact.kind === 'codex-config') return codexRemedy(path);
   const inServer = path[0] === 'mcpServers';
   if (artifact.kind === 'mcp-json' || (artifact.kind === 'claude-plugin-manifest' && inServer)) {
     return 'reference it as "${' + name + '}"';
@@ -148,11 +164,11 @@ export const literalSecretRule = defineRule({
     rationale: [
       'MCP configurations, settings and hook files are committed with the project, so a token written into one is readable by everyone who can read the repository, its forks and its history. Keys exposed in public GitHub repositories have been used within two minutes. `claude plugin validate` also warns about header values that look like literal credentials.',
       "The rule reports only tokens with a known vendor prefix and shape (GitHub, OpenAI, Anthropic, Slack, AWS access key IDs, GitLab, Stripe live keys, Google API keys, npm, Hugging Face, PyPI, DigitalOcean, Shopify, Doppler). It skips placeholders such as `ghp_xxxx…` and AWS's `…EXAMPLE` keys, and never reports variable references. The message shows only the first four characters and the length. An AWS access key ID is a warning rather than an error: without its secret access key it grants no access, but it identifies the account and the secret is often committed next to it.",
-      'Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`.',
+      "Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`. Codex's `.codex/config.toml` expands no variables: forward one with `env_vars`, or name it in `env_http_headers` or `bearer_token_env_var`; the rule offers no fix there.",
     ].join('\n\n'),
     category: 'risk',
     severity: 'error',
-    appliesTo: [...JSON_KINDS] as readonly ArtifactKind[],
+    appliesTo: [...JSON_KINDS, ...TOML_KINDS] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [
       MCP_SOURCES.orcaHoneypot,
@@ -160,6 +176,7 @@ export const literalSecretRule = defineRule({
       SOURCES.claudeMcp,
       SOURCES.cursorMcp,
       SOURCES.geminiMcp,
+      SOURCES.codexMcp,
       MCP_SOURCES.githubTokenFormats,
       MCP_SOURCES.githubTokenBlog,
       MCP_SOURCES.githubInstallationTokens,
@@ -188,9 +205,11 @@ export const literalSecretRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const canEdit = editable(artifact);
+      // No fix builder edits TOML; the message says what to change.
+      const fixable = canEdit && !TOML_KINDS.has(artifact.kind);
       let reported = 0;
       for (const { path, value } of collectStrings(doc.value)) {
         if (reported === MAX_SECRET_FINDINGS) break;
@@ -200,7 +219,7 @@ export const literalSecretRule = defineRule({
         const token = value.slice(secret.start, secret.start + secret.length);
         const shown = `("${token.slice(0, 4)}…", ${formatInteger(token.length)} characters)`;
         const name = variableName(path, secret.variable);
-        const fix = canEdit ? fixFor(artifact, doc, path, value, secret) : undefined;
+        const fix = fixable ? fixFor(artifact, doc, path, value, secret) : undefined;
         const guidance = canEdit ? undefined : sharedFileGuidance(artifact);
         context.report({
           artifact,

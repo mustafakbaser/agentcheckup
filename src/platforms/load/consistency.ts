@@ -111,6 +111,8 @@ export const SKIP_RULES: readonly SkipRule[] = [
   { ruleId: 'skill/name-format', agent: 'codex', codes: ['invalid-frontmatter'] },
   { ruleId: 'hooks/unknown-event', agent: 'codex', codes: ['unknown-event'] },
   { ruleId: 'json/invalid-syntax', agent: 'codex', codes: ['invalid-json'] },
+  // Its warnings are about server entries, whose effect is not verified.
+  { ruleId: 'codex/config-invalid', agent: 'codex', codes: ['invalid-toml'], minSeverity: 'error' },
   // Cursor
   { ruleId: 'cursor/md-file-ignored', agent: 'cursor', codes: ['not-mdc'] },
   { ruleId: 'instr/empty-file', agent: 'cursor', codes: ['blank-file'] },
@@ -195,6 +197,11 @@ export const LOADS_ANYWAY: readonly {
     ruleId: 'settings/ignored-permission-mode',
     agents: ['claude-code'],
     reason: 'A setting Claude Code ignores, not a file it skips.',
+  },
+  {
+    ruleId: 'codex/ignored-project-key',
+    agents: ['codex'],
+    reason: 'A key Codex ignores in a project config file, not a file it skips.',
   },
   {
     ruleId: 'settings/plugin-manifest',

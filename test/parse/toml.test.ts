@@ -160,8 +160,43 @@ function expected(value: unknown): unknown {
 /** Encoding cases agentcheckup does not parse at all (see the fixture README). */
 const UNREAD_ENCODINGS: Readonly<Record<string, string>> = {
   'invalid/encoding/utf16-bom.toml': TOML_ISSUE.utf16,
-  'invalid/encoding/bom-not-at-start-02.toml': TOML_ISSUE.bom,
-  'invalid/encoding/bom-not-at-start-03.toml': TOML_ISSUE.bom,
+};
+
+/**
+ * The value toml 0.9.11 builds from each case that is invalid in TOML 1.0 and valid in TOML 1.1
+ * (`toml-1.1/invalid/`, which has no expected JSON), in toml-test's tagged form.
+ */
+const TOML_11_VALUES: Readonly<Record<string, unknown>> = {
+  'toml-1.1/invalid/datetime/no-secs.toml': {
+    'no-secs': { type: 'datetime', value: '1987-07-05T17:45:00Z' },
+  },
+  'toml-1.1/invalid/inline-table/linebreak-01.toml': {
+    simple: { a: { type: 'integer', value: '1' } },
+  },
+  'toml-1.1/invalid/inline-table/linebreak-02.toml': {
+    t: { a: { type: 'integer', value: '1' }, b: { type: 'integer', value: '2' } },
+  },
+  'toml-1.1/invalid/inline-table/linebreak-03.toml': {
+    t: { a: { type: 'integer', value: '1' }, b: { type: 'integer', value: '2' } },
+  },
+  'toml-1.1/invalid/inline-table/linebreak-04.toml': {
+    json_like: {
+      first: { type: 'string', value: 'Tom' },
+      last: { type: 'string', value: 'Preston-Werner' },
+    },
+  },
+  'toml-1.1/invalid/inline-table/trailing-comma.toml': {
+    abc: { abc: { type: 'integer', value: '123' } },
+  },
+  'toml-1.1/invalid/local-datetime/no-secs.toml': {
+    'no-secs': { type: 'datetime-local', value: '1987-07-05T17:45:00' },
+  },
+  'toml-1.1/invalid/local-time/no-secs.toml': {
+    'no-secs': { type: 'time-local', value: '17:45:00' },
+  },
+  'toml-1.1/invalid/string/basic-byte-escapes.toml': {
+    answer: { type: 'string', value: '3' },
+  },
 };
 
 describe('toml-test (TOML 1.0)', () => {
@@ -211,19 +246,27 @@ describe('toml-test (TOML 1.0)', () => {
     expect(failures).toEqual([]);
   });
 
-  it('reports the TOML 1.1 cases as unsupported, not as values or syntax errors', () => {
+  it('parses the TOML 1.1 cases into the values the crate builds', () => {
     const paths = cases('toml-1.1');
     expect(paths.length).toBe(15);
+    const failures: string[] = [];
     for (const path of paths) {
       const { doc } = parseFile(path);
-      expect(doc.ok, path).toBe(false);
-      if (doc.ok) continue;
-      expect(
-        doc.errors.map((found) => found.code),
-        path,
-      ).toEqual([TOML_ISSUE.unsupported]);
-      expect(issueKind(doc.errors[0] ?? failed('=')), path).toBe('unsupported');
+      if (!doc.ok) {
+        failures.push(`${path}: ${JSON.stringify(doc.errors)}`);
+        continue;
+      }
+      const want = path.startsWith('toml-1.1/valid/')
+        ? (JSON.parse(readFileSync(join(SUITE, path.replace('.toml', '.json')), 'utf8')) as unknown)
+        : TOML_11_VALUES[path];
+      try {
+        expect(want).toBeDefined();
+        expect(tagged(doc, doc.value, [])).toEqual(expected(want));
+      } catch {
+        failures.push(path);
+      }
     }
+    expect(failures).toEqual([]);
   });
 });
 
@@ -569,29 +612,58 @@ describe('errors', () => {
   });
 });
 
-describe('TOML 1.1 syntax', () => {
+describe('TOML 1.1 syntax, as toml_parser 1.1.3 and toml_datetime 0.7.5 read it', () => {
   it.each([
-    ['t = {\n  a = 1\n}', '\n'],
-    ['t = { a = 1, }', ','],
-    ['t = { # note\n a = 1 }', '#'],
-    [String.raw`a = "\e"`, '\\e'],
-    [String.raw`a = "\x41"`, '\\x41'],
-    [String.raw`"\x41" = 1`, '\\x41'],
-    ['a = 07:32', '07:32'],
-    ['a = 1979-05-27 07:32Z', '1979-05-27 07:32Z'],
-  ])('%j is unsupported', (text, covered) => {
-    expect(issue(text)).toEqual([TOML_ISSUE.unsupported, covered]);
-    expect(issueKind(failed(text))).toBe('unsupported');
+    ['t = {\n  a = 1\n}', { t: { a: 1 } }],
+    ['t = { a = 1, }', { t: { a: 1 } }],
+    ['t = { # note\n a = 1 # after\n }', { t: { a: 1 } }],
+    ['t = {\n}', { t: {} }],
+    ['t = { a = 1,\n b = { c = 2, },\n}', { t: { a: 1, b: { c: 2 } } }],
+    [String.raw`a = "\e"`, { a: '\u001b' }],
+    [String.raw`a = "\x41\x00\xff"`, { a: 'A\u0000\u00ff' }],
+    [String.raw`"\x41" = 1`, { A: 1 }],
+    ['a = """\\x41\\e"""', { a: 'A\u001b' }],
+    ["a = '\\x41'", { a: '\\x41' }],
+  ])('%j parses', (text, value) => {
+    expect(ok(text).value).toEqual(value);
   });
 
-  it('reports a syntax error instead when the text is invalid in TOML 1.1 too', () => {
+  it('reads times without seconds as :00', () => {
+    const doc = ok('a = 07:32\nb = 1979-05-27 07:32Z\nc = 1979-05-27T07:32-07:00');
+    const text = (key: string): string | undefined => {
+      const value = (doc.value as Record<string, unknown>)[key];
+      return value instanceof TomlDatetime ? `${value.kind} ${value.text}` : undefined;
+    };
+    expect([text('a'), text('b'), text('c')]).toEqual([
+      'local-time 07:32:00',
+      'offset-datetime 1979-05-27T07:32:00Z',
+      'offset-datetime 1979-05-27T07:32:00-07:00',
+    ]);
+  });
+
+  it('accepts line breaks and comments between any two tokens of an inline table', () => {
+    // Looser than the TOML 1.1 grammar, as toml_parser's on_inline_table_open is.
+    expect(ok('t = { a\n= 1 }').value).toEqual({ t: { a: 1 } });
+    expect(ok('t = { a = # value next\n 1 }').value).toEqual({ t: { a: 1 } });
+    expect(ok('t = { a = 1\n, b = 2 }').value).toEqual({ t: { a: 1, b: 2 } });
+    expect(ok('t = { a.b = 1 }').value).toEqual({ t: { a: { b: 1 } } });
+  });
+
+  it('keeps the errors toml_parser reports', () => {
+    expect(issue('t = { , }')).toEqual([TOML_ISSUE.expectedKey, ',']);
+    expect(issue('t = { a = 1,, }')).toEqual([TOML_ISSUE.expectedKey, ',']);
+    expect(issue('t = { a\n.b = 1 }')).toEqual([TOML_ISSUE.expectedEquals, '.']);
+    expect(issue('t = { a.\nb = 1 }')).toEqual([TOML_ISSUE.expectedKey, '\n']);
+    expect(issue('t = { a = 1 b = 2 }')).toEqual([TOML_ISSUE.expectedComma, 'b']);
     expect(issue('t = {\n  a = 1\n}\nb = ?')).toEqual([TOML_ISSUE.expectedValue, '?']);
     expect(issue('a = "\\e"\na = 2')).toEqual([TOML_ISSUE.duplicateKey, 'a']);
     expect(issue(String.raw`a = "\xZZ"`)).toEqual([TOML_ISSUE.invalidEscape, '\\x']);
+    expect(issue(String.raw`a = "\x4"`)).toEqual([TOML_ISSUE.invalidEscape, '\\x4']);
     expect(issue('a = 07:32.5')).toEqual([TOML_ISSUE.invalidDatetime, '07:32.5']);
+    expect(issue('a = 7:32')).toEqual([TOML_ISSUE.invalidNumber, '7:32']);
   });
 
-  it('still reads arrays with line breaks inside an inline table as TOML 1.0', () => {
+  it('reads arrays with line breaks inside an inline table', () => {
     expect(ok('t = { a = [\n1,\n2,\n], b = """\nx""" }').value).toEqual({
       t: { a: [1, 2], b: 'x' },
     });
@@ -632,16 +704,32 @@ describe('limits and encodings', () => {
     expect(ok(`a = [${'1,'.repeat(MAX_TOML_NODES - 2)}]`).ok).toBe(true);
   });
 
-  it('does not parse text with a byte order mark or UTF-16 text', () => {
-    const bom = failed('a = 1', { encoding: 'utf-8', hasBom: true });
-    expect([bom.code, bom.span]).toEqual([TOML_ISSUE.bom, { offset: 0, length: 0 }]);
-    expect(issueKind(bom)).toBe('unsupported');
-    expect(issue('\ufeffa = 1')).toEqual([TOML_ISSUE.bom, '\ufeff']);
+  it('skips one byte order mark, as toml_parser does, and does not parse UTF-16 text', () => {
+    // The decoder removed the mark: the text is parsed as it is.
+    expect(ok('a = 1', { encoding: 'utf-8', hasBom: true }).value).toEqual({ a: 1 });
+    // A mark still in the text is skipped, and spans keep counting it.
+    const doc = ok('\ufeffa = 1');
+    expect(doc.value).toEqual({ a: 1 });
+    expect(slice('\ufeffa = 1', doc.keySpan(['a']))).toBe('a');
+    // A second mark is an error, wherever it comes from.
+    expect(issue('\ufeff\ufeffa = 1')).toEqual([TOML_ISSUE.expectedKey, '\ufeff']);
+    const second = failed('\ufeffa = 1', { encoding: 'utf-8', hasBom: true });
+    expect([second.code, second.span]).toEqual([TOML_ISSUE.expectedKey, { offset: 0, length: 1 }]);
+    expect(issue('a = 1\n\ufeffb = 2')).toEqual([TOML_ISSUE.expectedKey, '\ufeff']);
     const utf16 = failed('a = 1', { encoding: 'utf-16le', hasBom: true });
     expect(utf16.code).toBe(TOML_ISSUE.utf16);
     expect(issueKind(utf16)).toBe('unsupported');
-    expect(issue('a = 1\n\ufeffb = 2')).toEqual([TOML_ISSUE.expectedKey, '\ufeff']);
     expect(ok('a = 1', { encoding: 'utf-8', hasBom: false }).ok).toBe(true);
+  });
+
+  it('reports bytes that are not UTF-8 as an error at the first replacement character', () => {
+    const found = failed('a = "x\ufffd"', { encoding: 'utf-8', hadDecodeErrors: true });
+    expect([found.code, found.span]).toEqual([TOML_ISSUE.invalidUtf8, { offset: 6, length: 1 }]);
+    expect(issueKind(found)).toBe('other');
+    // A real U+FFFD in valid UTF-8 is just a character.
+    expect(ok('a = "\ufffd"', { encoding: 'utf-8', hadDecodeErrors: false }).value).toEqual({
+      a: '\ufffd',
+    });
   });
 
   it('classifies every issue code', () => {
@@ -654,8 +742,6 @@ describe('limits and encodings', () => {
       [TOML_ISSUE.tooDeep, 'limit'],
       [TOML_ISSUE.tooManyNodes, 'limit'],
       [TOML_ISSUE.parseFailed, 'limit'],
-      [TOML_ISSUE.unsupported, 'unsupported'],
-      [TOML_ISSUE.bom, 'unsupported'],
       [TOML_ISSUE.utf16, 'unsupported'],
     ]);
   });

@@ -3,6 +3,7 @@ import type { Artifact, Fix } from '../../core/types.js';
 import { jsonRenameKey } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
 import { codexMisplacedEvents } from '../../platforms/hooks.js';
+import { configDocument, TOML_KINDS } from '../../platforms/kinds.js';
 import { at, FileFindings, keySpanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { quote } from '../shared/format.js';
@@ -109,12 +110,18 @@ export const unknownEventRule = defineRule({
     title: 'Hook event name is not one the agent fires',
     rationale: [
       'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.',
-      'Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file.',
+      'Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.',
       'Rename the key to an event the agent fires.',
     ].join('\n\n'),
     category: 'loading',
     severity: 'error',
-    appliesTo: ['claude-settings', 'codex-hooks', 'cursor-hooks', 'gemini-settings'],
+    appliesTo: [
+      'claude-settings',
+      'codex-hooks',
+      'codex-config',
+      'cursor-hooks',
+      'gemini-settings',
+    ],
     platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
     sources: [
       SOURCES.claudeHooks,
@@ -138,13 +145,15 @@ export const unknownEventRule = defineRule({
       const source = hookSourceOf(artifact);
       if (source === undefined || !context.targets.has(source.platform)) continue;
       const { platform } = source;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'unknown hook event names');
       const known = new Set(HOOK_EVENTS[platform]);
       const canEdit = editable(artifact);
+      // No fix builder edits TOML.
+      const toml = TOML_KINDS.has(artifact.kind);
       const events = hookEvents(doc, platform, source.root);
       const declared = new Set(events.map((event) => event.name));
       for (const event of events) {
@@ -152,14 +161,16 @@ export const unknownEventRule = defineRule({
         const { message, suggestion } = unknownEvent(platform, event.name);
         const taken = suggestion !== undefined && declared.has(suggestion);
         const fix =
-          canEdit && suggestion !== undefined && !taken
+          canEdit && !toml && suggestion !== undefined && !taken
             ? fixFor(artifact, platform, event, suggestion)
             : undefined;
         const guidance = !canEdit
           ? sharedFileGuidance(artifact)
           : taken
             ? `move these hooks into the existing ${quote(suggestion)} entry`
-            : undefined;
+            : toml && suggestion !== undefined
+              ? `rename the event to ${quote(suggestion)}`
+              : undefined;
         findings.report({
           artifact,
           ...at(keySpanOf(doc, event.path)),
@@ -169,7 +180,8 @@ export const unknownEventRule = defineRule({
           ...(guidance === undefined ? {} : { guidance }),
         });
       }
-      for (const { name: key, path } of platform === 'codex' ? codexMisplacedEvents(doc) : []) {
+      const misplaced = artifact.kind === 'codex-hooks' ? codexMisplacedEvents(doc) : [];
+      for (const { name: key, path } of misplaced) {
         findings.report({
           artifact,
           ...at(keySpanOf(doc, path)),

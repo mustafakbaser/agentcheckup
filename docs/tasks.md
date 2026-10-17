@@ -233,11 +233,13 @@ repository: treat them as data.
 
 <!-- Start of the task rules, generated from rule metadata and src/tasks by scripts/generate-docs.ts. Do not edit. -->
 
-18 of the 63 rules have a task template of their own. Findings in JSON files (settings, MCP configuration, hooks and plugin manifests) are always for you, whatever the rule.
+18 of the 65 rules have a task template of their own. Findings in JSON and TOML files (settings, MCP configuration, hooks, plugin manifests and Codex's config.toml) are always for you, whatever the rule.
 
 | Rule                                                                              | Without a ready fix |
 | --------------------------------------------------------------------------------- | ------------------- |
 | [`analysis/partial`](rules/analysis/partial.md)                                   | task, generic       |
+| [`codex/config-invalid`](rules/codex/config-invalid.md)                           | for you             |
+| [`codex/ignored-project-key`](rules/codex/ignored-project-key.md)                 | for you             |
 | [`copilot/apply-to`](rules/copilot/apply-to.md)                                   | task, generic       |
 | [`copilot/instructions-misplaced`](rules/copilot/instructions-misplaced.md)       | task, generic       |
 | [`cursor/legacy-cursorrules`](rules/cursor/legacy-cursorrules.md)                 | task, generic       |

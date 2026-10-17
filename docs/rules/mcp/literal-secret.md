@@ -4,14 +4,14 @@
 
 Configuration file contains a literal credential.
 
-|            |                                                                                                                                                                                                                                       |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `error`                                                                                                                                                                                                                               |
-| Category   | `risk`                                                                                                                                                                                                                                |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                               |
-| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks` |
-| Fixable    | Yes, `review`                                                                                                                                                                                                                         |
-| Since      | 2026.10                                                                                                                                                                                                                               |
+|            |                                                                                                                                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `error`                                                                                                                                                                                                                                               |
+| Category   | `risk`                                                                                                                                                                                                                                                |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                                               |
+| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks`, `codex-config` |
+| Fixable    | Yes, `review`                                                                                                                                                                                                                                         |
+| Since      | 2026.10                                                                                                                                                                                                                                               |
 
 ## Why
 
@@ -19,7 +19,7 @@ MCP configurations, settings and hook files are committed with the project, so a
 
 The rule reports only tokens with a known vendor prefix and shape (GitHub, OpenAI, Anthropic, Slack, AWS access key IDs, GitLab, Stripe live keys, Google API keys, npm, Hugging Face, PyPI, DigitalOcean, Shopify, Doppler). It skips placeholders such as `ghp_xxxx…` and AWS's `…EXAMPLE` keys, and never reports variable references. The message shows only the first four characters and the length. An AWS access key ID is a warning rather than an error: without its secret access key it grants no access, but it identifies the account and the secret is often committed next to it.
 
-Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`.
+Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`. Codex's `.codex/config.toml` expands no variables: forward one with `env_vars`, or name it in `env_http_headers` or `bearer_token_env_var`; the rule offers no fix there.
 
 ## Evidence
 
@@ -28,6 +28,7 @@ Revoke and rotate the credential; deleting it from the file does not remove it f
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
+- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-14
 - [GitHub: About authentication to GitHub (token prefixes)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github), verified, checked 2026-10-14
 - [GitHub blog: Behind GitHub's new authentication token formats](https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/), verified, checked 2026-10-14
 - [GitHub changelog: new format for GitHub App installation tokens](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/), verified, checked 2026-10-14

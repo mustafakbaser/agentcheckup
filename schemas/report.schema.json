@@ -978,7 +978,7 @@
           }
         },
         "incomplete": {
-          "description": "Parts that could not be analyzed, so entries may be missing: `markdown-budget:<path>`, `unparsed:<path>`, `unread:<path>`.",
+          "description": "Parts that could not be analyzed, so entries may be missing: `markdown-budget:<path>`, `unparsed:<path>`, `unread:<path>`, `fallback:<path>`.",
           "type": "array",
           "items": { "type": "string" }
         },

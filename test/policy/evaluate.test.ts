@@ -850,20 +850,22 @@ describe('startup-budget', () => {
 
 describe('unanalyzed-config', () => {
   const files = {
-    '.codex/config.toml': '[mcp_servers.x]\ncommand = "npx"\n',
+    '.codex/config.toml': '[mcp_servers.x\ncommand = "npx"\n',
+    'pkg/.codex/config.toml': '[mcp_servers.y]\ncommand = "npx"\n',
+    'tools/.codex/config.toml': Uint8Array.of(0xff, 0xfe, 0x61, 0, 0x3d, 0, 0x31, 0),
     '.mcp.json': '{ "mcpServers": ',
     '.vscode/mcp.json': '{}',
   };
 
-  // .vscode/mcp.json is valid and analyzed, so it must not be reported.
+  // .vscode/mcp.json and pkg/.codex/config.toml are valid and analyzed: not reported.
   it('reports every file the inventory could not analyze', () => {
     expect(brief(run({ forbid: ['broad-shell'] }, files))).toEqual([
       {
         check: 'unanalyzed-config',
-        entry: '.codex/config.toml',
+        entry: 'invalid-toml:.codex/config.toml',
         at: '.codex/config.toml:-',
         message:
-          'agentcheckup does not parse TOML, so what it configures cannot be checked against the policy.',
+          'This file is not valid TOML, so what it configures cannot be checked against the policy.',
       },
       {
         check: 'unanalyzed-config',
@@ -871,6 +873,13 @@ describe('unanalyzed-config', () => {
         at: '.mcp.json:-',
         message:
           'This file is not valid JSON, so what it configures cannot be checked against the policy.',
+      },
+      {
+        check: 'unanalyzed-config',
+        entry: 'tools/.codex/config.toml',
+        at: 'tools/.codex/config.toml:-',
+        message:
+          'agentcheckup cannot analyze this file, so what it configures cannot be checked against the policy.',
       },
     ]);
   });
@@ -980,10 +989,10 @@ describe('baselines', () => {
   });
 
   it('notes that changes inside an unanalyzed file are not visible', () => {
-    const toml = { '.codex/config.toml': '[a]\n' };
+    const toml = { '.codex/config.toml': '[a\n' };
     const report = run(
       { forbid: ['broad-shell'] },
-      { '.codex/config.toml': '[b]\n' },
+      { '.codex/config.toml': '[b\n' },
       { baseline: toml },
     );
     expect(report.violations.map((violation) => violation.baseline)).toEqual(['unchanged']);

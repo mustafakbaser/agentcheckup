@@ -8,8 +8,8 @@ import {
   CODEX_DEFAULT_MAX_BYTES,
   CODEX_FILE_NAMES,
   type CodexChainFile,
-  codexChain,
   codexMaxBytes,
+  configuredCodexChain,
 } from '../../platforms/load/codex-chain.js';
 import { viewOf } from '../../platforms/load/view.js';
 import { defineRule } from '../define.js';
@@ -29,7 +29,7 @@ const MAX_RELATED = 20;
 
 /** The manual step: only the author can decide what to move or cut. */
 const SIZE_GUIDANCE =
-  'move instructions for one part of the repository into an AGENTS.md in that directory, or cut content; if you raised project_doc_max_bytes, set the maxBytes option to match';
+  'move instructions for one part of the repository into an AGENTS.md in that directory, or cut content; if you raised project_doc_max_bytes in your user configuration, set the maxBytes option to match';
 
 interface Truncation {
   readonly file: CodexChainFile;
@@ -37,6 +37,8 @@ interface Truncation {
   readonly cut: number;
   /** Bytes of every non-empty file up to and including this one. */
   readonly total: number;
+  /** The budget of the chain: `project_doc_max_bytes` where it starts. */
+  readonly maxBytes: number;
   readonly before: readonly CodexChainFile[];
   readonly dropped: Map<string, CodexChainFile>;
 }
@@ -44,6 +46,7 @@ interface Truncation {
 interface NearLimit {
   readonly file: CodexChainFile;
   readonly total: number;
+  readonly maxBytes: number;
   readonly before: readonly CodexChainFile[];
 }
 
@@ -67,7 +70,8 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
     rationale: [
       "Codex reads one instruction file per directory, from the project root down to the working directory: `AGENTS.override.md` if it exists, otherwise `AGENTS.md`. It reads at most `project_doc_max_bytes` (32,768 bytes by default) across the whole chain: the file that crosses the limit is cut at that byte, and later files are dropped. Whitespace-only files and the global `~/.codex/AGENTS.md` do not count. Codex's configuration pages call the key a per-file limit; the `AGENTS.md` page and the source code apply it to the chain.",
       "agentcheckup starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheckup judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.",
-      'Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes`, set the `maxBytes` option to the same value.',
+      "A `project_doc_max_bytes` in the repository's `.codex/config.toml` files applies to the chains below it, the closest file winning, as in Codex; otherwise the `maxBytes` option, then the default. When `project_doc_fallback_filenames` names a file in a directory without `AGENTS.md`, agentcheckup stops the chain there.",
+      'Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes` in your user configuration, set the `maxBytes` option to the same value.',
     ].join('\n\n'),
     category: 'budget',
     severity: 'error',
@@ -78,6 +82,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
       SOURCES.codexAgentsMdSource,
       INSTRUCTION_SOURCES.codexDefaults,
       INSTRUCTION_SOURCES.codexFindUp,
+      SOURCES.codexConfigBasic,
     ],
     since: RULESET_VERSION,
   },
@@ -102,17 +107,22 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
     const nearLimits = new Map<string, NearLimit>();
 
     for (const directory of [...directories].sort(compareStrings)) {
-      const chain = codexChain(view, directory, { maxBytes });
+      // The repository's project_doc_max_bytes, where it sets one, wins over the option.
+      const { chain } = configuredCodexChain(view, directory, {
+        value: maxBytes,
+        origin: 'rule-option',
+      });
+      const budget = chain.maxBytes;
       const before: CodexChainFile[] = [];
       for (const file of chain.files) {
         if (file.status === 'read') {
           const total = file.offset + file.size;
           if (
-            total * 5 >= maxBytes * 4 &&
-            file.offset * 5 < maxBytes * 4 &&
+            total * 5 >= budget * 4 &&
+            file.offset * 5 < budget * 4 &&
             !nearLimits.has(file.path)
           ) {
-            nearLimits.set(file.path, { file, total, before: [...before] });
+            nearLimits.set(file.path, { file, total, maxBytes: budget, before: [...before] });
           }
           before.push(file);
           continue;
@@ -120,13 +130,14 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
         if (file.status !== 'cut' && file.status !== 'cut-blank') continue;
         // Chains that share this prefix cut the same file at the same byte: one finding, listing
         // the files each of them drops.
-        const key = `${file.path}\u0000${String(file.cutAt)}`;
+        const key = `${file.path}\u0000${String(file.cutAt)}\u0000${String(budget)}`;
         let truncation = truncations.get(key);
         if (truncation === undefined) {
           truncation = {
             file,
             cut: file.cutAt,
             total: file.offset + file.size,
+            maxBytes: budget,
             before: [...before],
             dropped: new Map(),
           };
@@ -139,7 +150,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
     }
 
     for (const truncation of truncations.values()) {
-      const { file, cut, before, dropped } = truncation;
+      const { file, cut, before, dropped, maxBytes: budget } = truncation;
       const { artifact } = file;
       const { span, line } = lineSpan(artifact, textOffsetAtByte(artifact, cut));
       const head =
@@ -170,15 +181,15 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
       context.report({
         artifact,
         span,
-        message: `${via}${head} Codex reads at most ${formatInteger(maxBytes)} bytes of AGENTS.md content, ${lost}${alsoDropped}.`,
+        message: `${via}${head} Codex reads at most ${formatInteger(budget)} bytes of AGENTS.md content, ${lost}${alsoDropped}.`,
         related,
         guidance: SIZE_GUIDANCE,
       });
     }
 
     for (const near of nearLimits.values()) {
-      const { file, total, before } = near;
-      const percent = Math.floor((total * 100) / maxBytes);
+      const { file, total, before, maxBytes: budget } = near;
+      const percent = Math.floor((total * 100) / budget);
       const head =
         before.length === 0
           ? `This file is ${formatInteger(total)} bytes`
@@ -190,7 +201,7 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
       context.report({
         artifact: file.artifact,
         severity: 'warn',
-        message: `${via}${head}, ${String(percent)}% of the ${formatInteger(maxBytes)} bytes Codex reads from AGENTS.md files. Codex cuts off anything past that limit.`,
+        message: `${via}${head}, ${String(percent)}% of the ${formatInteger(budget)} bytes Codex reads from AGENTS.md files. Codex cuts off anything past that limit.`,
         related: before.slice(0, MAX_RELATED).map((previous) => ({
           path: previous.artifact.path,
           message: `Read by Codex first: ${formatInteger(previous.size)} bytes.`,

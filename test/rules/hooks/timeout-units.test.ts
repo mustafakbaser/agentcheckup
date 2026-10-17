@@ -103,3 +103,22 @@ describe('hooks/timeout-units', () => {
     ).toEqual([]);
   });
 });
+
+describe('hooks/timeout-units in Codex config.toml', () => {
+  const hook = (timeout: string) =>
+    `[[hooks.PreToolUse]]\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ncommand = "x"\ntimeout = ${timeout}\n`;
+
+  it('reports a timeout that looks like milliseconds, without a fix', () => {
+    const text = hook('5000');
+    const result = lint({ '.codex/config.toml': text }, { rules });
+    expect(findings(result, ID).map(({ severity, range }) => [severity, range])).toEqual([
+      ['warn', rangeOf(text, '5000')],
+    ]);
+    expect(result.findings[0]?.fix).toBeUndefined();
+  });
+
+  it('does not report a timeout in seconds', () => {
+    expect(findings(lint({ '.codex/config.toml': hook('30') }, { rules }), ID)).toEqual([]);
+    expect(findings(lint({ '.codex/config.toml': hook('3_600') }, { rules }), ID)).toEqual([]);
+  });
+});

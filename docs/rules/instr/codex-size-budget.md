@@ -19,7 +19,9 @@ Codex reads one instruction file per directory, from the project root down to th
 
 agentcheckup starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheckup judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.
 
-Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes`, set the `maxBytes` option to the same value.
+A `project_doc_max_bytes` in the repository's `.codex/config.toml` files applies to the chains below it, the closest file winning, as in Codex; otherwise the `maxBytes` option, then the default. When `project_doc_fallback_filenames` names a file in a directory without `AGENTS.md`, agentcheckup stops the chain there.
+
+Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes` in your user configuration, set the `maxBytes` option to the same value.
 
 ## Evidence
 
@@ -27,6 +29,7 @@ Move instructions for one part of the repository into an `AGENTS.md` in that dir
 - [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
 - [Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)](https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml), verified, checked 2026-10-14
 - [Codex source: find_up.rs (nearest ancestor with a project root marker)](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/find_up.rs), verified, checked 2026-10-14
+- [Codex: Config basics](https://learn.chatgpt.com/docs/config-file/config-basic), verified, checked 2026-10-14
 
 ## Fix
 

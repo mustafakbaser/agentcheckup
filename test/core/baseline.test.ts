@@ -568,10 +568,76 @@ describe('gate: mcp and mcp-unpinned', () => {
           'New MCP config .cursor/mcp.json is not valid JSON, so its servers cannot be checked',
       },
     ]);
+    // A Codex config declares hooks too, so one it could not read trips both classes.
     const codex = report({ inventory: { incomplete: ['packages/x/.codex/config.toml'] } });
-    expect(hits(report(), codex).map((hit) => hit.id)).toEqual(['packages/x/.codex/config.toml']);
+    expect(hits(report(), codex).map((hit) => [hit.class, hit.id])).toEqual([
+      ['hooks', 'packages/x/.codex/config.toml'],
+      ['mcp', 'packages/x/.codex/config.toml'],
+    ]);
     const gemini = report({ inventory: { incomplete: ['invalid-json:.gemini/settings.json'] } });
     expect(hits(report(), gemini)).toHaveLength(1);
+  });
+
+  it('reports a new Codex config that is not valid TOML', () => {
+    const after = report({ inventory: { incomplete: ['invalid-toml:.codex/config.toml'] } });
+    expect(hits(report(), after)).toEqual([
+      {
+        class: 'hooks',
+        id: 'invalid-toml:.codex/config.toml',
+        change: 'added',
+        summary:
+          'New hooks config .codex/config.toml is not valid TOML, so its hooks cannot be checked',
+      },
+      {
+        class: 'mcp',
+        id: 'invalid-toml:.codex/config.toml',
+        change: 'added',
+        summary:
+          'New MCP config .codex/config.toml is not valid TOML, so its servers cannot be checked',
+      },
+    ]);
+    expect(hits(after, after)).toEqual([]);
+    expect(hits(report(), after, ['mcp']).map((hit) => hit.class)).toEqual(['mcp']);
+  });
+
+  it('reports the invalid JSON of every MCP config the inventory reads', () => {
+    for (const path of [
+      '.devin/mcp_config.json',
+      '.devin/config.json',
+      '.github/mcp.json',
+      '.vscode/mcp.json',
+    ]) {
+      const after = report({ inventory: { incomplete: [`invalid-json:${path}`] } });
+      expect(
+        hits(report(), after).map((hit) => [hit.class, hit.id]),
+        path,
+      ).toEqual([['mcp', `invalid-json:${path}`]]);
+    }
+  });
+
+  it('reports hook files the inventory cannot list as hooks changes', () => {
+    const after = report({
+      inventory: {
+        incomplete: [
+          '.clinerules/hooks/PreToolUse',
+          '.cline/hooks/pre.sh',
+          '.cline/plugins/guard.js',
+          '.devin/hooks.json',
+          // Not hook files the inventory skips: a rule file and Devin Local's own hooks file.
+          '.clinerules/style.md',
+          'invalid-json:.devin/hooks.v1.json',
+        ],
+      },
+    });
+    expect(hits(report(), after).map((hit) => [hit.class, hit.id])).toEqual([
+      ['hooks', '.cline/hooks/pre.sh'],
+      ['hooks', '.cline/plugins/guard.js'],
+      ['hooks', '.clinerules/hooks/PreToolUse'],
+      ['hooks', '.devin/hooks.json'],
+    ]);
+    expect(hits(report(), after).find((hit) => hit.id === '.devin/hooks.json')?.summary).toBe(
+      'New hooks config .devin/hooks.json is not analyzed, so its hooks cannot be checked',
+    );
   });
 
   it('never shows credential values from server arguments', () => {
@@ -1080,9 +1146,9 @@ describe('pathBase', () => {
     const { diff } = compare(rebased(report(), 'packages/api'), rebased(scan, 'packages/api'));
     expect(diff.inventory.added).toContain('mcp:.mcp.json#x');
     expect(diff.gate.hits.map((hit) => hit.id)).toContain('invalid-json:.cursor/mcp.json');
-    expect(diff.gate.hits.find((hit) => hit.class === 'hooks')?.summary).toBe(
-      'New hook Stop Bash → scripts/hooks/guard.sh',
-    );
+    expect(
+      diff.gate.hits.find((hit) => hit.class === 'hooks' && hit.id.startsWith('hook:'))?.summary,
+    ).toBe('New hook Stop Bash → scripts/hooks/guard.sh');
   });
 
   it('matches ids that a rebase left as they were', () => {
@@ -1887,7 +1953,7 @@ describe('properties', () => {
           const known =
             changed.has(hit.id) ||
             (hit.class === 'unicode' && fresh.has(hit.id)) ||
-            (hit.class === 'mcp' &&
+            ((hit.class === 'mcp' || hit.class === 'hooks') &&
               hit.change === 'added' &&
               after.inventory?.incomplete.includes(hit.id));
           expect(known).toBe(true);

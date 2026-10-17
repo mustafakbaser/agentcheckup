@@ -4,20 +4,20 @@
 
 Hook event name is not one the agent fires.
 
-|            |                                                                     |
-| ---------- | ------------------------------------------------------------------- |
-| Severity   | `error`                                                             |
-| Category   | `loading`                                                           |
-| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                              |
-| Applies to | `claude-settings`, `codex-hooks`, `cursor-hooks`, `gemini-settings` |
-| Fixable    | Yes, `review`                                                       |
-| Since      | 2026.10                                                             |
+|            |                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------- |
+| Severity   | `error`                                                                             |
+| Category   | `loading`                                                                           |
+| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                                              |
+| Applies to | `claude-settings`, `codex-hooks`, `codex-config`, `cursor-hooks`, `gemini-settings` |
+| Fixable    | Yes, `review`                                                                       |
+| Since      | 2026.10                                                                             |
 
 ## Why
 
 Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.
 
-Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file.
+Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.
 
 Rename the key to an event the agent fires.
 

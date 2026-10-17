@@ -83,3 +83,33 @@ describe('hooks/fails-open', () => {
     ).toEqual([]);
   });
 });
+
+describe('hooks/fails-open in Codex config.toml', () => {
+  it('notes a PreToolUse command hook declared inline', () => {
+    const text = [
+      '[[hooks.PreToolUse]]',
+      'matcher = "Bash"',
+      '[[hooks.PreToolUse.hooks]]',
+      'type = "command"',
+      'command = ".codex/hooks/policy.sh"',
+      '',
+    ].join('\n');
+    const result = lint({ '.codex/config.toml': text }, { rules });
+    expect(findings(result, ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'info',
+        path: '.codex/config.toml',
+        message:
+          'If this PreToolUse hook fails or times out, Codex lets the tool call proceed and has no setting to block instead. If the hook enforces a policy, catch errors in the script and exit with code 2 and a reason on stderr.',
+        range: rangeOf(text, '".codex/hooks/policy.sh"'),
+      },
+    ]);
+    expect(result.findings[0]?.fix).toBeUndefined();
+  });
+
+  it('does not note hooks of events that cannot block a tool call', () => {
+    const text = '[[hooks.Stop]]\n[[hooks.Stop.hooks]]\ntype = "command"\ncommand = "x"\n';
+    expect(findings(lint({ '.codex/config.toml': text }, { rules }), ID)).toEqual([]);
+  });
+});

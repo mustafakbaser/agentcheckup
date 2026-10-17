@@ -7,6 +7,7 @@ import {
   MAX_JSON_DEPTH,
   MAX_JSON_LENGTH,
   parseJson,
+  parseJsonc,
   parseJsonWithComments,
   stripJsonComments,
 } from '../../src/parse/json.js';
@@ -245,6 +246,49 @@ function referenceStrip(jsonString: string): string {
   }
   return result + (insideComment ? strip(jsonString.slice(offset)) : jsonString.slice(offset));
 }
+
+describe('VS Code view (JSONC)', () => {
+  it.each<[string, string, unknown]>([
+    ['line and block comments', '{\n  // local\n  "a": /* one */ 1\n}', { a: 1 }],
+    ['trailing commas', '{"a": [1, 2,], "b": {"c": 3,},}', { a: [1, 2], b: { c: 3 } }],
+    [
+      'both',
+      '{"servers": {"x": {"command": "npx", // note\n},},}',
+      { servers: { x: { command: 'npx' } } },
+    ],
+    ['strict JSON', '{"a": 1}', { a: 1 }],
+  ])('accepts %s', (_name, text, expected) => {
+    const doc = parseJsonc(text);
+    if (!doc.ok) throw new Error(JSON.stringify(doc.errors));
+    expect(JSON.stringify(doc.value)).toBe(JSON.stringify(expected));
+    // The other views reject what only JSONC allows.
+    if (_name !== 'strict JSON') expect(parseJson(text).ok).toBe(false);
+  });
+
+  it('keeps spans on the original text', () => {
+    const text = '{\n  // servers\n  "servers": {"fs": {"command": "npx",},}, /* end */\n}';
+    const doc = parseJsonc(text);
+    if (!doc.ok) throw new Error('expected ok');
+    expect(slice(text, doc.valueSpan(['servers', 'fs', 'command']))).toBe('"npx"');
+    expect(slice(text, doc.keySpan(['servers']))).toBe('"servers"');
+  });
+
+  it.each<[string, string]>([
+    ['an unterminated object', '{"servers": {'],
+    ['an unterminated block comment', '{"a": 1} /* open'],
+    ['a missing comma', '{"a": 1 "b": 2}'],
+    ['an empty file', ''],
+  ])('rejects %s', (_name, text) => {
+    expect(parseJsonc(text).ok).toBe(false);
+  });
+
+  it('applies the same limits as strict JSON', () => {
+    const deep = parseJsonc(`${'['.repeat(MAX_JSON_DEPTH + 1)}${']'.repeat(MAX_JSON_DEPTH + 1)}`);
+    expect(!deep.ok && deep.errors[0]?.code).toBe(JSON_ISSUE.tooDeep);
+    const large = parseJsonc(`"${'x'.repeat(MAX_JSON_LENGTH)}"`);
+    expect(!large.ok && large.errors[0]?.code).toBe(JSON_ISSUE.tooLarge);
+  });
+});
 
 describe('Gemini CLI view (comments stripped)', () => {
   it.each<[string, string, unknown]>([

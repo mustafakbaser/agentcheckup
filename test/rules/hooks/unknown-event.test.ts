@@ -115,3 +115,42 @@ describe('hooks/unknown-event', () => {
     );
   });
 });
+
+describe('hooks/unknown-event in Codex config.toml', () => {
+  it('reports an unknown inline event, with guidance instead of a fix', () => {
+    const text = [
+      '[[hooks.preToolUse]]',
+      '[[hooks.preToolUse.hooks]]',
+      'type = "command"',
+      'command = "true"',
+      '',
+    ].join('\n');
+    const result = lint({ '.codex/config.toml': text }, { rules });
+    expect(findings(result, ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'error',
+        path: '.codex/config.toml',
+        message:
+          '"preToolUse" is not a Codex hook event; it is spelled "PreToolUse". Codex ignores them without a warning, so these hooks never run.',
+        range: rangeOf(text, 'preToolUse'),
+      },
+    ]);
+    expect(result.findings[0]?.fix).toBeUndefined();
+    expect(result.findings[0]?.guidance).toBe('rename the event to "PreToolUse"');
+  });
+
+  it('does not report hooks.state, known events or events outside the hooks table', () => {
+    const text = [
+      'PreToolUse = "a top-level key, not a hook"',
+      '[[hooks.Stop]]',
+      '[[hooks.Stop.hooks]]',
+      'type = "command"',
+      'command = "true"',
+      '[hooks.state."stop:1"]',
+      'enabled = true',
+      '',
+    ].join('\n');
+    expect(run({ '.codex/config.toml': text })).toEqual([]);
+  });
+});

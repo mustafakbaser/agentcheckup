@@ -2,6 +2,7 @@ import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { jsonInsertProperty, jsonReplaceValue } from '../../fix/edits.js';
 import { failsOpen, TOOL_GATES } from '../../platforms/hooks.js';
+import { configDocument } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { at, FileFindings, type JsonObject, type JsonPath, own, spanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -79,7 +80,13 @@ export const failsOpenRule = defineRule({
     ].join('\n\n'),
     category: 'risk',
     severity: 'info',
-    appliesTo: ['claude-settings', 'codex-hooks', 'cursor-hooks', 'gemini-settings'],
+    appliesTo: [
+      'claude-settings',
+      'codex-hooks',
+      'codex-config',
+      'cursor-hooks',
+      'gemini-settings',
+    ],
     platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
     sources: [SOURCES.claudeHooks, SOURCES.cursorHooks, SOURCES.codexHooks, SOURCES.geminiHooks],
     since: RULESET_VERSION,
@@ -95,7 +102,7 @@ export const failsOpenRule = defineRule({
       const source = hookSourceOf(artifact);
       if (source === undefined || !context.targets.has(source.platform)) continue;
       const { platform } = source;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);

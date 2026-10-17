@@ -4,14 +4,14 @@
 
 Hook command runs a script that does not exist.
 
-|            |                                                  |
-| ---------- | ------------------------------------------------ |
-| Severity   | `error`                                          |
-| Category   | `correctness`                                    |
-| Platforms  | Claude Code, Codex, Cursor                       |
-| Applies to | `claude-settings`, `codex-hooks`, `cursor-hooks` |
-| Fixable    | No                                               |
-| Since      | 2026.10                                          |
+|            |                                                                  |
+| ---------- | ---------------------------------------------------------------- |
+| Severity   | `error`                                                          |
+| Category   | `correctness`                                                    |
+| Platforms  | Claude Code, Codex, Cursor                                       |
+| Applies to | `claude-settings`, `codex-hooks`, `codex-config`, `cursor-hooks` |
+| Fixable    | No                                                               |
+| Since      | 2026.10                                                          |
 
 ## Why
 

@@ -6,6 +6,7 @@ import {
   resolveScript as resolve,
   scriptCandidate as candidate,
 } from '../../platforms/hook-command.js';
+import { configDocument } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { at, FileFindings, type JsonObject, own, projectRootOf, spanOf } from '../json/access.js';
 import { quote, quotePath } from '../shared/format.js';
@@ -141,7 +142,7 @@ export const scriptMissingRule = defineRule({
     ].join('\n\n'),
     category: 'correctness',
     severity: 'error',
-    appliesTo: ['claude-settings', 'codex-hooks', 'cursor-hooks'],
+    appliesTo: ['claude-settings', 'codex-hooks', 'codex-config', 'cursor-hooks'],
     platforms: ['claude-code', 'codex', 'cursor'],
     sources: [
       SOURCES.claudeHooks,
@@ -163,7 +164,7 @@ export const scriptMissingRule = defineRule({
         continue;
       }
       const { platform } = source;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);

@@ -353,3 +353,34 @@ describe('instr/codex-size-budget', () => {
     expect(findings(result, RULE)).toEqual([]);
   });
 });
+
+describe('instr/codex-size-budget with project_doc_max_bytes in the repository', () => {
+  it('applies the closest .codex/config.toml, before the maxBytes option', () => {
+    const files = {
+      'AGENTS.md': lines(3),
+      'pkg/AGENTS.md': lines(3, 'y'),
+      '.codex/config.toml': 'project_doc_max_bytes = 1000\n',
+      'pkg/.codex/config.toml': 'project_doc_max_bytes = 250\n',
+    };
+    const config = { rules: { [RULE]: ['error', { maxBytes: 100_000 }] } };
+    const found = findings(lintRepo(files, { config }), RULE);
+    expect(found.map(({ severity, path, message }) => [severity, path, message])).toEqual([
+      [
+        'error',
+        'AGENTS.md',
+        'This file is 300 bytes. Codex reads at most 250 bytes of AGENTS.md content, so it stops at line 3 and ignores the rest, and it never reads 1 AGENTS.md file in subdirectories.',
+      ],
+    ]);
+  });
+
+  it('does not report a chain within the repository budget, whatever the option says', () => {
+    const files = {
+      'AGENTS.md': lines(3),
+      '.codex/config.toml': 'project_doc_max_bytes = 65536\n',
+    };
+    const config = { rules: { [RULE]: ['error', { maxBytes: 100 }] } };
+    expect(findings(lintRepo(files, { config }), RULE)).toEqual([]);
+    // Without the repository setting, the option applies.
+    expect(findings(lintRepo({ 'AGENTS.md': lines(3) }, { config }), RULE)).toHaveLength(1);
+  });
+});

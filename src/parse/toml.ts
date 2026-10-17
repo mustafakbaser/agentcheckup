@@ -1,19 +1,32 @@
 /**
- * TOML 1.0, parsed the way Codex reads `.codex/config.toml`.
+ * TOML, parsed the way Codex reads `.codex/config.toml`.
  *
  * Codex parses its configuration with the Rust `toml` crate (`toml::from_str` into a
  * `toml::Value`), so every TOML spelling of a key counts: `[mcp_servers.x]`,
  * `[mcp_servers."x"]`, a root-level `mcp_servers.x.command = …` and an inline
  * `mcp_servers = { x = { … } }` all define the same server. A grammar subset would let a pull
- * request hide a server, so this is the full TOML 1.0 grammar, and tables follow the crate's
+ * request hide a server, so this is the crate's whole grammar, and tables follow the crate's
  * rules: which keys may extend which tables comes from `descend_path`, `start_table` and
  * `finish_table` in toml 0.9 (`src/de/parser/document.rs`, `inline_table.rs`, read 2026-10-17).
  *
+ * Codex ce0323f locks toml 0.9.11+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0 and toml_datetime
+ * 0.7.5+spec-1.1.0 (codex-rs/Cargo.lock), which read TOML 1.1. This parser follows them (read
+ * 2026-10-17):
+ *
+ * - Inside an inline table, line breaks and comments may stand between any two tokens, and a
+ *   comma may follow the last pair (toml_parser `parser/document.rs`, `on_inline_table_open`).
+ *   That is looser than the TOML 1.1 grammar, which allows them only around pairs: the crate
+ *   reads `{ a\n= 1 }`, and so does this parser. Between the parts of a dotted key a line break
+ *   stays an error.
+ * - `\e` is U+001B and `\xHH` is U+0000 to U+00FF (toml_parser `decoder/string.rs`).
+ * - Seconds are optional in times and default to 00 (toml_datetime `datetime.rs`).
+ * - One leading byte order mark is skipped (toml_parser `lexer/mod.rs`); a second one is an
+ *   error. Pass the file's decoding as `source`, so a mark the decoder removed counts as that
+ *   one.
+ *
  * - The parse stops at the first error; the result holds that one issue and its span.
- * - TOML 1.1 syntax (newlines, comments and a trailing comma in an inline table, `\e`, `\xHH`,
- *   a time without seconds) is parsed and then reported as `unsupported`, unless the text also
- *   has a syntax error: whether Codex's crate accepts it has not been checked here.
- * - A byte order mark and UTF-16 text are reported as `bom` and `utf-16` and not parsed.
+ * - UTF-16 text is reported as `utf-16` and not parsed. Bytes that are not valid UTF-8 give
+ *   `invalid-utf8`: Codex reads the file with `String::from_utf8`, which fails on them.
  * - Integers outside the i64 range and floats that overflow to infinity are errors, as in the
  *   crate when it builds a `toml::Value`.
  *
@@ -45,18 +58,17 @@ export const MAX_TOML_NODES = 100_000;
 
 /**
  * Issue codes. `too-large`, `too-deep`, `too-many-nodes` and `parse-failed` are limits;
- * `unsupported`, `bom` and `utf-16` are input the parser does not read; the rest are syntax
- * errors. `issueKind` in json-access.ts tells them apart.
+ * `utf-16` is input the parser does not read; the rest are errors Codex fails on too, among
+ * them `invalid-utf8`. `issueKind` in json-access.ts tells them apart.
  */
 export const TOML_ISSUE = {
   tooLarge: 'too-large',
   tooDeep: 'too-deep',
   tooManyNodes: 'too-many-nodes',
   parseFailed: 'parse-failed',
-  /** TOML 1.1 syntax. */
-  unsupported: 'unsupported',
-  bom: 'bom',
   utf16: 'utf-16',
+  /** The bytes are not valid UTF-8 (`DecodedText.hadDecodeErrors`). */
+  invalidUtf8: 'invalid-utf8',
   duplicateKey: 'duplicate-key',
   redefinedTable: 'redefined-table',
   /** A `[table]` header for a table that dotted keys already defined. */
@@ -94,6 +106,8 @@ export interface TomlSource {
   readonly encoding?: DecodedText['encoding'];
   /** The file started with a byte order mark, which decoding removed from the text. */
   readonly hasBom?: boolean;
+  /** The bytes were not valid in `encoding`, so the text holds U+FFFD replacements. */
+  readonly hadDecodeErrors?: boolean;
 }
 
 /**
@@ -317,12 +331,12 @@ class Parser {
   /** Every table and array, to fill and freeze their values at the end. */
   readonly tables: TableNode[] = [];
   readonly arrays: ArrayNode[] = [];
-  /** The first TOML 1.1 construct, if any. */
-  toml11: { readonly span: Span; readonly what: string } | undefined;
 
-  constructor(text: string) {
+  /** `start` is 1 to skip a byte order mark at the start of the text. */
+  constructor(text: string, start: number) {
     this.#text = text;
     this.#length = text.length;
+    this.#pos = start;
     this.root = this.#newTable(0, false, false, false, 0, text.length);
     this.entries.add(0, text.length, this.root);
     this.#current = this.root;
@@ -383,11 +397,6 @@ class Parser {
       pos,
       pos + 1,
     );
-  }
-
-  /** Records the first TOML 1.1 construct; parsing continues. */
-  #toml11(start: number, end: number, what: string): void {
-    this.toml11 ??= { span: spanBetween(start, end, this.#length), what };
   }
 
   // -------------------------------------------------------------------------------------------
@@ -482,13 +491,15 @@ class Parser {
     }
   }
 
-  /** Whitespace in an inline table. Line breaks and comments there are TOML 1.1. */
+  /**
+   * Whitespace, line breaks and comments between two tokens of an inline table, which
+   * toml_parser accepts anywhere there (TOML 1.1 allows them around pairs only).
+   */
   #inlineGap(): void {
     for (;;) {
       this.#skipWhitespace();
       const code = this.#code();
       if (code !== HASH && code !== LF && code !== CR) return;
-      this.#toml11(this.#pos, this.#pos + 1, 'a line break or comment inside an inline table');
       if (code === HASH) this.#comment();
       if (this.#pos >= this.#length) return;
       this.#newline('Expected a new line after the comment.');
@@ -880,6 +891,7 @@ class Parser {
       this.#skipWhitespace();
     }
     if (parent.depth >= MAX_TOML_DEPTH) this.#tooDeep(keyStart, keyEnd);
+    if (inline) this.#inlineGap();
     if (this.#code() !== EQUALS) {
       this.#unexpected(TOML_ISSUE.expectedEquals, 'Expected "=" after the key, found this.');
     }
@@ -901,7 +913,8 @@ class Parser {
       );
     }
     this.#pos++;
-    this.#skipWhitespace();
+    if (inline) this.#inlineGap();
+    else this.#skipWhitespace();
     const code = this.#code();
     if (this.#pos >= this.#length || code === LF || code === CR || code === HASH) {
       this.#fail(TOML_ISSUE.expectedValue, 'Expected a value after "=".', this.#pos, this.#pos);
@@ -973,7 +986,11 @@ class Parser {
     return array;
   }
 
-  /** `inline-table = "{" ws [ inline-table-keyvals ] ws "}"` */
+  /**
+   * `inline-table = "{" [ inline-table-keyvals ] ws-comment-newline "}"`, TOML 1.1: a comma may
+   * follow the last pair, and line breaks and comments may stand between tokens
+   * ({@link Parser.#inlineGap}).
+   */
   #inlineTable(depth: number, start: number): TableNode {
     const table = this.#newTable(depth, false, false, true, start, start + 1);
     this.#pos++;
@@ -992,13 +1009,9 @@ class Parser {
         this.#inlineGap();
         const code = this.#code();
         if (code === COMMA) {
-          const comma = this.#pos;
           this.#pos++;
           this.#inlineGap();
-          if (this.#code() === RIGHT_BRACE) {
-            this.#toml11(comma, comma + 1, 'a trailing comma in an inline table');
-            break;
-          }
+          if (this.#code() === RIGHT_BRACE) break;
           continue;
         }
         if (code === RIGHT_BRACE) break;
@@ -1188,15 +1201,10 @@ class Parser {
         return this.#unicode(start, 4);
       case 0x55: // U
         return this.#unicode(start, 8);
-      case 0x65: // e
-        this.#toml11(start, start + 2, 'the \\e escape');
+      case 0x65: // e, TOML 1.1
         return '\u001b';
-      case 0x78: {
-        // x
-        const value = this.#hex(start, 2);
-        this.#toml11(start, start + 4, 'the \\x escape');
-        return String.fromCharCode(value);
-      }
+      case 0x78: // x, TOML 1.1: two hex digits are always a Unicode scalar value
+        return String.fromCharCode(this.#hex(start, 2));
       default:
         break;
     }
@@ -1206,7 +1214,7 @@ class Parser {
     }
     this.#fail(
       TOML_ISSUE.invalidEscape,
-      'Invalid escape sequence; TOML allows \\b \\t \\n \\f \\r \\" \\\\ \\uXXXX and \\UXXXXXXXX.',
+      'Invalid escape sequence; TOML allows \\b \\t \\n \\f \\r \\e \\" \\\\ \\xHH \\uXXXX and \\UXXXXXXXX.',
       start,
       Number.isNaN(code) ? start + 1 : start + 2,
     );
@@ -1492,9 +1500,8 @@ class Parser {
         while (trimmed > 0 && fraction.charCodeAt(trimmed - 1) === ZERO) trimmed--;
         fraction = trimmed === 0 ? '' : `.${fraction.slice(0, trimmed)}`;
       }
-    } else {
-      this.#toml11(start, end, 'a time without seconds');
     }
+    // Without seconds (TOML 1.1), toml_datetime sets them to 00 and has no fraction.
     if (hour > 23) invalid('the hour must be 00 to 23');
     if (minute > 59) invalid('the minute must be 00 to 59');
     if (second > 60) invalid('the second must be 00 to 60');
@@ -1757,8 +1764,10 @@ function failure(code: string, message: string, span: Span): TomlDocument {
 }
 
 /**
- * Parses TOML 1.0. Never throws on any input. Pass the file's decoding as `source` (an
- * artifact's `decoded` works) so a byte order mark or UTF-16 text is reported, not parsed.
+ * Parses TOML as Codex's crate does (see the module comment). Never throws on any input. Pass
+ * the file's decoding as `source` (an artifact's `decoded` works): UTF-16 text is then reported,
+ * not parsed, bytes that are not UTF-8 are an error, and a byte order mark the decoder removed
+ * is the one the crate skips.
  */
 export function parseToml(text: string, source: TomlSource = {}): TomlDocument {
   const start: Span = { offset: 0, length: 0 };
@@ -1769,11 +1778,12 @@ export function parseToml(text: string, source: TomlSource = {}): TomlDocument {
       start,
     );
   }
-  if (source.hasBom === true || text.charCodeAt(0) === 0xfeff) {
+  if (source.hadDecodeErrors === true) {
+    const at = text.indexOf('�');
     return failure(
-      TOML_ISSUE.bom,
-      'The file starts with a byte order mark; agentcheckup did not read it.',
-      source.hasBom === true ? start : { offset: 0, length: 1 },
+      TOML_ISSUE.invalidUtf8,
+      'The file is not valid UTF-8, which TOML requires.',
+      at === -1 ? start : { offset: at, length: 1 },
     );
   }
   if (text.length > MAX_TOML_LENGTH) {
@@ -1783,7 +1793,9 @@ export function parseToml(text: string, source: TomlSource = {}): TomlDocument {
       start,
     );
   }
-  const parser = new Parser(text);
+  // toml_parser skips one byte order mark. When the decoder already removed it, another one at
+  // the start of the text is an error, as it is for the crate.
+  const parser = new Parser(text, source.hasBom !== true && text.charCodeAt(0) === 0xfeff ? 1 : 0);
   try {
     parser.parse();
   } catch (error) {
@@ -1791,13 +1803,6 @@ export function parseToml(text: string, source: TomlSource = {}): TomlDocument {
     // Backstop: a bug must not crash the scan.
     const name = error instanceof Error ? error.name : 'Error';
     return failure(TOML_ISSUE.parseFailed, `TOML parser failed (${name}).`, start);
-  }
-  if (parser.toml11 !== undefined) {
-    return failure(
-      TOML_ISSUE.unsupported,
-      `This file uses TOML 1.1 syntax (${parser.toml11.what}), which agentcheckup does not read yet.`,
-      parser.toml11.span,
-    );
   }
   // Swap the nodes in each table's value object for their values, then freeze.
   for (const table of parser.tables) {

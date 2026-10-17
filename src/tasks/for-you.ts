@@ -5,12 +5,13 @@
  * - risk/hidden-unicode and risk/hidden-comment: the hidden content is the payload; a prompt that
  *   asks an agent to work on it would feed the payload to the agent.
  * - Anything that changes what agents may run, reach or approve: the rule families `mcp`,
- *   `hooks`, `settings` and `risk`, skill/shell-preprocessing, and every finding in a JSON file
- *   (Claude Code and Gemini CLI settings, MCP configuration, hook files, plugin manifests), which
- *   is where permissions, MCP servers, hooks and env overrides live.
+ *   `hooks`, `settings` and `risk`, skill/shell-preprocessing, and every finding in a JSON or
+ *   TOML file (Claude Code and Gemini CLI settings, MCP configuration, hook files, plugin
+ *   manifests, Codex's `config.toml`), which is where permissions, MCP servers, hooks and env
+ *   overrides live.
  */
 import type { ArtifactKind } from '../core/types.js';
-import { JSON_KINDS } from '../platforms/kinds.js';
+import { JSON_KINDS, TOML_KINDS } from '../platforms/kinds.js';
 import type { ForYouReason } from './types.js';
 
 export const CREDENTIAL_RULE = 'mcp/literal-secret';
@@ -43,6 +44,6 @@ export function forYouReason(
   const slash = ruleId.indexOf('/');
   const family = slash < 0 ? ruleId : ruleId.slice(0, slash);
   if (FAMILIES.has(family) || RULES.has(ruleId)) return 'security';
-  if (kind === undefined || JSON_KINDS.has(kind)) return 'security';
+  if (kind === undefined || JSON_KINDS.has(kind) || TOML_KINDS.has(kind)) return 'security';
   return undefined;
 }

@@ -123,9 +123,13 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     expect(classify(path)).toBeUndefined();
   });
 
-  it('leaves TOML to the walker filter: config.toml is classified but not a candidate', () => {
-    expect(isCandidateBasename('config.toml')).toBe(false);
+  it('lets the walker read config.toml, which only .codex/config.toml classifies', () => {
+    expect(isCandidateBasename('config.toml')).toBe(true);
+    expect(isCandidateBasename('Config.TOML')).toBe(true);
+    expect(isCandidateBasename('pyproject.toml')).toBe(false);
     expect(isCandidateBasename('hooks.v1.json')).toBe(true);
+    expect(classify('config.toml')).toBeUndefined();
+    expect(classify('.cargo/config.toml')).toBeUndefined();
   });
 });
 

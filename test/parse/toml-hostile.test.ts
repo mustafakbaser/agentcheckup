@@ -135,12 +135,34 @@ const CASES: Record<string, Case> = {
   },
   'U+2028 as a line break': { text: () => `a = 1\u2028b = 2`, expect: TOML_ISSUE.expectedNewline },
   'BOM from the decoder': {
-    text: () => fill('a = 1\n'),
+    text: () => lines(60_000, (i) => `k${i} = 1`),
     source: { hasBom: true },
-    expect: TOML_ISSUE.bom,
+    expect: 'ok',
   },
-  'BOM in the text': { text: () => `\ufeff${fill('a = 1\n')}`, expect: TOML_ISSUE.bom },
-  '1 MiB of BOMs': { text: () => fill('\ufeff'), expect: TOML_ISSUE.bom },
+  'BOM in the text': {
+    text: () => `\ufeff${lines(60_000, (i) => `k${i} = 1`)}`,
+    expect: 'ok',
+  },
+  '1 MiB of BOMs': { text: () => fill('\ufeff'), expect: TOML_ISSUE.expectedKey },
+  'BOMs after the decoder removed one': {
+    text: () => fill('\ufeff'),
+    source: { hasBom: true },
+    expect: TOML_ISSUE.expectedKey,
+  },
+  'not UTF-8, 1 MiB of replacement characters': {
+    text: () => fill('\ufffd'),
+    source: { hadDecodeErrors: true },
+    expect: TOML_ISSUE.invalidUtf8,
+  },
+  '1 MiB of inline table line breaks and comments': {
+    text: () => `t = {${fill('\n# c\n')}a = 1}`,
+    expect: 'ok',
+  },
+  '1 MiB of trailing commas': {
+    text: () => lines(20_000, (i) => `t${i} = { a = 1, b = { c = 2, }, }`),
+    expect: 'ok',
+  },
+  '1 MiB of hex escapes': { text: () => `a = "${fill('\\x41\\e')}"`, expect: 'ok' },
   'BOMs after the first line': {
     text: () => `a = 1\n${fill('\ufeff')}`,
     expect: TOML_ISSUE.expectedKey,
@@ -250,13 +272,9 @@ describe('hostile TOML input', () => {
       const doc = parseToml(CASES[name]?.text() ?? '');
       expect(!doc.ok && doc.errors[0] !== undefined && issueKind(doc.errors[0])).toBe('limit');
     }
-    for (const name of ['BOM from the decoder', 'BOM in the text', 'UTF-16']) {
-      const hostile = CASES[name];
-      const doc = parseToml(hostile?.text() ?? '', hostile?.source);
-      expect(!doc.ok && doc.errors[0] !== undefined && issueKind(doc.errors[0])).toBe(
-        'unsupported',
-      );
-    }
+    const hostile = CASES['UTF-16'];
+    const doc = parseToml(hostile?.text() ?? '', hostile?.source);
+    expect(!doc.ok && doc.errors[0] !== undefined && issueKind(doc.errors[0])).toBe('unsupported');
   });
 
   it('locates spans in a large document quickly, and the same span twice gives one object', () => {

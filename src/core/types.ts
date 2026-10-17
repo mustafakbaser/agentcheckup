@@ -7,7 +7,12 @@
  * - `line` and `column` are 1-based; `column` counts UTF-16 code units (SARIF `utf16CodeUnits`).
  * - Paths are POSIX, relative to the scan root, never absolute, never containing `..`.
  */
-import type { FrontmatterResult, JsonDocument, MarkdownDocument } from '../parse/types.js';
+import type {
+  FrontmatterResult,
+  JsonDocument,
+  MarkdownDocument,
+  TomlDocument,
+} from '../parse/types.js';
 
 export const PLATFORM_IDS = [
   'claude-code',
@@ -441,6 +446,8 @@ export interface ParseServices {
   frontmatter(artifact: Artifact): FrontmatterResult;
   markdown(artifact: Artifact): MarkdownDocument;
   json(artifact: Artifact): JsonDocument;
+  /** The TOML document of a {@link TOML_KINDS} file, parsed as Codex's crate reads it. */
+  toml(artifact: Artifact): TomlDocument;
 }
 
 export interface RuleContext<Options> extends ParseServices {

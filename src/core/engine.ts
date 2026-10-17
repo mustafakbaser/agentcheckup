@@ -1,17 +1,24 @@
 import { buildInventory } from '../inventory/build.js';
 import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
-import { parseJson, parseJsonWithComments } from '../parse/json.js';
+import { parseJson, parseJsonc, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
 import { markdownWindowEnd } from '../parse/markdown-guard.js';
+import { parseToml } from '../parse/toml.js';
 import type {
   FrontmatterResult,
   JsonDocument,
   JsonLocation,
   MarkdownDocument,
+  TomlDocument,
 } from '../parse/types.js';
 import { classifyFile, READERS } from '../platforms/classify.js';
-import { JSON_KINDS, MARKDOWN_OR_IMPORTED_KINDS } from '../platforms/kinds.js';
+import {
+  configDocument,
+  JSON_KINDS,
+  MARKDOWN_OR_IMPORTED_KINDS,
+  TOML_KINDS,
+} from '../platforms/kinds.js';
 import {
   buildContextReport,
   checkContextWindow,
@@ -49,13 +56,14 @@ import {
   RULESET_VERSION,
   TOOL_NAME,
 } from './meta.js';
-import type { ParseCache } from './parse-cache.js';
+import type { JsonDialect, ParseCache } from './parse-cache.js';
 import { computeScore, type ScoreReport } from './score.js';
 import { type Directive, parseDirective } from './suppress.js';
 import { decode, lineText, positionAt, rangeOf } from './text.js';
 import {
   type AnyRule,
   type Artifact,
+  type ArtifactKind,
   type Finding,
   type ParseServices,
   PLATFORM_IDS,
@@ -158,6 +166,7 @@ export interface Analysis extends ParseServices {
   readonly frontmatter: ParseServices['frontmatter'];
   readonly markdown: ParseServices['markdown'];
   readonly json: ParseServices['json'];
+  readonly toml: ParseServices['toml'];
 }
 
 export interface ArtifactSummary {
@@ -304,7 +313,7 @@ function indexArtifacts(artifacts: readonly Artifact[]): Map<string, Artifact> {
  */
 function createParseServices(
   options: AnalyzeOptions,
-): Pick<Analysis, 'frontmatter' | 'markdown' | 'json'> {
+): Pick<Analysis, 'frontmatter' | 'markdown' | 'json' | 'toml'> {
   const cache = options.parseCache;
   const frontmatter = memoize<FrontmatterResult>((a) => {
     const { text } = a.decoded;
@@ -331,14 +340,31 @@ function createParseServices(
     return doc;
   });
   // Parse JSON the way the reading platform does: Gemini CLI strips comments from its
-  // settings.json before JSON.parse; every other agent uses strict JSON.
+  // settings.json before JSON.parse, VS Code reads .vscode/mcp.json as JSONC, and every other
+  // agent uses strict JSON.
   const json = memoize<JsonDocument>((a) => {
     const { text } = a.decoded;
-    const comments = a.kind === 'gemini-settings';
-    const parse = (): JsonDocument => (comments ? parseJsonWithComments(text) : parseJson(text));
-    return cache === undefined ? parse() : cache.json(text, comments, parse);
+    const dialect = jsonDialect(a.kind);
+    const parse = (): JsonDocument =>
+      dialect === 'comments'
+        ? parseJsonWithComments(text)
+        : dialect === 'jsonc'
+          ? parseJsonc(text)
+          : parseJson(text);
+    return cache === undefined ? parse() : cache.json(text, dialect, parse);
   });
-  return { frontmatter, markdown, json };
+  // TOML as Codex's crate reads it; the decoding tells UTF-16, a byte order mark and bytes that
+  // are not UTF-8 apart.
+  const toml = memoize<TomlDocument>((a) => {
+    const parse = (): TomlDocument => parseToml(a.decoded.text, a.decoded);
+    return cache === undefined ? parse() : cache.toml(a.decoded, parse);
+  });
+  return { frontmatter, markdown, json, toml };
+}
+
+function jsonDialect(kind: ArtifactKind): JsonDialect {
+  if (kind === 'gemini-settings') return 'comments';
+  return kind === 'vscode-mcp' ? 'jsonc' : 'strict';
 }
 
 /**
@@ -364,7 +390,7 @@ export function analyze(snapshot: Snapshot, options: AnalyzeOptions = {}): Analy
 
 /** Runs every applicable rule over an analysis. Pure: no I/O, deterministic output. */
 export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResult {
-  const { snapshot, config, targets, targetList, artifacts, frontmatter, markdown, json } =
+  const { snapshot, config, targets, targetList, artifacts, frontmatter, markdown, json, toml } =
     analysis;
   const trustDirectives = options.trustDirectives ?? true;
 
@@ -407,6 +433,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
         frontmatter,
         markdown,
         json,
+        toml,
         report: (descriptor) => {
           const configured = config.ruleSetting(rule.meta.id, descriptor.artifact.path)?.severity;
           if (configured === 'off') return;
@@ -494,7 +521,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   }
 
   const findings: Finding[] = [];
-  const fingerprint = fingerprints(json);
+  const fingerprint = fingerprints(json, toml);
 
   for (const item of pending) {
     const { artifact, descriptor, meta } = item;
@@ -681,12 +708,13 @@ export function scanWithContext(
 
 /**
  * Fingerprints in report order, as src/core/fingerprint.ts describes: `<hash>:<occurrence>`. In a
- * JSON file that parses, the anchor is the value the span points at; elsewhere it is the text of
- * the finding's first line. Anchors are cached per line and per JSON value, so thousands of
+ * JSON or TOML file that parses, the anchor is the value the span points at; elsewhere it is the
+ * text of the finding's first line. Anchors are cached per line and per value, so thousands of
  * findings on one long line or in one long string stay linear instead of quadratic.
  */
 function fingerprints(
   json: ParseServices['json'],
+  toml: ParseServices['toml'],
 ): (ruleId: string, artifact: Artifact, span: Span | undefined, line: number) => string {
   const occurrences = new Map<string, number>();
   const lineAnchors = new Map<string, string>();
@@ -694,8 +722,8 @@ function fingerprints(
 
   const anchorOf = (artifact: Artifact, span: Span | undefined, line: number): string => {
     if (span === undefined) return WHOLE_FILE_ANCHOR;
-    if (JSON_KINDS.has(artifact.kind)) {
-      const doc = json(artifact);
+    if (JSON_KINDS.has(artifact.kind) || TOML_KINDS.has(artifact.kind)) {
+      const doc = configDocument({ json, toml }, artifact);
       const location = doc.ok ? doc.locate(span) : undefined;
       if (location !== undefined) {
         let anchor = valueAnchors.get(location);

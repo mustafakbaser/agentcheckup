@@ -74,8 +74,9 @@ Skipped
   `fix --write --review` or `fix -i`. Markdown output has a Fix column instead, and JSON a
   `fix` field. A line after the plans counts them, such as
   `3 of 3 skips can be fixed: agentcheckup fix`.
-- **Incomplete:** files the plan could not analyze, so entries may be missing. For example,
-  `.codex/config.toml` is not parsed, so Codex servers and hooks declared there are not listed.
+- **Incomplete:** files the plan could not analyze, so entries may be missing. For example, a
+  `.codex/config.toml` in UTF-16, which agentcheckup does not parse, so Codex servers and hooks
+  declared there are not listed.
 - **Ignored by configuration:** how many files the plan leaves out because the `ignore` of
   `agentcheckup.config.json` matches them. See [Files the configuration ignores](#files-the-configuration-ignores).
 
@@ -297,7 +298,7 @@ and SARIF include plans only with `--context`. See
 | `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                             |
 | `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`       |
 | `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                  |
-| `plans[].incomplete[]`              | What could not be analyzed, such as `unparsed:.codex/config.toml`                                                                               |
+| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.codex/config.toml`                                                                                 |
 | `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                          |
 | `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`                                                   |
 | `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                   |
@@ -361,20 +362,24 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
   cut or its certainty differs. A change of position alone shows only in the JSON plans.
 - **Rule sets.** A baseline from another rule set is accepted with a warning. Findings from
   rules the baseline did not run count as new.
+- **Codex `config.toml`.** agentcheckup reads `.codex/config.toml` since its Codex TOML support.
+  A baseline made before then lists the file only as not analyzed, so the first comparison shows
+  every Codex MCP server, hook, permission and env override in it as added, and the gate trips
+  for them. Create the baseline again to compare item by item.
 
 ### Gate classes
 
 `--gate` takes a comma-separated list of classes, `security` for all of them, or `none`. It
 needs `--baseline`. Only additions and changes trip it; removals never do.
 
-| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mcp`          | An MCP server is added or changed, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON, a `.codex/config.toml` or a `.vscode/mcp.json`                                                                                                                                                                                  |
-| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                            |
-| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, a skill's `allowed-tools`, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, or `defaultMode` set or changed. `deny` and `ask` entries never trip it |
-| `hooks`        | A hook is added or changed, on any event                                                                                                                                                                                                                                                                                                                                       |
-| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                            |
-| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                      |
+| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp`          | An MCP server is added or changed, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                       |
+| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                             |
+| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, a skill's `allowed-tools`, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode` set or changed, or one of the Codex settings below. `deny` and `ask` entries never trip it |
+| `hooks`        | A hook is added or changed, on any event, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, Cascade's `.devin/hooks.json`, or a file in Cline's hook and plugin folders                                                                                                                                                                                      |
+| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                                                             |
+| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                       |
 
 The env classes come from the Claude Code and Node.js documentation. Examples: `endpoint`
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers
@@ -393,6 +398,12 @@ Permission widened: permissions.allow adds Bash(curl:*)
 Permission widened: permissions.allow adds Bash (broad: runs any shell command)
 Permission widened: permissions.additionalDirectories adds ~ (broad: the file system root or home directory)
 ```
+
+In `.codex/config.toml` the inventory lists only settings that let Codex act without asking:
+`approval_policy = "never"`, `sandbox_mode = "danger-full-access"`,
+`sandbox_workspace_write.network_access = true`, each `sandbox_workspace_write.writable_roots`
+entry, and MCP tool approval modes other than `prompt`. Values that only restrict Codex are not
+listed, so they never trip the gate.
 
 An added `permissions.allow` or `allowed-tools` entry does not trip it when the same change
 removes, from the same key of the same file, an entry that provably allowed everything it
@@ -469,8 +480,10 @@ npx agentcheckup context --matrix --format markdown --output agent-context.md
 - **Three agents.** Load plans exist for Claude Code, Codex and Cursor. GitHub Copilot, Gemini
   CLI, Devin Desktop and Cline are covered by rules only; their plans will follow.
 - **Estimates.** Token counts are characters divided by 4.
-- **No TOML.** `.codex/config.toml` is reported as not analyzed; Codex MCP servers and hooks
-  declared there are not listed and not compared.
+- **Codex project configuration.** Plans and the inventory read each `.codex/config.toml`
+  from the project root down to the working directory, the closest one winning. A file named in
+  `project_doc_fallback_filenames` is not followed: the AGENTS.md chain stops before its
+  directory. Whether a server entry Codex rejects stops it at startup is not verified.
 - **Ordering.** Cursor does not document the order in which it assembles instructions and
   rules. Its plan lists instruction files first, then rules, each by path, so read Cursor's
   numbers as a listing order, not as the order in the prompt.

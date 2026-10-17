@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { jsonReplaceValue } from '../../fix/edits.js';
+import { configDocument, TOML_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { at, FileFindings, type JsonPath, own, spanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -88,7 +89,13 @@ export const timeoutUnitsRule = defineRule({
     ].join('\n\n'),
     category: 'correctness',
     severity: 'warn',
-    appliesTo: ['claude-settings', 'codex-hooks', 'cursor-hooks', 'gemini-settings'],
+    appliesTo: [
+      'claude-settings',
+      'codex-hooks',
+      'codex-config',
+      'cursor-hooks',
+      'gemini-settings',
+    ],
     platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
     sources: [
       SOURCES.claudeHooks,
@@ -111,18 +118,20 @@ export const timeoutUnitsRule = defineRule({
       const source = hookSourceOf(artifact);
       if (source === undefined || !context.targets.has(source.platform)) continue;
       const { platform } = source;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'hook timeouts in the wrong unit');
       const canEdit = editable(artifact);
+      // No fix builder edits TOML; the message gives the number to write.
+      const fixable = canEdit && !TOML_KINDS.has(artifact.kind);
       for (const { handler, path } of hookHandlers(doc, platform, { root: source.root })) {
         const timeout = own(handler, 'timeout');
         if (typeof timeout !== 'number') continue;
         const message = describeTimeout(platform, timeout);
         if (message === undefined) continue;
-        const fix = canEdit ? fixFor(artifact, platform, [...path, 'timeout'], timeout) : undefined;
+        const fix = fixable ? fixFor(artifact, platform, [...path, 'timeout'], timeout) : undefined;
         findings.report({
           artifact,
           ...at(spanOf(doc, [...path, 'timeout'])),

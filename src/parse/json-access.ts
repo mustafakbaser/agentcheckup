@@ -4,7 +4,7 @@
  */
 import type { Span } from '../core/types.js';
 import { JSON_ISSUE } from './json.js';
-import { TOML_ISSUE } from './toml.js';
+import { TOML_ISSUE, TomlDatetime } from './toml.js';
 import type { JsonDocument, JsonPathSegment, ParseIssue } from './types.js';
 
 export type JsonObject = Readonly<Record<string, unknown>>;
@@ -29,12 +29,8 @@ const LIMIT_CODES: ReadonlySet<string> = new Set([
   TOML_ISSUE.parseFailed,
 ]);
 
-/** Input the TOML parser does not read: TOML 1.1 syntax, a byte order mark, UTF-16 text. */
-const UNSUPPORTED_CODES: ReadonlySet<string> = new Set([
-  TOML_ISSUE.unsupported,
-  TOML_ISSUE.bom,
-  TOML_ISSUE.utf16,
-]);
+/** Input the TOML parser does not read: UTF-16 text. */
+const UNSUPPORTED_CODES: ReadonlySet<string> = new Set([TOML_ISSUE.utf16]);
 
 /**
  * What kind of problem a JSON or TOML parse issue is: a comment, a trailing comma, a limit,
@@ -50,6 +46,14 @@ export function issueKind(issue: ParseIssue): IssueKind {
 
 export function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * True for a JSON object or a TOML table. Unlike {@link isObject}, false for a TOML date-time,
+ * which is an object without own properties where Codex expects a table.
+ */
+export function isTable(value: unknown): value is JsonObject {
+  return isObject(value) && !(value instanceof TomlDatetime);
 }
 
 /** Own property `key` of `object`, or undefined. Never reads the prototype chain. */

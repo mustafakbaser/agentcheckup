@@ -25,12 +25,13 @@ export interface LoadView extends ParseServices {
   readonly frontmatter: ParseServices['frontmatter'];
   readonly markdown: ParseServices['markdown'];
   readonly json: ParseServices['json'];
+  readonly toml: ParseServices['toml'];
 }
 
 /** The parts of a rule context that `viewOf` reads. */
 export type ViewSource = Pick<
   RuleContext<unknown>,
-  'snapshot' | 'allArtifacts' | 'targets' | 'frontmatter' | 'markdown' | 'json'
+  'snapshot' | 'allArtifacts' | 'targets' | 'frontmatter' | 'markdown' | 'json' | 'toml'
 >;
 
 const indexes = new WeakMap<readonly Artifact[], ReadonlyMap<string, Artifact>>();
@@ -61,5 +62,6 @@ export function viewOf(context: ViewSource): LoadView {
     frontmatter: (artifact) => context.frontmatter(artifact),
     markdown: (artifact) => context.markdown(artifact),
     json: (artifact) => context.json(artifact),
+    toml: (artifact) => context.toml(artifact),
   };
 }

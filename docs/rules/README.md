@@ -2,7 +2,7 @@
 
 # Rules
 
-Rule set `2026.10`: 63 rules.
+Rule set `2026.10`: 65 rules.
 
 Severity policy: `error` means a documented platform behavior skips, ignores, truncates or
 breaks the file. `warn` means degraded behavior or a portability problem. `info` is advice
@@ -15,6 +15,8 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | Rule                                                                        | Severity | Category    | Fix           | Problem                                                               |
 | --------------------------------------------------------------------------- | -------- | ----------- | ------------- | --------------------------------------------------------------------- |
 | [`analysis/partial`](analysis/partial.md)                                   | info     | clarity     | manual        | File was only partly analyzed                                         |
+| [`codex/config-invalid`](codex/config-invalid.md)                           | error    | loading     | manual        | Codex project config is not valid                                     |
+| [`codex/ignored-project-key`](codex/ignored-project-key.md)                 | warn     | loading     | manual        | Codex ignores this key in a project config file                       |
 | [`copilot/apply-to`](copilot/apply-to.md)                                   | warn     | loading     | safe          | Path-specific GitHub Copilot instructions have no valid applyTo       |
 | [`copilot/instructions-misplaced`](copilot/instructions-misplaced.md)       | error    | loading     | review        | GitHub Copilot instructions file is not where Copilot looks for it    |
 | [`cursor/legacy-cursorrules`](cursor/legacy-cursorrules.md)                 | info     | loading     | review        | .cursorrules is a legacy file that Cursor plans to deprecate          |

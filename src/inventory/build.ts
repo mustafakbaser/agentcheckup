@@ -27,6 +27,8 @@ import {
 } from '../core/types.js';
 import {
   isObject,
+  issueKind,
+  isTable,
   type JsonObject,
   type JsonPath,
   keySpanOf,
@@ -36,6 +38,7 @@ import {
   spanOf,
 } from '../parse/json-access.js';
 import { classify } from '../platforms/classify.js';
+import { codexServerEnabled } from '../platforms/codex-config.js';
 import { hookCommandSyntax, resolveScript, scriptCandidate } from '../platforms/hook-command.js';
 import {
   gateFailsOpen,
@@ -59,6 +62,8 @@ import {
 import type { LoadView } from '../platforms/load/view.js';
 import { isBundledSkill, pluginRootOf } from '../platforms/location.js';
 import {
+  bareMcpServers,
+  codexMcpServers,
   isClaudeMcpConfig,
   MCP_KINDS,
   type McpServer,
@@ -86,10 +91,11 @@ import type {
 
 /**
  * JSON kinds the inventory reads: those that declare MCP servers (src/platforms/mcp.ts) or hooks
- * (src/platforms/hooks.ts). A file of these kinds that fails to parse is `incomplete`.
+ * (src/platforms/hooks.ts). A file of these kinds that fails to parse is `incomplete`. The TOML
+ * kinds among the MCP kinds are read on their own (`#addCodexConfig`).
  */
 const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
-  ...MCP_KINDS,
+  ...[...MCP_KINDS].filter((kind) => !TOML_KINDS.has(kind)),
   'claude-settings',
   'codex-hooks',
   'cursor-hooks',
@@ -148,6 +154,37 @@ function sortedKeys(value: unknown): string[] {
 /** `['mcpServers', 'github']` -> `mcpServers.github`. */
 function pathKey(path: JsonPath): string {
   return path.map(String).join('.');
+}
+
+/**
+ * Names of the environment variables a server gets: its `env` keys, and in Codex also the names
+ * `env_vars` forwards, written as a string or as `{ name, source }` (SOURCES.codexMcp).
+ */
+function envKeysOf(artifact: Artifact, config: JsonObject): string[] {
+  const names = new Set(sortedKeys(own(config, 'env')));
+  if (artifact.kind === 'codex-config') {
+    const forwarded = own(config, 'env_vars');
+    if (Array.isArray(forwarded)) {
+      for (const item of forwarded as unknown[]) {
+        const name = isTable(item) ? own(item, 'name') : item;
+        if (typeof name === 'string') names.add(name);
+      }
+    }
+  }
+  return [...names].sort(compareStrings);
+}
+
+/**
+ * Names of the HTTP headers a server sends: `headers`, and in Codex `http_headers` and
+ * `env_http_headers` (SOURCES.codexMcp).
+ */
+function headerKeysOf(artifact: Artifact, config: JsonObject): string[] {
+  if (artifact.kind !== 'codex-config') return sortedKeys(own(config, 'headers'));
+  const names = new Set([
+    ...sortedKeys(own(config, 'http_headers')),
+    ...sortedKeys(own(config, 'env_http_headers')),
+  ]);
+  return [...names].sort(compareStrings);
 }
 
 /** At most this many vendor tokens are masked in one permission value. */
@@ -222,14 +259,15 @@ class InventoryBuilder {
       this.#addSkill(artifact);
       return;
     }
+    if (TOML_KINDS.has(artifact.kind)) {
+      this.#addCodexConfig(artifact);
+      return;
+    }
     if (!JSON_KINDS.has(artifact.kind)) return;
+    // `.vscode/mcp.json` is read as JSONC, as VS Code reads it (src/core/engine.ts).
     const doc = this.#view.json(artifact);
     if (!doc.ok) {
-      // VS Code reads its configuration files with comments and trailing commas, which strict
-      // JSON rejects, so such a `.vscode/mcp.json` is not analyzed rather than invalid.
-      this.#incomplete.add(
-        artifact.kind === 'vscode-mcp' ? artifact.path : `invalid-json:${artifact.path}`,
-      );
+      this.#incomplete.add(`invalid-json:${artifact.path}`);
       return;
     }
     if (MCP_KINDS.has(artifact.kind)) this.#addServers(artifact, doc);
@@ -241,9 +279,9 @@ class InventoryBuilder {
   }
 
   /**
-   * Configuration files whose servers and hooks are not listed: Codex's `config.toml` (TOML is
-   * not parsed), the files in Cline's hook and plugin folders (scripts and JavaScript modules in
-   * no documented format), and inventory files the walk skipped (too large or unreadable).
+   * Configuration files whose servers and hooks are not listed: the files in Cline's hook and
+   * plugin folders (scripts and JavaScript modules in no documented format), and inventory files
+   * the walk skipped (too large or unreadable).
    */
   addUnparsedConfigs(): void {
     const { snapshot } = this.#view;
@@ -252,7 +290,10 @@ class InventoryBuilder {
     }
     for (const entry of snapshot.skipped) {
       const kind = classify(entry.path)?.kind;
-      if (kind !== undefined && (JSON_KINDS.has(kind) || kind === 'skill')) {
+      if (
+        kind !== undefined &&
+        (JSON_KINDS.has(kind) || TOML_KINDS.has(kind) || kind === 'skill')
+      ) {
         this.#incomplete.add(entry.path);
       }
     }
@@ -270,9 +311,29 @@ class InventoryBuilder {
 
   // MCP --------------------------------------------------------------------------------------
 
+  /**
+   * The servers of an MCP config file. A `.mcp.json` written as bare server keys, without
+   * `mcpServers`, is read by the Copilot CLI alone ({@link bareMcpServers}), so its servers list
+   * Copilot as their only platform.
+   */
   #addServers(artifact: Artifact, doc: ParsedJson): void {
-    const platforms = sortedPlatforms(artifact.readers);
-    const servers = mcpServers(artifact, doc);
+    this.#addServerList(
+      artifact,
+      doc,
+      mcpServers(artifact, doc),
+      sortedPlatforms(artifact.readers),
+    );
+    const bare = bareMcpServers(artifact, doc);
+    if (bare.length > 0) this.#addServerList(artifact, doc, bare, ['copilot'], true);
+  }
+
+  #addServerList(
+    artifact: Artifact,
+    doc: ParsedJson,
+    servers: readonly McpServer[],
+    platforms: readonly PlatformId[],
+    bare = false,
+  ): void {
     const ids = mcpInventoryIds(artifact.path, servers);
     servers.forEach((server, index) => {
       const { config, name } = server;
@@ -298,9 +359,10 @@ class InventoryBuilder {
         ...(args === undefined ? {} : { args }),
         ...(spec === undefined ? {} : { package: spec }),
         ...(url === undefined ? {} : { url }),
-        envKeys: sortedKeys(env),
-        headerKeys: sortedKeys(own(config, 'headers')),
-        status: this.#statusOf(artifact, server),
+        envKeys: envKeysOf(artifact, config),
+        headerKeys: headerKeysOf(artifact, config),
+        // When the Copilot CLI starts a project's servers is not documented here.
+        status: bare ? {} : this.#statusOf(artifact, server),
       };
       this.#servers.push({
         id: ids[index] ?? '',
@@ -316,12 +378,25 @@ class InventoryBuilder {
           const value = stringOf(env[key]);
           const cls = envClass(key, value);
           if (cls === 'other') continue;
-          this.#pushEnv(artifact, doc, `${pathKey(server.path)}.env.${key}`, cls, value, [
-            ...server.path,
-            'env',
-            key,
-          ]);
+          const path = [...server.path, 'env', key];
+          this.#pushEnv(artifact, doc, pathKey(path), cls, value, path, undefined, platforms);
         }
+      }
+      // Codex runs this command to get the server's HTTP headers (SOURCES.codexMcp).
+      const helper = own(config, 'http_headers_helper');
+      if (artifact.kind === 'codex-config' && typeof helper === 'string') {
+        const path = [...server.path, 'http_headers_helper'];
+        const command = redactCommand(helper);
+        this.#pushEnv(
+          artifact,
+          doc,
+          pathKey(path),
+          'code-exec',
+          undefined,
+          path,
+          command,
+          platforms,
+        );
       }
       const trust = own(config, 'trust');
       if (artifact.kind === 'gemini-settings' && typeof trust === 'boolean') {
@@ -343,11 +418,15 @@ class InventoryBuilder {
    * project's settings approve or reject it; a plugin's server starts once the user installs and
    * enables the plugin, which is that approval. A `.mcp.json` of another agent's plugin is not
    * Claude Code's. Cursor connects project servers and asks before each tool call; Gemini CLI
-   * connects them unless folder trust is on and the folder is not trusted (off by default).
+   * connects them unless folder trust is on and the folder is not trusted (off by default). Codex
+   * starts a project's servers in a trusted project, unless `enabled = false` in this file.
    */
   #statusOf(artifact: Artifact, server: McpServer): McpServerItem['status'] {
     if (artifact.kind === 'cursor-mcp') return { cursor: 'loads' };
     if (artifact.kind === 'gemini-settings') return { gemini: 'loads' };
+    if (artifact.kind === 'codex-config') {
+      return { codex: codexServerEnabled(server.config) ? 'loads' : 'skipped' };
+    }
     const { snapshot } = this.#view;
     if (!isClaudeMcpConfig(snapshot, artifact)) return {};
     if (urlWithoutType(server.config)) return { 'claude-code': 'skipped' };
@@ -439,6 +518,109 @@ class InventoryBuilder {
         },
       });
     });
+  }
+
+  // Codex config.toml -------------------------------------------------------------------------
+
+  /**
+   * A `.codex/config.toml`: its MCP servers, inline hooks, permission settings and environment
+   * overrides. A file that is not valid TOML is `invalid-toml:<path>`; one agentcheckup's parser
+   * does not read (a limit, UTF-16 text) is incomplete.
+   */
+  #addCodexConfig(artifact: Artifact): void {
+    const doc = this.#view.toml(artifact);
+    if (!doc.ok) {
+      const issue = doc.errors[0];
+      const kind = issue === undefined ? 'limit' : issueKind(issue);
+      this.#incomplete.add(
+        kind === 'limit' || kind === 'unsupported'
+          ? artifact.path
+          : `invalid-toml:${artifact.path}`,
+      );
+      return;
+    }
+    this.#addServers(artifact, doc);
+    const hooks = hookSourceOf(artifact);
+    if (hooks !== undefined) this.#addHooks(artifact, doc, hooks);
+    this.#addCodexSettings(artifact, doc);
+  }
+
+  /**
+   * Codex settings that let it act without asking, as the Codex configuration reference
+   * describes them (SOURCES.codexConfigReference, SOURCES.codexMcp): `approval_policy = "never"`,
+   * `sandbox_mode = "danger-full-access"`, network access and extra writable roots in the
+   * workspace-write sandbox, and MCP tool approval modes other than `prompt`. Values that only
+   * restrict Codex are not listed. `shell_environment_policy.set` entries are environment
+   * overrides for every command Codex runs.
+   */
+  #addCodexSettings(artifact: Artifact, doc: ParsedJson): void {
+    const root = doc.value;
+    if (!isTable(root)) return;
+    const platforms = sortedPlatforms(artifact.readers);
+    const permission = (key: string, value: string, path: JsonPath, broad: boolean): void => {
+      this.#pushPermission(artifact, {
+        key,
+        value,
+        broad,
+        effective: true,
+        line: lineOf(artifact, spanOf(doc, path)),
+        platforms,
+      });
+    };
+
+    if (own(root, 'approval_policy') === 'never') {
+      permission('approval_policy', 'never', ['approval_policy'], true);
+    }
+    if (own(root, 'sandbox_mode') === 'danger-full-access') {
+      permission('sandbox_mode', 'danger-full-access', ['sandbox_mode'], true);
+    }
+    const sandbox = own(root, 'sandbox_workspace_write');
+    if (isTable(sandbox)) {
+      const key = 'sandbox_workspace_write';
+      if (own(sandbox, 'network_access') === true) {
+        permission(`${key}.network_access`, 'true', [key, 'network_access'], false);
+      }
+      const roots = own(sandbox, 'writable_roots');
+      if (Array.isArray(roots)) {
+        roots.forEach((path: unknown, index) => {
+          if (typeof path !== 'string') return;
+          const at = [key, 'writable_roots', index];
+          permission(`${key}.writable_roots`, path, at, isRootOrHome(path));
+        });
+      }
+    }
+    for (const server of codexMcpServers(doc)) {
+      const modes: { readonly path: JsonPath; readonly value: unknown }[] = [
+        {
+          path: [...server.path, 'default_tools_approval_mode'],
+          value: own(server.config, 'default_tools_approval_mode'),
+        },
+      ];
+      const tools = own(server.config, 'tools');
+      if (isTable(tools)) {
+        for (const tool of Object.keys(tools)) {
+          const config = tools[tool];
+          if (!isTable(config)) continue;
+          const path = [...server.path, 'tools', tool, 'approval_mode'];
+          modes.push({ path, value: own(config, 'approval_mode') });
+        }
+      }
+      for (const { path, value } of modes) {
+        // `prompt` asks before every call; `approve` approves every call.
+        if (typeof value !== 'string' || value === 'prompt') continue;
+        permission(pathKey(path), value, path, value === 'approve');
+      }
+    }
+
+    const policy = own(root, 'shell_environment_policy');
+    const set = isTable(policy) ? own(policy, 'set') : undefined;
+    if (isTable(set)) {
+      for (const key of Object.keys(set)) {
+        const value = stringOf(set[key]);
+        const path = ['shell_environment_policy', 'set', key];
+        this.#pushEnv(artifact, doc, pathKey(path), envClass(key, value), value, path);
+      }
+    }
   }
 
   // Claude Code settings ----------------------------------------------------------------------
@@ -603,6 +785,7 @@ class InventoryBuilder {
     value: string | undefined,
     path: JsonPath,
     command?: string,
+    platforms: readonly PlatformId[] = sortedPlatforms(artifact.readers),
   ): void {
     const shown =
       cls === 'endpoint' ? endpointShown(value) : cls === 'tls' ? switchShown(value) : undefined;
@@ -611,7 +794,7 @@ class InventoryBuilder {
       id: envInventoryId(artifact.path, key),
       file: artifact.path,
       line: lineOf(artifact, keySpanOf(doc, path)),
-      platforms: sortedPlatforms(artifact.readers),
+      platforms,
       ...fields,
       digestFields: { ...fields, command },
     });
@@ -631,15 +814,10 @@ function switchShown(value: string | undefined): string | undefined {
 const SWITCH_VALUES: ReadonlySet<string> = new Set(['0', '1', 'true', 'false', 'yes', 'no']);
 
 /**
- * A configuration file that can declare MCP servers or hooks the inventory cannot list: a TOML
- * kind, or a file in Cline's hook or plugin folders. Cheap tests first: every path of the scan
- * passes through here.
+ * A configuration file that can declare hooks the inventory cannot list: a file in Cline's hook
+ * or plugin folders. Cheap tests first: every path of the scan passes through here.
  */
 function isUnparsedConfig(path: string): boolean {
-  if (path.endsWith('.toml')) {
-    const kind = classify(path)?.kind;
-    return kind !== undefined && TOML_KINDS.has(kind);
-  }
   if (!path.toLowerCase().includes('.cline')) return false;
   const role = clinePlace(path)?.role;
   return role === 'hook' || role === 'plugin';

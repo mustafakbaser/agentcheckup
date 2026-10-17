@@ -1,6 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { analyze } from '../../src/core/engine.js';
+import { compareWithBaseline, GATE_CLASSES } from '../../src/core/baseline.js';
+import { validateBaseline } from '../../src/core/baseline-input.js';
+import { analyze, scanSnapshot } from '../../src/core/engine.js';
 import { hash53 } from '../../src/core/fingerprint.js';
 import type { Snapshot } from '../../src/core/types.js';
 import { buildInventory } from '../../src/inventory/build.js';
@@ -54,6 +56,7 @@ describe('the context fixture', () => {
       incomplete: inventory.incomplete,
     }).toEqual({
       mcpServers: [
+        'mcp:.codex/config.toml#docs',
         'mcp:.cursor/mcp.json#linear',
         'mcp:.cursor/mcp.json#postgres',
         'mcp:.mcp.json#docs',
@@ -76,7 +79,7 @@ describe('the context fixture', () => {
         'env:.claude/settings.json#DISABLE_TELEMETRY',
         'env:.mcp.json#mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN',
       ],
-      incomplete: ['.codex/config.toml'],
+      incomplete: [],
     });
     // Ids written out once, so a change to the id scheme shows up here.
     expect(inventory.hooks.map((item) => item.id)).toEqual([
@@ -525,6 +528,96 @@ describe('Copilot, VS Code and Devin Local files', () => {
     });
   });
 
+  it('lists bare server keys of a .mcp.json as Copilot servers only', () => {
+    const inventory = inventoryOf({
+      '.mcp.json': json({
+        browser: { command: 'npx', args: ['-y', '@acme/browser-mcp'], env: { API_KEY: 'x' } },
+        remote: { type: 'http', url: 'https://mcp.acme.dev/mcp' },
+        note: 'not a server',
+      }),
+    });
+    expect(
+      inventory.mcpServers.map(({ id, platforms, status, package: spec, line }) => [
+        id,
+        platforms,
+        status,
+        spec?.pin,
+        line,
+      ]),
+    ).toEqual([
+      ['mcp:.mcp.json#browser', ['copilot'], {}, 'none', 2],
+      ['mcp:.mcp.json#remote', ['copilot'], {}, undefined, 12],
+    ]);
+    expect(inventory.env.map((item) => [item.id, item.platforms])).toEqual([
+      ['env:.mcp.json#browser.env.API_KEY', ['copilot']],
+    ]);
+    // With an mcpServers object, Claude Code and the Copilot CLI read only that object.
+    const wrapped = inventoryOf({
+      '.mcp.json': json({ mcpServers: { a: { command: 'a' } }, b: { command: 'b' } }),
+    });
+    expect(wrapped.mcpServers.map((server) => [server.id, server.platforms])).toEqual([
+      ['mcp:.mcp.json#a', ['claude-code', 'copilot', 'windsurf']],
+    ]);
+    // Other kinds have no bare form here.
+    expect(inventoryOf({ '.cursor/mcp.json': json({ c: { command: 'c' } }) }).mcpServers).toEqual(
+      [],
+    );
+  });
+
+  it('trips mcp-unpinned when a bare-key server is added to .mcp.json', () => {
+    const before = validateBaseline(
+      JSON.parse(
+        JSON.stringify(
+          scanSnapshot(
+            snapshotFrom({
+              '.mcp.json': json({ docs: { command: 'npx', args: ['-y', '@acme/docs-mcp@1.2.3'] } }),
+            }),
+            { rules: [] },
+          ),
+        ),
+      ),
+    );
+    if (!before.ok) throw new Error(before.message);
+    const head = scanSnapshot(
+      snapshotFrom({
+        '.mcp.json': json({
+          docs: { command: 'npx', args: ['-y', '@acme/docs-mcp@1.2.3'] },
+          browser: { command: 'npx', args: ['-y', '@acme/browser-mcp'] },
+        }),
+      }),
+      { rules: [] },
+    );
+    const { hits } = compareWithBaseline(head, before.baseline, { gate: GATE_CLASSES }).diff.gate;
+    expect(hits.map((hit) => [hit.class, hit.id])).toEqual([
+      ['mcp', 'mcp:.mcp.json#browser'],
+      ['mcp-unpinned', 'mcp:.mcp.json#browser'],
+    ]);
+  });
+
+  it('reads .vscode/mcp.json as VS Code does, with comments and trailing commas', () => {
+    const text = [
+      '{',
+      '  // Servers for this workspace.',
+      '  "servers": {',
+      '    "docs": { "command": "npx", "args": ["-y", "@acme/docs-mcp"], },',
+      '    /* remote */ "api": { "type": "http", "url": "https://api.example.com/mcp" },',
+      '  },',
+      '}',
+    ].join('\n');
+    const inventory = inventoryOf({ '.vscode/mcp.json': text });
+    expect(
+      inventory.mcpServers.map((server) => [server.id, server.transport, server.line]),
+    ).toEqual([
+      ['mcp:.vscode/mcp.json#api', 'http', 5],
+      ['mcp:.vscode/mcp.json#docs', 'stdio', 4],
+    ]);
+    expect(inventory.incomplete).toEqual([]);
+    // The same text is not valid JSON where an agent reads strict JSON.
+    expect(inventoryOf({ '.github/mcp.json': text }).incomplete).toEqual([
+      'invalid-json:.github/mcp.json',
+    ]);
+  });
+
   it("reads Devin Local's servers and their transport", () => {
     const inventory = inventoryOf({
       '.devin/mcp_config.json': json({
@@ -905,13 +998,14 @@ describe('incomplete', () => {
         // Cascade's format is not modeled.
         '.devin/hooks.json': json({ hooks: { pre_run_command: [{ command: 'x' }] } }),
         '.clinerules/style.md': '# Style\n',
-        // VS Code reads comments and trailing commas here: not analyzed, rather than invalid.
-        '.vscode/mcp.json': '{\n  // local\n  "servers": { "a": { "command": "x", } },\n}\n',
+        // VS Code reads JSONC here, and this is not valid JSONC either.
+        '.vscode/mcp.json': '{\n  // local\n  "servers": { "a": ',
+        '.codex/config.toml': '[mcp_servers.a]\ncommand = "x"\ncommand = "y"\n',
+        // UTF-16, which agentcheckup does not parse.
+        'services/api/.codex/config.toml': Uint8Array.of(0xff, 0xfe, 0x61, 0, 0x3d, 0, 0x31, 0),
       },
       {
         paths: [
-          '.codex/config.toml',
-          'services/api/.codex/config.toml',
           '.github/hooks/readme.md',
           '.github/hooks/nested/x.json',
           'docs/.codex/config.toml.md',
@@ -942,12 +1036,12 @@ describe('incomplete', () => {
       '.cline/hooks/TaskStart',
       '.cline/plugins/guard.js',
       '.clinerules/hooks/PreToolUse',
-      '.codex/config.toml',
       '.cursor/mcp.json',
       '.devin/hooks.json',
-      '.vscode/mcp.json',
       'invalid-json:.devin/mcp_config.json',
       'invalid-json:.mcp.json',
+      'invalid-json:.vscode/mcp.json',
+      'invalid-toml:.codex/config.toml',
       'services/api/.codex/config.toml',
     ]);
     expect(inventory.mcpServers).toEqual([]);

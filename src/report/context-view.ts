@@ -203,6 +203,7 @@ const INCOMPLETE_LABELS: Readonly<Record<string, string>> = {
   unparsed: 'not analyzed: agentcheckup does not parse this format',
   unread: 'not analyzed: the scan did not read the file',
   'invalid-json': 'not analyzed: not valid JSON',
+  fallback: 'not followed: a project_doc_fallback_filenames file',
 };
 
 /**

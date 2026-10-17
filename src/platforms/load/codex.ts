@@ -11,9 +11,12 @@
  *   The source also scans `.codex/skills` in project config folders; which folders count is
  *   unverified. The functions in src/platforms/codex-skills.ts decide whether Codex skips a skill,
  *   and the skill rules use the same functions.
- * - Hooks: `.codex/hooks.json` handlers run after the user trusts them in `/hooks`.
- * - `.codex/config.toml` (MCP servers, inline hooks, settings) is not parsed; the plan says so in
- *   `incomplete` and never invents servers or hooks from it.
+ * - Hooks: `.codex/hooks.json` handlers and inline `[hooks]` in `.codex/config.toml` run after the
+ *   user trusts them in `/hooks`; `features.hooks = false` turns them off.
+ * - `.codex/config.toml`: one layer per directory of the chain, the closest winning
+ *   (../codex-config.ts). Its MCP servers start with the session in a trusted project unless
+ *   `enabled = false`; its `project_doc_max_bytes` and `project_doc_fallback_filenames` shape the
+ *   AGENTS.md chain. A layer that is not valid TOML stops Codex at startup; the plan skips it.
  *
  * Pure: reads only the view, never the file system. Every list in the plan is sorted.
  */
@@ -24,8 +27,16 @@ import { dirnamePosix, normalizeRelative, pathStatus } from '../../core/paths.js
 import { positionAt } from '../../core/text.js';
 import type { Artifact } from '../../core/types.js';
 import { parseFrontmatter } from '../../parse/frontmatter.js';
-import { issueKind } from '../../parse/json-access.js';
+import { issueKind, type ParsedJson } from '../../parse/json-access.js';
 import type { FrontmatterData } from '../../parse/types.js';
+import {
+  CODEX_CONFIG_FILE,
+  type CodexConfigLayer,
+  codexHooksSetting,
+  type CodexProjectConfig,
+  codexServerEnabled,
+  codexServerProblem,
+} from '../codex-config.js';
 import {
   bomHidesFrontmatter,
   codexFrontmatterClose,
@@ -39,9 +50,16 @@ import {
   invalidCause,
   nameNotText,
 } from '../codex-skills.js';
-import { CODEX_EVENTS, codexMisplacedEvents, eventHandlers, hookEvents } from '../hooks.js';
-import { hookInventoryIds } from '../inventory-ids.js';
+import {
+  CODEX_EVENTS,
+  codexMisplacedEvents,
+  eventHandlers,
+  hookEvents,
+  type HookRoot,
+} from '../hooks.js';
+import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
+import { codexMcpServers } from '../mcp.js';
 import { basename, inPayloadFolder, joinPath } from '../paths.js';
 import { skillLocation } from '../skills.js';
 import {
@@ -50,8 +68,8 @@ import {
   CODEX_FILE_NAMES,
   type CodexChain,
   chainDirectories,
-  codexChain,
   codexMaxBytes,
+  configuredCodexChain,
 } from './codex-chain.js';
 import { codexText, textOffsetAtByte } from './codex-text.js';
 import type {
@@ -112,6 +130,7 @@ const RULES = {
   nameFormat: 'skill/name-format',
   invalidJson: 'json/invalid-syntax',
   unknownEvent: 'hooks/unknown-event',
+  configInvalid: 'codex/config-invalid',
 } as const;
 
 const INSTRUCTION_EVIDENCE: readonly SourceKey[] = ['codexAgentsMd', 'codexAgentsMdSource'];
@@ -262,14 +281,11 @@ function addInstructions(view: LoadView, parts: PlanParts, chain: CodexChain): v
     }
   }
 
-  if (chain.unknownAt !== undefined) {
-    // The first candidate that exists but was not read, or might exist, decides the directory.
-    for (const name of CODEX_FILE_NAMES) {
-      const path = joinPath(chain.unknownAt, name);
-      if (pathStatus(view.snapshot, path) === 'missing') continue;
-      parts.incomplete.add(`unread:${path}`);
-      break;
-    }
+  // The first candidate that exists but was not read, or might exist, decides the directory. A
+  // file with a project_doc_fallback_filenames name is not followed.
+  const unknown = chain.unknownFile;
+  if (unknown !== undefined) {
+    parts.incomplete.add(`${unknown.fallback ? 'fallback' : 'unread'}:${unknown.path}`);
   }
 }
 
@@ -602,7 +618,102 @@ function addSkills(
 // Hooks and config.toml
 // ---------------------------------------------------------------------------------------------
 
-function addHooks(view: LoadView, parts: PlanParts, directories: readonly string[]): void {
+/**
+ * True when `features.hooks` (or its alias) is false in the project configuration, which turns
+ * off every hook (SOURCES.codexHooks, SOURCES.codexConfigReference).
+ */
+function hooksOff(config: CodexProjectConfig): boolean {
+  return codexHooksSetting(config)?.value === false;
+}
+
+const HOOKS_DISABLED_EVIDENCE: readonly SourceKey[] = ['codexHooks', 'codexConfigReference'];
+
+/**
+ * The handlers of one hooks file: `.codex/hooks.json`, or the `[hooks]` table of a
+ * `.codex/config.toml` layer. Unknown or misplaced events are skipped with hooks/unknown-event;
+ * with hooks turned off, every other handler is skipped as `disabled`.
+ */
+function addHandlers(
+  parts: PlanParts,
+  file: { readonly path: string; readonly artifact: Artifact; readonly doc: ParsedJson },
+  root: HookRoot,
+  certainty: Certainty,
+  evidence: readonly SourceKey[],
+  disabled: boolean,
+): void {
+  const { path, artifact, doc } = file;
+  const misplaced = root === 'hooks' ? codexMisplacedEvents(doc) : [];
+  const events = hookEvents(doc, 'codex', root);
+  const handlers = eventHandlers([...events, ...misplaced], 'codex');
+  const ids = hookInventoryIds(path, handlers);
+  const inventoryIds = hookInventoryIds(artifact.path, handlers);
+  const known: readonly string[] = CODEX_EVENTS;
+  handlers.forEach((handler, i) => {
+    const id = ids[i] ?? '';
+    // An event outside "hooks" makes Codex skip the whole file.
+    if (misplaced.length > 0 || !known.includes(handler.event)) {
+      parts.skip({
+        id,
+        role: 'hook',
+        path,
+        name: handler.event,
+        code: 'unknown-event',
+        ruleId: RULES.unknownEvent,
+        certainty: weakest(certainty, 'source-code'),
+        evidence: ['codexHookConfig', 'codexHooks'],
+      });
+      return;
+    }
+    if (disabled) {
+      parts.skip({
+        id,
+        role: 'hook',
+        path,
+        name: handler.event,
+        code: 'disabled',
+        certainty,
+        evidence: HOOKS_DISABLED_EVIDENCE,
+      });
+      return;
+    }
+    parts.entries.push({
+      id,
+      role: 'hook',
+      trigger: 'on-approval',
+      path,
+      realPath: artifact.realPath,
+      name: handler.event,
+      inventoryId: inventoryIds[i] ?? '',
+      certainty,
+      evidence,
+    });
+  });
+  // hooks/unknown-event reports event names, so an unknown or misplaced event without a
+  // handler Codex could read is skipped as a whole.
+  const withHandlers = new Set(handlers.map((handler) => handler.event));
+  const unknown = [...events.filter((event) => !known.includes(event.name)), ...misplaced];
+  for (const event of unknown) {
+    if (withHandlers.has(event.name)) continue;
+    parts.skip({
+      id: `hook:${path}#${event.name}`,
+      role: 'hook',
+      path,
+      name: event.name,
+      code: 'unknown-event',
+      ruleId: RULES.unknownEvent,
+      certainty: weakest(certainty, 'source-code'),
+      evidence: ['codexHookConfig', 'codexHooks'],
+    });
+  }
+}
+
+function addHooks(
+  view: LoadView,
+  parts: PlanParts,
+  directories: readonly string[],
+  config: CodexProjectConfig,
+): void {
+  const disabled = hooksOff(config);
   for (const directory of directories) {
     const path = joinPath(directory, '.codex/hooks.json');
     const artifact = view.index.get(path);
@@ -632,58 +743,80 @@ function addHooks(view: LoadView, parts: PlanParts, directories: readonly string
       });
       continue;
     }
+    addHandlers(parts, { path, artifact, doc }, 'hooks', certainty, ['codexHooks'], disabled);
+  }
+}
 
-    const misplaced = codexMisplacedEvents(doc);
-    const events = hookEvents(doc, 'codex');
-    const handlers = eventHandlers([...events, ...misplaced], 'codex');
-    const ids = hookInventoryIds(path, handlers);
-    const inventoryIds = hookInventoryIds(artifact.path, handlers);
-    const known: readonly string[] = CODEX_EVENTS;
-    handlers.forEach((handler, i) => {
-      const id = ids[i] ?? '';
-      // An event outside "hooks" makes Codex skip the whole file.
-      if (misplaced.length > 0 || !known.includes(handler.event)) {
-        parts.skip({
-          id,
-          role: 'hook',
-          path,
-          name: handler.event,
-          code: 'unknown-event',
-          ruleId: RULES.unknownEvent,
-          certainty: weakest(certainty, 'source-code'),
-          evidence: ['codexHookConfig', 'codexHooks'],
-        });
-        return;
-      }
-      parts.entries.push({
-        id,
-        role: 'hook',
-        trigger: 'on-approval',
-        path,
-        realPath: artifact.realPath,
-        name: handler.event,
-        inventoryId: inventoryIds[i] ?? '',
-        certainty,
-        evidence: ['codexHooks'],
-      });
-    });
-    // hooks/unknown-event reports event names, so an unknown or misplaced event without a
-    // handler Codex could read is skipped as a whole.
-    const withHandlers = new Set(handlers.map((handler) => handler.event));
-    const unknown = [...events.filter((event) => !known.includes(event.name)), ...misplaced];
-    for (const event of unknown) {
-      if (withHandlers.has(event.name)) continue;
+const CONFIG_EVIDENCE: readonly SourceKey[] = ['codexConfigBasic', 'codexConfigLoader'];
+
+/**
+ * The `.codex/config.toml` layers of the chain: their MCP servers, merged by name with the
+ * closest layer winning, and the inline hooks of each layer. A layer that is not valid TOML
+ * stops Codex at startup in a trusted project (codex/config-invalid); one agentcheckup could not
+ * read makes the plan incomplete.
+ */
+function addConfig(parts: PlanParts, config: CodexProjectConfig): void {
+  for (const problem of config.problems) {
+    if (problem.kind === 'invalid') {
       parts.skip({
-        id: `hook:${path}#${event.name}`,
-        role: 'hook',
-        path,
-        name: event.name,
-        code: 'unknown-event',
-        ruleId: RULES.unknownEvent,
-        certainty: weakest(certainty, 'source-code'),
-        evidence: ['codexHookConfig', 'codexHooks'],
+        id: `mcp-server:${problem.path}`,
+        role: 'mcp-server',
+        path: problem.path,
+        code: 'invalid-toml',
+        ruleId: RULES.configInvalid,
+        certainty: 'source-code',
+        evidence: ['codexConfigLoader'],
       });
+    } else {
+      parts.incomplete.add(`${problem.kind}:${problem.path}`);
     }
+  }
+
+  // Servers: one per name, from the closest layer that declares it; the merged entry decides
+  // whether it is enabled and whether Codex accepts it.
+  const declared = new Map<string, CodexConfigLayer>();
+  for (const layer of config.layers) {
+    for (const server of codexMcpServers(layer.doc)) declared.set(server.name, layer);
+  }
+  for (const [name, layer] of declared) {
+    const merged = config.table(['mcp_servers', name]);
+    if (merged === undefined) continue;
+    const servers = codexMcpServers(layer.doc);
+    const index = servers.findIndex((server) => server.name === name);
+    const inventoryId = mcpInventoryIds(layer.artifact.path, servers)[index] ?? '';
+    const id = `mcp-server:${layer.path}#${name}`;
+    if (!codexServerEnabled(merged)) {
+      parts.skip({
+        id,
+        role: 'mcp-server',
+        path: layer.path,
+        name,
+        code: 'disabled',
+        certainty: 'documented',
+        evidence: ['codexMcp'],
+      });
+      continue;
+    }
+    // Codex rejects the entry (codex/config-invalid); whether that stops it at startup or only
+    // drops the server is not verified.
+    const rejected = codexServerProblem(merged) !== undefined;
+    parts.entries.push({
+      id,
+      role: 'mcp-server',
+      trigger: 'startup',
+      path: layer.path,
+      realPath: layer.artifact.realPath,
+      name,
+      inventoryId,
+      certainty: rejected ? 'unverified' : 'documented',
+      evidence: rejected ? ['codexMcp', 'codexMcpTypes'] : ['codexMcp', ...CONFIG_EVIDENCE],
+    });
+  }
+
+  const disabled = hooksOff(config);
+  for (const layer of config.layers) {
+    const evidence = ['codexHooks', ...CONFIG_EVIDENCE];
+    addHandlers(parts, layer, 'toml', 'documented', evidence, disabled);
   }
 }
 
@@ -697,6 +830,9 @@ function addBelowStart(view: LoadView, parts: PlanParts, cwd: string): void {
         isBelow(dirnamePosix(path), cwd)) ||
       (artifact.kind === 'codex-hooks' &&
         path.endsWith('.codex/hooks.json') &&
+        isBelow(ownerOf(path), cwd)) ||
+      (artifact.kind === 'codex-config' &&
+        path.endsWith(CODEX_CONFIG_FILE) &&
         isBelow(ownerOf(path), cwd));
     if (below) parts.outOfScope.push({ path, because: 'below-start-dir' });
   }
@@ -757,20 +893,19 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
   if (contextWindow !== undefined && (!Number.isSafeInteger(contextWindow) || contextWindow <= 0)) {
     throw new Error(`Context window must be a positive integer, got ${String(contextWindow)}.`);
   }
-  const budget = maxBytesOf(options.config);
   const parts = new PlanParts();
 
-  const chain = codexChain(view, cwd, { maxBytes: budget.value });
+  // project_doc_max_bytes and project_doc_fallback_filenames: the repository's project
+  // configuration, else the rule option, else the default.
+  const { chain, config, settings } = configuredCodexChain(view, cwd, maxBytesOf(options.config));
+  const budget = settings.maxBytes;
   const directories = chainDirectories(chain.root, cwd);
   addInstructions(view, parts, chain);
   addCaseMismatches(view, parts, new Set(directories));
   const skills = addSkills(view, parts, directories, cwd);
-  addHooks(view, parts, directories);
+  addHooks(view, parts, directories, config);
+  addConfig(parts, config);
   addBelowStart(view, parts, cwd);
-  for (const directory of directories) {
-    const path = joinPath(directory, '.codex/config.toml');
-    if (pathStatus(view.snapshot, path) === 'exists') parts.incomplete.add(`unparsed:${path}`);
-  }
 
   const listingLimit =
     contextWindow === undefined
@@ -825,7 +960,10 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
       key: 'codex.project_doc_max_bytes',
       value: budget.value,
       origin: budget.origin,
-      evidence: ['codexAgentsMd', 'codexDefaults'],
+      evidence:
+        budget.origin === 'repository'
+          ? ['codexAgentsMd', 'codexConfigBasic', 'codexConfigReference']
+          : ['codexAgentsMd', 'codexDefaults'],
     },
     {
       key: 'codex.project_root_markers',
@@ -835,9 +973,12 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
     },
     {
       key: 'codex.project_doc_fallback_filenames',
-      value: '[]',
-      origin: 'default',
-      evidence: ['codexAgentsMd'],
+      value: JSON.stringify(settings.fallbackNames.value),
+      origin: settings.fallbackNames.origin,
+      evidence:
+        settings.fallbackNames.origin === 'repository'
+          ? ['codexAgentsMd', 'codexConfigBasic', 'codexConfigReference']
+          : ['codexAgentsMd'],
     },
     {
       key: 'codex.trust_level',

@@ -79,7 +79,7 @@ See [ADR 0004](docs/adr/0004-evidence-backed-rules.md).
    it. Add it to `src/platforms/sources.ts` if it is not there yet.
 2. **Write the rule** in `src/rules/<family>/<name>.ts` with `defineRule`. Use the parsed views
    on the context (`context.frontmatter(artifact)`, `context.markdown(artifact)`,
-   `context.json(artifact)`); never parse raw text yourself.
+   `context.json(artifact)`, `context.toml(artifact)`); never parse raw text yourself.
 3. **Write the message** as one or two sentences: what is wrong, then what the agent does as a
    result. For example: `AGENTS.md files on the path to this directory total 41,207 bytes. Codex
 stops reading at 32,768 bytes, so the rest of this file is ignored.`

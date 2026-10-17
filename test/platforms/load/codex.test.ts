@@ -5,11 +5,12 @@ import { EMPTY_CONFIG, resolveConfig, type ResolvedConfig } from '../../../src/c
 import { type Analysis, analyze, type RuleResult, runRules } from '../../../src/core/engine.js';
 import { hash53 } from '../../../src/core/fingerprint.js';
 import { PLATFORM_IDS, type Snapshot } from '../../../src/core/types.js';
+import { buildInventory } from '../../../src/inventory/build.js';
 import { walk } from '../../../src/io/walk.js';
 import { loadCodex } from '../../../src/platforms/load/codex.js';
 import type { LoadPlan, SkipCode } from '../../../src/platforms/load/types.js';
 import { builtinRules } from '../../../src/rules/index.js';
-import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
+import { type FileMap, findings, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
 
 interface PlanOptions {
   readonly extras?: SnapshotExtras;
@@ -89,7 +90,7 @@ const FINDING_ON_HIDING_FILE: ReadonlySet<SkipCode> = new Set([
 function expectFindingsForSkips({ plan, result, analysis }: Scan): void {
   for (const skip of plan.skipped) {
     if (skip.ruleId === undefined) {
-      expect(skip.code).toBe('not-read');
+      expect(['not-read', 'disabled']).toContain(skip.code);
       continue;
     }
     const path = analysis.index.get(skip.path)?.path ?? skip.path;
@@ -656,13 +657,187 @@ describe('loadCodex: hooks and config.toml', () => {
     ]);
   });
 
-  it('reports .codex/config.toml as not parsed and invents nothing from it', () => {
+  it('reports a .codex/config.toml the scan did not read', () => {
     const { plan } = scan({ 'AGENTS.md': 'Root.\n' }, '', {
       extras: { paths: ['.codex/config.toml'] },
     });
-    expect(plan.incomplete).toEqual(['unparsed:.codex/config.toml']);
+    expect(plan.incomplete).toEqual(['unread:.codex/config.toml']);
     expect(plan.entries.map((loaded) => loaded.role)).toEqual(['instructions']);
     expect(scan({ 'AGENTS.md': 'Root.\n' }).plan.incomplete).toEqual([]);
+  });
+
+  it('starts config.toml servers with the session, linked to the inventory', () => {
+    const scanned = scan({
+      'AGENTS.md': 'Root.\n',
+      '.codex/config.toml': [
+        '[mcp_servers.docs]',
+        'command = "npx"',
+        'args = ["-y", "@acme/docs@1.0.0"]',
+        '',
+        '[mcp_servers.off]',
+        'url = "https://mcp.example.com/mcp"',
+        'enabled = false',
+      ].join('\n'),
+    });
+    const { plan, analysis } = scanned;
+    expect(
+      plan.entries
+        .filter((loaded) => loaded.role === 'mcp-server')
+        .map(({ id, trigger, inventoryId, certainty }) => [id, trigger, inventoryId, certainty]),
+    ).toEqual([
+      [
+        'mcp-server:.codex/config.toml#docs',
+        'startup',
+        'mcp:.codex/config.toml#docs',
+        'documented',
+      ],
+    ]);
+    expect(skips(plan)).toEqual(['.codex/config.toml disabled']);
+    expect(plan.skipped[0]?.name).toBe('off');
+    const inventory = buildInventory(analysis);
+    expect(inventory.mcpServers.map((server) => [server.id, server.status])).toEqual([
+      ['mcp:.codex/config.toml#docs', { codex: 'loads' }],
+      ['mcp:.codex/config.toml#off', { codex: 'skipped' }],
+    ]);
+    expectFindingsForSkips(scanned);
+  });
+
+  it('merges config.toml layers by name, the closest one winning', () => {
+    const files = {
+      '.codex/config.toml':
+        '[mcp_servers.docs]\ncommand = "npx"\n[mcp_servers.lint]\ncommand = "l"\n',
+      'pkg/.codex/config.toml':
+        '[mcp_servers.docs]\nenabled = false\n[mcp_servers.pkg]\nurl = "https://x.dev/mcp"\n',
+    };
+    const root = scan(files).plan;
+    expect(root.entries.map((loaded) => loaded.id)).toEqual([
+      'mcp-server:.codex/config.toml#docs',
+      'mcp-server:.codex/config.toml#lint',
+    ]);
+    expect(root.outOfScope).toEqual([
+      { path: 'pkg/.codex/config.toml', because: 'below-start-dir' },
+    ]);
+    const pkg = scan(files, 'pkg');
+    expect(pkg.plan.entries.map((loaded) => [loaded.id, loaded.certainty])).toEqual([
+      ['mcp-server:.codex/config.toml#lint', 'documented'],
+      ['mcp-server:pkg/.codex/config.toml#pkg', 'documented'],
+    ]);
+    // `enabled = false` in pkg turns off the root's server; pkg's entry alone has no transport.
+    expect(skips(pkg.plan)).toEqual(['pkg/.codex/config.toml disabled']);
+    expect(findings(pkg.result, 'codex/config-invalid')).toEqual([]);
+    expectFindingsForSkips(pkg);
+  });
+
+  it('marks a server entry Codex rejects as unverified', () => {
+    const scanned = scan({
+      '.codex/config.toml': '[mcp_servers.both]\ncommand = "x"\nurl = "https://x.dev/mcp"\n',
+    });
+    expect(scanned.plan.entries.map((loaded) => [loaded.id, loaded.certainty])).toEqual([
+      ['mcp-server:.codex/config.toml#both', 'unverified'],
+    ]);
+    expect(findings(scanned.result, 'codex/config-invalid').map((found) => found.severity)).toEqual(
+      ['warn'],
+    );
+  });
+
+  it('skips a config.toml that is not valid TOML, as codex/config-invalid reports', () => {
+    const scanned = scan({
+      'AGENTS.md': 'Root.\n',
+      '.codex/config.toml': '[mcp_servers.docs]\ncommand = "npx"\ncommand = "node"\n',
+    });
+    expect(skips(scanned.plan)).toEqual(['.codex/config.toml invalid-toml codex/config-invalid']);
+    expect(scanned.plan.entries.map((loaded) => loaded.role)).toEqual(['instructions']);
+    expectFindingsForSkips(scanned);
+  });
+
+  it('reports a config.toml in UTF-16 as not analyzed', () => {
+    const utf16 = Uint8Array.of(0xff, 0xfe, 0x61, 0, 0x3d, 0, 0x31, 0);
+    const { plan } = scan({ '.codex/config.toml': utf16 });
+    expect(plan.incomplete).toEqual(['unparsed:.codex/config.toml']);
+    expect(plan.skipped).toEqual([]);
+  });
+
+  it('loads config.toml hooks after approval, and none when features.hooks is false', () => {
+    const toml = [
+      '[[hooks.PreToolUse]]',
+      'matcher = "Bash"',
+      '[[hooks.PreToolUse.hooks]]',
+      'type = "command"',
+      'command = "node scripts/guard.js"',
+      '[hooks.state."x"]',
+      'enabled = true',
+      '[[hooks.preToolUse]]',
+      '[[hooks.preToolUse.hooks]]',
+      'type = "command"',
+      'command = "echo"',
+    ].join('\n');
+    const id = `hook:.codex/config.toml#PreToolUse:${hash53(command).slice(-8)}`;
+    const on = scan({ '.codex/config.toml': toml });
+    expect(
+      on.plan.entries.map((loaded) => [loaded.id, loaded.trigger, loaded.inventoryId]),
+    ).toEqual([[id, 'on-approval', id]]);
+    // `state` configures hooks; `preToolUse` is not an event Codex fires.
+    expect(skips(on.plan)).toEqual(['.codex/config.toml unknown-event hooks/unknown-event']);
+    expectFindingsForSkips(on);
+
+    const off = scan({
+      '.codex/config.toml': ['[features]', 'hooks = false', toml].join('\n'),
+      '.codex/hooks.json': JSON.stringify({
+        hooks: { Stop: [{ hooks: [{ type: 'command', command }] }] },
+      }),
+    });
+    expect(off.plan.entries).toEqual([]);
+    expect(skips(off.plan)).toEqual([
+      '.codex/config.toml disabled',
+      '.codex/config.toml unknown-event hooks/unknown-event',
+      '.codex/hooks.json disabled',
+    ]);
+    expectFindingsForSkips(off);
+  });
+
+  it('takes project_doc_max_bytes from the closest config.toml, before the rule option', () => {
+    const files = {
+      'AGENTS.md': 'x'.repeat(100),
+      'pkg/AGENTS.md': 'y'.repeat(100),
+      '.codex/config.toml': 'project_doc_max_bytes = 150\n',
+      'pkg/.codex/config.toml': 'project_doc_max_bytes = 50\n',
+    };
+    const config = { rules: { 'instr/codex-size-budget': ['error', { maxBytes: 1000 }] } };
+    const maxBytes = (plan: LoadPlan) =>
+      plan.assumptions.find((item) => item.key === 'codex.project_doc_max_bytes');
+    const root = scan(files, '', { config });
+    expect(maxBytes(root.plan)).toMatchObject({ value: 150, origin: 'repository' });
+    expect(limit(root.plan, 'codex.project_doc_max_bytes')?.limit).toBe(150);
+    const pkg = scan(files, 'pkg', { config });
+    expect(limit(pkg.plan, 'codex.project_doc_max_bytes')?.limit).toBe(50);
+    expect(skips(pkg.plan)).toEqual(['pkg/AGENTS.md over-byte-budget instr/codex-size-budget']);
+    expect(entry(pkg.plan, 'instructions:AGENTS.md')?.truncated).toEqual({ atByte: 50, line: 1 });
+    expectFindingsForSkips(pkg);
+    // Not a positive integer: the rule option applies.
+    const zero = { 'AGENTS.md': 'Root.\n', '.codex/config.toml': 'project_doc_max_bytes = 0\n' };
+    expect(maxBytes(scan(zero, '', { config }).plan)).toMatchObject({
+      value: 1000,
+      origin: 'rule-option',
+    });
+  });
+
+  it('states repository fallback file names and stops the chain at a file it would try', () => {
+    const files = {
+      'AGENTS.md': 'Root.\n',
+      'pkg/CLAUDE.md': 'Claude.\n',
+      'pkg/sub/AGENTS.md': 'Sub.\n',
+      '.codex/config.toml': 'project_doc_fallback_filenames = ["CLAUDE.md", "../x.md", ""]\n',
+    };
+    const { plan } = scan(files, 'pkg/sub');
+    expect(
+      plan.assumptions.find((item) => item.key === 'codex.project_doc_fallback_filenames'),
+    ).toMatchObject({ value: '["CLAUDE.md","../x.md",""]', origin: 'repository' });
+    expect(startupPaths(plan)).toEqual(['AGENTS.md']);
+    expect(plan.incomplete).toEqual(['fallback:pkg/CLAUDE.md']);
+    // Without fallback names, pkg has no instruction file and the chain goes on.
+    const plain = scan({ ...files, '.codex/config.toml': '' }, 'pkg/sub').plan;
+    expect(startupPaths(plain)).toEqual(['AGENTS.md', 'pkg/sub/AGENTS.md']);
+    expect(plain.incomplete).toEqual([]);
   });
 
   it('states its assumptions and the scopes it cannot see', () => {
@@ -709,9 +884,10 @@ describe('loadCodex: context fixture', () => {
     expect(plan.entries.map(({ id, position }) => [id, position])).toEqual([
       ['instructions:AGENTS.md', 1],
       ['skill:.agents/skills/changelog/SKILL.md', 2],
+      ['mcp-server:.codex/config.toml#docs', undefined],
     ]);
     expect(skips(plan)).toEqual(['.agents/skills/db-migrate/SKILL.md bom skill/frontmatter-bom']);
-    expect(plan.incomplete).toEqual(['unparsed:.codex/config.toml']);
+    expect(plan.incomplete).toEqual([]);
     expect(plan.outOfScope.map((out) => out.path)).toContain('services/billing/AGENTS.md');
     expect(plan.outOfScope.every((out) => out.because === 'below-start-dir')).toBe(true);
     expect(limit(plan, 'codex.project_doc_max_bytes')?.used).toBe(271);
@@ -727,6 +903,7 @@ describe('loadCodex: context fixture', () => {
       'services/billing/AGENTS.md',
       'services/billing/ledger/AGENTS.md',
       '.agents/skills/changelog/SKILL.md',
+      '.codex/config.toml',
     ]);
     // 271 + 13,542 + 12,639 bytes are read in full, leaving 6,316 of 32,768.
     expect(entry(plan, 'instructions:services/billing/ledger/AGENTS.md')).toMatchObject({

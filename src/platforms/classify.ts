@@ -136,7 +136,6 @@ const MATCHERS: readonly Matcher[] = [
     canonical: withBase('AGENTS.override.md'),
   },
   { kind: 'codex-hooks', pattern: /(?:^|\/)\.codex\/hooks\.json$/, canonical: keepPath },
-  // Classified, but the walker does not read TOML yet (isCandidateBasename).
   { kind: 'codex-config', pattern: /(?:^|\/)\.codex\/config\.toml$/, canonical: keepPath },
 
   // Cross-agent
@@ -272,6 +271,7 @@ export function isCandidateBasename(name: string): boolean {
     lower.endsWith('.md') ||
     lower.endsWith('.mdc') ||
     lower.endsWith('.json') ||
+    lower === 'config.toml' ||
     lower === '.cursorrules' ||
     lower === '.windsurfrules'
   );

@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { jsonReplaceValue } from '../../fix/edits.js';
+import { configDocument, TOML_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { at, FileFindings, type JsonPath, keySpanOf, own, spanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -71,14 +72,26 @@ export const insecureTransportRule = defineRule({
     title: 'MCP server uses an unencrypted connection to another host',
     rationale: [
       'An `http://` or `ws://` URL sends every tool call, result and header, including `Authorization` tokens, in clear text. Anyone on the network path, for example on a shared Wi-Fi network, can read the traffic and change tool results, which the agent then trusts. `claude plugin validate` also warns about `http://` and `ws://` URLs to hosts other than loopback.',
-      'Loopback hosts such as `localhost`, `127.0.0.1` and `::1` are not reported. A Claude Code server with `"type": "sse"` gets an `info` finding, because Claude Code has deprecated the SSE transport in favor of `"type": "http"`.',
+      'Loopback hosts such as `localhost`, `127.0.0.1` and `::1` are not reported. A Claude Code server with `"type": "sse"` gets an `info` finding, because Claude Code has deprecated the SSE transport in favor of `"type": "http"`. Codex servers in `.codex/config.toml` are checked too; the rule offers no fix there.',
       'Use `https://` or `wss://`.',
     ].join('\n\n'),
     category: 'risk',
     severity: 'warn',
-    appliesTo: ['mcp-json', 'claude-plugin-manifest', 'cursor-mcp', 'gemini-settings'],
-    platforms: ['claude-code', 'cursor', 'gemini'],
-    sources: [SOURCES.claudePlugins, SOURCES.claudeMcp, SOURCES.cursorMcp, SOURCES.geminiMcp],
+    appliesTo: [
+      'mcp-json',
+      'claude-plugin-manifest',
+      'cursor-mcp',
+      'gemini-settings',
+      'codex-config',
+    ],
+    platforms: ['claude-code', 'cursor', 'gemini', 'codex'],
+    sources: [
+      SOURCES.claudePlugins,
+      SOURCES.claudeMcp,
+      SOURCES.cursorMcp,
+      SOURCES.geminiMcp,
+      SOURCES.codexMcp,
+    ],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
@@ -91,28 +104,36 @@ export const insecureTransportRule = defineRule({
     for (const artifact of context.artifacts) {
       const platform = mcpPlatform(artifact);
       if (platform === undefined || !context.targets.has(platform)) continue;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const canEdit = editable(artifact);
+      const toml = TOML_KINDS.has(artifact.kind);
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'findings about MCP transports');
       for (const server of mcpServers(artifact, doc)) {
-        for (const field of ['url', 'httpUrl']) {
+        for (const field of toml ? ['url'] : ['url', 'httpUrl']) {
           const value = own(server.config, field);
           if (typeof value !== 'string') continue;
           const insecure = insecureHost(value);
           if (insecure === undefined) continue;
           const secure = insecure.scheme === 'ws' ? 'wss://' : 'https://';
           const path = [...server.path, field];
-          const fix = canEdit ? secureFix(artifact, server.name, path, value, secure) : undefined;
+          // No fix builder edits TOML.
+          const fix =
+            canEdit && !toml ? secureFix(artifact, server.name, path, value, secure) : undefined;
+          const guidance = !canEdit
+            ? sharedFileGuidance(artifact)
+            : toml
+              ? `change the URL to ${secure} if the server accepts it at this address`
+              : undefined;
           findings.report({
             artifact,
             ...at(spanOf(doc, path)),
             message: `MCP server ${quote(server.name)} connects to ${quote(insecure.host)} over unencrypted ${insecure.scheme}://, so anyone on the network path can read and change its traffic, including credentials in headers. Use ${secure}.`,
             platforms: [platform],
             ...(fix === undefined ? {} : { fix }),
-            ...(canEdit ? {} : { guidance: sharedFileGuidance(artifact) }),
+            ...(guidance === undefined ? {} : { guidance }),
           });
         }
         if (

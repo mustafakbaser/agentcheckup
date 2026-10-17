@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix, PlatformId } from '../../core/types.js';
 import { jsonReplaceValue } from '../../fix/edits.js';
+import { configDocument } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { at, collectStrings, FileFindings, spanOf, type StringValue } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -20,6 +21,18 @@ const CURSOR_VARIABLES: ReadonlySet<string> = new Set([
   '/',
 ]);
 
+/** Codex server fields that take values, as written: Codex expands no references in them. */
+const CODEX_FIELDS: ReadonlySet<string> = new Set([
+  'command',
+  'args',
+  'env',
+  'url',
+  'http_headers',
+  'cwd',
+]);
+/** Codex server fields that never pass through a shell, where `$NAME` and `%NAME%` stay too. */
+const CODEX_LITERAL_FIELDS: ReadonlySet<string> = new Set(['env', 'url', 'http_headers']);
+
 /** Claude Code expands variables in these server fields. */
 const CLAUDE_FIELDS: ReadonlySet<string> = new Set(['command', 'args', 'env', 'url', 'headers']);
 /** Fields that never pass through a shell, where `$NAME` and `%NAME%` stay literal. */
@@ -27,7 +40,8 @@ const LITERAL_FIELDS: ReadonlySet<string> = new Set(['env', 'url', 'headers']);
 
 interface Mismatch {
   readonly reference: string;
-  readonly kind: 'cursor-env' | 'cursor-builtin' | 'bare' | 'percent';
+  /** `braced`: `${NAME}` or `${NAME:-default}`, which only Codex reports. */
+  readonly kind: 'cursor-env' | 'cursor-builtin' | 'bare' | 'percent' | 'braced';
   readonly name: string;
   /** Offset of the reference in the string. */
   readonly index: number;
@@ -63,6 +77,31 @@ function findBraced(value: string, from = 0): Mismatch | undefined {
     if (CURSOR_VARIABLES.has(inner)) {
       return { reference, kind: 'cursor-builtin', name: inner, index: open };
     }
+  }
+  return undefined;
+}
+
+/**
+ * The first `${…}` reference of any agent: Claude Code's and Gemini CLI's `${NAME}` and
+ * `${NAME:-default}`, Cursor's `${env:NAME}` and built-ins. Codex expands none of them.
+ */
+function findAnyBraced(value: string): Mismatch | undefined {
+  let close = -1;
+  for (let open = value.indexOf('${'); open !== -1; open = value.indexOf('${', open + 2)) {
+    if (close < open + 2) close = value.indexOf('}', open + 2);
+    if (close === -1) break;
+    if (close - open > MAX_REFERENCE) continue;
+    const inner = value.slice(open + 2, close);
+    const reference = value.slice(open, close + 1);
+    if (inner.startsWith('env:') && inner.length > 4) {
+      return { reference, kind: 'cursor-env', name: inner.slice(4), index: open };
+    }
+    if (CURSOR_VARIABLES.has(inner)) {
+      return { reference, kind: 'cursor-builtin', name: inner, index: open };
+    }
+    const colon = inner.indexOf(':');
+    const name = colon === -1 ? inner : inner.slice(0, colon);
+    if (ENV_NAME.test(name)) return { reference, kind: 'braced', name, index: open };
   }
   return undefined;
 }
@@ -190,6 +229,8 @@ function claudeMessage(mismatch: Mismatch): string {
       return `${ref} is Cursor's variable syntax, which Claude Code does not expand, so the server gets this text instead of the value of ${mismatch.name}. Write ${fixed}.`;
     case 'cursor-builtin':
       return `${ref} is a Cursor variable that Claude Code does not have, so the server gets this text unchanged.`;
+    // `braced` is Claude Code's own syntax; findBraced never returns it.
+    case 'braced':
     case 'bare':
     case 'percent':
       return `Claude Code does not expand ${ref} in this field, so the server gets this text instead of the value of ${mismatch.name}. Write ${fixed}.`;
@@ -202,6 +243,23 @@ function geminiMessage(mismatch: Mismatch): string {
     return `${ref} is a Cursor variable. Gemini CLI reads it as an environment variable named ${quote(mismatch.name)}, which is normally not set, so the server does not get the value Cursor would use.`;
   }
   return `${ref} is Cursor's variable syntax, which Gemini CLI does not expand, so the server does not get the value of ${mismatch.name}. Write "$${mismatch.name}".`;
+}
+
+/** Where Codex takes the value from the environment instead (SOURCES.codexMcp). */
+function codexRemedy(field: string, name: string): string {
+  if (field === 'env') return `list ${name} in "env_vars" to pass it from the environment`;
+  if (field === 'http_headers') {
+    return 'move the header to "env_http_headers", which names the variable that holds its value';
+  }
+  return 'write the value itself';
+}
+
+function codexMessage(mismatch: Mismatch, field: string): string {
+  const ref = quote(mismatch.reference);
+  if (mismatch.kind === 'cursor-builtin') {
+    return `${ref} is a Cursor variable. Codex expands no variables in config.toml, so the server gets this text unchanged.`;
+  }
+  return `Codex expands no variables in config.toml, so the server gets ${ref} as text instead of the value of ${mismatch.name}. To use the variable, ${codexRemedy(field, mismatch.name)}.`;
 }
 
 /** The manual step for a Cursor built-in, which no other agent has. */
@@ -217,17 +275,19 @@ export const envSyntaxMismatchRule = defineRule({
     rationale: [
       "Each agent expands environment variables in MCP configuration with its own syntax. Claude Code expands `${VAR}` and `${VAR:-default}` in the `command`, `args`, `env`, `url` and `headers` of `.mcp.json` servers. Cursor uses `${env:VAR}` and built-ins such as `${workspaceFolder}`. Gemini CLI expands `$VAR`, `${VAR}` and `${VAR:-default}` in every string of `settings.json`. A reference in another agent's syntax is not an error: the server starts without the value, so authentication fails or a path does not exist.",
       'In `.mcp.json` the rule also reports `$VAR` and `%VAR%` in `env`, `url` and `headers`, where no shell expands them.',
+      'Codex expands no references in `.codex/config.toml`: it passes `${VAR}` on as text. It takes values from the environment by name instead, through `env_vars`, `env_http_headers` and `bearer_token_env_var`. Since a literal `${VAR}` can be intended, Codex findings are `info`.',
       'Rewrite the reference in the syntax of the agent that reads the file.',
     ].join('\n\n'),
     category: 'portability',
     severity: 'warn',
-    appliesTo: ['mcp-json', 'claude-plugin-manifest', 'gemini-settings'],
-    platforms: ['claude-code', 'gemini'],
+    appliesTo: ['mcp-json', 'claude-plugin-manifest', 'gemini-settings', 'codex-config'],
+    platforms: ['claude-code', 'gemini', 'codex'],
     sources: [
       SOURCES.claudeMcp,
       SOURCES.claudePlugins,
       SOURCES.cursorMcp,
       SOURCES.geminiMcp,
+      SOURCES.codexMcp,
       MCP_SOURCES.geminiConfiguration,
       MCP_SOURCES.geminiEnvResolver,
     ],
@@ -244,12 +304,35 @@ export const envSyntaxMismatchRule = defineRule({
       const platform: PlatformId | undefined = mcpPlatform(artifact);
       if (platform === undefined || !context.targets.has(platform)) continue;
       if (platform === 'claude-code' && !isClaudeMcpConfig(context.snapshot, artifact)) continue;
-      const doc = context.json(artifact);
+      const doc = configDocument(context, artifact);
       if (!doc.ok) continue;
       const canEdit = editable(artifact);
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, "variable references in another agent's syntax");
+      if (platform === 'codex') {
+        for (const server of mcpServers(artifact, doc)) {
+          for (const field of Object.keys(server.config)) {
+            if (!CODEX_FIELDS.has(field)) continue;
+            const unbraced = CODEX_LITERAL_FIELDS.has(field);
+            for (const item of collectStrings(server.config[field], [...server.path, field])) {
+              const mismatch =
+                findAnyBraced(item.value) ?? (unbraced ? findUnbraced(item.value) : undefined);
+              if (mismatch === undefined) continue;
+              findings.report({
+                artifact,
+                ...at(spanOf(doc, item.path)),
+                severity: 'info',
+                message: codexMessage(mismatch, field),
+                platforms: ['codex'],
+                ...(canEdit ? {} : { guidance: sharedFileGuidance(artifact) }),
+              });
+            }
+          }
+        }
+        findings.finish();
+        continue;
+      }
       for (const server of mcpServers(artifact, doc)) {
         for (const field of Object.keys(server.config)) {
           if (platform === 'claude-code' && !CLAUDE_FIELDS.has(field)) continue;
