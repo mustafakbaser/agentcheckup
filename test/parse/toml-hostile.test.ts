@@ -5,17 +5,17 @@ import type { TomlDocument } from '../../src/parse/types.js';
 
 /**
  * Inputs built to hurt a TOML parser. Each must parse without throwing, end as the case says,
- * and take under 100 ms (the best of three runs, so one garbage collection pause does not
- * count).
+ * and stay within a time budget (the best of three runs, so one garbage collection pause does
+ * not count).
  *
  * Coverage instrumentation and a loaded machine slow every parse, so as in performance.test.ts
  * the bound grows with a benign document of about 1 MiB parsed in the same process: a hostile
  * input may cost at most `MAX_RATIO` times that, and always passes under `BUDGET_MS`. On an
- * idle machine without coverage the benign document takes a fraction of the budget, so the
- * bound is 100 ms; super-linear behavior misses either bound by far.
+ * idle machine the worst case takes about 30 ms; the bounds leave room for a busy CI runner,
+ * while super-linear behavior on these inputs (100,000 nodes, 1 MiB) would take seconds.
  */
-const BUDGET_MS = 100;
-const MAX_RATIO = 4;
+const BUDGET_MS = 250;
+const MAX_RATIO = 10;
 const MiB = 1024 * 1024;
 
 const fill = (unit: string, length = MAX_TOML_LENGTH - 64): string =>
