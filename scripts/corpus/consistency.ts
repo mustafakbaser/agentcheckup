@@ -19,6 +19,7 @@ import {
 } from '../../src/platforms/load/consistency.js';
 import { contextAgentsOf } from '../../src/platforms/load/index.js';
 import { matrixPlans } from '../../src/platforms/load/matrix.js';
+import type { ContextAgent } from '../../src/platforms/load/types.js';
 import { forTerminal } from '../../src/report/sanitize.js';
 import { builtinRules } from '../../src/rules/index.js';
 
@@ -34,12 +35,14 @@ export interface RepoConsistency {
 
 /**
  * Scans one repository, plans it and checks both directions. `parseCache` shares parses with
- * other scans of the repository.
+ * other scans of the repository. `agents` are the agents to plan (run.ts `--agents`), every
+ * modeled agent by default.
  */
 export function repoConsistency(
   repo: string,
   snapshot: Snapshot,
   parseCache?: ParseCache,
+  agents?: readonly ContextAgent[],
 ): RepoConsistency {
   const options = { rules: builtinRules, trustDirectives: false } as const;
   // As scanSnapshot with these options: no configuration, every platform targeted.
@@ -47,7 +50,7 @@ export function repoConsistency(
   const result = runRules(analysis, options);
   try {
     const plans = matrixPlans(analysis, {
-      agents: contextAgentsOf(analysis.targetList),
+      agents: agents ?? contextAgentsOf(analysis.targetList),
       config: analysis.config,
     });
     const report = checkConsistency({ findings: result.findings, plans, view: analysis });

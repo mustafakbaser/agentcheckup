@@ -30,6 +30,30 @@ export const AGENT_NAMES: Readonly<Record<ContextAgent, string>> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor',
+  'copilot-cli': 'Copilot CLI',
+  'copilot-vscode': 'Copilot in VS Code',
+  'copilot-cloud': 'Copilot cloud agent',
+  gemini: 'Gemini CLI',
+  windsurf: 'Devin Local',
+  cline: 'Cline',
+};
+
+/**
+ * Short labels for a matrix too wide for {@link AGENT_NAMES}: `group` names the product, and
+ * `surface`, when a product has several agents, names one of them under the group.
+ */
+export const AGENT_COLUMNS: Readonly<
+  Record<ContextAgent, { readonly group: string; readonly surface?: string }>
+> = {
+  'claude-code': { group: 'Claude' },
+  codex: { group: 'Codex' },
+  cursor: { group: 'Cursor' },
+  'copilot-cli': { group: 'Copilot', surface: 'CLI' },
+  'copilot-vscode': { group: 'Copilot', surface: 'VSC' },
+  'copilot-cloud': { group: 'Copilot', surface: 'Cloud' },
+  gemini: { group: 'Gemini' },
+  windsurf: { group: 'Devin' },
+  cline: { group: 'Cline' },
 };
 
 /** The agent as the subject of a sentence: "when Claude opens src/**". */
@@ -37,6 +61,12 @@ const AGENT_SUBJECTS: Readonly<Record<ContextAgent, string>> = {
   'claude-code': 'Claude',
   codex: 'Codex',
   cursor: 'Cursor',
+  'copilot-cli': 'Copilot',
+  'copilot-vscode': 'Copilot',
+  'copilot-cloud': 'Copilot',
+  gemini: 'Gemini CLI',
+  windsurf: 'Devin',
+  cline: 'Cline',
 };
 
 /** Why an agent skips a file, as a clause. */
@@ -61,6 +91,12 @@ export const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'not-utf8': 'not valid UTF-8',
   'case-mismatch': 'the file name has the wrong case',
   'materialized-symlink': 'a symlink checked out as a text file',
+  'wrong-location': 'not in a location this agent reads',
+  'no-apply-to': 'no valid "applyTo"',
+  'shadowed-by-preferred': 'a preferred file is read instead',
+  disabled: 'turned off in the configuration',
+  'never-active': 'its settings keep it from ever applying',
+  'invalid-toml': 'not valid TOML',
   'not-read': 'not read by this agent',
 };
 

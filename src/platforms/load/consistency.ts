@@ -19,7 +19,13 @@ import { compareStrings } from '../../core/compare.js';
 import type { Finding } from '../../core/types.js';
 import { skillLocation } from '../skills.js';
 import { codexSeesBlank, isBlank } from './codex-text.js';
-import type { ContextAgent, LoadPlan, SkipCode, SkippedLoad } from './types.js';
+import {
+  CONTEXT_PLATFORM,
+  type ContextAgent,
+  type LoadPlan,
+  type SkipCode,
+  type SkippedLoad,
+} from './types.js';
 import type { LoadView } from './view.js';
 
 /** A rule whose findings mean that `agent` skips the file, with the skip codes plans use. */
@@ -357,7 +363,7 @@ class Checker {
 
   #findingsOf(ruleId: string, agent: ContextAgent): Finding[] {
     return this.#findings.filter(
-      (finding) => finding.ruleId === ruleId && finding.platforms.includes(agent),
+      (finding) => finding.ruleId === ruleId && finding.platforms.includes(CONTEXT_PLATFORM[agent]),
     );
   }
 
@@ -497,7 +503,8 @@ class Checker {
     if (artifact?.kind !== 'skill') return false;
     const caseMismatch = artifact.caseMismatch !== undefined;
     return [artifact.path, ...artifact.aliases].every(
-      (reached) => skillLocation(reached, caseMismatch)?.platforms.has(agent) !== true,
+      (reached) =>
+        skillLocation(reached, caseMismatch)?.platforms.has(CONTEXT_PLATFORM[agent]) !== true,
     );
   }
 

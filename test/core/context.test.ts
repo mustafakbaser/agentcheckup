@@ -134,7 +134,7 @@ describe('scanWithContext', () => {
       { matrix: true, cwd: 'pkg' },
     ] as const;
     for (const options of bad) {
-      expect(() => scanWithContext(snapshot, { ...OPTIONS, ...options } as never)).toThrow();
+      expect(() => scanWithContext(snapshot, { ...OPTIONS, ...options })).toThrow();
     }
   });
 });

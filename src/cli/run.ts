@@ -19,7 +19,7 @@ import { relativeInsideRoot } from '../io/paths.js';
 import { InputFileError, readJsonInput } from '../io/read-file.js';
 import { walk, WalkError } from '../io/walk.js';
 import { contextAgentsOf } from '../platforms/load/index.js';
-import { CONTEXT_AGENTS } from '../platforms/load/types.js';
+import { CONTEXT_AGENTS, CONTEXT_PLATFORM } from '../platforms/load/types.js';
 import { badgeMarkdown } from '../report/badge.js';
 import { formatBaselineMarkdown } from '../report/baseline-markdown.js';
 import { formatBaselineText } from '../report/baseline-text.js';
@@ -293,7 +293,9 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   // An agent named with --agent is planned even if the configuration does not target it, so
   // its rules run too: the plan reports a skip only where its rule reports a finding.
   const targets =
-    options.agents === undefined ? undefined : [...new Set([...configured, ...agents])];
+    options.agents === undefined
+      ? undefined
+      : [...new Set([...configured, ...agents.map((agent) => CONTEXT_PLATFORM[agent])])];
   const contextOptions: ContextOptions = {
     agents,
     cwd: options.cwd,

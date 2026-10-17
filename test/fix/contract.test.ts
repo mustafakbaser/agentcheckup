@@ -20,7 +20,6 @@ import type {
   PlannedFix,
 } from '../../src/fix/index.js';
 import {
-  CONTEXT_AGENTS,
   GATE_CLASSES,
   SEVERITIES,
   type DecodedText,
@@ -39,6 +38,7 @@ import {
   type TextEdit,
 } from '../../src/index.js';
 import type { FileIdentity } from '../../src/io/safe-read.js';
+import { ALL_CONTEXT_AGENTS } from '../../src/platforms/load/types.js';
 import { FORMATS, format, formatJson } from '../../src/report/index.js';
 import { defineRule } from '../../src/rules/define.js';
 import { builtinRules } from '../../src/rules/index.js';
@@ -452,7 +452,7 @@ describe('schemas/fix.schema.json', () => {
     expect(defs['fileState']?.properties?.['encoding']?.enum).toEqual([...ENCODINGS]);
     expect(defs['fileState']?.properties?.['lineEnding']?.enum).toEqual([...LINE_ENDINGS]);
     const [tokens, gate] = defs['effect']?.oneOf ?? [];
-    expect(tokens?.properties['agent']?.enum).toEqual([...CONTEXT_AGENTS]);
+    expect(tokens?.properties['agent']?.enum).toEqual([...ALL_CONTEXT_AGENTS]);
     expect(gate?.properties['class']?.enum).toEqual([...GATE_CLASSES]);
     expect(
       (reportSchema.$defs['fileChange']?.oneOf ?? []).map(

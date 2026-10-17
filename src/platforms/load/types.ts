@@ -9,13 +9,63 @@
  */
 import type { ArtifactKind, FixClass, PlatformId, RuleSource } from '../../core/types.js';
 
-/** Agents with a load model, in PLATFORM_IDS order. Other platforms are added one at a time. */
-export const CONTEXT_AGENTS = [
+/**
+ * Every agent the load-plan contract names, in report order: PLATFORM_IDS order, with the
+ * surfaces of one platform next to each other. Copilot loads different files on the CLI, in
+ * VS Code and as the cloud agent on GitHub.com, so each surface is an agent of its own. Devin
+ * Local, the default agent of Devin Desktop (formerly Windsurf), is `windsurf`.
+ */
+export const ALL_CONTEXT_AGENTS = [
   'claude-code',
   'codex',
   'cursor',
-] as const satisfies readonly PlatformId[];
-export type ContextAgent = (typeof CONTEXT_AGENTS)[number];
+  'copilot-cli',
+  'copilot-vscode',
+  'copilot-cloud',
+  'gemini',
+  'windsurf',
+  'cline',
+] as const;
+export type ContextAgent = (typeof ALL_CONTEXT_AGENTS)[number];
+
+/**
+ * The platform each agent belongs to: the id rules, findings and the configuration's `targets`
+ * use. Several agents can share one platform, as the Copilot surfaces do.
+ */
+export const CONTEXT_PLATFORM: Readonly<Record<ContextAgent, PlatformId>> = {
+  'claude-code': 'claude-code',
+  codex: 'codex',
+  cursor: 'cursor',
+  'copilot-cli': 'copilot',
+  'copilot-vscode': 'copilot',
+  'copilot-cloud': 'copilot',
+  gemini: 'gemini',
+  windsurf: 'windsurf',
+  cline: 'cline',
+};
+
+/**
+ * Whether each agent's loader is turned on: the one switch per agent. An agent that is off has
+ * a stub loader in ./index.ts and is not planned anywhere: not by `context`, `--agent`, a scan
+ * with `--context`, the matrix, the consistency check or the corpus harness. The unit that
+ * replaces the stub with a real loader turns its agent on here, in the same change.
+ */
+export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
+  'claude-code': true,
+  codex: true,
+  cursor: true,
+  'copilot-cli': false,
+  'copilot-vscode': false,
+  'copilot-cloud': false,
+  gemini: false,
+  windsurf: false,
+  cline: false,
+};
+
+/** Agents with a load model that is turned on ({@link LOADER_ENABLED}), in report order. */
+export const CONTEXT_AGENTS: readonly ContextAgent[] = ALL_CONTEXT_AGENTS.filter(
+  (agent) => LOADER_ENABLED[agent],
+);
 
 /**
  * What an entry is to the agent.
@@ -138,6 +188,17 @@ export interface LoadEntry {
  * - `case-mismatch`: the name matches only case-insensitively, so case-sensitive file systems
  *   miss it.
  * - `materialized-symlink`: a symlink checked out as a text file that holds the target path.
+ * - `wrong-location`: the file is not in a location where the agent reads files of its kind,
+ *   such as Copilot instructions outside `.github/`.
+ * - `no-apply-to`: a path-specific instructions file without a valid `applyTo`, which the
+ *   Copilot cloud agent never applies.
+ * - `shadowed-by-preferred`: the agent reads a file it prefers for the same purpose instead,
+ *   such as `.devin/global_rules.md` over `.windsurf/global_rules.md`.
+ * - `disabled`: a setting in the repository turns the file or item off, such as Devin's
+ *   `read_config_from` or `enabled = false` on a Codex MCP server.
+ * - `never-active`: the file's own settings keep it from ever applying, such as a Cline rule
+ *   with `paths: []`.
+ * - `invalid-toml`: the config file is not valid TOML.
  * - `not-read`: the agent does not read the file here, and no rule reports it as a problem.
  */
 export type SkipCode =
@@ -161,6 +222,12 @@ export type SkipCode =
   | 'not-utf8'
   | 'case-mismatch'
   | 'materialized-symlink'
+  | 'wrong-location'
+  | 'no-apply-to'
+  | 'shadowed-by-preferred'
+  | 'disabled'
+  | 'never-active'
+  | 'invalid-toml'
   | 'not-read';
 
 /**

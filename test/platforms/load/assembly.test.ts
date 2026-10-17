@@ -10,6 +10,7 @@ import {
   buildContextReport,
   citedSourceKeys,
   contextAgentsOf,
+  isContextAgent,
   loadPlan,
   loadPlans,
   orderedAgents,
@@ -22,7 +23,12 @@ import {
   codexStartDirectories,
   matrixPlans,
 } from '../../../src/platforms/load/matrix.js';
-import { CONTEXT_AGENTS, type LoadPlan } from '../../../src/platforms/load/types.js';
+import {
+  ALL_CONTEXT_AGENTS,
+  CONTEXT_AGENTS,
+  LOADER_ENABLED,
+  type LoadPlan,
+} from '../../../src/platforms/load/types.js';
 import { SOURCES } from '../../../src/platforms/sources.js';
 import { builtinRules } from '../../../src/rules/index.js';
 import { entry, plan, size } from '../../helpers/context.js';
@@ -61,13 +67,36 @@ describe('loadPlans', () => {
 
   it('rejects unmodeled agents, bad working directories and context windows', () => {
     const base = { config: analysis.config, cwd: '', agents: ['codex'] } as const;
-    expect(() => loadPlans(analysis, { ...base, agents: ['gemini' as never] })).toThrow(
+    expect(() => loadPlans(analysis, { ...base, agents: ['gemini'] })).toThrow(
       'No load model for "gemini".',
     );
     expect(() => loadPlans(analysis, { ...base, cwd: './pkg' })).toThrow('normalized');
     expect(() => loadPlans(analysis, { ...base, contextWindow: -1 })).toThrow('positive');
     expect(orderedAgents(['cursor', 'codex'])).toEqual(['codex', 'cursor']);
     expect(contextAgentsOf(['gemini', 'cursor', 'claude-code'])).toEqual(['claude-code', 'cursor']);
+  });
+
+  it('plans no agent that is turned off, whether named or targeted', () => {
+    const off = ALL_CONTEXT_AGENTS.filter((agent) => !LOADER_ENABLED[agent]);
+    expect(off).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
+      'gemini',
+      'windsurf',
+      'cline',
+    ]);
+    for (const agent of off) {
+      expect(isContextAgent(agent)).toBe(false);
+      expect(() => orderedAgents([agent])).toThrow(`No load model for "${agent}".`);
+      expect(() =>
+        loadPlans(analysis, { agents: [agent], cwd: '', config: analysis.config }),
+      ).toThrow('No load model');
+    }
+    expect(contextAgentsOf(['copilot', 'gemini', 'windsurf', 'cline'])).toEqual([]);
+    expect(contextAgentsOf(PLATFORM_IDS)).toEqual(['claude-code', 'codex', 'cursor']);
+    expect(isContextAgent('copilot')).toBe(false);
+    expect(isContextAgent('codex')).toBe(true);
   });
 });
 

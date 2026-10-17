@@ -9,19 +9,15 @@
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
 import { normalizeRelative } from '../../core/paths.js';
-import {
-  type Finding,
-  type FixClass,
-  PLATFORM_IDS,
-  type PlatformId,
-  type RuleSource,
-} from '../../core/types.js';
+import type { Finding, FixClass, PlatformId, RuleSource } from '../../core/types.js';
 import { SOURCES } from '../sources.js';
 import { loadClaudeCode } from './claude-code.js';
 import { loadCodex } from './codex.js';
 import { loadCursor } from './cursor.js';
 import {
+  ALL_CONTEXT_AGENTS,
   CONTEXT_AGENTS,
+  CONTEXT_PLATFORM,
   type ContextAgent,
   type ContextReport,
   type HiddenScope,
@@ -54,31 +50,71 @@ type Loader = (
   },
 ) => LoadPlan;
 
+/**
+ * The loader of an agent that is turned off (`LOADER_ENABLED` in ./types.ts): a plan with
+ * nothing in it. It never runs, because {@link orderedAgents} refuses an agent that is off; it
+ * keeps {@link LOADERS} complete until the agent's loader replaces it.
+ */
+function notModeled(agent: ContextAgent): Loader {
+  return (_view, options) => {
+    const zero = { bytes: 0, chars: 0, tokens: 0 };
+    return {
+      agent,
+      cwd: options.cwd,
+      entries: [],
+      skipped: [],
+      outOfScope: [],
+      assumptions: [],
+      hidden: [],
+      limits: [],
+      totals: { startup: zero, onDemand: zero },
+      incomplete: [],
+    };
+  };
+}
+
+/**
+ * The loader of each agent. To turn an agent on, replace its stub with the real loader here and
+ * set its `LOADER_ENABLED` flag in ./types.ts.
+ */
 const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'claude-code': loadClaudeCode,
   codex: loadCodex,
   cursor: loadCursor,
+  'copilot-cli': notModeled('copilot-cli'),
+  'copilot-vscode': notModeled('copilot-vscode'),
+  'copilot-cloud': notModeled('copilot-cloud'),
+  gemini: notModeled('gemini'),
+  windsurf: notModeled('windsurf'),
+  cline: notModeled('cline'),
 };
 
-/** True for an agent agentcheckup has a load model for. */
-export function isContextAgent(platform: string): platform is ContextAgent {
-  return (CONTEXT_AGENTS as readonly string[]).includes(platform);
+/** True for an agent agentcheckup has a load model for that is turned on. */
+export function isContextAgent(agent: string): agent is ContextAgent {
+  return (CONTEXT_AGENTS as readonly string[]).includes(agent);
 }
 
-/** The modeled agents among `targets`, in PLATFORM_IDS order. */
+/**
+ * The modeled agents of the platforms in `targets`, in report order: every agent that is turned
+ * on and whose platform ({@link CONTEXT_PLATFORM}) is targeted.
+ */
 export function contextAgentsOf(targets: Iterable<PlatformId>): ContextAgent[] {
-  const set = new Set<string>(targets);
-  return CONTEXT_AGENTS.filter((agent) => set.has(agent));
+  const set = new Set<PlatformId>(targets);
+  return CONTEXT_AGENTS.filter((agent) => set.has(CONTEXT_PLATFORM[agent]));
 }
 
-/** `agents` without repeats, in PLATFORM_IDS order. Throws for an agent without a load model. */
+/**
+ * `agents` without repeats, in report order. Throws for an agent without a load model, or one
+ * that is turned off.
+ */
 export function orderedAgents(agents: readonly string[]): ContextAgent[] {
   for (const agent of agents) {
     if (!isContextAgent(agent)) {
       throw new Error(`No load model for ${JSON.stringify(agent)}.`);
     }
   }
-  return contextAgentsOf(agents as readonly PlatformId[]);
+  const set = new Set<string>(agents);
+  return CONTEXT_AGENTS.filter((agent) => set.has(agent));
 }
 
 /** Throws unless `cwd` is a normalized root-relative path that does not climb above the root. */
@@ -98,7 +134,7 @@ export function checkContextWindow(contextWindow: number | undefined): void {
 }
 
 /**
- * One plan per agent for a session started in `options.cwd`, in PLATFORM_IDS order, without the
+ * One plan per agent for a session started in `options.cwd`, in report order, without the
  * paths the configuration ignores ({@link withoutIgnored}).
  */
 export function loadPlans(view: LoadView, options: LoadPlansOptions): LoadPlan[] {
@@ -224,8 +260,8 @@ export function sourcesOf(keys: readonly SourceKey[]): Record<SourceKey, RuleSou
   return sources;
 }
 
-const PLATFORM_RANK: ReadonlyMap<PlatformId, number> = new Map(
-  PLATFORM_IDS.map((id, index) => [id, index]),
+const AGENT_RANK: ReadonlyMap<ContextAgent, number> = new Map(
+  ALL_CONTEXT_AGENTS.map((agent, index) => [agent, index]),
 );
 
 const SCOPE_RANK: Readonly<Record<HiddenScope['scope'], number>> = {
@@ -256,8 +292,7 @@ function compareOutOfScope(a: OutOfScope, b: OutOfScope): number {
 
 function comparePlans(a: LoadPlan, b: LoadPlan): number {
   return (
-    (PLATFORM_RANK.get(a.agent) ?? 0) - (PLATFORM_RANK.get(b.agent) ?? 0) ||
-    compareStrings(a.cwd, b.cwd)
+    (AGENT_RANK.get(a.agent) ?? 0) - (AGENT_RANK.get(b.agent) ?? 0) || compareStrings(a.cwd, b.cwd)
   );
 }
 
@@ -282,7 +317,7 @@ export function sortedPlan(plan: LoadPlan): LoadPlan {
 }
 
 export interface ContextReportInput {
-  /** The report's columns. Put in PLATFORM_IDS order. */
+  /** The report's columns. Put in report order. */
   readonly agents: readonly ContextAgent[];
   readonly plans: readonly LoadPlan[];
   readonly matrix?: ContextReport['matrix'];
@@ -325,10 +360,10 @@ export function withFixClasses(plan: LoadPlan, findings: readonly Finding[]): Lo
 }
 
 /**
- * The context report of `plans`: agents in PLATFORM_IDS order, plans by agent then working
+ * The context report of `plans`: agents in report order, plans by agent then working
  * directory, every list inside a plan sorted, matrix rows by path, and `sources` holding exactly
  * the sources the plans cite, by key. A matrix's cells must already follow `agents` in
- * PLATFORM_IDS order (see `buildMatrix`). With `findings`, skips get their fix class.
+ * report order (see `buildMatrix`). With `findings`, skips get their fix class.
  */
 export function buildContextReport(input: ContextReportInput): ContextReport {
   const { findings } = input;

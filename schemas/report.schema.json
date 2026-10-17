@@ -133,13 +133,22 @@
         "cursor-mcp",
         "copilot-instructions",
         "copilot-path-instructions",
+        "copilot-hooks",
+        "copilot-mcp",
+        "copilot-settings",
+        "vscode-mcp",
         "gemini-md",
         "gemini-settings",
         "mcp-json",
         "codex-hooks",
+        "codex-config",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-config",
+        "devin-mcp",
+        "devin-hooks",
         "cline-rule",
+        "cline-workflow",
         "imported-file"
       ]
     },
@@ -529,8 +538,18 @@
       "type": "string"
     },
     "contextAgent": {
-      "description": "Agents with a load model, in platform order.",
-      "enum": ["claude-code", "codex", "cursor"]
+      "description": "Agents with a load model, in report order: platform order, with the Copilot surfaces (CLI, VS Code, cloud agent) next to each other. `windsurf` is Devin Local.",
+      "enum": [
+        "claude-code",
+        "codex",
+        "cursor",
+        "copilot-cli",
+        "copilot-vscode",
+        "copilot-cloud",
+        "gemini",
+        "windsurf",
+        "cline"
+      ]
     },
     "loadRole": {
       "enum": [
@@ -656,6 +675,12 @@
         "not-utf8",
         "case-mismatch",
         "materialized-symlink",
+        "wrong-location",
+        "no-apply-to",
+        "shadowed-by-preferred",
+        "disabled",
+        "never-active",
+        "invalid-toml",
         "not-read"
       ]
     },

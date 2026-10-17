@@ -24,7 +24,11 @@ import {
 } from '../../../src/platforms/load/consistency.js';
 import { loadPlans } from '../../../src/platforms/load/index.js';
 import { matrixPlans } from '../../../src/platforms/load/matrix.js';
-import { CONTEXT_AGENTS, type LoadPlan } from '../../../src/platforms/load/types.js';
+import {
+  CONTEXT_AGENTS,
+  CONTEXT_PLATFORM,
+  type LoadPlan,
+} from '../../../src/platforms/load/types.js';
 import { builtinRules } from '../../../src/rules/index.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
 
@@ -111,7 +115,7 @@ describe('the mapping tables', () => {
           (item) => item.ruleId === meta.id && item.agents.includes(agent),
         );
         expect(skips.length + loads.length, `${meta.id} ${agent}`).toBeLessThanOrEqual(1);
-        if (meta.category === 'loading' && meta.platforms.includes(agent)) {
+        if (meta.category === 'loading' && meta.platforms.includes(CONTEXT_PLATFORM[agent])) {
           expect(skips.length + loads.length, `${meta.id} ${agent}`).toBe(1);
         }
       }

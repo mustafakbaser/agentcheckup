@@ -9,10 +9,14 @@ import {
   type GateClass,
   type Inventory,
   type LoadPlan,
-  type PlatformId,
   type ScanResult,
   type Size,
 } from '../../../src/index.js';
+import {
+  ALL_CONTEXT_AGENTS,
+  CONTEXT_PLATFORM,
+  LOADER_ENABLED,
+} from '../../../src/platforms/load/types.js';
 
 const size: Size = { bytes: 1204, chars: 1204, tokens: 301 };
 
@@ -80,14 +84,36 @@ const plan = {
 } as const satisfies LoadPlan;
 
 describe('load-plan contract', () => {
-  it('models a subset of the platforms, in PLATFORM_IDS order', () => {
-    expect(PLATFORM_IDS.filter((id) => CONTEXT_AGENTS.some((agent) => agent === id))).toEqual([
-      ...CONTEXT_AGENTS,
+  it('names an agent per platform, and one per Copilot surface, in PLATFORM_IDS order', () => {
+    expectTypeOf<ContextAgent>().toEqualTypeOf<
+      | 'claude-code'
+      | 'codex'
+      | 'cursor'
+      | 'copilot-cli'
+      | 'copilot-vscode'
+      | 'copilot-cloud'
+      | 'gemini'
+      | 'windsurf'
+      | 'cline'
+    >();
+    expect(Object.keys(CONTEXT_PLATFORM)).toEqual([...ALL_CONTEXT_AGENTS]);
+    const platforms = ALL_CONTEXT_AGENTS.map((agent) => CONTEXT_PLATFORM[agent]);
+    // Every platform has an agent, and agents of one platform are next to each other.
+    expect([...new Set(platforms)]).toEqual([...PLATFORM_IDS]);
+    expect(ALL_CONTEXT_AGENTS.filter((agent) => CONTEXT_PLATFORM[agent] === 'copilot')).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
     ]);
-    expectTypeOf<ContextAgent>().toEqualTypeOf<'claude-code' | 'codex' | 'cursor'>();
-    expectTypeOf<ContextAgent>().toExtend<PlatformId>();
-    // Not every platform has a load model yet.
-    expectTypeOf<PlatformId>().not.toExtend<ContextAgent>();
+    for (const agent of ALL_CONTEXT_AGENTS) {
+      if (CONTEXT_PLATFORM[agent] !== 'copilot') expect(CONTEXT_PLATFORM[agent]).toBe(agent);
+    }
+  });
+
+  it('turns on only the agents whose loader exists, in the same order', () => {
+    expect(Object.keys(LOADER_ENABLED)).toEqual([...ALL_CONTEXT_AGENTS]);
+    expect(CONTEXT_AGENTS).toEqual(ALL_CONTEXT_AGENTS.filter((agent) => LOADER_ENABLED[agent]));
+    expect(CONTEXT_AGENTS).toEqual(['claude-code', 'codex', 'cursor']);
   });
 
   it('accepts a complete plan inside a context report', () => {

@@ -57,7 +57,7 @@ import type {
   Size,
   SkippedLoad,
 } from '../platforms/load/types.js';
-import { TRIGGER_RANK } from '../platforms/load/types.js';
+import { ALL_CONTEXT_AGENTS, TRIGGER_RANK } from '../platforms/load/types.js';
 import { forJsonOutput } from './sanitize.js';
 
 function position(value: Position): Position {
@@ -206,6 +206,13 @@ function ranks<T extends string>(order: Readonly<Record<T, number>>): (value: T)
 
 const platformRank = ranks(
   Object.fromEntries(PLATFORM_IDS.map((id, index) => [id, index])) as Record<PlatformId, number>,
+);
+
+const agentRank = ranks(
+  Object.fromEntries(ALL_CONTEXT_AGENTS.map((agent, index) => [agent, index])) as Record<
+    ContextAgent,
+    number
+  >,
 );
 
 /** Assembly order of triggers: what is in the prompt first, then what can join later. */
@@ -362,7 +369,7 @@ function loadPlan(value: LoadPlan): LoadPlan {
 /**
  * A canonical copy of a context report: fixed key order and the sort orders of the design
  * (plans by agent then working directory, entries by position, trigger, path and id, and so
- * on). `agents` is put in PLATFORM_IDS order and every matrix row's cells are permuted with it,
+ * on). `agents` is put in report order and every matrix row's cells are permuted with it,
  * so `cells[i]` stays the state for `agents[i]`.
  */
 export function toJsonContext(context: ContextReport): ContextReport {
@@ -370,7 +377,7 @@ export function toJsonContext(context: ContextReport): ContextReport {
     .map((agent, index) => ({ agent, index }))
     .sort(
       compareBy(
-        (column) => platformRank(column.agent),
+        (column) => agentRank(column.agent),
         (column) => column.index,
       ),
     );
@@ -385,7 +392,7 @@ export function toJsonContext(context: ContextReport): ContextReport {
     ),
     plans: sortedBy(
       context.plans,
-      (plan) => platformRank(plan.agent),
+      (plan) => agentRank(plan.agent),
       (plan) => plan.cwd,
     ).map(loadPlan),
     ...(context.matrix === undefined
@@ -575,7 +582,7 @@ export function toJsonBaseline(diff: BaselineDiff): BaselineDiff {
     inventory: itemDiff(diff.inventory),
     context: sortedBy(
       diff.context,
-      (delta) => platformRank(delta.agent),
+      (delta) => agentRank(delta.agent),
       (delta) => delta.cwd,
     ).map(planDelta),
     gate: {

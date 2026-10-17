@@ -109,7 +109,19 @@
           "required": ["kind", "agent", "cwd", "before", "after"],
           "properties": {
             "kind": { "const": "tokens" },
-            "agent": { "enum": ["claude-code", "codex", "cursor"] },
+            "agent": {
+              "enum": [
+                "claude-code",
+                "codex",
+                "cursor",
+                "copilot-cli",
+                "copilot-vscode",
+                "copilot-cloud",
+                "gemini",
+                "windsurf",
+                "cline"
+              ]
+            },
             "cwd": {
               "description": "Working directory of the plan, relative to the scan root. Empty for the root.",
               "type": "string"

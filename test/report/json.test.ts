@@ -12,7 +12,7 @@ import {
   type SymlinkProblem,
 } from '../../src/core/types.js';
 import {
-  CONTEXT_AGENTS,
+  ALL_CONTEXT_AGENTS,
   type Certainty,
   type LimitUsage,
   type LoadRole,
@@ -159,6 +159,36 @@ describe('formatJson with inventory, context and baseline', () => {
     expect(context.agents).toEqual(['claude-code', 'cursor']);
     expect(context.plans.map((item) => item.agent)).toEqual(['claude-code', 'cursor']);
     expect(context.matrix?.rows[0]?.cells).toEqual(['not-read', 'startup']);
+  });
+
+  it('keeps the Copilot surfaces together, between Cursor and Gemini CLI', () => {
+    const context = toJsonContext({
+      ...contextReport([plan('cline'), plan('copilot-cloud'), plan('gemini'), plan('copilot-cli')]),
+      agents: ['cline', 'copilot-cloud', 'gemini', 'copilot-cli', 'cursor'],
+      matrix: {
+        rows: [
+          {
+            path: 'AGENTS.md',
+            kind: 'agents-md',
+            cells: ['manual', 'on-path', 'not-read', 'startup', 'skipped'],
+          },
+        ],
+      },
+    });
+    expect(context.agents).toEqual(['cursor', 'copilot-cli', 'copilot-cloud', 'gemini', 'cline']);
+    expect(context.plans.map((item) => item.agent)).toEqual([
+      'copilot-cli',
+      'copilot-cloud',
+      'gemini',
+      'cline',
+    ]);
+    expect(context.matrix?.rows[0]?.cells).toEqual([
+      'skipped',
+      'startup',
+      'on-path',
+      'not-read',
+      'manual',
+    ]);
   });
 
   it('breaks ties on every secondary key and sorts unknown values last', () => {
@@ -457,6 +487,12 @@ describe('schemas/report.schema.json', () => {
       'not-utf8',
       'case-mismatch',
       'materialized-symlink',
+      'wrong-location',
+      'no-apply-to',
+      'shadowed-by-preferred',
+      'disabled',
+      'never-active',
+      'invalid-toml',
       'not-read',
     ] as const satisfies readonly SkipCode[];
     const MATRIX_CELLS = [
@@ -531,7 +567,7 @@ describe('schemas/report.schema.json', () => {
     expect(defs['certainty']?.enum).toEqual([...CERTAINTIES]);
     expect(defs['gateClass']?.enum).toEqual([...GATE_CLASSES]);
     expect(defs['limitUsage']?.properties?.['unit']?.enum).toEqual([...LIMIT_UNITS]);
-    expect(defs['contextAgent']?.enum).toEqual([...CONTEXT_AGENTS]);
+    expect(defs['contextAgent']?.enum).toEqual([...ALL_CONTEXT_AGENTS]);
   });
 
   it('enumerations mirror the TypeScript constants', () => {

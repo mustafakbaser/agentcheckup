@@ -61,16 +61,28 @@ export const ARTIFACT_KINDS = [
   'cursor-mcp',
   'copilot-instructions',
   'copilot-path-instructions',
+  'copilot-hooks',
+  'copilot-mcp',
+  'copilot-settings',
+  'vscode-mcp',
   'gemini-md',
   'gemini-settings',
   'mcp-json',
   'codex-hooks',
+  'codex-config',
   'windsurf-rule',
   'windsurf-legacy-rules',
+  'devin-config',
+  'devin-mcp',
+  'devin-hooks',
   'cline-rule',
+  'cline-workflow',
   'imported-file',
 ] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
+
+/** Kinds whose content is TOML. src/platforms/kinds.ts lists the Markdown and JSON kinds. */
+export const TOML_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>(['codex-config']);
 
 export interface Position {
   /** 1-based. */

@@ -127,4 +127,19 @@ describe('renderContextSection', () => {
   it('is deterministic and independent of repository order', () => {
     expect(renderContextSection([...repos].reverse())).toBe(renderContextSection(repos));
   });
+
+  it('plans and shows only the agents selected with --agents', () => {
+    const files = { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE };
+    const snapshot = snapshotFrom(files, { paths: ['.git/'] });
+    const { facts: codex } = scanForSummary(snapshot, undefined, ['codex']);
+    expect(codex.crash).toBeUndefined();
+    expect(codex.startupInstructions).toEqual({ codex: ['AGENTS.md'] });
+    // Claude Code is not planned, so its skip of AGENTS.md is not counted.
+    expect(codex.skippingAgents).toEqual([]);
+    expect(codex.claudeSkipsRootAgentsMd).toBe(false);
+    const text = renderContextSection([codex], ['codex']);
+    expect(text).toContain('| Codex skips one | 0 |');
+    expect(text).not.toContain('Claude Code skips one');
+    expect(text).not.toContain('Cursor: instructions');
+  });
 });

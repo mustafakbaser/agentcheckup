@@ -42,6 +42,12 @@ const AGENT_LABELS: Readonly<Record<ContextAgent, string>> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor',
+  'copilot-cli': 'Copilot CLI',
+  'copilot-vscode': 'Copilot in VS Code',
+  'copilot-cloud': 'Copilot cloud agent',
+  gemini: 'Gemini CLI',
+  windsurf: 'Devin Local',
+  cline: 'Cline',
 };
 
 type EnvClass = Exclude<EnvItem['class'], 'other'>;
@@ -97,21 +103,24 @@ export interface RepoContextFacts {
   readonly codexTomlUnparsed: boolean;
 }
 
-function perAgent<T>(value: (agent: ContextAgent) => T): Record<ContextAgent, T> {
-  return {
-    'claude-code': value('claude-code'),
-    codex: value('codex'),
-    cursor: value('cursor'),
-  };
+/** A value for each of `agents`, the agents planned; the others have none. */
+function perAgent<T>(
+  agents: readonly ContextAgent[],
+  value: (agent: ContextAgent) => T,
+): Record<ContextAgent, T> {
+  return Object.fromEntries(agents.map((agent) => [agent, value(agent)])) as Record<
+    ContextAgent,
+    T
+  >;
 }
 
-function emptyFacts(crash: string): RepoContextFacts {
+function emptyFacts(crash: string, agents: readonly ContextAgent[]): RepoContextFacts {
   return {
     crash,
-    startupInstructions: perAgent(() => []),
-    instructionTokens: perAgent(() => 0),
-    startupTokens: perAgent(() => 0),
-    loadsAtStartup: perAgent(() => false),
+    startupInstructions: perAgent(agents, () => []),
+    instructionTokens: perAgent(agents, () => 0),
+    startupTokens: perAgent(agents, () => 0),
+    loadsAtStartup: perAgent(agents, () => false),
     rootAgentsMd: false,
     claudeSkipsRootAgentsMd: false,
     skippingAgents: [],
@@ -153,11 +162,13 @@ function overBudget(plan: LoadPlan | undefined): boolean {
 /**
  * Scans one repository like `agentcheckup --untrusted --context --matrix` and returns the rule
  * result with the repository's facts. A loader that throws is recorded in `crash`; the rule
- * result is kept. `parseCache` shares parses with other scans of the repository.
+ * result is kept. `parseCache` shares parses with other scans of the repository. `agents` are
+ * the agents to plan (run.ts `--agents`), every modeled agent by default.
  */
 export function scanForSummary(
   snapshot: Snapshot,
   parseCache?: ParseCache,
+  agents?: readonly ContextAgent[],
 ): {
   readonly result: RuleResult;
   readonly facts: RepoContextFacts;
@@ -165,12 +176,10 @@ export function scanForSummary(
   // As scanSnapshot with these options: no configuration, every platform targeted.
   const analysis = analyze(snapshot, parseCache === undefined ? {} : { parseCache });
   const result = runRules(analysis, { rules: builtinRules, trustDirectives: false });
+  const planned = agents ?? contextAgentsOf(analysis.targetList);
   try {
     const inventory = buildInventory(analysis);
-    const plans = matrixPlans(analysis, {
-      agents: contextAgentsOf(analysis.targetList),
-      config: analysis.config,
-    });
+    const plans = matrixPlans(analysis, { agents: planned, config: analysis.config });
     const root = new Map(
       plans.filter((plan) => plan.cwd === '').map((plan) => [plan.agent, plan] as const),
     );
@@ -197,19 +206,20 @@ export function scanForSummary(
       (root.get(agent)?.entries ?? []).filter(
         (entry) => entry.trigger === 'startup' && INSTRUCTION_ROLES.has(entry.role),
       );
-    const startupInstructions = perAgent((agent) =>
+    const startupInstructions = perAgent(planned, (agent) =>
       [...new Set(instructionEntries(agent).map((entry) => entry.realPath))].sort(compareStrings),
     );
     const facts: RepoContextFacts = {
       startupInstructions,
-      instructionTokens: perAgent((agent) =>
+      instructionTokens: perAgent(planned, (agent) =>
         Math.ceil(
           instructionEntries(agent).reduce((chars, entry) => chars + (entry.size?.chars ?? 0), 0) /
             4,
         ),
       ),
-      startupTokens: perAgent((agent) => root.get(agent)?.totals.startup.tokens ?? 0),
+      startupTokens: perAgent(planned, (agent) => root.get(agent)?.totals.startup.tokens ?? 0),
       loadsAtStartup: perAgent(
+        planned,
         (agent) => root.get(agent)?.entries.some((entry) => entry.trigger === 'startup') === true,
       ),
       rootAgentsMd: analysis.index.get('AGENTS.md')?.kind === 'agents-md',
@@ -219,7 +229,7 @@ export function scanForSummary(
           ?.skipped.some(
             (skip) => skip.path === 'AGENTS.md' && skip.code === 'shadowed-by-claude-md',
           ) === true && !startupInstructions['claude-code'].includes(realPathOf('AGENTS.md')),
-      skippingAgents: CONTEXT_AGENTS.filter((agent) => skipping.has(agent)),
+      skippingAgents: planned.filter((agent) => skipping.has(agent)),
       skipCodes: [...codes].sort(compareStrings),
       codexOverBudget: {
         root: overBudget(root.get('codex')),
@@ -242,7 +252,10 @@ export function scanForSummary(
     };
     return { result, facts };
   } catch (error) {
-    return { result, facts: emptyFacts(error instanceof Error ? error.message : String(error)) };
+    return {
+      result,
+      facts: emptyFacts(error instanceof Error ? error.message : String(error), planned),
+    };
   }
 }
 
@@ -313,6 +326,12 @@ const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'not-utf8': 'not UTF-8',
   'case-mismatch': 'file name case does not match',
   'materialized-symlink': 'symlink checked out as a text file',
+  'wrong-location': 'not in a location the agent reads',
+  'no-apply-to': 'no valid applyTo (Copilot)',
+  'shadowed-by-preferred': 'a preferred file is read instead',
+  disabled: 'turned off in the configuration',
+  'never-active': 'never active',
+  'invalid-toml': 'invalid TOML',
   'not-read': 'not read',
 };
 
@@ -330,9 +349,13 @@ function distribution(label: string, values: readonly number[]): string[] {
 
 /**
  * The "What agents load" section, from every scanned repository's facts. Counts only: no
- * repository names, paths, server names or per-repository rows.
+ * repository names, paths, server names or per-repository rows. `agents` must be the agents
+ * the facts were planned for.
  */
-export function renderContextSection(all: readonly RepoContextFacts[]): string {
+export function renderContextSection(
+  all: readonly RepoContextFacts[],
+  agents: readonly ContextAgent[] = CONTEXT_AGENTS,
+): string {
   const facts = all.filter((item) => item.crash === undefined);
   const crashes = all.length - facts.length;
   const count = (test: (item: RepoContextFacts) => boolean): number => facts.filter(test).length;
@@ -345,13 +368,13 @@ export function renderContextSection(all: readonly RepoContextFacts[]): string {
 
   // Instructions at session start, root directory.
   const withInstructions = facts.filter((item) =>
-    CONTEXT_AGENTS.some((agent) => item.startupInstructions[agent].length > 0),
+    agents.some((agent) => item.startupInstructions[agent].length > 0),
   );
   const differ = withInstructions.filter(
-    (item) => !sameSets(CONTEXT_AGENTS.map((agent) => item.startupInstructions[agent])),
+    (item) => !sameSets(agents.map((agent) => item.startupInstructions[agent])),
   );
   const someAgentWithout = differ.filter((item) =>
-    CONTEXT_AGENTS.some((agent) => item.startupInstructions[agent].length === 0),
+    agents.some((agent) => item.startupInstructions[agent].length === 0),
   );
   const rootAgentsMd = count((item) => item.rootAgentsMd);
 
@@ -398,7 +421,7 @@ export function renderContextSection(all: readonly RepoContextFacts[]): string {
           'Some agent skips an agent-config file or item',
           number(count((item) => item.skippingAgents.length > 0)),
         ],
-        ...CONTEXT_AGENTS.map((agent) => [
+        ...agents.map((agent) => [
           `${AGENT_LABELS[agent]} skips one`,
           number(count((item) => item.skippingAgents.includes(agent))),
         ]),
@@ -432,7 +455,7 @@ export function renderContextSection(all: readonly RepoContextFacts[]): string {
     table(
       ['', 'Repositories', 'Median', '90th percentile', 'Largest'],
       ['---', '---:', '---:', '---:', '---:'],
-      CONTEXT_AGENTS.flatMap((agent) => [
+      agents.flatMap((agent) => [
         distribution(
           `${AGENT_LABELS[agent]}: instructions`,
           facts

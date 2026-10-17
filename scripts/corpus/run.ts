@@ -23,6 +23,11 @@
  *                                                     (consistency.ts); prints mismatches grouped
  *                                                     by rule (writes nothing; combines with
  *                                                     --only and --check-golden)
+ *   ... --agents copilot,gemini                       plan only these agents (agent or platform
+ *                                                     ids, comma-separated or repeated) in
+ *                                                     --consistency and in the "What agents
+ *                                                     load" section; default: every agent that
+ *                                                     is turned on
  *   npx tsx scripts/corpus/run.ts --fix-replay        run `agentcheckup fix` with every fix
  *                                                     selected on an in-memory copy of every
  *                                                     repository and check the result
@@ -52,8 +57,16 @@ import { compareStrings } from '../../src/core/compare.js';
 import { type RuleResult, scanSnapshot } from '../../src/core/engine.js';
 import { RULESET_VERSION, TOOL_NAME } from '../../src/core/meta.js';
 import { createParseCache } from '../../src/core/parse-cache.js';
-import type { ArtifactKind, Finding, RuleMeta, Severity } from '../../src/core/types.js';
+import {
+  type ArtifactKind,
+  type Finding,
+  PLATFORM_IDS,
+  type RuleMeta,
+  type Severity,
+} from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
+import { contextAgentsOf, isContextAgent, orderedAgents } from '../../src/platforms/load/index.js';
+import { CONTEXT_AGENTS, type ContextAgent } from '../../src/platforms/load/types.js';
 import { forJsonOutput, forMarkdown, forTerminal } from '../../src/report/sanitize.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
@@ -83,6 +96,7 @@ const { values } = parseArgs({
     'ignore-fingerprints': { type: 'boolean', default: false },
     consistency: { type: 'boolean', default: false },
     'fix-replay': { type: 'boolean', default: false },
+    agents: { type: 'string', multiple: true, default: [] },
   },
   strict: true,
 });
@@ -104,6 +118,42 @@ if (
 }
 if (values['write-golden'] && values.only.length > 0) {
   throw new Error('--write-golden records the whole corpus and cannot be combined with --only');
+}
+
+/**
+ * `--agents`: the agents to plan, as agent ids or platform ids (a platform stands for each of
+ * its agents that is turned on); undefined without the option. Throws for anything else.
+ */
+function selectedAgents(options: readonly string[]): ContextAgent[] | undefined {
+  if (options.length === 0) return undefined;
+  const agents = options
+    .flatMap((option) => option.split(','))
+    .map((token) => token.trim())
+    .flatMap((token) => {
+      if (isContextAgent(token)) return [token];
+      const platform = PLATFORM_IDS.find((id) => id === token);
+      const ofPlatform = platform === undefined ? [] : contextAgentsOf([platform]);
+      if (ofPlatform.length === 0) {
+        throw new Error(
+          `--agents: ${JSON.stringify(token)} is not a modeled agent; ` +
+            `choose from ${CONTEXT_AGENTS.join(', ')}`,
+        );
+      }
+      return ofPlatform;
+    });
+  return orderedAgents(agents);
+}
+
+const AGENTS = selectedAgents(values.agents);
+if (
+  AGENTS !== undefined &&
+  !values.consistency &&
+  (values['write-golden'] ||
+    values['check-golden'] ||
+    values['fix-replay'] ||
+    values.only.length > 0)
+) {
+  throw new Error('--agents only changes --consistency and the summary written without options');
 }
 
 const GOLDEN_FILE = path.join(CORPUS_DIR, 'golden.json');
@@ -659,7 +709,7 @@ function renderSummary(
     '',
     '## What agents load',
     '',
-    renderContextSection(context),
+    renderContextSection(context, AGENTS),
     '',
     '## Artifacts by kind',
     '',
@@ -864,13 +914,13 @@ for (const entry of selected) {
       scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
   } else if (values.consistency) {
     // The same rules on the same analysis the plans are built from.
-    const checked = repoConsistency(repoLabel(entry), loaded.snapshot);
+    const checked = repoConsistency(repoLabel(entry), loaded.snapshot, undefined, AGENTS);
     consistency.push(checked);
     result = checked.result;
   } else if (writesSummary) {
     // The scan and the fix runs share the parses of the files fixes do not change.
     const parseCache = createParseCache();
-    const planned = scanForSummary(loaded.snapshot, parseCache);
+    const planned = scanForSummary(loaded.snapshot, parseCache, AGENTS);
     contextFacts.push(planned.facts);
     if (planned.facts.crash !== undefined) {
       loaderCrashes.push(`${repoLabel(entry)}: ${forTerminal(planned.facts.crash)}`);
