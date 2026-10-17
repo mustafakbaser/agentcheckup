@@ -394,6 +394,11 @@ Permission widened: permissions.allow adds Bash (broad: runs any shell command)
 Permission widened: permissions.additionalDirectories adds ~ (broad: the file system root or home directory)
 ```
 
+An added `permissions.allow` or `allowed-tools` entry does not trip it when the same change
+removes, from the same key of the same file, an entry that provably allowed everything it
+allows, such as `Bash` replaced by `Bash(git status *)`; anything agentcheckup cannot prove from
+the [permission rule syntax](https://code.claude.com/docs/en/permissions) still trips.
+
 Each gate hit has a one-line summary for the pull request. Endpoint values are shown as their
 URL origin; credential values are never shown.
 

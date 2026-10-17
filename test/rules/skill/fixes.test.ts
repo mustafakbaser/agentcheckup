@@ -21,6 +21,7 @@ import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/l
 const DESC = 'description: Deploys the web app to production when a release tag is pushed.';
 
 const FIXABLE = new Set([
+  'skill/broad-allowed-tools',
   'skill/broken-reference',
   'skill/description-missing',
   'skill/field-type',
@@ -131,7 +132,6 @@ describe('skill fix metadata', () => {
     }
     expect([...seen].sort()).toEqual([
       'skill/body-too-long',
-      'skill/broad-allowed-tools',
       'skill/description-quality',
       'skill/duplicate-name',
       'skill/frontmatter-invalid',

@@ -27,7 +27,11 @@ export const SOURCES = {
     'agentskills skills-ref reference validator',
     'https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py',
   ),
-  claudeSkills: verified('Claude Code: Skills', 'https://code.claude.com/docs/en/skills'),
+  claudeSkills: verified(
+    'Claude Code: Skills',
+    'https://code.claude.com/docs/en/skills',
+    '2026-10-17',
+  ),
   claudeApiSkills: verified(
     'Claude API: Agent Skills overview',
     'https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview',

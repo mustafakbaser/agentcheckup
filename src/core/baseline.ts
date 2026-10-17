@@ -23,7 +23,9 @@ import type {
   PermissionItem,
 } from '../inventory/types.js';
 import { classify } from '../platforms/classify.js';
+import { REDACTED } from '../inventory/redact.js';
 import { broadGrant } from '../platforms/permissions.js';
+import { coveredBy } from '../platforms/tool-rules.js';
 import type {
   BaselineFinding,
   BaselineLimitUsage,
@@ -522,7 +524,11 @@ function gateHits(
     if (isDefaultMode(permission)) {
       const previous = previousModes.get(stripPath(permission.file, after.base)) ?? [];
       hit('permissions', id, change, modeSummary(permission, change, previous));
-    } else if (widens(permission) && !(old !== undefined && alreadyAsWide(old, permission))) {
+    } else if (
+      widens(permission) &&
+      !(old !== undefined && alreadyAsWide(old, permission)) &&
+      !(old === undefined && replacesWider(permission, before, after))
+    ) {
       hit('permissions', id, change, permissionSummary(permission, change, old));
     }
   }
@@ -745,6 +751,38 @@ function alreadyAsWide(old: PermissionItem, permission: PermissionItem): boolean
   return (
     widens(old) && (old.effective || !permission.effective) && (old.broad || !permission.broad)
   );
+}
+
+/** Keys whose values are tool rules that {@link coveredBy} can compare. */
+const TOOL_RULE_KEYS: ReadonlySet<string> = new Set(['permissions.allow', 'allowed-tools']);
+
+/**
+ * True when an added `permissions.allow` or `allowed-tools` entry lets the agent do nothing that
+ * an entry the same change removes from the same key of the same file did not, as
+ * {@link coveredBy} proves: `Bash` replaced by `Bash(git status *)`. The removed entry must have
+ * taken effect if the added one does, and must not hold a masked credential, which could hide
+ * what it allowed. Anything else trips the gate.
+ */
+function replacesWider(
+  permission: PermissionItem,
+  before: IndexedInventory,
+  after: IndexedInventory,
+): boolean {
+  if (!TOOL_RULE_KEYS.has(permission.key)) return false;
+  const file = stripPath(permission.file, after.base);
+  for (const [id, old] of before.permissions) {
+    if (
+      !after.permissions.has(id) &&
+      old.key === permission.key &&
+      stripPath(old.file, before.base) === file &&
+      (old.effective || !permission.effective) &&
+      !old.value.includes(REDACTED) &&
+      coveredBy(permission.value, old.value)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const ADDITIONAL_DIRECTORIES = 'additionalDirectories';

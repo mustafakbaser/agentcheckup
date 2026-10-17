@@ -98,3 +98,50 @@ export function entrySources(yaml: string): ReadonlyMap<number, EntrySource> {
   }
   return entries;
 }
+
+/** Where one item of a list is, relative to the start of the YAML: [start, end). */
+export interface ListItemSource {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** A list of one-line scalars, as {@link listSource} finds it. */
+export interface ListSource {
+  /** True for `[a, b]`, false for a block list of `- a` lines. */
+  readonly flow: boolean;
+  /** From the first `-` or the `[` to the end of the list, relative to the start of the YAML. */
+  readonly start: number;
+  readonly end: number;
+  readonly items: readonly ListItemSource[];
+}
+
+const LIST_ITEM_TYPES: ReadonlySet<string | undefined> = new Set([
+  'PLAIN',
+  'QUOTE_DOUBLE',
+  'QUOTE_SINGLE',
+]);
+
+/**
+ * The list that is the value of the top-level key whose key starts at `keyOffset`, relative to
+ * the start of `yaml`. Undefined when `yaml` is not a valid mapping, the key is absent, or its
+ * value is not a non-empty list of plain, single- or double-quoted scalars that each fit on one
+ * line.
+ */
+export function listSource(yaml: string, keyOffset: number): ListSource | undefined {
+  const doc = parseDocument(yaml, YAML_OPTIONS);
+  const root = doc.contents;
+  if (doc.errors.length > 0 || !isMap(root)) return undefined;
+  const value = root.items.find((pair) => pair.key.range[0] === keyOffset)?.value;
+  if (value === undefined || value === null || !isSeq(value) || value.items.length === 0) {
+    return undefined;
+  }
+  const items: ListItemSource[] = [];
+  for (const item of value.items) {
+    if (!isScalar(item) || item.value === null || !LIST_ITEM_TYPES.has(item.type)) return undefined;
+    const [start, end] = item.range;
+    const text = yaml.slice(start, end);
+    if (text.includes('\n') || text.includes('\r')) return undefined;
+    items.push({ start, end });
+  }
+  return { flow: value.flow === true, start: value.range[0], end: value.range[1], items };
+}

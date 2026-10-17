@@ -10,7 +10,7 @@ Skill pre-approves shell commands or file edits without limits.
 | Category   | `risk`                      |
 | Platforms  | Claude Code, GitHub Copilot |
 | Applies to | `skill`                     |
-| Fixable    | No                          |
+| Fixable    | Yes, `review`               |
 | Since      | 2026.10                     |
 
 ## Why
@@ -23,13 +23,17 @@ Scope each rule to the commands the skill needs, such as `Bash(git status *)`, o
 
 ## Evidence
 
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-14
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-14
 
 ## Fix
 
-Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell` and `bash`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line.
+
+Preview the fix with `agentcheckup fix --rule skill/broad-allowed-tools`.
 
 ## Configuration
 

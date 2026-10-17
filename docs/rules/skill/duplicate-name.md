@@ -23,7 +23,7 @@ Rename one of the skills.
 
 ## Evidence
 
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-10-14
 - [Gemini CLI: Agent Skills](https://geminicli.com/docs/cli/skills/), verified, checked 2026-10-14
 - [Gemini CLI source: skillManager.ts (same-name skills override each other)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillManager.ts), verified, checked 2026-10-14

@@ -9,6 +9,7 @@ const SOURCE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), '../../..
 const HELPERS = new Set([
   'index.ts',
   'field-effects.ts',
+  'narrow-tools.ts',
   'fixes.ts',
   'format.ts',
   'repair.ts',

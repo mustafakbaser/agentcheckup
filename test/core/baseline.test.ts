@@ -688,6 +688,90 @@ describe('gate: permissions', () => {
     });
   });
 
+  describe('an entry replaced by narrower ones', () => {
+    const skill = '.claude/skills/release/SKILL.md';
+    const tools = (value: string, overrides: Partial<PermissionItem> = {}) =>
+      permission('allowed-tools', value, { file: skill, ...overrides });
+    const allow = (value: string, overrides: Partial<PermissionItem> = {}) =>
+      permission('permissions.allow', value, overrides);
+    const summaries = (before: Report, now: Report) => hits(before, now).map((hit) => hit.summary);
+
+    it('does not trip when the removed entry covers each added one', () => {
+      expect(
+        hits(after(tools('Bash', { broad: true })), after(tools('Bash(git status *)'))),
+      ).toEqual([]);
+      expect(
+        hits(
+          after(tools('Bash(*)', { broad: true }), tools('Read')),
+          after(tools('Read'), tools('Bash(git status *)'), tools('Bash(npm test)')),
+        ),
+      ).toEqual([]);
+      expect(hits(after(allow('Bash(git *)')), after(allow('Bash(git push *)')))).toEqual([]);
+      expect(hits(after(allow('Write', { broad: true })), after(allow('Write(docs/**)')))).toEqual(
+        [],
+      );
+    });
+
+    it('trips when the removed entry does not cover the added one', () => {
+      expect(summaries(after(allow('Bash(git status *)')), after(allow('Bash(git *)')))).toEqual([
+        'permissions.allow adds Bash(git *)',
+      ]);
+      expect(
+        summaries(after(allow('Bash(npm test)')), after(allow('Bash(npm test; curl x)'))),
+      ).toEqual(['permissions.allow adds Bash(npm test; curl x)']);
+      expect(
+        summaries(
+          after(tools('Bash', { broad: true })),
+          after(tools('Bash(git status *)'), tools('Write', { broad: true })),
+        ),
+      ).toEqual(['allowed-tools adds Write (broad: writes any file)']);
+      expect(summaries(after(tools('Bash(git *)')), after(tools('Bash(curl *)')))).toEqual([
+        'allowed-tools adds Bash(curl *)',
+      ]);
+    });
+
+    it('trips for an entry added in another file or under another key', () => {
+      const other = '.claude/skills/deploy/SKILL.md';
+      expect(
+        summaries(
+          after(tools('Bash', { broad: true })),
+          after(permission('allowed-tools', 'Bash(git status *)', { file: other })),
+        ),
+      ).toEqual(['allowed-tools adds Bash(git status *)']);
+      expect(
+        summaries(
+          after(allow('Bash', { broad: true })),
+          after(allow('Bash(git status *)', { file: '.claude/settings.local.json' })),
+        ),
+      ).toEqual(['permissions.allow adds Bash(git status *)']);
+      expect(
+        summaries(
+          after(tools('Bash', { broad: true, file: '.claude/settings.json' })),
+          after(allow('Bash(git status *)')),
+        ),
+      ).toEqual(['permissions.allow adds Bash(git status *)']);
+    });
+
+    it('trips when the covering entry stays, took no effect, or holds a masked value', () => {
+      const broad = tools('Bash', { broad: true });
+      expect(summaries(after(broad), after(broad, tools('Bash(git status *)')))).toEqual([
+        'allowed-tools adds Bash(git status *)',
+      ]);
+      expect(
+        summaries(
+          after(tools('Bash', { broad: true, effective: false })),
+          after(tools('Bash(make)')),
+        ),
+      ).toEqual(['allowed-tools adds Bash(make)']);
+      expect(
+        summaries(
+          after(allow('Bash(deploy --token=… *)')),
+          after(allow('Bash(deploy --token=… run *)')),
+        ),
+      ).toEqual(['permissions.allow adds Bash(deploy --token=… run *)']);
+    });
+  });
+
   it('reports an entry that became broad or took effect, not one that stayed as wide', () => {
     const narrow = permission('permissions.allow', 'Bash(*)');
     const broad = permission('permissions.allow', 'Bash(*)', { broad: true, digest: 'b' });

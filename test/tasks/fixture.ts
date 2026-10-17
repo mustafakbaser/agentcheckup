@@ -40,7 +40,7 @@ export const SAMPLE_REPO: Readonly<Record<string, string>> = {
     '---',
     '# Deploy',
     '',
-    'Run `pnpm deploy` and check the dashboard.',
+    'Deploy with the release script, then check the dashboard.',
     '',
     'See [the runbook](runbook.md) and [the rollback steps](rollback.md).',
     '',

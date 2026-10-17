@@ -23,6 +23,9 @@ const FIXTURES = fileURLToPath(new URL('../../fixtures/fix/skill', import.meta.u
 
 /** The fixes each case applies, in order: id and class. */
 const EXPECTED: Readonly<Record<string, readonly (readonly [string, FixClass])[]>> = {
+  'broad-allowed-tools/block-list': [['skill/broad-allowed-tools#narrow', 'review']],
+  'broad-allowed-tools/flow-list-crlf': [['skill/broad-allowed-tools#narrow', 'review']],
+  'broad-allowed-tools/string-form': [['skill/broad-allowed-tools#narrow', 'review']],
   'broken-reference/backslashes': [
     ['skill/broken-reference#slashes', 'safe'],
     ['skill/broken-reference#slashes', 'safe'],

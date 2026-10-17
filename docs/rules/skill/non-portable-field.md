@@ -23,7 +23,7 @@ Keep extension fields in skills that only their agents load, and move your own d
 
 ## Evidence
 
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14

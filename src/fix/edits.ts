@@ -43,7 +43,7 @@ import {
   roundTrips,
   withEol,
 } from './text.js';
-import { commentOffsets, entrySources } from './yaml-source.js';
+import { commentOffsets, entrySources, listSource } from './yaml-source.js';
 
 type EditChange = Extract<FileChange, { kind: 'edit' }>;
 
@@ -1151,6 +1151,96 @@ export function yamlRemoveKey(
     frontmatter.data.keys.filter((other) => other !== key),
     new Map(),
   );
+}
+
+/** What comes before a block list item on its line: indentation, `-` and spaces. */
+const BLOCK_ITEM_PREFIX = /^[\t ]*-[\t ]+$/;
+
+/**
+ * Rewrites the list that is the value of top-level frontmatter key `key`, item by item: item `i`
+ * becomes the strings of `items[i]`. An item that stays its own value is not touched; an empty
+ * array removes the item, and in a block list its line; several strings become several items
+ * in its place, each on a line that starts like the item's own (`  - "Bash(git status *)"`), or
+ * joined with `, ` in a flow list, which is then written on one line. New strings are written
+ * plain when every parser reads them back as the same string, else double-quoted. So
+ * `allowed-tools:\n  - Read\n  - Bash\n  - Write` with `[['Read'], ['Bash(git status *)',
+ * 'Bash(npm test)'], []]` keeps `Read`, puts two items in place of `Bash` and drops `Write`.
+ *
+ * Undefined when the frontmatter is not valid; the value is not a list of one-line plain or
+ * quoted scalars, or `items` does not have one entry for each; a block list item does not sit
+ * alone on its line after `-`, or a flow list spans lines; the key or the list has an anchor, an
+ * alias, a tag or a comment; no item would be left (use {@link yamlRemoveKey}); or the edited
+ * frontmatter does not parse to exactly the new list with every other value unchanged.
+ */
+export function yamlReplaceListItems(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  key: string,
+  items: readonly (readonly string[])[],
+): FileChange | undefined {
+  checkYamlKey(key);
+  if (frontmatter.kind !== 'valid') return undefined;
+  const { data } = frontmatter;
+  const current = data.values[key];
+  const keySpan = data.keySpan(key);
+  const source = yamlSource(artifact, frontmatter);
+  const entry = source?.entry(key);
+  if (source === undefined || entry === undefined || keySpan === undefined) return undefined;
+  if (entry.sharesNodes || hasCommentIn(source, entry.lineStart, entry.lineEnd)) return undefined;
+  const { text } = artifact.decoded;
+  const list = listSource(text.slice(source.start, source.end), keySpan.offset - source.start);
+  if (
+    list === undefined ||
+    !Array.isArray(current) ||
+    current.length !== list.items.length ||
+    items.length !== list.items.length
+  ) {
+    return undefined;
+  }
+  const values = items.flat();
+  if (values.length === 0) return undefined;
+  const unchanged = (index: number): boolean => {
+    const replacement = items[index] ?? [];
+    return replacement.length === 1 && replacement[0] === current[index];
+  };
+
+  const edits: TextEdit[] = [];
+  if (list.flow) {
+    const start = source.start + list.start;
+    const end = source.start + list.end;
+    if (hasLineBreak(text.slice(start, end))) return undefined;
+    const written = list.items.flatMap((item, index) =>
+      unchanged(index)
+        ? [text.slice(source.start + item.start, source.start + item.end)]
+        : (items[index] ?? []).map((value) => quoteYaml(value)),
+    );
+    edits.push({ offset: start, length: end - start, text: `[${written.join(', ')}]` });
+  } else {
+    for (const [index, item] of list.items.entries()) {
+      if (unchanged(index)) continue;
+      const replacement = items[index] ?? [];
+      const start = source.start + item.start;
+      const end = source.start + item.end;
+      const lineStart = lineStartBefore(text, start);
+      const prefix = text.slice(lineStart, start);
+      const lineEnd = lineEndAfter(text, end);
+      const eol = terminatorAt(text, lineEnd);
+      if (!BLOCK_ITEM_PREFIX.test(prefix) || !isBlank(text.slice(end, lineEnd))) return undefined;
+      if (eol === undefined) return undefined;
+      const [first, ...rest] = replacement;
+      if (first === undefined) {
+        edits.push({
+          offset: lineStart,
+          length: nextLineStart(text, lineEnd) - lineStart,
+          text: '',
+        });
+        continue;
+      }
+      const more = rest.map((value) => `${eol}${prefix}${quoteYaml(value)}`).join('');
+      edits.push({ offset: start, length: end - start, text: `${quoteYaml(first)}${more}` });
+    }
+  }
+  return checkedYamlEdit(artifact, frontmatter, edits, data.keys, new Map([[key, values]]));
 }
 
 /** Indentation of entries under a new mapping, below the top-level keys' own. */

@@ -1859,7 +1859,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -1900,7 +1900,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -1916,7 +1916,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell` and `bash`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line."
+      }
     },
     {
       "id": "skill/broken-reference",
@@ -1944,7 +1950,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2001,7 +2007,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2081,7 +2087,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2127,7 +2133,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2152,7 +2158,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2205,7 +2211,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2315,7 +2321,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2369,7 +2375,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2448,7 +2454,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2522,7 +2528,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2584,7 +2590,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2636,7 +2642,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2662,7 +2668,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2720,7 +2726,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
