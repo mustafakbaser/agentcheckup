@@ -187,9 +187,13 @@ describe('formatMarkdown with a baseline', () => {
       '',
       'Findings: 2 new errors, 2 resolved.',
       '',
-      'Session-start context: Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720) · ' +
-        'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS\\.md chain ' +
-        '31,204 → 33,010 bytes, now over the 32,768-byte limit · Cursor unchanged',
+      '**Session-start context**',
+      '',
+      '| Agent | Before | After | Change | Limits |',
+      '| :---- | -----: | ----: | -----: | :----- |',
+      '| Claude Code (packages/api) | ≈1,977 tokens, 3 files | ≈2,697 tokens, 4 files | ≈+720 tokens, +1 file | — |',
+      '| Codex (packages/api) | ≈7,801 tokens, 2 files | ≈8,253 tokens, 2 files | ≈+452 tokens | **AGENTS\\.md chain 33,010 of 32,768 bytes (101%), now over** |',
+      '| Cursor | ≈2,021 tokens, 2 files | ≈2,021 tokens, 2 files | unchanged | — |',
     ]);
   });
 
@@ -255,8 +259,8 @@ describe('formatMarkdown with a baseline', () => {
 
   it('names the root plan without a directory after a rebase, other plans by their path', () => {
     const rebased = formatMarkdown(rebaseResult(baselineResult, 'sub/dir'));
-    expect(rebased).toContain('Session-start context: Claude Code (sub/dir/packages/api) ≈1,977');
-    expect(rebased).toContain('· Cursor unchanged\n');
+    expect(rebased).toContain('\n| Claude Code (sub/dir/packages/api) | ≈1,977 tokens, 3 files |');
+    expect(rebased).toContain('\n| Cursor | ≈2,021 tokens, 2 files | ≈2,021 tokens, 2 files |');
     expect(rebased).not.toContain('Cursor (sub/dir)');
   });
 
@@ -285,9 +289,10 @@ describe('formatMarkdown with a baseline', () => {
         ],
       }),
     });
-    expect(back).toContain('x\\.md 40,000 → 30,000, back under the limit of 32,768');
-    expect(back).toContain('k\\.none 9, now over the limit of 8');
-    expect(back).toContain('skills listing 1 → 9, now over the limit of 8');
+    expect(back).toContain(
+      '| x\\.md 30,000 of 32,768 (92%), back under · ' +
+        '**skills listing 9 of 8 (113%), now over** · **k\\.none 9 of 8 (113%), now over** |',
+    );
     expect(back).not.toContain('z\\.md');
   });
 
@@ -316,6 +321,6 @@ describe('formatMarkdown with a baseline', () => {
     expect(big.length).toBeLessThan(65_536);
     expect(big).toMatch(/Showing \d+ of 500 changes\./);
     expect(big).toMatch(/Showing \d+ of 500 findings/);
-    expect(big).toContain('· and 30 more plans');
+    expect(big).toContain('\n\nShowing 10 of 40 plans.\n');
   });
 });

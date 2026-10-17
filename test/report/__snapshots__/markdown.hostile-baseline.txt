@@ -19,7 +19,11 @@
 
 Findings: 3 new errors, 7 new warnings, 1 resolved. The baseline was written with ruleset &lt;img src=x onerror=alert\(1\)&gt; &lt;script&gt;alert\(1\)&lt;/script&gt; &amp;lt;b&amp;gt;, so findings from rules it did not run count as new.
 
-Session-start context: Claude Code (line one⏎\:\:stop\-commands\:\:x) ≈100 → ≈50 tokens (-50), &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ 10 → 20, now over the limit of 15, x 10 → 20, now over the limit of 15
+**Session-start context**
+
+| Agent | Before | After | Change | Limits |
+| :---- | -----: | ----: | -----: | :----- |
+| Claude Code (line one⏎\:\:stop\-commands\:\:x) | ≈100 tokens | ≈50 tokens | ≈-50 tokens | **&lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ 20 of 15 (133%), now over** · **x 20 of 15 (133%), now over** |
 
 > [!CAUTION]
 > 1 rule failed to run. Results are incomplete.

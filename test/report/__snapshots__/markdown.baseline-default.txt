@@ -22,7 +22,13 @@
 
 Findings: 2 new errors, 2 resolved.
 
-Session-start context: Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720) · Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS\.md chain 31,204 → 33,010 bytes, now over the 32,768-byte limit · Cursor unchanged
+**Session-start context**
+
+| Agent | Before | After | Change | Limits |
+| :---- | -----: | ----: | -----: | :----- |
+| Claude Code (packages/api) | ≈1,977 tokens, 3 files | ≈2,697 tokens, 4 files | ≈+720 tokens, +1 file | — |
+| Codex (packages/api) | ≈7,801 tokens, 2 files | ≈8,253 tokens, 2 files | ≈+452 tokens | **AGENTS\.md chain 33,010 of 32,768 bytes (101%), now over** |
+| Cursor | ≈2,021 tokens, 2 files | ≈2,021 tokens, 2 files | unchanged | — |
 
 > [!CAUTION]
 > 1 rule failed to run. Results are incomplete.

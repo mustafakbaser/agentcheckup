@@ -10,7 +10,13 @@
 
 Findings: 1 new error, 1 new warning, 0 resolved.
 
-Session-start context: Claude Code ≈197 → ≈50 tokens (-147) · Codex unchanged · Cursor ≈197 → ≈247 tokens (+50)
+**Session-start context**
+
+| Agent | Before | After | Change | Limits |
+| :---- | -----: | ----: | -----: | :----- |
+| Claude Code | ≈197 tokens, 1 file | ≈50 tokens, 1 file | ≈-147 tokens | — |
+| Codex | ≈197 tokens, 1 file | ≈197 tokens, 1 file | unchanged | — |
+| Cursor | ≈197 tokens, 2 files | ≈247 tokens, 2 files | ≈+50 tokens | — |
 
 ### What this change makes each agent miss
 

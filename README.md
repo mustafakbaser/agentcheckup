@@ -248,8 +248,15 @@ adds a hook and points Claude Code at another API endpoint looks like this:
 >
 > Findings: no new findings, 1 resolved.
 >
-> Session-start context: Claude Code ≈76 → ≈276 tokens (+200) · Codex unchanged · Codex
-> (packages/api) unchanged · Codex (packages/web) unchanged · Cursor ≈304 → ≈307 tokens (+3)
+> **Session-start context**
+>
+> | Agent                |              Before |                After |       Change | Limits                                         |
+> | :------------------- | ------------------: | -------------------: | -----------: | :--------------------------------------------- |
+> | Claude Code          | ≈31 tokens, 2 files | ≈155 tokens, 2 files | ≈+124 tokens | —                                              |
+> | Codex                |  ≈28 tokens, 1 file |   ≈28 tokens, 1 file |    unchanged | AGENTS.md chain 110 of 32,768 bytes (under 1%) |
+> | Codex (packages/api) | ≈38 tokens, 2 files |  ≈38 tokens, 2 files |    unchanged | AGENTS.md chain 149 of 32,768 bytes (under 1%) |
+> | Codex (packages/web) | ≈38 tokens, 2 files |  ≈38 tokens, 2 files |    unchanged | AGENTS.md chain 151 of 32,768 bytes (under 1%) |
+> | Cursor               | ≈54 tokens, 3 files | ≈185 tokens, 3 files | ≈+131 tokens | —                                              |
 
 Endpoint values are shown as their URL origin. Credential values never appear in reports.
 
