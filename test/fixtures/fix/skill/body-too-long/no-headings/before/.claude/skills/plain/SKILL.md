@@ -1,0 +1,66 @@
+---
+name: plain
+description: Prints the plan. Use when the user asks for the plan.
+---
+# Plan
+
+- plain 1: check log before with and in.
+- plain 2: you next record release it the.
+- plain 3: result notes passes deployment errors continue.
+- plain 4: check log before with and in.
+- plain 5: you next record release it the.
+- plain 6: result notes passes deployment errors continue.
+- plain 7: check log before with and in.
+- plain 8: you next record release it the.
+- plain 9: result notes passes deployment errors continue.
+- plain 10: check log before with and in.
+- plain 11: you next record release it the.
+- plain 12: result notes passes deployment errors continue.
+- plain 13: check log before with and in.
+- plain 14: you next record release it the.
+- plain 15: result notes passes deployment errors continue.
+- plain 16: check log before with and in.
+- plain 17: you next record release it the.
+- plain 18: result notes passes deployment errors continue.
+- plain 19: check log before with and in.
+- plain 20: you next record release it the.
+- plain 21: result notes passes deployment errors continue.
+- plain 22: check log before with and in.
+- plain 23: you next record release it the.
+- plain 24: result notes passes deployment errors continue.
+- plain 25: check log before with and in.
+- plain 26: you next record release it the.
+- plain 27: result notes passes deployment errors continue.
+- plain 28: check log before with and in.
+- plain 29: you next record release it the.
+- plain 30: result notes passes deployment errors continue.
+- plain 31: check log before with and in.
+- plain 32: you next record release it the.
+- plain 33: result notes passes deployment errors continue.
+- plain 34: check log before with and in.
+- plain 35: you next record release it the.
+- plain 36: result notes passes deployment errors continue.
+- plain 37: check log before with and in.
+- plain 38: you next record release it the.
+- plain 39: result notes passes deployment errors continue.
+- plain 40: check log before with and in.
+- plain 41: you next record release it the.
+- plain 42: result notes passes deployment errors continue.
+- plain 43: check log before with and in.
+- plain 44: you next record release it the.
+- plain 45: result notes passes deployment errors continue.
+- plain 46: check log before with and in.
+- plain 47: you next record release it the.
+- plain 48: result notes passes deployment errors continue.
+- plain 49: check log before with and in.
+- plain 50: you next record release it the.
+- plain 51: result notes passes deployment errors continue.
+- plain 52: check log before with and in.
+- plain 53: you next record release it the.
+- plain 54: result notes passes deployment errors continue.
+- plain 55: check log before with and in.
+- plain 56: you next record release it the.
+- plain 57: result notes passes deployment errors continue.
+- plain 58: check log before with and in.
+- plain 59: you next record release it the.
+- plain 60: result notes passes deployment errors continue.

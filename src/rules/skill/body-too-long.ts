@@ -1,10 +1,14 @@
 import { estimateTokens, lineCount } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText, positionAt } from '../../core/text.js';
-import type { Artifact, Span } from '../../core/types.js';
+import type { Artifact, RuleContext, Span } from '../../core/types.js';
+import { foldPath } from '../../fix/paths.js';
+import { roundTrips } from '../../fix/text.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
-import { formatInteger } from '../shared/format.js';
+import { formatInteger, plural } from '../shared/format.js';
+import { editable, type FixOrGuidance, fixFields } from './fixes.js';
+import { splitBody } from './sections.js';
 import {
   bodyOffset,
   impactsOn,
@@ -12,6 +16,8 @@ import {
   reached,
   resolveImpacts,
   SKILL_PLATFORMS,
+  skillDirectory,
+  validFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
 
@@ -58,6 +64,62 @@ function offsetAfterCodePoints(text: string, count: number): number | undefined 
 const MOVE_REFERENCE =
   'move reference sections into files next to SKILL.md and link to them from the body';
 
+/** Names in the frontmatter's `arguments`, which Claude Code replaces as `$name` in the body. */
+function argumentNames(context: RuleContext<BodyTooLongOptions>, artifact: Artifact): string[] {
+  const value = validFrontmatter(context, artifact)?.data.values['arguments'];
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[\s,]+/)
+      : [];
+  return items.filter((item): item is string => typeof item === 'string' && item !== '');
+}
+
+/**
+ * Moves sections of the body into files next to SKILL.md until it fits (`review`: agents read
+ * them only when they follow the link). Never for a SKILL.md reached through a symlink or linked
+ * from elsewhere, one at the scan root, or one that does not decode cleanly.
+ */
+function splitFix(
+  context: RuleContext<BodyTooLongOptions>,
+  artifact: Artifact,
+  maxLines: number,
+  takenPaths: () => ReadonlySet<string>,
+): FixOrGuidance {
+  const manual = { guidance: MOVE_REFERENCE };
+  if (
+    !editable(artifact) ||
+    artifact.aliases.length > 0 ||
+    skillDirectory(artifact.path) === '' ||
+    !roundTrips(artifact.file.bytes, artifact.decoded)
+  ) {
+    return manual;
+  }
+  const split = splitBody({
+    artifact,
+    doc: context.markdown(artifact),
+    bodyStart: bodyOffset(context.frontmatter(artifact)),
+    limits: { maxLines, maxTokens: TOKEN_BUDGET },
+    snapshot: context.snapshot,
+    argumentNames: argumentNames(context, artifact),
+    takenPaths,
+  });
+  if (split === undefined) return manual;
+  const { before, after, names } = split;
+  return {
+    fix: {
+      id: 'skill/body-too-long#split',
+      class: 'review',
+      title: `Move ${plural(names.length, 'section')} of ${artifact.path} into ${names.join(', ')}`,
+      changes: split.changes,
+      notes: [
+        `body ${formatInteger(before.lines)} → ${formatInteger(after.lines)} lines, ≈${formatInteger(before.tokens)} → ≈${formatInteger(after.tokens)} tokens; agents read the moved sections only when they follow a link.`,
+      ],
+    },
+    guidance: MOVE_REFERENCE,
+  };
+}
+
 export const bodyTooLongRule = defineRule<BodyTooLongOptions>({
   meta: {
     id: 'skill/body-too-long',
@@ -78,11 +140,29 @@ Move reference material into separate files next to SKILL.md and link to them.`,
       SKILL_SOURCES.claudeSkillBestPractices,
     ],
     since: RULESET_VERSION,
+    fix: {
+      classes: ['review'],
+      summary:
+        'Moves the largest sections of the body into files next to SKILL.md, leaving a link under each heading, until the body fits. The start of the body stays, as do sections with commands or placeholders Claude Code replaces, hidden text, or links that would break. Other bodies are left to you.',
+    },
   },
   defaultOptions: { maxLines: DEFAULT_MAX_LINES },
   check(context) {
     const maxLines = maxLinesOption(context.options);
+    let folded: Set<string> | undefined;
+    const takenPaths = (): ReadonlySet<string> => {
+      const { paths, ignoredFiles } = context.snapshot;
+      folded ??= new Set(
+        [...paths, ...ignoredFiles].map((path) =>
+          foldPath(path.endsWith('/') ? path.slice(0, -1) : path),
+        ),
+      );
+      return folded;
+    };
     for (const artifact of loadableSkills(context)) {
+      let repair: FixOrGuidance | undefined;
+      const repairOf = (): FixOrGuidance =>
+        (repair ??= splitFix(context, artifact, maxLines, takenPaths));
       const start = bodyOffset(context.frontmatter(artifact));
       const body = artifact.decoded.text.slice(start);
       const lines = lineCount(body);
@@ -100,7 +180,7 @@ Move reference material into separate files next to SKILL.md and link to them.`,
             severity: resolved.severity,
             platforms: resolved.platforms,
             span: lineSpanAt(artifact, artifact.decoded.lineStarts[firstOver - 1] ?? start),
-            guidance: MOVE_REFERENCE,
+            ...fixFields(repairOf()),
           });
         }
       }
@@ -122,7 +202,7 @@ Move reference material into separate files next to SKILL.md and link to them.`,
         severity: resolved.severity,
         platforms: resolved.platforms,
         span: lineSpanAt(artifact, start + cut),
-        guidance: MOVE_REFERENCE,
+        ...fixFields(repairOf()),
       });
     }
   },

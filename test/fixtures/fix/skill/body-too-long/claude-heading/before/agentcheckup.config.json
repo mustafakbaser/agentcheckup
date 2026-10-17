@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "skill/body-too-long": [
+      "info",
+      {
+        "maxLines": 30
+      }
+    ]
+  }
+}

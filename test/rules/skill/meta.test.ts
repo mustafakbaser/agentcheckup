@@ -13,6 +13,7 @@ const HELPERS = new Set([
   'fixes.ts',
   'format.ts',
   'repair.ts',
+  'sections.ts',
   'shared.ts',
   'sources.ts',
 ]);

@@ -57,7 +57,7 @@ means guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe
 | [`settings/ignored-permission-mode`](settings/ignored-permission-mode.md)   | warn     | loading     | review       | Claude Code ignores this permission mode in project settings          |
 | [`settings/local-file-not-ignored`](settings/local-file-not-ignored.md)     | warn     | risk        | manual       | CLAUDE.local.md is not gitignored                                     |
 | [`settings/plugin-manifest`](settings/plugin-manifest.md)                   | error    | loading     | safe, review | Plugin manifest has an invalid name or component path                 |
-| [`skill/body-too-long`](skill/body-too-long.md)                             | info     | budget      | manual       | Skill body is longer than recommended                                 |
+| [`skill/body-too-long`](skill/body-too-long.md)                             | info     | budget      | review       | Skill body is longer than recommended                                 |
 | [`skill/broad-allowed-tools`](skill/broad-allowed-tools.md)                 | warn     | risk        | review       | Skill pre-approves shell commands or file edits without limits        |
 | [`skill/broken-reference`](skill/broken-reference.md)                       | error    | correctness | safe, review | Skill links to a missing file or outside its directory                |
 | [`skill/description-missing`](skill/description-missing.md)                 | error    | loading     | review       | Skill description is missing or empty                                 |

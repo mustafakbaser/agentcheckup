@@ -2973,7 +2973,13 @@
           "status": "verified"
         }
       ],
-      "since": "2026.10"
+      "since": "2026.10",
+      "fix": {
+        "classes": [
+          "review"
+        ],
+        "summary": "Moves the largest sections of the body into files next to SKILL.md, leaving a link under each heading, until the body fits. The start of the body stays, as do sections with commands or placeholders Claude Code replaces, hidden text, or links that would break. Other bodies are left to you."
+      }
     },
     {
       "id": "skill/broad-allowed-tools",

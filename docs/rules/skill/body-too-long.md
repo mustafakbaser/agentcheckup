@@ -10,7 +10,7 @@ Skill body is longer than recommended.
 | Category   | `budget`                                               |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                                |
-| Fixable    | No                                                     |
+| Fixable    | Yes, `review`                                          |
 | Since      | 2026.10                                                |
 
 ## Why
@@ -30,7 +30,11 @@ Move reference material into separate files next to SKILL.md and link to them.
 
 ## Fix
 
-Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Moves the largest sections of the body into files next to SKILL.md, leaving a link under each heading, until the body fits. The start of the body stays, as do sections with commands or placeholders Claude Code replaces, hidden text, or links that would break. Other bodies are left to you.
+
+Preview the fix with `agentcheckup fix --rule skill/body-too-long`.
 
 ## Configuration
 

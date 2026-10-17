@@ -66,9 +66,11 @@ function directories(path: string): string[] {
     .sort();
 }
 
-const CASES = directories(FIXTURES).flatMap((rule) =>
-  directories(join(FIXTURES, rule)).map((name) => `${rule}/${name}`),
-);
+// skill/body-too-long creates files and has cases without a fix: body-too-long-fix.test.ts runs
+// its cases.
+const CASES = directories(FIXTURES)
+  .filter((rule) => rule !== 'body-too-long')
+  .flatMap((rule) => directories(join(FIXTURES, rule)).map((name) => `${rule}/${name}`));
 
 /** Every file below `root`, by POSIX path relative to it. */
 function filesUnder(root: string, prefix = ''): Map<string, Uint8Array> {

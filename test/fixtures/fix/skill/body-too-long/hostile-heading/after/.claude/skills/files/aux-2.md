@@ -1,0 +1,30 @@
+## AUX
+
+- device 1: check log before with and in.
+- device 2: you next record release it the.
+- device 3: result notes passes deployment errors continue.
+- device 4: check log before with and in.
+- device 5: you next record release it the.
+- device 6: result notes passes deployment errors continue.
+- device 7: check log before with and in.
+- device 8: you next record release it the.
+- device 9: result notes passes deployment errors continue.
+- device 10: check log before with and in.
+- device 11: you next record release it the.
+- device 12: result notes passes deployment errors continue.
+- device 13: check log before with and in.
+- device 14: you next record release it the.
+- device 15: result notes passes deployment errors continue.
+- device 16: check log before with and in.
+- device 17: you next record release it the.
+- device 18: result notes passes deployment errors continue.
+- device 19: check log before with and in.
+- device 20: you next record release it the.
+- device 21: result notes passes deployment errors continue.
+- device 22: check log before with and in.
+- device 23: you next record release it the.
+- device 24: result notes passes deployment errors continue.
+- device 25: check log before with and in.
+- device 26: you next record release it the.
+- device 27: result notes passes deployment errors continue.
+- device 28: check log before with and in.

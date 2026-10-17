@@ -11,11 +11,15 @@ import { GITHUB_TOKEN } from '../report/fix-fixtures.js';
 
 export { GITHUB_TOKEN };
 
-/** A skill body of `count` numbered lines under two headings. */
+/**
+ * A skill body of `count` numbered lines under two headings. The API reference uses `$1`, which
+ * Claude Code substitutes when the skill runs, so the split fix must leave it in SKILL.md: the
+ * body stays too long, and the finding is a task.
+ */
 function longBody(count: number): string {
   const lines = ['# Guide', '', 'Read this first.', '', '## Setup', ''];
   for (let i = 1; i <= 120; i++) lines.push(`Setup step ${i}.`);
-  lines.push('', '## API reference', '');
+  lines.push('', '## API reference', '', 'Look up the endpoint named $1.');
   for (let i = 1; lines.length < count; i++) lines.push(`Endpoint ${i} returns JSON.`);
   lines.push('', '### Errors', '', 'Errors are JSON too.');
   return `${lines.join('\n')}\n`;
