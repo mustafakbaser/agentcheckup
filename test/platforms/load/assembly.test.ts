@@ -78,7 +78,7 @@ describe('loadPlans', () => {
 
   it('plans no agent that is turned off, whether named or targeted', () => {
     const off = ALL_CONTEXT_AGENTS.filter((agent) => !LOADER_ENABLED[agent]);
-    expect(off).toEqual(['copilot-cli', 'copilot-vscode', 'copilot-cloud', 'gemini']);
+    expect(off).toEqual(['gemini']);
     for (const agent of off) {
       expect(isContextAgent(agent)).toBe(false);
       expect(() => orderedAgents([agent])).toThrow(`No load model for "${agent}".`);
@@ -86,11 +86,20 @@ describe('loadPlans', () => {
         loadPlans(analysis, { agents: [agent], cwd: '', config: analysis.config }),
       ).toThrow('No load model');
     }
-    expect(contextAgentsOf(['copilot', 'gemini'])).toEqual([]);
+    expect(contextAgentsOf(['gemini'])).toEqual([]);
+    // Copilot's platform id stands for its three surfaces.
+    expect(contextAgentsOf(['copilot'])).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
+    ]);
     expect(contextAgentsOf(PLATFORM_IDS)).toEqual([
       'claude-code',
       'codex',
       'cursor',
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
       'windsurf',
       'cline',
     ]);
@@ -202,35 +211,37 @@ describe('matrix', () => {
         'README.md': 'Not configuration.\n',
       }),
     ).toEqual([
-      '.agents/skills/notes skill not-read skipped listed listed listed',
-      '.claude/rules/api.md claude-rule on-path not-read not-read not-read not-read',
-      '.claude/skills/deploy skill listed not-read listed listed listed',
-      '.cursor/rules/always.mdc cursor-rule not-read not-read startup startup not-read',
-      '.cursor/rules/broken.mdc cursor-rule not-read not-read unknown unknown not-read',
-      '.cursor/rules/manual.mdc cursor-rule not-read not-read manual manual not-read',
-      '.cursor/rules/picked.mdc cursor-rule not-read not-read model-selected model-selected not-read',
+      '.agents/skills/notes skill not-read skipped listed listed listed listed listed listed',
+      '.claude/rules/api.md claude-rule on-path not-read not-read not-read on-path not-read not-read not-read',
+      '.claude/skills/deploy skill listed not-read listed listed listed listed listed listed',
+      '.cursor/rules/always.mdc cursor-rule not-read not-read startup not-read not-read not-read startup not-read',
+      '.cursor/rules/broken.mdc cursor-rule not-read not-read unknown not-read not-read not-read unknown not-read',
+      '.cursor/rules/manual.mdc cursor-rule not-read not-read manual not-read not-read not-read manual not-read',
+      '.cursor/rules/picked.mdc cursor-rule not-read not-read model-selected not-read not-read not-read model-selected not-read',
       // Devin Local reads the .md files in .cursor/rules that Cursor ignores.
-      '.cursor/rules/style.md cursor-rule-md not-read not-read skipped manual not-read',
-      '.mcp.json mcp-json skipped not-read not-read startup not-read',
-      'AGENTS.md agents-md skipped startup startup startup startup',
-      'CLAUDE.md claude-md startup not-read startup startup not-read',
-      'other/.mcp.json mcp-json start-dir not-read not-read start-dir not-read',
-      'pkg/AGENTS.md agents-md skipped partial on-path on-path not-read',
-      'pkg/CLAUDE.md claude-md on-path not-read start-dir on-path not-read',
+      '.cursor/rules/style.md cursor-rule-md not-read not-read skipped not-read not-read not-read manual not-read',
+      '.mcp.json mcp-json skipped not-read not-read startup startup not-read startup not-read',
+      'AGENTS.md agents-md skipped startup startup startup startup startup startup startup',
+      'CLAUDE.md claude-md startup not-read startup startup startup startup startup not-read',
+      'other/.mcp.json mcp-json start-dir not-read not-read start-dir not-read not-read start-dir not-read',
+      'pkg/AGENTS.md agents-md skipped partial on-path on-path not-read on-path on-path not-read',
+      'pkg/CLAUDE.md claude-md on-path not-read start-dir on-path not-read not-read on-path not-read',
     ]);
   });
 
   it('keeps a file that one agent loads while skipping some of its items', () => {
     expect(
       matrixOf({ '.mcp.json': '{"mcpServers":{"docs":{"url":"https://x"},"a":{"command":"a"}}}' }),
-    ).toEqual(['.mcp.json mcp-json startup not-read not-read startup not-read']);
+    ).toEqual([
+      '.mcp.json mcp-json startup not-read not-read startup startup not-read startup not-read',
+    ]);
   });
 
   it('marks a file a plan could not analyze as unknown', () => {
     // Listed but not read: Cursor's and Devin Local's plans say so; the others do not reach it.
     expect(matrixOf({ 'AGENTS.md': 'Root.\n' }, { paths: ['a/AGENTS.md'] })).toEqual([
-      'AGENTS.md agents-md startup startup startup startup startup',
-      'a/AGENTS.md agents-md not-read not-read unknown unknown not-read',
+      'AGENTS.md agents-md startup startup startup startup startup startup startup startup',
+      'a/AGENTS.md agents-md not-read not-read unknown unknown not-read unknown unknown not-read',
     ]);
   });
 
@@ -299,6 +310,9 @@ describe('paths the configuration ignores', () => {
       'claude-code 1',
       'codex undefined',
       'cursor 2',
+      'copilot-cli 3',
+      'copilot-vscode undefined',
+      'copilot-cloud 1',
       'windsurf 4',
       'cline undefined',
     ]);

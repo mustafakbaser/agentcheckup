@@ -7,8 +7,11 @@ import { defineRule } from '../define.js';
 import { quote } from '../shared/format.js';
 import { describeValue, issueDetail, yamlSyntaxError } from '../instructions/yaml.js';
 import { SOURCES } from '../sources.js';
-import { copilotActivation, EXCLUDE_AGENT_VALUES } from '../../platforms/copilot.js';
-import { meantForCopilot, placement } from './location.js';
+import {
+  copilotActivation,
+  EXCLUDE_AGENT_VALUES,
+  judgedByApplyTo,
+} from '../../platforms/copilot.js';
 import { COPILOT_SOURCES } from './sources.js';
 
 const ID = 'copilot/apply-to';
@@ -20,7 +23,7 @@ const ADD_APPLY_TO = `add "applyTo" with the files these instructions are for, s
 
 type Finding = Omit<ReportDescriptor, 'artifact'>;
 type ValidFrontmatter = Extract<FrontmatterResult, { kind: 'valid' }>;
-type Parse = Parameters<typeof meantForCopilot>[0];
+type Parse = Parameters<typeof judgedByApplyTo>[0];
 
 /** Joins an `applyTo` YAML list into one comma-separated string. */
 function listFix(
@@ -209,8 +212,7 @@ export const applyToRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const where = placement(context.snapshot, artifact.path, 'instructions');
-      if (where.kind === 'elsewhere' && !meantForCopilot(context, artifact)) continue;
+      if (!judgedByApplyTo(context, context.snapshot, artifact)) continue;
       for (const finding of findingsFor(context, artifact))
         context.report({ artifact, ...finding });
     }

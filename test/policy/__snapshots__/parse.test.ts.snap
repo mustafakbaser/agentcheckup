@@ -40,8 +40,8 @@ exports[`errors > gives one line per problem 1`] = `
   "hooks.require[4].script: must not be empty.",
   "hooks.require[4].command: must not be empty.",
   "hooks.require[5]: expected an object, got "hook".",
-  "Unknown field "budgets.gemini". Unknown fields are an error, so a typo cannot switch a check off. Budgets apply to agents with a load model: claude-code, codex, cursor, windsurf, cline.",
-  "Unknown field "budgets.codx" (did you mean "budgets.codex"?). Unknown fields are an error, so a typo cannot switch a check off. Budgets apply to agents with a load model: claude-code, codex, cursor, windsurf, cline.",
+  "Unknown field "budgets.gemini". Unknown fields are an error, so a typo cannot switch a check off. Budgets apply to agents with a load model: claude-code, codex, cursor, copilot-cli, copilot-vscode, copilot-cloud, windsurf, cline.",
+  "Unknown field "budgets.codx" (did you mean "budgets.codex"?). Unknown fields are an error, so a typo cannot switch a check off. Budgets apply to agents with a load model: claude-code, codex, cursor, copilot-cli, copilot-vscode, copilot-cloud, windsurf, cline.",
   "budgets.codex.startupTokens: expected a whole number from 1 to 100,000,000, got 0.",
   "budgets.cursor: expected an object, got 5.",
 ]

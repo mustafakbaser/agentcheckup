@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "docs": { "command": "npx", "args": ["-y", "docs-server@1.2.3"] },
+    "shared": { "command": "npx", "args": ["-y", "shared-server@2.0.0"] }
+  }
+}

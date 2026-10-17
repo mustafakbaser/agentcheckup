@@ -14,6 +14,7 @@ import { SOURCES } from '../sources.js';
 import { loadClaudeCode } from './claude-code.js';
 import { loadCline } from './cline.js';
 import { loadCodex } from './codex.js';
+import { loadCopilotCli, loadCopilotCloud, loadCopilotVscode } from './copilot.js';
 import { loadCursor } from './cursor.js';
 import {
   ALL_CONTEXT_AGENTS,
@@ -83,9 +84,9 @@ const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'claude-code': loadClaudeCode,
   codex: loadCodex,
   cursor: loadCursor,
-  'copilot-cli': notModeled('copilot-cli'),
-  'copilot-vscode': notModeled('copilot-vscode'),
-  'copilot-cloud': notModeled('copilot-cloud'),
+  'copilot-cli': loadCopilotCli,
+  'copilot-vscode': loadCopilotVscode,
+  'copilot-cloud': loadCopilotCloud,
   gemini: notModeled('gemini'),
   windsurf: loadWindsurf,
   cline: loadCline,

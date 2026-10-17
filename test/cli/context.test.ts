@@ -69,6 +69,9 @@ describe('agentcheckup context', () => {
       ['claude-code', 'packages/api'],
       ['codex', 'packages/api'],
       ['cursor', 'packages/api'],
+      ['copilot-cli', 'packages/api'],
+      ['copilot-vscode', 'packages/api'],
+      ['copilot-cloud', 'packages/api'],
       ['windsurf', 'packages/api'],
       ['cline', 'packages/api'],
     ]);
@@ -128,16 +131,16 @@ describe('agentcheckup context', () => {
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
     expect(text).toMatch(
-      /^Files by agent +Claude Code {3}Codex {7}Cursor {11}Devin Local {6}Cline$/m,
+      /^Files by agent +Claude Code +Codex +Cursor +Copilot CLI +Copilot in VS Code +Copilot cloud agent +Devin Local +Cline$/m,
     );
-    expect(text).toMatch(/^AGENTS\.md +startup +startup +startup +startup +startup$/m);
-    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir +— +— +—$/m);
+    expect(text).toMatch(/^AGENTS\.md(?: +startup){8}$/m);
+    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir(?: +—){6}$/m);
     expect(text).toMatch(/^start-dir {7}loaded when a session starts in its directory$/m);
 
     const report = await contextJson(['--matrix']);
     expect(report.context?.matrix?.rows.length).toBeGreaterThan(10);
     // The root for every agent, then Codex in each directory with an AGENTS.md.
-    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(5);
+    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(8);
     expect(report.context?.plans.map((plan) => plan.cwd)).toContain('services/billing/ledger');
   });
 
@@ -148,7 +151,16 @@ describe('agentcheckup context', () => {
     expect(report.inventory.mcpServers.map((server) => server.id)).toContain(
       'mcp:.mcp.json#filesystem',
     );
-    expect(report.context?.agents).toEqual(['claude-code', 'codex', 'cursor', 'windsurf', 'cline']);
+    expect(report.context?.agents).toEqual([
+      'claude-code',
+      'codex',
+      'cursor',
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
+      'windsurf',
+      'cline',
+    ]);
     expect(report.context?.matrix).toBeUndefined();
   });
 
@@ -251,17 +263,25 @@ describe('agentcheckup context', () => {
     const repo = await tempDir();
     await writeFiles(repo, {
       'AGENTS.md': '# Root\n',
-      'agentcheckup.config.json': '{ "targets": ["copilot", "gemini"] }',
+      'agentcheckup.config.json': '{ "targets": ["gemini"] }',
     });
     const none = capture(repo);
     expect(await run(['context'], none)).toBe(EXIT.usage);
-    expect(none.errors()).toContain('None of the targets (copilot, gemini) has a load model.');
+    expect(none.errors()).toContain('None of the targets (gemini) has a load model.');
     expect(none.errors()).toContain('choose with --agent');
 
     const named = await contextJson(['--agent', 'codex'], repo);
     expect(named.context?.agents).toEqual(['codex']);
     // The agent's rules run too, so its plan and its findings agree.
-    expect(named.targets).toEqual(['codex', 'copilot', 'gemini']);
+    expect(named.targets).toEqual(['codex', 'gemini']);
+
+    // A platform target plans each of its surfaces.
+    await writeFile(join(repo, 'agentcheckup.config.json'), '{ "targets": ["copilot"] }');
+    expect((await contextJson([], repo)).context?.agents).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
+    ]);
 
     await writeFile(join(repo, 'agentcheckup.config.json'), '{ "targets": ["cursor"] }');
     expect((await contextJson([], repo)).context?.agents).toEqual(['cursor']);
@@ -270,6 +290,9 @@ describe('agentcheckup context', () => {
       'claude-code',
       'codex',
       'cursor',
+      'copilot-cli',
+      'copilot-vscode',
+      'copilot-cloud',
       'windsurf',
       'cline',
     ]);

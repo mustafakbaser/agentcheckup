@@ -4,6 +4,7 @@
  * and support matrix (SOURCES.copilotRepoInstructions, SOURCES.copilotInstructionsSupport) and
  * VS Code's custom instructions page (SOURCES.vscodeInstructions).
  */
+import { codePointLength } from '../core/measure.js';
 import { pathStatus } from '../core/paths.js';
 import type { Artifact, ParseServices, Snapshot } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
@@ -84,6 +85,55 @@ export function meantForCopilot(
   return (
     frontmatter.kind === 'valid' &&
     COPILOT_KEYS.some((key) => Object.hasOwn(frontmatter.data.values, key))
+  );
+}
+
+/** The `.github` subpath Copilot reads files of this kind from. */
+export function copilotFolder(
+  artifact: Pick<Artifact, 'kind'>,
+): 'copilot-instructions.md' | 'instructions' {
+  return artifact.kind === 'copilot-instructions' ? 'copilot-instructions.md' : 'instructions';
+}
+
+/** A Copilot instructions file that is not where Copilot looks for it. */
+export interface Misplacement {
+  /** The path that reaches the file inside a plausible `.github` tree. */
+  readonly path: string;
+  readonly where: Exclude<Placement, { readonly kind: 'expected' }>;
+}
+
+/**
+ * Where a `copilot-instructions.md` or `*.instructions.md` file sits when no path that reaches it
+ * is where Copilot looks, as copilot/instructions-misplaced reports it: the first path inside a
+ * plausible `.github` tree ({@link inPlausibleGithubTree}). Undefined when some path is where
+ * Copilot looks, or when none is in such a tree (the file is likely not meant for Copilot).
+ */
+export function copilotMisplacement(
+  snapshot: Snapshot,
+  artifact: Artifact,
+): Misplacement | undefined {
+  const inside = copilotFolder(artifact);
+  let candidate: Misplacement | undefined;
+  for (const path of [artifact.path, ...artifact.aliases]) {
+    const where = placement(snapshot, path, inside);
+    if (where.kind === 'expected') return undefined;
+    if (candidate === undefined && inPlausibleGithubTree(path)) candidate = { path, where };
+  }
+  return candidate;
+}
+
+/**
+ * Whether copilot/apply-to judges a `*.instructions.md` file: one in a `.github/instructions`
+ * folder (in any letter case, at any depth), or one whose frontmatter uses Copilot's fields.
+ */
+export function judgedByApplyTo(
+  parse: Pick<ParseServices, 'frontmatter'>,
+  snapshot: Snapshot,
+  artifact: Artifact,
+): boolean {
+  return (
+    placement(snapshot, artifact.path, 'instructions').kind !== 'elsewhere' ||
+    meantForCopilot(parse, artifact)
   );
 }
 
@@ -239,4 +289,34 @@ export function copilotActivation(frontmatter: FrontmatterResult): CopilotActiva
       };
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Skill names in VS Code
+// ---------------------------------------------------------------------------------------------
+
+/** Longest skill `name` GitHub Copilot in VS Code allows (SOURCES.vscodeSkills). */
+export const VSCODE_SKILL_NAME_MAX = 64;
+
+/** Longest skill `description` GitHub Copilot in VS Code allows (SOURCES.vscodeSkills). */
+export const VSCODE_SKILL_DESCRIPTION_MAX = 1024;
+
+const NAME_CHARACTER = /^[a-z0-9-]$/;
+/** Lowercase or caseless letters and numbers, which skill/name-format reports for other reasons. */
+const NAME_OTHER_ALNUM = /^[\p{Ll}\p{Lm}\p{Lo}\p{N}]$/u;
+
+/**
+ * Why GitHub Copilot in VS Code does not load a skill with this `name`, as skill/name-format
+ * reports it. SOURCES.vscodeSkills: "Names with invalid characters cause the skill to silently
+ * fail to load", and a name has at most 64 characters.
+ * - `characters`: an uppercase letter, or a character that is neither a letter, a digit nor a
+ *   hyphen.
+ * - `length`: more than {@link VSCODE_SKILL_NAME_MAX} characters, trimmed and NFKC-normalized.
+ */
+export function vscodeSkillNameIssue(raw: string): 'characters' | 'length' | undefined {
+  for (const char of raw.trim()) {
+    if (!NAME_CHARACTER.test(char) && !NAME_OTHER_ALNUM.test(char)) return 'characters';
+  }
+  const length = codePointLength(raw.trim().normalize('NFKC'));
+  return length > VSCODE_SKILL_NAME_MAX ? 'length' : undefined;
 }

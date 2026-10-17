@@ -7,7 +7,7 @@ import { defineRule } from '../define.js';
 import { basename, joinPath } from '../instructions/helpers.js';
 import { quotePath } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
-import { inPlausibleGithubTree, type Placement, placement } from './location.js';
+import { copilotMisplacement, type Placement, placement } from './location.js';
 import { COPILOT_SOURCES } from './sources.js';
 
 const ID = 'copilot/instructions-misplaced';
@@ -164,12 +164,10 @@ function remedy(
   }
 }
 
-function check(snapshot: Snapshot, artifact: Artifact, inside: string): Finding | undefined {
+function check(snapshot: Snapshot, artifact: Artifact): Finding | undefined {
   // Every path that reaches the file counts: a symlink in .github/instructions makes Copilot see it.
-  const paths = [artifact.path, ...artifact.aliases];
-  const placements = paths.map((path) => ({ path, where: placement(snapshot, path, inside) }));
-  if (placements.some((entry) => entry.where.kind === 'expected')) return undefined;
-  const candidate = placements.find((entry) => inPlausibleGithubTree(entry.path));
+  // The Copilot load plans skip the file for the same reason (src/platforms/copilot.ts).
+  const candidate = copilotMisplacement(snapshot, artifact);
   if (candidate === undefined) return undefined;
   const wide = artifact.kind === 'copilot-instructions';
   const finding = wide
@@ -203,8 +201,7 @@ export const instructionsMisplacedRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const inside = artifact.kind === 'copilot-instructions' ? REPOSITORY_WIDE : PATH_SPECIFIC;
-      const finding = check(context.snapshot, artifact, inside);
+      const finding = check(context.snapshot, artifact);
       if (finding !== undefined) context.report({ artifact, ...finding });
     }
   },

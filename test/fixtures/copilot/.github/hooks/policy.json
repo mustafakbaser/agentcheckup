@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [{ "type": "command", "bash": "./scripts/guard.sh", "timeoutSec": 10 }],
+    "notification": [{ "type": "command", "bash": "./scripts/guard.sh" }],
+    "SessionStart": [{ "type": "command", "command": "./scripts/guard.sh" }],
+    "beforeCommit": [{ "type": "command", "bash": "./scripts/guard.sh" }]
+  }
+}

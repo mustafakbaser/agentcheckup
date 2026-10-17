@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "hooks": {
+    "sessionEnd": [{ "type": "command", "bash": "./scripts/guard.sh" }]
+  }
+}

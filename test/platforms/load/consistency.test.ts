@@ -171,6 +171,20 @@ describe('consistency on the fixtures', () => {
     expectInventoryIdsResolve(checked);
   });
 
+  it('copilot fixture: no mismatches, every inventory id resolves', async () => {
+    const checked = checkSnapshot(await fixture('copilot', true));
+    expect(checked.report.mismatches).toEqual([]);
+    // Every Copilot surface skips something a rule reports.
+    for (const agent of ['copilot-cli', 'copilot-vscode', 'copilot-cloud'] as const) {
+      const plan = checked.plans.find((item) => item.agent === agent);
+      expect(
+        plan?.skipped.some((skip) => skip.ruleId !== undefined),
+        agent,
+      ).toBe(true);
+    }
+    expectInventoryIdsResolve(checked);
+  });
+
   it('smoke fixture: no mismatches, every inventory id resolves', async () => {
     const checked = checkSnapshot(await fixture('smoke', false));
     expect(checked.report.mismatches).toEqual([]);
@@ -198,8 +212,27 @@ describe('consistency on generated snapshots', () => {
     fc
       .array(
         fc.tuple(
-          fc.constantFrom('name', 'description', 'paths', 'globs', 'alwaysApply', 'metadata'),
-          fc.constantFrom('x', 'Does x.', '"src/**"', 'true', '[a, b]', '{a: 1}', '*.ts', ''),
+          fc.constantFrom(
+            'name',
+            'description',
+            'paths',
+            'globs',
+            'alwaysApply',
+            'metadata',
+            'applyTo',
+            'excludeAgent',
+          ),
+          fc.constantFrom(
+            'x',
+            'Does x.',
+            '"src/**"',
+            'true',
+            '[a, b]',
+            '{a: 1}',
+            '*.ts',
+            '',
+            'cloud-agent',
+          ),
         ),
         { maxLength: 3 },
       )
@@ -241,6 +274,15 @@ describe('consistency on generated snapshots', () => {
     '.devin/rules/r.md',
     '.windsurf/rules/w.md',
     '.devin/skills/d/SKILL.md',
+    'GEMINI.md',
+    '.github/copilot-instructions.md',
+    '.github/prompts/copilot-instructions.md',
+    'pkg/.github/copilot-instructions.md',
+    '.github/instructions/a.instructions.md',
+    '.github/x/b.instructions.md',
+    'docs/c.instructions.md',
+    '.github/skills/g/SKILL.md',
+    '.github/skills/G/SKILL.md',
   );
   const json = fc.constantFrom(
     '{',
@@ -252,6 +294,10 @@ describe('consistency on generated snapshots', () => {
     '{"version":1,"hooks":{"beforeShellExecution":[{"command":"./g.sh"}],"PreToolUse":[{"command":"x"}]}}',
     '{"Stop":[{"hooks":[{"type":"command","command":"x"}]}]}',
     '{"read_config_from":{"agents_standard":false,"claude":false,"cursor":false}}',
+    '{"version":1,"hooks":{"preToolUse":[{"bash":"./g.sh"}],"notification":[{"bash":"n"}],"nope":[]}}',
+    '{"version":2,"hooks":{}}',
+    '{"a":{"command":"npx","args":["-y","a@1.0.0"]}}',
+    '{"servers":{"v":{"command":"v"}}}',
   );
   const jsonPath = fc.constantFrom(
     '.mcp.json',
@@ -265,6 +311,11 @@ describe('consistency on generated snapshots', () => {
     '.devin/config.json',
     '.devin/hooks.v1.json',
     '.devin/mcp_config.json',
+    '.github/hooks/h.json',
+    'pkg/.github/hooks/h.json',
+    '.github/mcp.json',
+    '.vscode/mcp.json',
+    '.github/copilot/settings.json',
   );
   const files = fc
     .tuple(
@@ -410,6 +461,32 @@ describe('allowances', () => {
     ]);
     expect(brief(check(files, {}, [ALLOWANCES.firstSkipReason]).report.mismatches)).toEqual([
       'finding-without-skip skill/name-format codex .agents/skills/s/SKILL.md',
+    ]);
+  });
+
+  it(`${ALLOWANCES.excludeAgentValue}: an undocumented excludeAgent beside a valid applyTo`, () => {
+    const path = '.github/instructions/ts.instructions.md';
+    const files = { [path]: '---\napplyTo: "**/*.ts"\nexcludeAgent: "nobody"\n---\nStrict.\n' };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed[ALLOWANCES.excludeAgentValue]).toBe(1);
+    const applyTo = allowed.result.findings.filter((f) => f.ruleId === 'copilot/apply-to');
+    expect(applyTo.map((f) => f.severity)).toEqual(['warn']);
+    const cloud = allowed.plans.find((plan) => plan.agent === 'copilot-cloud');
+    expect(cloud?.entries.map((e) => `${e.path} ${e.trigger}`)).toEqual([`${path} on-path`]);
+    expect(brief(check(files, {}, [ALLOWANCES.excludeAgentValue]).report.mismatches)).toEqual([
+      `finding-without-skip copilot/apply-to copilot-cloud ${path}`,
+    ]);
+  });
+
+  it(`${ALLOWANCES.firstSkipReason}: the cloud agent skips a misplaced file before reading applyTo`, () => {
+    // Misplaced (copilot/instructions-misplaced) and without applyTo (copilot/apply-to).
+    const files = { '.github/prompts/x.instructions.md': 'No frontmatter.\n' };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed[ALLOWANCES.firstSkipReason]).toBe(1);
+    expect(brief(check(files, {}, [ALLOWANCES.firstSkipReason]).report.mismatches)).toEqual([
+      'finding-without-skip copilot/apply-to copilot-cloud .github/prompts/x.instructions.md',
     ]);
   });
 

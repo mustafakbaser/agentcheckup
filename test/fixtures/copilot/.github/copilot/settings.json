@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "agentStop": [{ "type": "command", "bash": "./scripts/guard.sh" }]
+  }
+}

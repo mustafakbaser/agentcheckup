@@ -364,6 +364,45 @@
             }
           }
         },
+        "copilot-cli": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        },
+        "copilot-vscode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        },
+        "copilot-cloud": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        },
         "windsurf": {
           "type": "object",
           "additionalProperties": false,

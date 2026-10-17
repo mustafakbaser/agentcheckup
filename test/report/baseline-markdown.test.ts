@@ -110,6 +110,9 @@ describe('baseline Markdown of a pull request', async () => {
       'Claude Code',
       'Codex',
       'Cursor',
+      'Copilot CLI',
+      'Copilot in VS Code',
+      'Copilot cloud agent',
       'Devin Local',
       'Cline',
     ]);
@@ -144,7 +147,7 @@ describe('baseline Markdown without a change', async () => {
 
   it('reports every plan unchanged and nothing missed', () => {
     const table = rows(output, TABLE_HEADER);
-    expect(table).toHaveLength(5);
+    expect(table).toHaveLength(8);
     for (const row of table) {
       const [, before, after, change] = cells(row);
       expect(after).toBe(before);

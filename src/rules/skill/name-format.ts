@@ -2,6 +2,7 @@ import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { PlatformId } from '../../core/types.js';
 import { codexNameTooLong, nameNotText } from '../../platforms/codex-skills.js';
+import { vscodeSkillNameIssue } from '../../platforms/copilot.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import {
@@ -113,10 +114,12 @@ function analyze(
     consequences.push('Codex skips the skill');
     impacts.push({ platform: 'codex', severity: 'error' });
   }
-  if (badCharacters && reaches('copilot')) {
+  // The Copilot load plan for VS Code skips the skill for the same reasons.
+  const copilot = reaches('copilot') ? vscodeSkillNameIssue(raw) : undefined;
+  if (copilot === 'characters') {
     consequences.push('GitHub Copilot in VS Code does not load the skill');
     impacts.push({ platform: 'copilot', severity: 'error' });
-  } else if (tooLong && reaches('copilot')) {
+  } else if (copilot === 'length') {
     consequences.push(`GitHub Copilot in VS Code allows at most ${MAX_NAME_LENGTH} characters`);
     impacts.push({ platform: 'copilot', severity: 'warn' });
   }

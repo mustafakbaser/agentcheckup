@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "shared": { "type": "http", "url": "https://shared.example.com/mcp" },
+    "tracker": { "type": "http", "url": "https://tracker.example.com/mcp" }
+  }
+}

@@ -129,6 +129,9 @@ export const SKIP_RULES: readonly SkipRule[] = [
     minSeverity: 'warn',
   },
   ...skipsFor(COPILOT_SURFACES, 'json/invalid-syntax', ['invalid-json']),
+  // VS Code does not load a skill whose name is invalid or differs from its directory.
+  { ruleId: 'skill/name-dir-mismatch', agent: 'copilot-vscode', codes: ['invalid-frontmatter'] },
+  { ruleId: 'skill/name-format', agent: 'copilot-vscode', codes: ['invalid-frontmatter'] },
   // Gemini CLI
   { ruleId: 'instr/import-depth', agent: 'gemini', codes: ['import-too-deep'] },
   { ruleId: 'instr/import-outside-root', agent: 'gemini', codes: ['import-outside-root'] },
@@ -189,8 +192,9 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/description-missing',
-    agents: ['claude-code', 'cursor'],
-    reason: 'The agent lists the skill without a description.',
+    agents: ['claude-code', 'cursor', ...COPILOT_SURFACES],
+    reason:
+      'The agent lists the skill without a description; what Copilot does with such a skill is not documented, so its plans mark the skill unverified.',
   },
   {
     ruleId: 'skill/frontmatter-bom',
@@ -199,9 +203,9 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/frontmatter-invalid',
-    agents: ['claude-code', 'cursor', 'gemini'],
+    agents: ['claude-code', 'cursor', ...COPILOT_SURFACES, 'gemini'],
     reason:
-      'The agent lists the skill without the fields it could not read; Gemini CLI reads the name and description lines without YAML.',
+      'The agent lists the skill without the fields it could not read; Gemini CLI reads the name and description lines without YAML. The finding never names Copilot, whose handling is not documented.',
   },
   {
     ruleId: 'skill/frontmatter-missing',
@@ -350,6 +354,13 @@ export const ALLOWANCES = {
    * misnamed matches that `not-read` skip.
    */
   firstSkipReason: 'first-skip-reason',
+  /**
+   * copilot/apply-to also warns about an `excludeAgent` value that is not documented. Such a
+   * warning on a file the cloud agent applies through its `applyTo` is not a skip: the cloud
+   * plan's `on-path` (or, for an undocumented `applyTo` form, `unknown`) rule entry shows that
+   * `applyTo` is readable.
+   */
+  excludeAgentValue: 'copilot-exclude-agent-value',
 } as const;
 
 export type AllowanceName =
@@ -357,7 +368,8 @@ export type AllowanceName =
   | typeof ALLOWANCES.relatedCap
   | typeof ALLOWANCES.bomOnlyAgentsMd
   | typeof ALLOWANCES.installedSkill
-  | typeof ALLOWANCES.firstSkipReason;
+  | typeof ALLOWANCES.firstSkipReason
+  | typeof ALLOWANCES.excludeAgentValue;
 
 export type MismatchKind =
   /** A skip names a rule, and no unsuppressed finding of it on that file lists the agent. */
@@ -619,6 +631,22 @@ class Checker {
       entries.length > 0 &&
       this.#bomOnly(path) &&
       this.#allow(ALLOWANCES.bomOnlyAgentsMd)
+    ) {
+      return;
+    }
+    if (
+      ruleId === 'copilot/apply-to' &&
+      plans.some(
+        (plan) =>
+          plan.agent === 'copilot-cloud' &&
+          plan.entries.some(
+            (entry) =>
+              entry.role === 'rule' &&
+              (entry.trigger === 'on-path' || entry.trigger === 'unknown') &&
+              this.#real(entry.path) === path,
+          ),
+      ) &&
+      this.#allow(ALLOWANCES.excludeAgentValue)
     ) {
       return;
     }

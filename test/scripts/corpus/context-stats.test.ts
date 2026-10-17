@@ -50,6 +50,9 @@ describe('scanForSummary', () => {
       'claude-code': ['CLAUDE.md'],
       codex: ['AGENTS.md'],
       cursor: ['AGENTS.md', 'CLAUDE.md'],
+      'copilot-cli': ['AGENTS.md', 'CLAUDE.md'],
+      'copilot-vscode': ['AGENTS.md', 'CLAUDE.md'],
+      'copilot-cloud': ['AGENTS.md', 'CLAUDE.md'],
       windsurf: ['AGENTS.md', 'CLAUDE.md'],
       cline: ['AGENTS.md'],
     });
