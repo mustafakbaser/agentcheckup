@@ -3,6 +3,15 @@ name: Release
 on:
   push:
     branches: [main]
+  # Publishes the release of an existing tag again, when its publish job failed: release tags
+  # are immutable, so the fix lands on main and this run builds the tag with it. It needs the
+  # same environment approval as every publish.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag to publish, such as v0.1.0
+        required: true
+        type: string
 
 permissions: {}
 
@@ -13,6 +22,7 @@ concurrency:
 jobs:
   release-please:
     name: Release PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -31,7 +41,11 @@ jobs:
   publish:
     name: Publish to npm
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: >-
+      always() && (
+        (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
+        (github.event_name == 'workflow_dispatch' && needs.release-please.result == 'skipped')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Protected environment: configure required reviewers in the repository settings, so every
@@ -48,20 +62,38 @@ jobs:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+        run: |
+          if ! [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::\"$TAG\" is not a release tag such as v0.1.0."
+            exit 1
+          fi
+          echo "TAG=$TAG" >>"$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
+      - name: Check that the tag holds that version
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::package.json says $version, but the tag is $TAG."
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
       - name: Pack
-        run: npm pack --pack-destination dist-pack
+        run: |
+          mkdir dist-pack
+          npm pack --pack-destination dist-pack
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -71,5 +103,4 @@ jobs:
       - name: Attach the tarball to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
         run: gh release upload "$TAG" dist-pack/*.tgz --clobber
