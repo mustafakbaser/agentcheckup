@@ -44,10 +44,11 @@ On demand
   .claude/rules/testing.md         168 bytes ≈ 42, when Claude opens **/*.test.ts
 
 Skipped
-  AGENTS.md               a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude
-  packages/api/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude
-  packages/web/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude
+  AGENTS.md               a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
+  packages/api/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: review
+  packages/web/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: review
 
+3 of 3 skips can be fixed: agentcheckup fix
 ≈tokens = characters ÷ 4
 ```
 
@@ -68,7 +69,11 @@ Skipped
 - **Skipped:** files and items the agent would consider but does not load, the reason, and the
   rule that reports the problem. A skip without a rule id is one no rule reports, usually
   expected behavior, such as a root `AGENTS.md` that a `CLAUDE.md` in the working directory
-  replaces.
+  replaces. A skip that [`agentcheckup fix`](fix.md) can remove ends with the class of its fix:
+  `fix: safe` for a fix that `fix --write` applies, `fix: review` for one that needs
+  `fix --write --review` or `fix -i`. Markdown output has a Fix column instead, and JSON a
+  `fix` field. A line after the plans counts them, such as
+  `3 of 3 skips can be fixed: agentcheckup fix`.
 - **Incomplete:** files the plan could not analyze, so entries may be missing. For example,
   `.codex/config.toml` is not parsed, so Codex servers and hooks declared there are not listed.
 - **Ignored by configuration:** how many files the plan leaves out because the `ignore` of
@@ -256,6 +261,28 @@ first. A file of MCP servers or hooks has one row: when the agent loads some of 
 skips others, the cell shows what it loads and the plan lists the skips. `--matrix` cannot be
 combined with `--cwd`.
 
+## What each agent misses, in a scan
+
+A regular scan in the `stylish`, `markdown` or `github` format plans each agent at the root as
+well. `stylish` and `markdown` output start with the skips. On the small repository that
+[Fixing findings](fix.md) uses:
+
+```text
+$ npx agentcheckup
+What each agent misses
+  Claude Code  MCP server docs is skipped: "url" without "type"                                 fix: review
+               AGENTS.md is skipped: a CLAUDE.md on the path is read instead (≈82 tokens)       fix: safe
+               docs/setup.md is skipped: CLAUDE.md imports it, but the import does not resolve  manual
+  Codex        skill deploy is skipped: no description (≈13 tokens)                             fix: review
+  Cursor       .cursor/rules/style.md is skipped: only .mdc files are read here (≈9 tokens)     fix: review
+```
+
+A finding's `why` line (`Why:` in a GitHub annotation) comes from the same plans: how much the
+agent misses, and which other agents still load the file. `--compact` leaves both out and does
+not plan; `--verbose` adds each rule's docs URL, rationale and sources to `stylish` output. JSON
+and SARIF include plans only with `--context`. See
+[How much a scan shows](configuration.md#how-much-a-scan-shows).
+
 ## JSON
 
 `agentcheckup context --format json` writes the same report as a scan, so one schema covers both:
@@ -266,7 +293,7 @@ combined with `--cwd`.
 | `context.agents`                    | The planned agents, in a fixed order                                                                                                            |
 | `context.plans[]`                   | One plan per agent and working directory: `agent`, `cwd` (`""` is the root)                                                                     |
 | `plans[].entries[]`                 | `id`, `role`, `trigger`, `position` (startup only), `path`, `realPath`, `size`, `deferred`, `truncated`, `certainty`, `evidence`, `inventoryId` |
-| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `certainty`, `evidence`                                 |
+| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `size`, `fix`, `certainty`, `evidence`                  |
 | `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                             |
 | `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`       |
 | `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                  |
@@ -396,7 +423,9 @@ npx agentcheckup context --agent claude-code
 ```
 
 If `AGENTS.md` is under Skipped with "a CLAUDE.md on the path is read instead", add the line
-`@AGENTS.md` to that `CLAUDE.md`. The plan then shows `└ @AGENTS.md` under it.
+`@AGENTS.md` to that `CLAUDE.md`. The plan then shows `└ @AGENTS.md` under it. When the
+`CLAUDE.md` is in the same directory, the skip ends with `fix: safe`, and
+`npx agentcheckup fix --write` adds the line for you.
 
 **How much does a session in this package start with?**
 

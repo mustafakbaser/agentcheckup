@@ -99,11 +99,30 @@ These stay hidden with `--untrusted` when `.gitignore` excludes them:
 
 To scan everything, add `--no-gitignore`.
 
+## How much a scan shows
+
+The `stylish`, `markdown` and `github` formats have three levels of detail. In `stylish`:
+
+| Level   | Flag        | What it shows                                                                                                                                                                                                                                                                                                                 |
+| ------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| compact | `--compact` | The findings and the totals, without what each agent misses and without `why`, `fix` and `how` lines. A finding with a fix ends with `fixable` (a safe fix) or `fixable (review)`.                                                                                                                                            |
+| default | none        | First, what each agent misses: the skips in the load plans of each agent at the root, each with the class of its fix or `manual`. Under each finding, a `why` line when the plans add a fact the message lacks, then a `fix` line (class and title) or a `how` line (a manual step). Last, the number of fixes of each class. |
+| verbose | `--verbose` | The default, plus each rule's docs URL, the first paragraph of its rationale and its sources.                                                                                                                                                                                                                                 |
+
+In `markdown`, the default level adds a table of what each agent misses, a Fix column and a line
+on how to preview the fixes. In `github`, it adds `Why`, `Fix` or `How`, and `Docs` lines to each
+annotation, whose title names the fix class at every level. `--compact` leaves these additions
+out, and `--verbose` shows the same as the default in both formats.
+
+`--compact` and `--verbose` cannot be combined, and they do not change `json`, `sarif` or
+`badge`. [Fixing findings](fix.md) explains the fix classes.
+
 ## What each agent loads
 
 `agentcheckup context [path]` shows the load plan of each modeled agent: what is in context when a
 session starts, what loads on demand, the MCP servers and hooks it starts, and what it skips and
-why. It never fails on findings. [What each agent loads](context.md) explains the output.
+why. A skip that `agentcheckup fix` can remove ends with `fix: safe` or `fix: review`. It never
+fails on findings. [What each agent loads](context.md) explains the output.
 
 | Option                 | Meaning                                                                                                                                                        |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |

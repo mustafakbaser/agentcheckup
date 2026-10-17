@@ -46,8 +46,9 @@ src/
     load/      load plans: what one agent loads for one working directory  (pure)
   inventory/   MCP servers, hooks, permissions and env overrides           (pure)
   rules/       one file per rule, grouped by family                        (pure)
-  report/      stylish, JSON, SARIF, GitHub, Markdown and context output   (pure)
-  io/          the only code that touches the file system
+  fix/         plan, apply and verify fixes on a copy in memory            (pure)
+  report/      stylish, JSON, SARIF, GitHub, Markdown, context, fix output (pure)
+  io/          the only code that touches the file system; write-fix.ts is the only writer
   cli/         argument parsing and process handling
 scripts/
   corpus/      the real-world corpus harness (see corpus/README.md)
@@ -59,7 +60,8 @@ this. The boundary keeps the core usable in a browser or editor, and keeps file 
 reviewed place. The reasoning is in [docs/adr](docs/adr/README.md).
 
 agentcheckup scans repositories that may be hostile. When you touch parsing, file access or
-output, read [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md) first.
+output, read [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md) first, and
+[ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) when you touch fixes.
 
 ## Adding a rule
 
@@ -82,6 +84,54 @@ stops reading at 32,768 bytes, so the rest of this file is ignored.`
 6. **Regenerate docs** with `pnpm docs:generate` and commit the result.
 
 Rule ids are permanent. Never rename or reuse one; deprecate it instead.
+
+## Adding a fix to a rule
+
+A wrong edit costs more trust than a missed finding, so a fix needs the same care as the rule.
+Rules only describe fixes: `src/fix` plans, applies and verifies them in memory, and
+`src/io/write-fix.ts` writes them. See [Fixing findings](docs/fix.md) for what users see.
+
+1. **Declare it** in the rule's metadata: `fix: { classes: ['safe'], summary: '...' }`. List
+   every class the rule can attach. The summary is one sentence on what the fix does; the rule
+   page, `explain` and [docs/fix.md](docs/fix.md#rules-with-fixes) show it.
+2. **Attach it** to the finding with `context.report({ artifact, message, fix })`. A fix has an
+   `id` (`<rule id>#<variant>`), a `class`, a one-line `title`, and `changes`:
+
+   ```ts
+   context.report({
+     artifact,
+     message,
+     fix: {
+       id: `${RULE_ID}#import`,
+       class: 'safe',
+       title: `Add "${line}" as line 1 of ${claude.path}`,
+       changes: [insertLine(claude, 0, line, { blankAfter: true })],
+     },
+   });
+   ```
+
+3. **Build every change with the builders in `src/fix/edits.ts`:** `insertLine`, `replaceSpan`,
+   `yamlSetScalar`, `yamlInsertKey`, `prependFrontmatter`, the `json*` builders, `renameFile`,
+   `createFile` and `reencode`. Never compute offsets or parse raw text yourself. The builders
+   take line endings, indentation and quote style from the neighboring lines. The YAML and JSON
+   builders return `undefined` when an edit would not give exactly the intended value; then
+   offer no fix. Text copied from the repository goes through `safeCopiedText` and is written
+   with `quoteYaml` or `quoteJson`; names derived from content go through `skillSlug`.
+4. **Choose the class.** `safe` only when the fix is deterministic, has one correct form and
+   keeps the author's prose. A fix that activates or changes an MCP server, a hook, a permission
+   or an env override is always `review`. Verification also treats a `safe` fix with such an
+   effect as `review`, but do not rely on it.
+5. **Give a manual step** when there is no fix: `guidance` on the finding, one line the message
+   does not already say, such as `create "docs/setup.md" or correct the path`.
+6. **Test it with golden fixtures.** Each case is a directory under `test/fixtures/fix/` named
+   after the rule and the case, such as `cursor/md-file-ignored/no-frontmatter/`. It holds a
+   `before/` tree and the `after/` tree that `fix --write --review --rule <rule>` must produce,
+   byte for byte. The test also checks that the fix resolves the rule's findings, adds no error
+   or warning, and that a second run plans nothing. Add cases that must not be fixed, such as a
+   file reached through a symlink, and hostile input such as copied text with a line break or
+   hidden Unicode. Check that every class the rule attaches is in `meta.fix.classes`.
+7. **Regenerate docs** with `pnpm docs:generate`, update the table in
+   [docs/fix.md](docs/fix.md#rules-with-fixes), and run the corpus fix replay below.
 
 ## Changing what an agent loads
 
@@ -114,11 +164,13 @@ costs more trust than a missed finding. See [ADR 0007](docs/adr/0007-model-what-
 | `npx tsx scripts/corpus/run.ts --check-golden`    | On your branch: list every finding that differs from `golden.json`; exit 1 if any         |
 | `... --check-golden --ignore-fingerprints`        | After a fingerprint scheme change: compare every field but the fingerprint                |
 | `npx tsx scripts/corpus/run.ts --consistency`     | Plan every repository as `context --matrix` does and check the plans against the findings |
+| `npx tsx scripts/corpus/run.ts --fix-replay`      | Apply every fix to each repository in memory and check what the fixes leave behind        |
 | `npx tsx scripts/corpus/run.ts --only owner/name` | Print one repository's findings                                                           |
 
 A refactor must leave `--check-golden` clean, and a loader change must leave `--consistency`
-at zero mismatches. These checks need the cache, so they are a manual step before merging,
-not part of CI. Commit `corpus/SUMMARY.md` when a rule or loader change moves its numbers; it
+at zero mismatches. A change to a fix must pass `--fix-replay`: every fix resolves its findings,
+adds no error or warning, and a second pass finds nothing left to fix. These checks need the
+cache, so they are a manual step before merging, not part of CI. Commit `corpus/SUMMARY.md` when a rule or loader change moves its numbers; it
 holds aggregate statistics only, never per-repository results
 ([ADR 0005](docs/adr/0005-scoring.md)). [corpus/README.md](corpus/README.md) has the details.
 
