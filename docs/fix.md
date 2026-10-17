@@ -97,7 +97,11 @@ written:
    plans. The fix passes when every finding it fixes is gone and no error, warning or rule crash
    is new. Findings are matched by rule and file, following renames, because an edit changes
    their fingerprints. A fix that fails is dropped, and the round is planned again without it.
-   Its finding stays, listed as a manual step when the rule names one.
+   Its finding stays, listed as a manual step when the rule names one. To stay fast with
+   hundreds of fixes, fixes in different files are applied together and scanned once, and each
+   is judged by the findings, load-plan entries and inventory items of its own files, as its own
+   scan would judge it. When something changes in another file, or a fix fails, the fixes
+   concerned are scanned alone.
 3. **Check them together.** It applies the passing fixes at once and checks again. When they
    fail together, it adds them one at a time and keeps each one that still passes.
 4. **Repeat.** It runs up to 3 rounds. Each round starts from the files as the last one left

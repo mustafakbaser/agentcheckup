@@ -14,6 +14,7 @@
 import { isUnpinned } from '../../src/core/baseline.js';
 import { compareStrings } from '../../src/core/compare.js';
 import { analyze, type RuleResult, runRules } from '../../src/core/engine.js';
+import type { ParseCache } from '../../src/core/parse-cache.js';
 import type { Snapshot } from '../../src/core/types.js';
 import { buildInventory } from '../../src/inventory/build.js';
 import type { EnvItem } from '../../src/inventory/types.js';
@@ -152,14 +153,17 @@ function overBudget(plan: LoadPlan | undefined): boolean {
 /**
  * Scans one repository like `agentcheckup --untrusted --context --matrix` and returns the rule
  * result with the repository's facts. A loader that throws is recorded in `crash`; the rule
- * result is kept.
+ * result is kept. `parseCache` shares parses with other scans of the repository.
  */
-export function scanForSummary(snapshot: Snapshot): {
+export function scanForSummary(
+  snapshot: Snapshot,
+  parseCache?: ParseCache,
+): {
   readonly result: RuleResult;
   readonly facts: RepoContextFacts;
 } {
   // As scanSnapshot with these options: no configuration, every platform targeted.
-  const analysis = analyze(snapshot, {});
+  const analysis = analyze(snapshot, parseCache === undefined ? {} : { parseCache });
   const result = runRules(analysis, { rules: builtinRules, trustDirectives: false });
   try {
     const inventory = buildInventory(analysis);

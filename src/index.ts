@@ -77,6 +77,7 @@ export {
   type ScanResult,
   scanWithContext,
 } from './core/engine.js';
+export { createParseCache, type ParseCache } from './core/parse-cache.js';
 export { rebaseResult, stripPathBase } from './core/rebase.js';
 export { RULESET_VERSION, TOOL_NAME } from './core/meta.js';
 export type { ScoreReport } from './core/score.js';

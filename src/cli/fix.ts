@@ -26,6 +26,7 @@ import {
   runRules,
   type ScanResult,
 } from '../core/engine.js';
+import { createParseCache } from '../core/parse-cache.js';
 import { decode } from '../core/text.js';
 import type { AnyRule, FileChange, Finding, Fix, FixClass, RuleContext } from '../core/types.js';
 import {
@@ -109,7 +110,11 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
     style: styleFor(options, io),
     snapshot: await walk(root, walkOptions),
     walkOptions,
-    scanOptions: scanOptionsFor(options, config, options.targets),
+    // Every scan of the run (rounds, -i's second pass, the scan from disk) shares the parses.
+    scanOptions: {
+      ...scanOptionsFor(options, config, options.targets),
+      parseCache: createParseCache(),
+    },
   };
 
   const selection: FixSelection = {

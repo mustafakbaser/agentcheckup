@@ -5,22 +5,48 @@
  *
  * A round:
  * 1. Plans the scan's fixes ({@link planFixes}).
- * 2. Applies each planned fix alone to the snapshot and scans the result with root load plans.
- *    The fix passes when every finding it carries is gone and no new error, warning or rule
- *    failure appeared. Findings match by rule and path, mapped through renames, as a multiset:
- *    fingerprints change with the edits. Comparing the two scans with compareWithBaseline gives
- *    the fix's effects: startup token deltas per agent, and gate hits. A `safe` fix with a gate
- *    hit is demoted to `review`, and skipped when review fixes are not selected.
+ * 2. Judges each planned fix as if it were applied alone to the snapshot and the result scanned
+ *    with root load plans. The fix passes when every finding it carries is gone and no new
+ *    error, warning or rule failure appeared. Findings match by rule and path, mapped through
+ *    renames, as a multiset: fingerprints change with the edits. Comparing the two scans with
+ *    compareWithBaseline gives the fix's effects: startup token deltas per agent, and gate hits.
+ *    A `safe` fix with a gate hit is demoted to `review`, and skipped when review fixes are not
+ *    selected.
  * 3. Drops the fixes that failed and plans again, so a fix that lost a conflict to a failed one
  *    gets its turn.
  * 4. Applies the passing fixes together and verifies the combination. When fixes that pass
  *    alone fail together, they are added one at a time in plan order, keeping each that still
  *    verifies.
  *
+ * Step 2 does not scan once per fix ({@link FixRoundsOptions.strategy}). The fixes are split into
+ * groups whose footprints (the paths a fix changes, and the paths of the findings it carries) are
+ * disjoint, and each group is applied and scanned once. What the group scan shows is attributed
+ * to its fixes by footprint:
+ * - findings on a fix's paths decide whether it passes, exactly as its own scan would;
+ * - a change of an agent's startup total is split by the load-plan entries that changed, each
+ *   owned by the fix whose footprint holds its path, real path or import chain; each fix gets
+ *   the total its own scan would have: the original total plus its entries' change;
+ * - a gate hit belongs to the fix whose footprint holds the item's file.
+ * A group scan is used only when everything it shows can be attributed: no finding changed on a
+ * path outside every footprint, no new rule failure, every changed startup entry and gate hit has
+ * exactly one owner, and the plan totals are the sums of their entries. Otherwise the group is
+ * halved and each half judged the same way, down to single fixes, which are scanned alone. A fix
+ * that fails in a group is scanned alone to confirm it, and the rest of the group again without
+ * it, so a fix is never dropped because of another one. This gives the decisions and effects of
+ * scanning each fix alone as long as a fix changes findings, plans and the inventory only through
+ * the files in its footprint, or visibly elsewhere; test/fix/verify-batch.test.ts compares both
+ * strategies. A change that one fix causes only in another fix's files is credited to that other
+ * fix: when that fix also undoes it, or it changes that fix's startup entries, the verdicts can
+ * differ from the fixes' own scans. Step 4 still verifies every fix that is kept, together.
+ *
+ * Every scan shares one {@link ParseCache}, so a file is parsed again only when a fix changed it.
+ *
  * Bounds: at most {@link MAX_ROUNDS} rounds, {@link MAX_FIXES} fixes per run and
  * {@link MAX_WRITTEN_FILE_BYTES} per written file. Fixes past a bound are skipped with `limit`.
  *
- * Cost: one scan per planned fix plus one per round, more only when fixes interact.
+ * Cost: one full parse, then per round one scan per group (as many groups as the most fixes that
+ * share a path) and one for the combination, more only when something cannot be attributed or a
+ * fix fails.
  */
 import { compareWithBaseline, GATE_CLASSES } from '../core/baseline.js';
 import { compareStrings } from '../core/compare.js';
@@ -31,7 +57,9 @@ import {
   type ScanOptions,
   scanWithContext,
 } from '../core/engine.js';
+import { createParseCache, type ParseCache } from '../core/parse-cache.js';
 import type { Finding, Snapshot } from '../core/types.js';
+import type { LoadEntry, LoadPlan } from '../platforms/load/types.js';
 import { applyPlan, FixApplyError } from './apply.js';
 import type {
   Conflict,
@@ -54,9 +82,20 @@ export const MAX_WRITTEN_FILE_BYTES = 1024 * 1024;
 
 /**
  * Scan options for verification. Plans are always made for the root, without the matrix: the
- * working directory and matrix options do not apply.
+ * working directory and matrix options do not apply. Without `parseCache`, the run makes its own.
  */
 export type FixScanOptions = ScanOptions & Pick<ContextOptions, 'agents' | 'contextWindow'>;
+
+/** How {@link fixRounds} judges the fixes of a round. */
+export interface FixRoundsOptions {
+  /**
+   * - `batch` (default): in groups of fixes with disjoint footprints, one scan per group, as the
+   *   module comment describes.
+   * - `isolated`: one scan per fix. Slow on repositories with many fixes; the reference the
+   *   batch strategy is tested against.
+   */
+  readonly strategy?: 'batch' | 'isolated';
+}
 
 /** The combined change to one file across every applied fix, for diffs. */
 export interface FileDiff {
@@ -216,9 +255,27 @@ function oversized(current: Snapshot, next: Snapshot): boolean {
 const gateKey = (effect: Extract<FixEffect, { kind: 'gate' }>): string =>
   `${effect.class}\u0000${effect.id}\u0000${effect.change}`;
 
+type GateEffect = Extract<FixEffect, { kind: 'gate' }>;
+
+/** compareWithBaseline of `after` against `before`, with every gate class. */
+function planDiff(before: Scan, after: Scan) {
+  return compareWithBaseline(after, before, { gate: GATE_CLASSES }).diff;
+}
+
+/** The gate hits of a comparison, as effects. */
+function gateEffects(diff: ReturnType<typeof planDiff>): GateEffect[] {
+  return diff.gate.hits.map((hit) => ({
+    kind: 'gate',
+    class: hit.class,
+    id: hit.id,
+    change: hit.change,
+    summary: hit.summary,
+  }));
+}
+
 /** Token deltas and gate hits of `after` against `before`. */
 function effectsOf(before: Scan, after: Scan): FixEffect[] {
-  const { diff } = compareWithBaseline(after, before, { gate: GATE_CLASSES });
+  const diff = planDiff(before, after);
   const effects: FixEffect[] = [];
   for (const delta of diff.context) {
     const { before: old, after: now } = delta.startupTokens;
@@ -226,15 +283,7 @@ function effectsOf(before: Scan, after: Scan): FixEffect[] {
       effects.push({ kind: 'tokens', agent: delta.agent, cwd: delta.cwd, before: old, after: now });
     }
   }
-  for (const hit of diff.gate.hits) {
-    effects.push({
-      kind: 'gate',
-      class: hit.class,
-      id: hit.id,
-      change: hit.change,
-      summary: hit.summary,
-    });
-  }
+  effects.push(...gateEffects(diff));
   return effects;
 }
 
@@ -252,17 +301,292 @@ interface Applied {
   readonly scan: Scan;
 }
 
+/** `fixes` applied to a snapshot: the result, or why they could not apply, and its scan. */
+interface Trial {
+  /** Undefined when the fixes cannot apply; `limit` when they write a file too large. */
+  readonly next: Snapshot | 'limit' | undefined;
+  readonly scan?: Scan;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Attribution of a group scan
+// ---------------------------------------------------------------------------------------------
+
+/** What a group scan says about one of its fixes: what its own scan would say. */
+interface Verdict {
+  readonly verified: boolean;
+  readonly effects: readonly FixEffect[];
+}
+
+/** The paths a fix changes, and the paths of the findings it carries in `scan`. */
+function footprintOf(planned: PlannedFix, scan: Scan): Set<string> {
+  const paths = new Set<string>();
+  for (const change of planned.fix.changes) {
+    if (change.kind === 'rename') {
+      paths.add(change.from);
+      paths.add(change.to);
+    } else {
+      paths.add(change.path);
+    }
+  }
+  const carried = new Set(planned.findings);
+  for (const finding of scan.findings)
+    if (carried.has(finding.fingerprint)) paths.add(finding.path);
+  return paths;
+}
+
+/** Fixes in plan order, split into groups whose footprints are disjoint: first fit. */
+function disjointGroups(
+  fixes: readonly PlannedFix[],
+  footprints: ReadonlyMap<PlannedFix, ReadonlySet<string>>,
+): PlannedFix[][] {
+  const groups: { readonly fixes: PlannedFix[]; readonly used: Set<string> }[] = [];
+  for (const planned of fixes) {
+    const paths = [...(footprints.get(planned) ?? [])];
+    let group = groups.find((candidate) => !paths.some((path) => candidate.used.has(path)));
+    if (group === undefined) {
+      group = { fixes: [], used: new Set() };
+      groups.push(group);
+    }
+    group.fixes.push(planned);
+    for (const path of paths) group.used.add(path);
+  }
+  return groups.map((group) => group.fixes);
+}
+
+/** The estimate load plans use: `Math.ceil(chars / 4)` (Size in src/platforms/load/types.ts). */
+const tokensOf = (chars: number): number => Math.ceil(chars / 4);
+
+/**
+ * What an entry adds to its plan's startup total: its size when it loads at startup, and for
+ * Cursor also a skill's listing, which is in the prompt while the body waits for the model
+ * (src/platforms/load/cursor.ts). {@link startupShares} checks the sum against the total.
+ */
+function startupChars(plan: LoadPlan, entry: LoadEntry): number {
+  if (entry.size === undefined) return 0;
+  if (entry.trigger === 'startup') return entry.size.chars;
+  const listed = plan.agent === 'cursor' && entry.role === 'skill';
+  return listed && entry.trigger === 'model-selected' ? entry.size.chars : 0;
+}
+
+/** True when the plan's startup total is the sum of its entries, as {@link startupChars} counts. */
+function decomposes(plan: LoadPlan): boolean {
+  const { chars, tokens } = plan.totals.startup;
+  const sum = plan.entries.reduce((total, entry) => total + startupChars(plan, entry), 0);
+  return sum === chars && tokens === tokensOf(chars);
+}
+
+/**
+ * Per fix, the change of the plan's startup characters its own scan would show: the change of
+ * the entries it owns. Undefined when an entry that changed has no owner or several, or when a
+ * total is not the sum of its entries.
+ */
+function startupShares(
+  before: LoadPlan,
+  after: LoadPlan,
+  owners: (paths: readonly string[]) => readonly PlannedFix[],
+): Map<PlannedFix, number> | undefined {
+  interface Share {
+    readonly chars: number;
+    readonly owners: readonly PlannedFix[];
+  }
+  const sharesOf = (plan: LoadPlan): Map<string, Share> => {
+    const map = new Map<string, Share>();
+    for (const entry of plan.entries) {
+      const chars = startupChars(plan, entry);
+      if (chars === 0 || map.has(entry.id)) continue;
+      map.set(entry.id, {
+        chars,
+        owners: owners([entry.path, entry.realPath, ...(entry.via ?? [])]),
+      });
+    }
+    return map;
+  };
+  const old = sharesOf(before);
+  const now = sharesOf(after);
+  const shares = new Map<PlannedFix, number>();
+  const add = (share: Share, sign: number): boolean => {
+    const [owner, ...others] = share.owners;
+    if (owner === undefined || others.length > 0) return false;
+    shares.set(owner, (shares.get(owner) ?? 0) + sign * share.chars);
+    return true;
+  };
+  const same = (a: Share, b: Share): boolean =>
+    a.chars === b.chars &&
+    a.owners.length === b.owners.length &&
+    a.owners.every((owner, index) => b.owners[index] === owner);
+  let changed = false;
+  for (const id of new Set([...old.keys(), ...now.keys()])) {
+    const was = old.get(id);
+    const is = now.get(id);
+    if (was !== undefined && is !== undefined && same(was, is)) continue;
+    changed = true;
+    if (was !== undefined && !add(was, -1)) return undefined;
+    if (is !== undefined && !add(is, 1)) return undefined;
+  }
+  if (!changed && before.totals.startup.chars === after.totals.startup.chars) return shares;
+  return decomposes(before) && decomposes(after) ? shares : undefined;
+}
+
+/** Path → the fix whose footprint holds it. Undefined when two footprints share a path. */
+function ownership(
+  members: readonly PlannedFix[],
+  footprints: ReadonlyMap<PlannedFix, ReadonlySet<string>>,
+): Map<string, PlannedFix> | undefined {
+  const owner = new Map<string, PlannedFix>();
+  for (const member of members) {
+    for (const path of footprints.get(member) ?? []) {
+      if (owner.has(path)) return undefined;
+      owner.set(path, member);
+    }
+  }
+  return owner;
+}
+
+/** A finding as the attribution compares it on a path no fix touches. */
+const findingText = (finding: Finding): string =>
+  [
+    finding.ruleId,
+    finding.path,
+    finding.severity,
+    finding.fingerprint,
+    finding.message,
+    finding.suppressed === undefined ? '' : 'suppressed',
+  ].join('\u0000');
+
+/** The file of a gate hit's item, or of the finding behind a `unicode` hit, in `after`. */
+function gatePaths(after: Scan): (effect: GateEffect) => string | undefined {
+  const files = new Map<string, string>();
+  const { inventory } = after;
+  for (const item of [
+    ...inventory.mcpServers,
+    ...inventory.hooks,
+    ...inventory.permissions,
+    ...inventory.env,
+  ]) {
+    if (!files.has(item.id)) files.set(item.id, item.file);
+  }
+  const incomplete = new Set(inventory.incomplete);
+  const findings = new Map(after.findings.map((finding) => [finding.fingerprint, finding.path]));
+  return (effect) => {
+    if (effect.class === 'unicode') return findings.get(effect.id);
+    const file = files.get(effect.id);
+    if (file !== undefined) return file;
+    if (!incomplete.has(effect.id)) return undefined;
+    const colon = effect.id.startsWith('invalid-json:') ? effect.id.indexOf(':') : -1;
+    return effect.id.slice(colon + 1);
+  };
+}
+
+/**
+ * The verdict on each fix of a group from the group's scan, as the module comment describes, or
+ * undefined when the scan shows something that cannot be attributed to exactly one fix.
+ */
+function attribute(
+  before: Scan,
+  after: Scan,
+  members: readonly PlannedFix[],
+  footprints: ReadonlyMap<PlannedFix, ReadonlySet<string>>,
+): Map<PlannedFix, Verdict> | undefined {
+  const failedBefore = new Set(before.ruleFailures.map((failure) => failure.ruleId));
+  if (after.ruleFailures.some((failure) => !failedBefore.has(failure.ruleId))) return undefined;
+  const owner = ownership(members, footprints);
+  if (owner === undefined) return undefined;
+  const owners = (paths: readonly string[]): PlannedFix[] => {
+    const found = new Set<PlannedFix>();
+    for (const path of paths) {
+      const member = owner.get(path);
+      if (member !== undefined) found.add(member);
+    }
+    return members.filter((member) => found.has(member));
+  };
+
+  // Findings: none may change on a path outside every footprint.
+  const outside = (scan: Scan): string[] =>
+    scan.findings
+      .filter((finding) => !owner.has(finding.path))
+      .map(findingText)
+      .sort(compareStrings);
+  const [was, is] = [outside(before), outside(after)];
+  if (was.length !== is.length || was.some((text, index) => is[index] !== text)) return undefined;
+
+  // Startup totals, split by the entries each fix owns.
+  const tokens = new Map<PlannedFix, FixEffect[]>();
+  const plans = new Map(
+    before.context.plans.map((plan) => [`${plan.agent}\u0000${plan.cwd}`, plan]),
+  );
+  const diff = planDiff(before, after);
+  for (const delta of diff.context) {
+    const old = plans.get(`${delta.agent}\u0000${delta.cwd}`);
+    const now = after.context.plans.find(
+      (plan) => plan.agent === delta.agent && plan.cwd === delta.cwd,
+    );
+    if (old === undefined || now === undefined) return undefined;
+    const shares = startupShares(old, now, owners);
+    if (shares === undefined) return undefined;
+    const { chars, tokens: total } = old.totals.startup;
+    for (const member of members) {
+      const share = shares.get(member);
+      if (share === undefined) continue;
+      const own = tokensOf(chars + share);
+      if (own === total) continue;
+      const list = tokens.get(member) ?? [];
+      list.push({ kind: 'tokens', agent: delta.agent, cwd: delta.cwd, before: total, after: own });
+      tokens.set(member, list);
+    }
+  }
+
+  // Gate hits, by the file of the item.
+  const gates = new Map<PlannedFix, FixEffect[]>();
+  const pathOf = gatePaths(after);
+  for (const effect of gateEffects(diff)) {
+    const path = pathOf(effect);
+    const [member, ...others] = path === undefined ? [] : owners([path]);
+    if (member === undefined || others.length > 0) return undefined;
+    const list = gates.get(member) ?? [];
+    list.push(effect);
+    gates.set(member, list);
+  }
+
+  const verdicts = new Map<PlannedFix, Verdict>();
+  for (const member of members) {
+    const paths = footprints.get(member) ?? new Set<string>();
+    const within = (scan: Scan): Pick<Scan, 'findings' | 'ruleFailures'> => ({
+      findings: scan.findings.filter((finding) => paths.has(finding.path)),
+      ruleFailures: [],
+    });
+    verdicts.set(member, {
+      verified: compareScans(within(before), within(after), renamesOf([member]), [member]).ok,
+      effects: [...(tokens.get(member) ?? []), ...(gates.get(member) ?? [])],
+    });
+  }
+  return verdicts;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rounds
+// ---------------------------------------------------------------------------------------------
+
 /** Everything one run shares between rounds. */
 class Run {
-  readonly options: ScanOptions & ContextOptions;
+  readonly options: ScanOptions & ContextOptions & { readonly parseCache: ParseCache };
   readonly selection: FixSelection;
+  readonly strategy: NonNullable<FixRoundsOptions['strategy']>;
   readonly skipped = new Map<string, { fix: PlannedFix; scan: Scan }>();
   /** `${fix.id}\0${fingerprint}` of fixes that failed: not planned again for those findings. */
   readonly failed = new Set<string>();
+  /** Fixes applied to a snapshot and scanned, by the snapshot and the fixes' keys. */
+  readonly #trials = new WeakMap<Snapshot, Map<string, Trial>>();
 
-  constructor(options: FixScanOptions, selection: FixSelection) {
-    this.options = { ...options, cwd: '', matrix: false };
+  constructor(options: FixScanOptions, selection: FixSelection, settings: FixRoundsOptions) {
+    this.options = {
+      ...options,
+      cwd: '',
+      matrix: false,
+      parseCache: options.parseCache ?? createParseCache(),
+    };
     this.selection = selection;
+    this.strategy = settings.strategy ?? 'batch';
   }
 
   readonly exclude = (candidate: FixCandidate): boolean =>
@@ -283,38 +607,126 @@ class Run {
     return scanWithContext(snapshot, this.options);
   }
 
-  /** Applies `fixes` to `current`; undefined when they cannot apply or write a file too large. */
-  apply(current: Snapshot, fixes: readonly PlannedFix[]): Snapshot | 'limit' | undefined {
-    let next: Snapshot;
-    try {
-      next = applyPlan(current, { fixes });
-    } catch (error) {
-      if (error instanceof FixApplyError) return undefined;
-      throw error;
+  /**
+   * Applies `fixes` to `current` and scans the result, once per snapshot and set of fixes: a
+   * group whose fixes all pass is the combination the round verifies next.
+   */
+  trial(current: Snapshot, fixes: readonly PlannedFix[]): Trial {
+    let trials = this.#trials.get(current);
+    if (trials === undefined) {
+      trials = new Map();
+      this.#trials.set(current, trials);
     }
-    return oversized(current, next) ? 'limit' : next;
+    // By content: verification may have demoted a fix's class, which applying ignores.
+    const key = fixes
+      .map((fix) => fixKey(fix.ruleId, { ...fix.fix, class: 'safe' }))
+      .sort(compareStrings)
+      .join('\u0001');
+    const known = trials.get(key);
+    if (known !== undefined) return known;
+    let trial: Trial;
+    try {
+      const next = applyPlan(current, { fixes });
+      trial = oversized(current, next) ? { next: 'limit' } : { next, scan: this.scan(next) };
+    } catch (error) {
+      if (!(error instanceof FixApplyError)) throw error;
+      trial = { next: undefined };
+    }
+    trials.set(key, trial);
+    return trial;
   }
 
-  /** One fix alone: verification, effects, gate demotion. */
-  evaluate(current: Snapshot, scan: Scan, candidate: PlannedFix): Evaluation {
-    const next = this.apply(current, [candidate]);
-    if (next === 'limit') return { ok: false, fix: skip(candidate, 'limit') };
-    if (next === undefined) return { ok: false, fix: skip(candidate, 'verification-failed') };
-    const after = this.scan(next);
-    if (!compareScans(scan, after, renamesOf([candidate]), [candidate]).ok) {
-      return { ok: false, fix: skip(candidate, 'verification-failed') };
-    }
-    const effects = effectsOf(scan, after);
+  /** The evaluation of a fix whose verification and effects are known. */
+  judge(candidate: PlannedFix, verdict: Verdict): Evaluation {
+    if (!verdict.verified) return { ok: false, fix: skip(candidate, 'verification-failed') };
+    const { effects } = verdict;
     const gated = effects.some((effect) => effect.kind === 'gate');
     const fix =
       gated && candidate.fix.class === 'safe'
         ? { ...candidate.fix, class: 'review' as const }
         : candidate.fix;
-    const planned: PlannedFix = { ...candidate, fix, effects };
+    const planned: PlannedFix = { ...candidate, fix, effects: [...effects] };
     if (!this.selection.classes.has(fix.class)) {
       return { ok: false, fix: skip(planned, 'verification-failed') };
     }
     return { ok: true, fix: planned };
+  }
+
+  /** One fix alone: verification, effects, gate demotion. */
+  evaluate(current: Snapshot, scan: Scan, candidate: PlannedFix): Evaluation {
+    const { next, scan: after } = this.trial(current, [candidate]);
+    if (next === 'limit') return { ok: false, fix: skip(candidate, 'limit') };
+    if (next === undefined || after === undefined) {
+      return { ok: false, fix: skip(candidate, 'verification-failed') };
+    }
+    const verified = compareScans(scan, after, renamesOf([candidate]), [candidate]).ok;
+    return this.judge(candidate, {
+      verified,
+      effects: verified ? effectsOf(scan, after) : [],
+    });
+  }
+
+  /** Every candidate of a round, by fix key, judged with the run's strategy. */
+  evaluateAll(
+    current: Snapshot,
+    scan: Scan,
+    candidates: readonly PlannedFix[],
+  ): Map<string, Evaluation> {
+    const out = new Map<string, Evaluation>();
+    if (this.strategy === 'isolated') {
+      for (const candidate of candidates) {
+        out.set(fixKey(candidate.ruleId, candidate.fix), this.evaluate(current, scan, candidate));
+      }
+      return out;
+    }
+    const footprints = new Map(
+      candidates.map((candidate) => [candidate, footprintOf(candidate, scan)] as const),
+    );
+    for (const group of disjointGroups(candidates, footprints)) {
+      this.evaluateGroup(current, scan, group, footprints, out);
+    }
+    return out;
+  }
+
+  /**
+   * Fixes with disjoint footprints, judged from one scan when it can be attributed; otherwise
+   * in halves, down to single fixes. Fixes that fail are scanned alone, and the rest again.
+   */
+  evaluateGroup(
+    current: Snapshot,
+    scan: Scan,
+    members: readonly PlannedFix[],
+    footprints: ReadonlyMap<PlannedFix, ReadonlySet<string>>,
+    out: Map<string, Evaluation>,
+  ): void {
+    const [only] = members;
+    if (only === undefined) return;
+    if (members.length === 1) {
+      out.set(fixKey(only.ruleId, only.fix), this.evaluate(current, scan, only));
+      return;
+    }
+    const { scan: after } = this.trial(current, members);
+    const verdicts = after === undefined ? undefined : attribute(scan, after, members, footprints);
+    if (verdicts === undefined) {
+      const half = Math.ceil(members.length / 2);
+      this.evaluateGroup(current, scan, members.slice(0, half), footprints, out);
+      this.evaluateGroup(current, scan, members.slice(half), footprints, out);
+      return;
+    }
+    const failing = members.filter((member) => verdicts.get(member)?.verified !== true);
+    if (failing.length > 0) {
+      for (const member of failing) {
+        out.set(fixKey(member.ruleId, member.fix), this.evaluate(current, scan, member));
+      }
+      const rest = members.filter((member) => !failing.includes(member));
+      this.evaluateGroup(current, scan, rest, footprints, out);
+      return;
+    }
+    for (const member of members) {
+      const verdict = verdicts.get(member);
+      if (verdict !== undefined)
+        out.set(fixKey(member.ruleId, member.fix), this.judge(member, verdict));
+    }
   }
 
   /**
@@ -322,17 +734,16 @@ class Run {
    * Undefined when the combination fails.
    */
   combine(current: Snapshot, scan: Scan, fixes: readonly PlannedFix[]): Applied | undefined {
-    const next = this.apply(current, fixes);
-    if (next === undefined || next === 'limit') return undefined;
-    const after = this.scan(next);
+    const { next, scan: after } = this.trial(current, fixes);
+    if (next === undefined || next === 'limit' || after === undefined) return undefined;
     if (!compareScans(scan, after, renamesOf(fixes), fixes).ok) return undefined;
     const known = new Set(
       fixes.flatMap((fix) =>
         fix.effects.flatMap((effect) => (effect.kind === 'gate' ? [gateKey(effect)] : [])),
       ),
     );
-    const unexplained = effectsOf(scan, after).some(
-      (effect) => effect.kind === 'gate' && !known.has(gateKey(effect)),
+    const unexplained = gateEffects(planDiff(scan, after)).some(
+      (effect) => !known.has(gateKey(effect)),
     );
     return unexplained ? undefined : { snapshot: next, scan: after };
   }
@@ -356,15 +767,17 @@ function runRound(run: Run, current: Snapshot, scan: Scan, budget: number): Roun
     const candidates = plan.fixes.filter((fix) => fix.status === 'planned');
     if (candidates.length === 0) return { plan, applied: [] };
 
+    const fresh = candidates.filter(
+      (candidate) => !evaluations.has(fixKey(candidate.ruleId, candidate.fix)),
+    );
+    for (const [key, evaluation] of run.evaluateAll(current, scan, fresh)) {
+      evaluations.set(key, evaluation);
+    }
     let failed = false;
     const passing: PlannedFix[] = [];
     for (const candidate of candidates) {
-      const key = fixKey(candidate.ruleId, candidate.fix);
-      let evaluation = evaluations.get(key);
-      if (evaluation === undefined) {
-        evaluation = run.evaluate(current, scan, candidate);
-        evaluations.set(key, evaluation);
-      }
+      const evaluation = evaluations.get(fixKey(candidate.ruleId, candidate.fix));
+      if (evaluation === undefined) throw new Error(`${candidate.fix.id} was not evaluated.`);
       if (evaluation.ok) {
         passing.push(evaluation.fix);
       } else {
@@ -440,11 +853,12 @@ export function fixRounds(
   scanOptions: FixScanOptions,
   selection: FixSelection,
   maxRounds = MAX_ROUNDS,
+  options: FixRoundsOptions = {},
 ): FixRun {
   if (!Number.isSafeInteger(maxRounds) || maxRounds < 1 || maxRounds > MAX_ROUNDS) {
     throw new RangeError(`maxRounds must be an integer from 1 to ${MAX_ROUNDS}.`);
   }
-  const run = new Run(scanOptions, selection);
+  const run = new Run(scanOptions, selection, options);
   const before = run.scan(snapshot);
   const origins = new Map<string, string>();
   const created = new Set<string>();

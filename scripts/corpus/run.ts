@@ -51,6 +51,7 @@ import * as prettier from 'prettier';
 import { compareStrings } from '../../src/core/compare.js';
 import { type RuleResult, scanSnapshot } from '../../src/core/engine.js';
 import { RULESET_VERSION, TOOL_NAME } from '../../src/core/meta.js';
+import { createParseCache } from '../../src/core/parse-cache.js';
 import type { ArtifactKind, Finding, RuleMeta, Severity } from '../../src/core/types.js';
 import { VERSION } from '../../src/core/version.js';
 import { forJsonOutput, forMarkdown, forTerminal } from '../../src/report/sanitize.js';
@@ -867,13 +868,15 @@ for (const entry of selected) {
     consistency.push(checked);
     result = checked.result;
   } else if (writesSummary) {
-    const planned = scanForSummary(loaded.snapshot);
+    // The scan and the fix runs share the parses of the files fixes do not change.
+    const parseCache = createParseCache();
+    const planned = scanForSummary(loaded.snapshot, parseCache);
     contextFacts.push(planned.facts);
     if (planned.facts.crash !== undefined) {
       loaderCrashes.push(`${repoLabel(entry)}: ${forTerminal(planned.facts.crash)}`);
     }
     result = planned.result;
-    const fixed = fixFacts(loaded.snapshot, result);
+    const fixed = fixFacts(loaded.snapshot, result, parseCache);
     fixFactsList.push(fixed);
     for (const message of Object.values(fixed.crashes)) {
       fixCrashes.push(`${repoLabel(entry)}: ${forTerminal(message)}`);

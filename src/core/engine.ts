@@ -3,6 +3,7 @@ import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
+import { markdownWindowEnd } from '../parse/markdown-guard.js';
 import type {
   FrontmatterResult,
   JsonDocument,
@@ -47,6 +48,7 @@ import {
   RULESET_VERSION,
   TOOL_NAME,
 } from './meta.js';
+import type { ParseCache } from './parse-cache.js';
 import { computeScore, type ScoreReport } from './score.js';
 import { type Directive, parseDirective } from './suppress.js';
 import { decode, lineText, positionAt, rangeOf } from './text.js';
@@ -93,6 +95,11 @@ export interface AnalyzeOptions {
   readonly config?: ResolvedConfig;
   /** Overrides `config.targets`. Defaults to every supported platform. */
   readonly targets?: readonly PlatformId[];
+  /**
+   * Decoded texts and parses to share with other scans of related snapshots, from
+   * `createParseCache` (./parse-cache.ts). The results are the same with or without it.
+   */
+  readonly parseCache?: ParseCache;
 }
 
 /** Options {@link runRules} reads. Configuration and targets come from the {@link Analysis}. */
@@ -216,8 +223,13 @@ interface PendingFinding {
  * Classifies and decodes the snapshot's files. A file reached through a symlink whose real file
  * is also in the snapshot is folded into that artifact as an alias, so it is linted and scored
  * once. Example: `.claude/skills -> ../.agents/skills` makes every shared skill visible twice.
+ * With `cache`, a file whose bytes it already decoded is not decoded again.
  */
-export function buildArtifacts(snapshot: Snapshot, config: ResolvedConfig): Artifact[] {
+export function buildArtifacts(
+  snapshot: Snapshot,
+  config: ResolvedConfig,
+  cache?: ParseCache,
+): Artifact[] {
   const realPaths = new Set(
     snapshot.files.filter((file) => file.symlinkTarget === undefined).map((file) => file.path),
   );
@@ -241,7 +253,10 @@ export function buildArtifacts(snapshot: Snapshot, config: ResolvedConfig): Arti
       realPath: file.symlinkTarget ?? file.path,
       kind: classification.kind,
       file,
-      decoded: decode(file.bytes),
+      decoded:
+        cache === undefined
+          ? decode(file.bytes)
+          : cache.decoded(file.bytes, () => decode(file.bytes)),
       readers: READERS[classification.kind],
       aliases: (aliases.get(file.path) ?? []).sort(compareStrings),
       ...(classification.caseMismatch ? { caseMismatch: classification.caseMismatch } : {}),
@@ -273,22 +288,34 @@ function indexArtifacts(artifacts: readonly Artifact[]): Map<string, Artifact> {
 }
 
 /**
- * Lazy parsers cached per artifact. Markdown parsing spends one shared budget of characters and
- * lines, in the order files are first parsed.
+ * Lazy parsers cached per artifact, and in `options.parseCache` across scans. Markdown parsing
+ * spends one shared budget of characters and lines, in the order files are first parsed; a
+ * cached parse is reused only for the same text and the same analysis window, so the budget is
+ * spent exactly as without the cache.
  */
 function createParseServices(
   options: AnalyzeOptions,
 ): Pick<Analysis, 'frontmatter' | 'markdown' | 'json'> {
-  const frontmatter = memoize<FrontmatterResult>((a) => parseFrontmatter(a.decoded.text));
+  const cache = options.parseCache;
+  const frontmatter = memoize<FrontmatterResult>((a) => {
+    const { text } = a.decoded;
+    return cache === undefined
+      ? parseFrontmatter(text)
+      : cache.frontmatter(text, () => parseFrontmatter(text));
+  });
   let markdownBudget = options.markdownBudget ?? SCAN_MARKDOWN_BUDGET;
   let lineBudget = options.markdownLineBudget ?? SCAN_MARKDOWN_LINE_BUDGET;
   const markdown = memoize<MarkdownDocument>((a) => {
-    const { lineStarts } = a.decoded;
+    const { lineStarts, text } = a.decoded;
     // The character offset where the remaining line budget runs out in this file.
     const lineLimit = lineBudget <= 0 ? 0 : (lineStarts[lineBudget] ?? Number.POSITIVE_INFINITY);
-    const doc = parseMarkdown(a.decoded.text, frontmatter(a), {
-      maxAnalyzedChars: Math.max(0, Math.min(markdownBudget, lineLimit)),
-    });
+    const maxAnalyzedChars = Math.max(0, Math.min(markdownBudget, lineLimit));
+    const parse = (): MarkdownDocument => parseMarkdown(text, frontmatter(a), { maxAnalyzedChars });
+    // parseMarkdown depends on the budget only through the window it analyzes.
+    const doc =
+      cache === undefined
+        ? parse()
+        : cache.markdown(text, markdownWindowEnd(text, maxAnalyzedChars), parse);
     const analyzed = doc.analysis.analyzedLength;
     markdownBudget -= analyzed;
     lineBudget -= countLineStartsBefore(lineStarts, analyzed);
@@ -296,11 +323,12 @@ function createParseServices(
   });
   // Parse JSON the way the reading platform does: Gemini CLI strips comments from its
   // settings.json before JSON.parse; every other agent uses strict JSON.
-  const json = memoize<JsonDocument>((a) =>
-    a.kind === 'gemini-settings'
-      ? parseJsonWithComments(a.decoded.text)
-      : parseJson(a.decoded.text),
-  );
+  const json = memoize<JsonDocument>((a) => {
+    const { text } = a.decoded;
+    const comments = a.kind === 'gemini-settings';
+    const parse = (): JsonDocument => (comments ? parseJsonWithComments(text) : parseJson(text));
+    return cache === undefined ? parse() : cache.json(text, comments, parse);
+  });
   return { frontmatter, markdown, json };
 }
 
@@ -313,7 +341,7 @@ export function analyze(snapshot: Snapshot, options: AnalyzeOptions = {}): Analy
   const targetList = [...new Set(options.targets ?? config.targets ?? PLATFORM_IDS)].sort(
     compareStrings,
   );
-  const artifacts = buildArtifacts(snapshot, config);
+  const artifacts = buildArtifacts(snapshot, config, options.parseCache);
   return {
     snapshot,
     config,

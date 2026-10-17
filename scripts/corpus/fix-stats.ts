@@ -10,6 +10,7 @@
  */
 import type { RuleResult } from '../../src/core/engine.js';
 import { formatInteger } from '../../src/core/format.js';
+import type { ParseCache } from '../../src/core/parse-cache.js';
 import type { Snapshot } from '../../src/core/types.js';
 import { fixRounds, type FixSelection, LITERAL_SECRET_RULE } from '../../src/fix/index.js';
 import { fixOf, guidanceOf } from '../../src/report/feedback.js';
@@ -47,10 +48,12 @@ export interface RepoFixFacts {
 /**
  * The repository's facts. `result` is the corpus scan of `snapshot` (scanForSummary). Fixes are
  * planned only when the scan offers one of the selected class, so most repositories cost nothing.
+ * `parseCache` shares parses with the other scans of the repository.
  */
 export function fixFacts(
   snapshot: Snapshot,
   result: Pick<RuleResult, 'findings' | 'score'>,
+  parseCache?: ParseCache,
 ): RepoFixFacts {
   const findings = { safe: 0, review: 0, guidance: 0, none: 0 };
   for (const finding of result.findings) {
@@ -75,7 +78,11 @@ export function fixFacts(
   const after = (selection: FixSelection, name: 'safe' | 'review'): number | null => {
     if (!offered(selection)) return before;
     try {
-      return fixRounds(snapshot, REPLAY_SCAN_OPTIONS, selection).after.score.score;
+      const options = {
+        ...REPLAY_SCAN_OPTIONS,
+        ...(parseCache === undefined ? {} : { parseCache }),
+      };
+      return fixRounds(snapshot, options, selection).after.score.score;
     } catch (error) {
       crashes[name] = error instanceof Error ? error.message : String(error);
       return before;

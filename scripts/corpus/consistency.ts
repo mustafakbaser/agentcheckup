@@ -8,6 +8,7 @@
  */
 import { compareStrings } from '../../src/core/compare.js';
 import { analyze, type RuleResult, runRules } from '../../src/core/engine.js';
+import type { ParseCache } from '../../src/core/parse-cache.js';
 import type { Snapshot } from '../../src/core/types.js';
 import {
   type AllowanceName,
@@ -31,11 +32,18 @@ export interface RepoConsistency {
   readonly crash?: string;
 }
 
-/** Scans one repository, plans it and checks both directions. */
-export function repoConsistency(repo: string, snapshot: Snapshot): RepoConsistency {
+/**
+ * Scans one repository, plans it and checks both directions. `parseCache` shares parses with
+ * other scans of the repository.
+ */
+export function repoConsistency(
+  repo: string,
+  snapshot: Snapshot,
+  parseCache?: ParseCache,
+): RepoConsistency {
   const options = { rules: builtinRules, trustDirectives: false } as const;
   // As scanSnapshot with these options: no configuration, every platform targeted.
-  const analysis = analyze(snapshot, {});
+  const analysis = analyze(snapshot, parseCache === undefined ? {} : { parseCache });
   const result = runRules(analysis, options);
   try {
     const plans = matrixPlans(analysis, {

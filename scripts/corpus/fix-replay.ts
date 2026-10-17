@@ -24,6 +24,7 @@
  */
 import { compareStrings } from '../../src/core/compare.js';
 import { analyze } from '../../src/core/engine.js';
+import { createParseCache } from '../../src/core/parse-cache.js';
 import type { Finding, FixClass, Severity, Snapshot } from '../../src/core/types.js';
 import {
   applyPlan,
@@ -364,8 +365,13 @@ const keysOf = (findings: readonly Finding[]): FindingKey[] =>
     .map(({ ruleId, path, severity, fingerprint }) => ({ ruleId, path, severity, fingerprint }));
 
 /** applyPlan on every fix the first round plans, alone and together. */
-function applyViolations(repo: string, snapshot: Snapshot, run: FixRun): Violation[] {
-  const plan = planFixes(analyze(snapshot, REPLAY_SCAN_OPTIONS), run.before, EVERY_FIX);
+function applyViolations(
+  repo: string,
+  snapshot: Snapshot,
+  run: FixRun,
+  options: FixScanOptions,
+): Violation[] {
+  const plan = planFixes(analyze(snapshot, options), run.before, EVERY_FIX);
   const planned = plan.fixes.filter((fix) => fix.status === 'planned');
   const violations: Violation[] = [];
   const attempt = (fixes: readonly PlannedFix[], ruleId: string, path: string): void => {
@@ -396,9 +402,11 @@ export function replayRepo(
   snapshot: Snapshot,
 ): { readonly replay: RepoReplay; readonly before: FixRun['before'] | undefined } {
   const start = performance.now();
+  // Every scan of the repository and of its fixed copies shares the parses of unchanged files.
+  const options: FixScanOptions = { ...REPLAY_SCAN_OPTIONS, parseCache: createParseCache() };
   let first: FixRun;
   try {
-    first = fixRounds(snapshot, REPLAY_SCAN_OPTIONS, EVERY_FIX);
+    first = fixRounds(snapshot, options, EVERY_FIX);
   } catch (error) {
     const replay: RepoReplay = {
       repo,
@@ -430,7 +438,7 @@ export function replayRepo(
     first.applied,
   );
   const violations: Violation[] = [
-    ...applyViolations(repo, snapshot, first),
+    ...applyViolations(repo, snapshot, first, options),
     ...droppedFixViolations(repo, first),
     ...ruleCrashViolations(repo, first.before.ruleFailures, first.after.ruleFailures),
     ...compared.violations,
@@ -438,7 +446,7 @@ export function replayRepo(
 
   if (first.files.length > 0) {
     try {
-      const second = fixRounds(first.snapshot, REPLAY_SCAN_OPTIONS, EVERY_FIX);
+      const second = fixRounds(first.snapshot, options, EVERY_FIX);
       violations.push(...idempotencyViolations(repo, second));
     } catch (error) {
       violations.push({
@@ -449,7 +457,9 @@ export function replayRepo(
         reason: `second run: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
-    violations.push(...consistencyViolations(repo, repoConsistency(repo, first.snapshot)));
+    violations.push(
+      ...consistencyViolations(repo, repoConsistency(repo, first.snapshot, options.parseCache)),
+    );
   }
 
   const replay: RepoReplay = {
