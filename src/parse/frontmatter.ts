@@ -49,7 +49,8 @@ const MAX_DEPTH = 256;
 /** Hostile input can produce one error per character; report a bounded number. */
 const MAX_ISSUES = 100;
 
-const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
+/** How frontmatter YAML is read; src/fix/yaml-source.ts reads the same document with these. */
+export const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
   version: '1.2',
   schema: 'core',
   merge: false,

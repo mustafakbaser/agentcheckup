@@ -18,19 +18,21 @@
  *
  * Copied content (ADR 0008): text taken from the repository goes through {@link safeCopiedText}
  * and is written as a quoted string ({@link quoteYaml} with `style: 'double'`, {@link quoteJson});
- * names derived from content go through {@link skillSlug}.
+ * names derived from content go through {@link skillSlug}. Moved content: {@link moveSections}
+ * moves whole Markdown sections, byte for byte, into new Markdown files next to the source.
  *
  * Pure. See docs/adr/0008-write-fixes-to-the-scanned-repository.md.
  */
 import { type Node as JsonNode, parseTree, type ParseError } from 'jsonc-parser';
 import { lineText } from '../core/text.js';
-import { parseFrontmatter } from '../parse/frontmatter.js';
+import { locateFrontmatter, parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJsonWithComments } from '../parse/json.js';
 import type { FrontmatterResult } from '../parse/types.js';
 import type { Artifact, FileChange, Span, TextEdit } from '../core/types.js';
-import { pathProblem } from './paths.js';
+import { foldPath, pathProblem } from './paths.js';
 import {
   applyEdits,
+  compareEdits,
   type Eol,
   editProblem,
   eolNear,
@@ -41,6 +43,7 @@ import {
   roundTrips,
   withEol,
 } from './text.js';
+import { commentOffsets, entrySources } from './yaml-source.js';
 
 type EditChange = Extract<FileChange, { kind: 'edit' }>;
 
@@ -181,6 +184,189 @@ export function reencode(artifact: Artifact): FileChange | undefined {
   if (!roundTrips(file.bytes, decoded)) return undefined;
   if (decoded.encoding === 'utf-8' && !decoded.hasBom) return undefined;
   return { kind: 'encoding', path: artifact.path, to: 'utf-8', bom: false };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Markdown sections
+// ---------------------------------------------------------------------------------------------
+
+/** A Markdown section for {@link moveSections}: a heading and everything under it. */
+export interface MarkdownSection {
+  /**
+   * The heading, as the position of an mdast `heading` node gives it: `## Usage`, or both lines
+   * of a setext heading. Never its line ending.
+   */
+  readonly heading: Span;
+  /**
+   * Where the section ends: the offset of the heading that ends it, as its mdast position gives
+   * it, or the length of the text.
+   */
+  readonly end: number;
+}
+
+/** Longest file name {@link moveSections} writes. */
+export const MAX_SECTION_FILE_NAME_LENGTH = 128;
+
+/** Words of ASCII letters, digits, `_` and `-`, joined by single dots. */
+const SECTION_FILE_NAME = /^[\w-]+(?:\.[\w-]+)*$/;
+
+/**
+ * True when `name` can name a file {@link moveSections} creates: ASCII letters, digits, `_`, `-`
+ * and single dots inside, ending in `.md`, at most 128 characters, and a name Windows allows
+ * (`aux.md` is not). So it has no path separator, no `..` and no leading dot, and is safe inside
+ * a Markdown link. Whether a file of that name exists, in any letter case, and whether an agent
+ * reads it (`classify` in src/platforms/classify.ts) is for the rule to check.
+ */
+export function isSectionFileName(name: string): boolean {
+  return (
+    name.length <= MAX_SECTION_FILE_NAME_LENGTH &&
+    name.endsWith('.md') &&
+    SECTION_FILE_NAME.test(name) &&
+    pathProblem(name) === undefined
+  );
+}
+
+/** The line that replaces the body of a section moved to `name`. */
+export function sectionLink(name: string): string {
+  return `For this section, see [${name}](${name}).`;
+}
+
+/** The path of the file `name` in the directory of `path`, a path relative to the scan root. */
+export function siblingPath(path: string, name: string): string {
+  return path.slice(0, path.lastIndexOf('/') + 1) + name;
+}
+
+function isBlank(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code !== 0x20 && code !== 0x09) return false;
+  }
+  return true;
+}
+
+/** Start of the line after the line that ends at `lineEnd`, or the end of the text. */
+function nextLineStart(text: string, lineEnd: number): number {
+  const newline = text.indexOf('\n', lineEnd);
+  return newline === -1 ? text.length : newline + 1;
+}
+
+/** The terminator of the line that ends at `lineEnd`, or undefined at the end of the text. */
+function terminatorAt(text: string, lineEnd: number): Eol | undefined {
+  if (text.startsWith('\r\n', lineEnd)) return '\r\n';
+  return text.charAt(lineEnd) === '\n' ? '\n' : undefined;
+}
+
+/** Where a section's parts are, as offsets into the text. */
+interface SectionLines {
+  /** Start of the heading's first line. */
+  readonly start: number;
+  /** Start of the first line of the body that is not blank. */
+  readonly contentStart: number;
+  /** End of the last line of the body that is not blank, before its line ending. */
+  readonly contentEnd: number;
+  /** Start of the line where the next section starts, or the end of the text. */
+  readonly end: number;
+}
+
+/**
+ * The lines of `section`. Undefined when the heading is empty or ends with a line break, other
+ * text comes before it or after it on its lines, `end` is not at the start of a line (after
+ * spaces) or comes before the heading's end, or the body has no line that is not blank.
+ */
+function sectionLines(text: string, section: MarkdownSection): SectionLines | undefined {
+  const { heading } = section;
+  const headingEnd = heading.offset + heading.length;
+  if (heading.length === 0 || hasLineBreak(text.charAt(headingEnd - 1))) return undefined;
+  const start = lineStartBefore(text, heading.offset);
+  if (!isBlank(text.slice(start, heading.offset))) return undefined;
+  const headingLineEnd = lineEndAfter(text, headingEnd);
+  if (!isBlank(text.slice(headingEnd, headingLineEnd))) return undefined;
+  const bodyStart = nextLineStart(text, headingLineEnd);
+
+  let end = text.length;
+  if (section.end < text.length) {
+    end = lineStartBefore(text, section.end);
+    if (!isBlank(text.slice(end, section.end))) return undefined;
+  }
+  if (end < bodyStart) return undefined;
+
+  let contentStart: number | undefined;
+  let contentEnd = bodyStart;
+  for (let lineStart = bodyStart; lineStart < end;) {
+    const lineEnd = lineEndAfter(text, lineStart);
+    if (!isBlank(text.slice(lineStart, lineEnd))) {
+      contentStart ??= lineStart;
+      contentEnd = lineEnd;
+    }
+    lineStart = nextLineStart(text, lineEnd);
+  }
+  if (contentStart === undefined) return undefined;
+  return { start, contentStart, contentEnd, end };
+}
+
+/**
+ * Moves whole Markdown sections into new files next to the artifact, one file per section:
+ * `names[i]` receives `sections[i]`. The source keeps each heading and the blank lines around
+ * the body; the body becomes one line, {@link sectionLink}: `For this section, see
+ * [api.md](api.md).` Each new file holds its section verbatim, heading included, through its
+ * last line that is not blank, and a line ending. New files are UTF-8 without a byte order mark
+ * and take the source's line endings; the source keeps its own, and its byte order mark.
+ *
+ * Returns one edit of the source, then one `create` per section, in the order given. Undefined
+ * when there are no sections; a frontmatter block is unclosed or in another language; a section
+ * starts inside the frontmatter, overlaps the one before it or comes before it; a heading is
+ * empty, ends with a line break, or shares its lines with other text; an end is not at the start
+ * of a line (after spaces) or comes before its heading's end; a body has only blank lines; or a
+ * name fails {@link isSectionFileName}, repeats another in any letter case, or is the source's
+ * own name. Throws a RangeError when `names` and `sections` differ in length, or a span or end
+ * is outside the text.
+ *
+ * Section spans come from the Markdown parse (`context.markdown()`), never from raw text.
+ */
+export function moveSections(
+  artifact: Artifact,
+  sections: readonly MarkdownSection[],
+  names: readonly string[],
+): FileChange[] | undefined {
+  if (names.length !== sections.length) {
+    throw new RangeError(`${names.length} names for ${sections.length} sections.`);
+  }
+  const { decoded } = artifact;
+  const { text } = decoded;
+  for (const section of sections) {
+    checkSpan(artifact, section.heading);
+    if (!Number.isSafeInteger(section.end) || section.end < 0 || section.end > text.length) {
+      throw new RangeError(`Section end ${section.end} is outside the text.`);
+    }
+  }
+  if (sections.length === 0) return undefined;
+  const location = locateFrontmatter(text);
+  if (location.kind === 'unclosed' || location.kind === 'unsupported') return undefined;
+
+  const taken = new Set([foldPath(artifact.path.slice(artifact.path.lastIndexOf('/') + 1))]);
+  const edits: TextEdit[] = [];
+  const creates: FileChange[] = [];
+  let previousEnd = location.kind === 'block' ? location.bodyOffset : 0;
+  for (const [index, section] of sections.entries()) {
+    const name = names[index] ?? '';
+    if (!isSectionFileName(name) || taken.has(foldPath(name))) return undefined;
+    taken.add(foldPath(name));
+    const lines = sectionLines(text, section);
+    if (lines === undefined || lines.start < previousEnd) return undefined;
+    previousEnd = lines.end;
+    const path = siblingPath(artifact.path, name);
+    if (pathProblem(path) !== undefined) return undefined;
+    const moved = text.slice(lines.start, lines.contentEnd);
+    const eol = terminatorAt(text, lines.contentEnd) ?? eolNear(decoded, lines.contentEnd);
+    creates.push({ kind: 'create', path, text: `${moved}${eol}` });
+    edits.push({
+      offset: lines.contentStart,
+      length: lines.contentEnd - lines.contentStart,
+      text: sectionLink(name),
+    });
+  }
+  if (editProblem(text, edits) !== undefined) return undefined;
+  return [editChange(artifact, edits), ...creates];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -833,6 +1019,307 @@ export function moveFrontmatterToTop(
   if (edits.length === 0 || editProblem(decoded.text, edits) !== undefined) return undefined;
   if (parseFrontmatter(applyEdits(decoded.text, edits)).kind !== 'valid') return undefined;
   return editChange(artifact, edits);
+}
+
+// ---------------------------------------------------------------------------------------------
+// YAML frontmatter: removing, moving and commenting whole entries
+// ---------------------------------------------------------------------------------------------
+
+/** The YAML between the delimiters of a valid frontmatter block, and facts about its source. */
+interface YamlSource {
+  /** Offset of the YAML's first line, and of the closing delimiter line. */
+  readonly start: number;
+  readonly end: number;
+  /** Offsets of the comments, into the full text. */
+  readonly comments: readonly number[];
+  entry(key: string): YamlEntrySource | undefined;
+}
+
+interface YamlEntrySource {
+  /** Start of the key's line, and its indentation. */
+  readonly lineStart: number;
+  readonly indent: string;
+  /** Start of the line after the value's last line. */
+  readonly lineEnd: number;
+  /** The key as written. */
+  readonly keyText: string;
+  readonly sharesNodes: boolean;
+  /** See `EntrySource.text` in yaml-source.ts. */
+  readonly text: string | readonly string[] | undefined;
+}
+
+function yamlSource(artifact: Artifact, frontmatter: ValidFrontmatter): YamlSource | undefined {
+  const { text } = artifact.decoded;
+  const location = locateFrontmatter(text);
+  if (location.kind !== 'block') return undefined;
+  const { yamlStart, yamlEnd } = location;
+  const yaml = text.slice(yamlStart, yamlEnd);
+  const comments = commentOffsets(yaml).map((offset) => yamlStart + offset);
+  const sources = entrySources(yaml);
+  const { data } = frontmatter;
+  return {
+    start: yamlStart,
+    end: yamlEnd,
+    comments,
+    entry(key) {
+      const keySpan = data.keySpan(key);
+      if (keySpan === undefined) return undefined;
+      const source = sources.get(keySpan.offset - yamlStart);
+      const lineStart = lineStartBefore(text, keySpan.offset);
+      const indent = text.slice(lineStart, keySpan.offset);
+      const colon = colonAfter(text, keySpan);
+      if (source === undefined || colon === undefined || !isBlank(indent)) return undefined;
+      const keyText = text.slice(keySpan.offset, keySpan.offset + keySpan.length);
+      if (hasLineBreak(keyText)) return undefined;
+      const valueSpan = data.valueSpan(key);
+      const last =
+        valueSpan === undefined || valueSpan.length === 0
+          ? colon + 1
+          : valueSpan.offset + valueSpan.length;
+      const valueLineEnd = lineEndAfter(text, last);
+      // After the value only spaces or a comment: not the rest of a flow mapping.
+      const rest = text.slice(last, valueLineEnd).trimStart();
+      if (rest !== '' && !rest.startsWith('#')) return undefined;
+      return {
+        lineStart,
+        indent,
+        lineEnd: Math.min(nextLineStart(text, valueLineEnd), yamlEnd),
+        keyText,
+        sharesNodes: source.sharesNodes,
+        text: source.text,
+      };
+    },
+  };
+}
+
+/** True when a comment starts in `[start, end)`. */
+function hasCommentIn(source: YamlSource, start: number, end: number): boolean {
+  return source.comments.some((offset) => offset >= start && offset < end);
+}
+
+/**
+ * Applies `edits` and parses the frontmatter again: the change stands only when the new
+ * frontmatter is valid, has exactly `keys` in that order, the values in `changed` for those
+ * keys, and every other value unchanged.
+ */
+function checkedYamlEdit(
+  artifact: Artifact,
+  before: ValidFrontmatter,
+  edits: readonly TextEdit[],
+  keys: readonly string[],
+  changed: ReadonlyMap<string, unknown>,
+): FileChange | undefined {
+  const { text } = artifact.decoded;
+  const sorted = [...edits].sort(compareEdits);
+  if (sorted.length === 0 || editProblem(text, sorted) !== undefined) return undefined;
+  const after = parseFrontmatter(applyEdits(text, sorted));
+  if (after.kind !== 'valid') return undefined;
+  const afterKeys = after.data.keys;
+  if (afterKeys.length !== keys.length || keys.some((key, index) => afterKeys[index] !== key)) {
+    return undefined;
+  }
+  for (const key of keys) {
+    const wanted = changed.has(key) ? changed.get(key) : before.data.values[key];
+    if (!sameValue(after.data.values[key], wanted)) return undefined;
+  }
+  return editChange(artifact, sorted);
+}
+
+/**
+ * Removes top-level frontmatter key `key` with its whole value, block or flow, and the lines
+ * they are on; every other byte stays. `tags:\n  - a\n  - b\nname: x` becomes `name: x`.
+ *
+ * Undefined when the frontmatter is not valid, the key is absent, does not start its line (a
+ * flow mapping, an explicit `? key`) or is not followed by `:`, the key or value has an anchor,
+ * an alias or a tag, a comment is on the removed lines, or the edited frontmatter does not parse
+ * to the same data without the key.
+ */
+export function yamlRemoveKey(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  key: string,
+): FileChange | undefined {
+  if (frontmatter.kind !== 'valid') return undefined;
+  const source = yamlSource(artifact, frontmatter);
+  const entry = source?.entry(key);
+  if (source === undefined || entry === undefined || entry.sharesNodes) return undefined;
+  if (hasCommentIn(source, entry.lineStart, entry.lineEnd)) return undefined;
+  return checkedYamlEdit(
+    artifact,
+    frontmatter,
+    [{ offset: entry.lineStart, length: entry.lineEnd - entry.lineStart, text: '' }],
+    frontmatter.data.keys.filter((other) => other !== key),
+    new Map(),
+  );
+}
+
+/** Indentation of entries under a new mapping, below the top-level keys' own. */
+const MAPPING_INDENT = '  ';
+
+/**
+ * Moves top-level frontmatter keys under the block mapping `mapping`, each value written as a
+ * double-quoted string: a scalar as its source text (`version: 1.10` becomes `version:
+ * "1.10"`), a list of scalars as its items' texts joined with `, ` (`tags: [a, b]` becomes `tags:
+ * "a, b"`). The keys keep their source order and are written as in the source. New entries go
+ * after the last entry of an existing block mapping, indented like its first one; without the
+ * mapping, a new one goes last, before the closing `---`, indented two spaces deeper than the
+ * top-level keys.
+ *
+ * Undefined when the frontmatter is not valid; `keys` is empty, repeats a key or names
+ * `mapping`; a key is absent or would clash with a key of the mapping; a value is null, a
+ * mapping, an empty list, or a list with a comma in an item, a null item or a nested
+ * collection; an entry is not one {@link yamlRemoveKey} could remove; `mapping` exists but is
+ * not a block mapping, starts on its key's line, or has an anchor, an alias or a tag; or the
+ * edited frontmatter does not parse to exactly the moved values with every other value
+ * unchanged. Throws a RangeError when `mapping` is not a plain key.
+ */
+export function yamlMoveUnderMapping(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  keys: readonly string[],
+  mapping = 'metadata',
+): FileChange | undefined {
+  checkYamlKey(mapping);
+  if (frontmatter.kind !== 'valid') return undefined;
+  const moving = new Set(keys);
+  if (keys.length === 0 || moving.size !== keys.length || moving.has(mapping)) return undefined;
+  const source = yamlSource(artifact, frontmatter);
+  if (source === undefined) return undefined;
+  const { data } = frontmatter;
+  const { decoded } = artifact;
+  const { text } = decoded;
+
+  // Where the entries go, and how they are indented.
+  const existing = data.values[mapping];
+  const present = data.keySpan(mapping) !== undefined;
+  let offset = source.end;
+  let indent: string;
+  let header = '';
+  const merged = Object.create(null) as Record<string, unknown>;
+  if (present) {
+    const entry = source.entry(mapping);
+    const valueSpan = data.valueSpan(mapping);
+    const keySpan = data.keySpan(mapping);
+    if (
+      entry === undefined ||
+      entry.sharesNodes ||
+      valueSpan === undefined ||
+      keySpan === undefined ||
+      typeof existing !== 'object' ||
+      existing === null ||
+      Array.isArray(existing)
+    ) {
+      return undefined;
+    }
+    const childStart = lineStartBefore(text, valueSpan.offset);
+    indent = text.slice(childStart, valueSpan.offset);
+    // A block mapping starts on a later line, with its first key.
+    if (childStart <= keySpan.offset || !isBlank(indent) || indent.length <= entry.indent.length) {
+      return undefined;
+    }
+    offset = entry.lineEnd;
+    Object.assign(merged, existing);
+  } else {
+    const first = data.keys[0] === undefined ? undefined : source.entry(data.keys[0]);
+    if (first === undefined) return undefined;
+    header = `${first.indent}${mapping}:`;
+    indent = `${first.indent}${MAPPING_INDENT}`;
+  }
+
+  const eol = eolNear(decoded, Math.max(0, offset - 1));
+  const lines: string[] = header === '' ? [] : [`${header}${eol}`];
+  const edits: TextEdit[] = [];
+  for (const key of data.keys) {
+    if (!moving.has(key)) continue;
+    moving.delete(key);
+    const entry = source.entry(key);
+    if (entry === undefined || entry.sharesNodes || entry.text === undefined) return undefined;
+    if (hasCommentIn(source, entry.lineStart, entry.lineEnd)) return undefined;
+    if (Object.hasOwn(merged, key)) return undefined;
+    let value: string;
+    if (typeof entry.text === 'string') {
+      value = entry.text;
+    } else {
+      if (entry.text.some((item) => item.includes(','))) return undefined;
+      value = entry.text.join(', ');
+    }
+    merged[key] = value;
+    lines.push(`${indent}${entry.keyText}: ${quoteYaml(value, 'double')}${eol}`);
+    edits.push({ offset: entry.lineStart, length: entry.lineEnd - entry.lineStart, text: '' });
+  }
+  if (moving.size > 0) return undefined;
+  edits.push({ offset, length: 0, text: lines.join('') });
+  const after = data.keys.filter((key) => !keys.includes(key));
+  return checkedYamlEdit(
+    artifact,
+    frontmatter,
+    edits,
+    present ? after : [...after, mapping],
+    new Map([[mapping, merged]]),
+  );
+}
+
+/** Longest comment {@link yamlInsertComment} writes. */
+export const MAX_YAML_COMMENT_LENGTH = 1000;
+
+/**
+ * Inserts the comment `# text` as a new line in the frontmatter, indented like the line it goes
+ * before: the line of top-level key `before`, or line `before` (1-based, as findings report
+ * lines), which may be any line of the YAML or the closing `---`. So `# agentcheckup-disable-
+ * next-line skill/non-portable-field -- Claude Code only` before `user-invocable: false`
+ * suppresses that finding.
+ *
+ * Undefined when the frontmatter is not valid; `text` is empty, longer than 1,000 characters, or
+ * has a line break, a control character, or a bidirectional, tag or other invisible character;
+ * the key is absent or does not start its line; the line is outside the YAML; or the edited
+ * frontmatter does not parse to the same data, as when the line is inside a block scalar. Throws
+ * a RangeError when `before` is a line number outside the file.
+ */
+export function yamlInsertComment(
+  artifact: Artifact,
+  frontmatter: FrontmatterResult,
+  before: string | number,
+  text: string,
+): FileChange | undefined {
+  const { decoded } = artifact;
+  const lines = lineCount(decoded.text, decoded.lineStarts);
+  if (
+    typeof before === 'number' &&
+    (!Number.isSafeInteger(before) || before < 1 || before > lines)
+  ) {
+    throw new RangeError(`Line ${before} is outside 1..${lines}.`);
+  }
+  if (frontmatter.kind !== 'valid' || !isCommentText(text)) return undefined;
+  const source = yamlSource(artifact, frontmatter);
+  if (source === undefined) return undefined;
+  let offset: number;
+  if (typeof before === 'string') {
+    const entry = source.entry(before);
+    if (entry === undefined) return undefined;
+    offset = entry.lineStart;
+  } else {
+    offset = decoded.lineStarts[before - 1] ?? 0;
+    if (offset < source.start || offset > source.end) return undefined;
+  }
+  const eol = eolNear(decoded, offset);
+  const line = `${indentAt(decoded.text, offset)}# ${text}${eol}`;
+  return checkedYamlEdit(
+    artifact,
+    frontmatter,
+    [{ offset, length: 0, text: line }],
+    frontmatter.data.keys,
+    new Map(),
+  );
+}
+
+/** One line of visible text for a comment: see {@link yamlInsertComment}. */
+function isCommentText(text: string): boolean {
+  if (text.trim() === '' || text.length > MAX_YAML_COMMENT_LENGTH) return false;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (isControlCodePoint(code) || isHiddenCodePoint(code) || code === 0x85) return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------
