@@ -69,6 +69,7 @@ describe('agentcheckup context', () => {
       ['claude-code', 'packages/api'],
       ['codex', 'packages/api'],
       ['cursor', 'packages/api'],
+      ['cline', 'packages/api'],
     ]);
   });
 
@@ -125,15 +126,15 @@ describe('agentcheckup context', () => {
     const io = capture(CONTEXT_FIXTURE);
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
-    expect(text).toMatch(/^Files by agent +Claude Code {3}Codex {7}Cursor$/m);
-    expect(text).toMatch(/^AGENTS\.md +startup +startup +startup$/m);
-    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir +—$/m);
+    expect(text).toMatch(/^Files by agent +Claude Code {3}Codex {7}Cursor {11}Cline$/m);
+    expect(text).toMatch(/^AGENTS\.md +startup +startup +startup +startup$/m);
+    expect(text).toMatch(/^packages\/api\/AGENTS\.override\.md +— +start-dir +— +—$/m);
     expect(text).toMatch(/^start-dir {7}loaded when a session starts in its directory$/m);
 
     const report = await contextJson(['--matrix']);
     expect(report.context?.matrix?.rows.length).toBeGreaterThan(10);
     // The root for every agent, then Codex in each directory with an AGENTS.md.
-    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(3);
+    expect(report.context?.plans.filter((plan) => plan.cwd === '')).toHaveLength(4);
     expect(report.context?.plans.map((plan) => plan.cwd)).toContain('services/billing/ledger');
   });
 
@@ -144,7 +145,7 @@ describe('agentcheckup context', () => {
     expect(report.inventory.mcpServers.map((server) => server.id)).toContain(
       'mcp:.mcp.json#filesystem',
     );
-    expect(report.context?.agents).toEqual(['claude-code', 'codex', 'cursor']);
+    expect(report.context?.agents).toEqual(['claude-code', 'codex', 'cursor', 'cline']);
     expect(report.context?.matrix).toBeUndefined();
   });
 
@@ -266,6 +267,7 @@ describe('agentcheckup context', () => {
       'claude-code',
       'codex',
       'cursor',
+      'cline',
     ]);
   });
 

@@ -119,7 +119,7 @@ try {
   if (!runCli(['context', repo], 0).includes('Claude Code context')) {
     fail('context printed no Claude Code plan');
   }
-  if (!/^AGENTS\.md +startup +startup +startup$/m.test(runCli(['context', repo, '--matrix'], 0))) {
+  if (!/^AGENTS\.md(?: +startup){4}$/m.test(runCli(['context', repo, '--matrix'], 0))) {
     fail('context --matrix printed no matrix row for AGENTS.md');
   }
   const baseline = join(work, 'baseline.json');

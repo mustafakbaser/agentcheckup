@@ -11,6 +11,7 @@ Findings: 1 new error, 0 resolved.
 | Claude Code | ≈34 tokens, 2 files | ≈62 tokens, 2 files | ≈+28 tokens | — |
 | Codex | ≈31 tokens, 1 file | ≈59 tokens, 1 file | ≈+28 tokens | AGENTS\.md chain 235 of 32,768 bytes (1%) |
 | Cursor | ≈34 tokens, 2 files | ≈86 tokens, 3 files | ≈+52 tokens, +1 file | — |
+| Cline | ≈31 tokens, 1 file | ≈59 tokens, 1 file | ≈+28 tokens | — |
 
 ### What this change makes each agent miss
 

@@ -12,6 +12,7 @@ import { normalizeRelative } from '../../core/paths.js';
 import type { Finding, FixClass, PlatformId, RuleSource } from '../../core/types.js';
 import { SOURCES } from '../sources.js';
 import { loadClaudeCode } from './claude-code.js';
+import { loadCline } from './cline.js';
 import { loadCodex } from './codex.js';
 import { loadCursor } from './cursor.js';
 import {
@@ -86,7 +87,7 @@ const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'copilot-cloud': notModeled('copilot-cloud'),
   gemini: notModeled('gemini'),
   windsurf: notModeled('windsurf'),
-  cline: notModeled('cline'),
+  cline: loadCline,
 };
 
 /** True for an agent agentcheckup has a load model for that is turned on. */

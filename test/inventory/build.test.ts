@@ -760,14 +760,14 @@ describe('permissions', () => {
         broad: true,
         effective: true,
         line: 4,
-        platforms: ['claude-code', 'copilot', 'cursor'],
+        platforms: ['claude-code', 'cline', 'copilot', 'cursor'],
       },
       {
         id: 'perm:.claude/skills/deploy/SKILL.md#allowed-tools=Read',
         broad: false,
         effective: true,
         line: 4,
-        platforms: ['claude-code', 'copilot', 'cursor'],
+        platforms: ['claude-code', 'cline', 'copilot', 'cursor'],
       },
       {
         id: 'perm:.github/skills/ops/SKILL.md#allowed-tools=shell',

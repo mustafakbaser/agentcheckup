@@ -59,7 +59,7 @@ export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
   'copilot-cloud': false,
   gemini: false,
   windsurf: false,
-  cline: false,
+  cline: true,
 };
 
 /** Each agent's name in messages and reports. */

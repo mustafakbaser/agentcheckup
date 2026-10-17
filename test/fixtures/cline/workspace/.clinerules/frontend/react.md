@@ -1,0 +1,1 @@
+Prefer function components.

@@ -118,7 +118,7 @@ describe('agentcheckup skill install', () => {
     expect(out).toContain(`Install the agentcheckup skill in ${CLAUDE_TARGET}:\n`);
     expect(out).toContain(`  ${CLAUDE_TARGET}/references/tasks.md\n`);
     expect(out).toContain(
-      'Claude Code, Cursor and GitHub Copilot load skills from .claude/skills.',
+      'Claude Code, Cursor, GitHub Copilot and Cline load skills from .claude/skills.',
     );
     expect(out).toContain('Checked in memory with every rule: the skill adds no finding.');
     expect(out).toContain(`  Bash(npx agentcheckup@${VERSION} tasks --check *)\n`);
@@ -161,7 +161,7 @@ describe('agentcheckup skill install', () => {
     const io = capture(codex);
     expect(await install(io, ['--yes'])).toBe(EXIT.ok);
     expect(io.output()).toContain(
-      'Codex, Cursor, GitHub Copilot and Gemini CLI load skills from .agents/skills.',
+      'Codex, Cursor, GitHub Copilot, Gemini CLI and Cline load skills from .agents/skills.',
     );
     expect(await installed(codex, AGENTS_TARGET)).toEqual(await skillBytes());
 
@@ -188,7 +188,7 @@ describe('agentcheckup skill install', () => {
     expect(await install(io, ['--yes'])).toBe(EXIT.findings);
     expect(io.errors()).toContain(`Not installed: the skill is already in ${AGENTS_TARGET}.`);
     expect(io.errors()).toContain(
-      'Cursor and GitHub Copilot read both .claude/skills and .agents/skills',
+      'Cursor, GitHub Copilot and Cline read both .claude/skills and .agents/skills',
     );
     expect(io.errors()).toContain('(skill/duplicate-name)');
     expect((await tree(root)).some((path) => path.startsWith('.claude/'))).toBe(false);

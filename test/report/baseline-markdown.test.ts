@@ -106,7 +106,7 @@ describe('baseline Markdown of a pull request', async () => {
 
   it('shows session-start context per agent, before and after, in agent order', () => {
     const table = rows(output, TABLE_HEADER);
-    expect(table.map((row) => cells(row)[0])).toEqual(['Claude Code', 'Codex', 'Cursor']);
+    expect(table.map((row) => cells(row)[0])).toEqual(['Claude Code', 'Codex', 'Cursor', 'Cline']);
     for (const row of table) {
       const [, before, after, change] = cells(row);
       expect(before).toMatch(/^≈[\d,]+ tokens, \d+ files?$/);
@@ -138,7 +138,7 @@ describe('baseline Markdown without a change', async () => {
 
   it('reports every plan unchanged and nothing missed', () => {
     const table = rows(output, TABLE_HEADER);
-    expect(table).toHaveLength(3);
+    expect(table).toHaveLength(4);
     for (const row of table) {
       const [, before, after, change] = cells(row);
       expect(after).toBe(before);

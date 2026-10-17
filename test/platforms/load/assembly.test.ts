@@ -78,14 +78,7 @@ describe('loadPlans', () => {
 
   it('plans no agent that is turned off, whether named or targeted', () => {
     const off = ALL_CONTEXT_AGENTS.filter((agent) => !LOADER_ENABLED[agent]);
-    expect(off).toEqual([
-      'copilot-cli',
-      'copilot-vscode',
-      'copilot-cloud',
-      'gemini',
-      'windsurf',
-      'cline',
-    ]);
+    expect(off).toEqual(['copilot-cli', 'copilot-vscode', 'copilot-cloud', 'gemini', 'windsurf']);
     for (const agent of off) {
       expect(isContextAgent(agent)).toBe(false);
       expect(() => orderedAgents([agent])).toThrow(`No load model for "${agent}".`);
@@ -93,8 +86,8 @@ describe('loadPlans', () => {
         loadPlans(analysis, { agents: [agent], cwd: '', config: analysis.config }),
       ).toThrow('No load model');
     }
-    expect(contextAgentsOf(['copilot', 'gemini', 'windsurf', 'cline'])).toEqual([]);
-    expect(contextAgentsOf(PLATFORM_IDS)).toEqual(['claude-code', 'codex', 'cursor']);
+    expect(contextAgentsOf(['copilot', 'gemini', 'windsurf'])).toEqual([]);
+    expect(contextAgentsOf(PLATFORM_IDS)).toEqual(['claude-code', 'codex', 'cursor', 'cline']);
     expect(isContextAgent('copilot')).toBe(false);
     expect(isContextAgent('codex')).toBe(true);
   });
@@ -203,34 +196,34 @@ describe('matrix', () => {
         'README.md': 'Not configuration.\n',
       }),
     ).toEqual([
-      '.agents/skills/notes skill not-read skipped listed',
-      '.claude/rules/api.md claude-rule on-path not-read not-read',
-      '.claude/skills/deploy skill listed not-read listed',
-      '.cursor/rules/always.mdc cursor-rule not-read not-read startup',
-      '.cursor/rules/broken.mdc cursor-rule not-read not-read unknown',
-      '.cursor/rules/manual.mdc cursor-rule not-read not-read manual',
-      '.cursor/rules/picked.mdc cursor-rule not-read not-read model-selected',
-      '.cursor/rules/style.md cursor-rule-md not-read not-read skipped',
-      '.mcp.json mcp-json skipped not-read not-read',
-      'AGENTS.md agents-md skipped startup startup',
-      'CLAUDE.md claude-md startup not-read startup',
-      'other/.mcp.json mcp-json start-dir not-read not-read',
-      'pkg/AGENTS.md agents-md skipped partial on-path',
-      'pkg/CLAUDE.md claude-md on-path not-read start-dir',
+      '.agents/skills/notes skill not-read skipped listed listed',
+      '.claude/rules/api.md claude-rule on-path not-read not-read not-read',
+      '.claude/skills/deploy skill listed not-read listed listed',
+      '.cursor/rules/always.mdc cursor-rule not-read not-read startup not-read',
+      '.cursor/rules/broken.mdc cursor-rule not-read not-read unknown not-read',
+      '.cursor/rules/manual.mdc cursor-rule not-read not-read manual not-read',
+      '.cursor/rules/picked.mdc cursor-rule not-read not-read model-selected not-read',
+      '.cursor/rules/style.md cursor-rule-md not-read not-read skipped not-read',
+      '.mcp.json mcp-json skipped not-read not-read not-read',
+      'AGENTS.md agents-md skipped startup startup startup',
+      'CLAUDE.md claude-md startup not-read startup not-read',
+      'other/.mcp.json mcp-json start-dir not-read not-read not-read',
+      'pkg/AGENTS.md agents-md skipped partial on-path not-read',
+      'pkg/CLAUDE.md claude-md on-path not-read start-dir not-read',
     ]);
   });
 
   it('keeps a file that one agent loads while skipping some of its items', () => {
     expect(
       matrixOf({ '.mcp.json': '{"mcpServers":{"docs":{"url":"https://x"},"a":{"command":"a"}}}' }),
-    ).toEqual(['.mcp.json mcp-json startup not-read not-read']);
+    ).toEqual(['.mcp.json mcp-json startup not-read not-read not-read']);
   });
 
   it('marks a file a plan could not analyze as unknown', () => {
     // Listed but not read: Cursor's plan says so; the other plans do not reach it.
     expect(matrixOf({ 'AGENTS.md': 'Root.\n' }, { paths: ['a/AGENTS.md'] })).toEqual([
-      'AGENTS.md agents-md startup startup startup',
-      'a/AGENTS.md agents-md not-read not-read unknown',
+      'AGENTS.md agents-md startup startup startup startup',
+      'a/AGENTS.md agents-md not-read not-read unknown not-read',
     ]);
   });
 
@@ -298,6 +291,7 @@ describe('paths the configuration ignores', () => {
       'claude-code 1',
       'codex undefined',
       'cursor 2',
+      'cline undefined',
     ]);
     // The rules never saw them either.
     expect(findings.filter((finding) => finding.path.startsWith('fixtures/'))).toEqual([]);

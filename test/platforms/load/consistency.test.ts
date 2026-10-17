@@ -606,10 +606,10 @@ describe('agents that share a platform, severities and skips no rule reports', (
         checkConsistency({
           findings: [],
           view,
-          plans: [plan('cline', { skipped: [skipOf('.clinerules/blank.md', 'blank-file')] })],
+          plans: [plan('cline', { skipped: [skipOf('.clinerules/old.md', 'case-mismatch')] })],
         }).mismatches,
       ),
-    ).toEqual(['skip-without-rule - cline .clinerules/blank.md']);
+    ).toEqual(['skip-without-rule - cline .clinerules/old.md']);
   });
 
   it('skip-without-rule: Gemini CLI imports in a template folder, which the rules leave alone', () => {

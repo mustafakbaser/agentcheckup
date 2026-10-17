@@ -21,7 +21,8 @@ export const SKILL_PLATFORMS = [
 /**
  * How deep below a skills root a platform looks for SKILL.md:
  * - `direct`: `<root>/<name>/SKILL.md` only (Claude Code; GitHub Copilot is assumed the same).
- * - `shallow`: also `<root>/SKILL.md` (Gemini CLI globs `SKILL.md` and `<name>/SKILL.md`).
+ * - `shallow`: also `<root>/SKILL.md` (Gemini CLI globs `SKILL.md` and `<name>/SKILL.md`; Cline
+ *   reads a SKILL.md in the root and one in each folder of it).
  * - `recursive`: any depth (Codex and Cursor walk the root).
  */
 export type SkillDepth = 'direct' | 'shallow' | 'recursive';
@@ -36,7 +37,8 @@ export interface SkillRoot {
  * Project skill roots, verified 2026-10-14: Claude Code reads `.claude/skills`; Codex reads
  * `.agents/skills` and `.codex/skills`; Cursor reads `.agents`, `.cursor`, `.claude` and `.codex`
  * skills; GitHub Copilot reads `.github`, `.claude` and `.agents` skills; Gemini CLI reads
- * `.gemini/skills` and `.agents/skills`.
+ * `.gemini/skills` and `.agents/skills`. Cline reads `.clinerules`, `.cline`, `.claude` and `.agents`
+ * skills (SOURCES.clinePathsSource, checked 2026-10-17).
  */
 export const SKILL_ROOTS: readonly SkillRoot[] = [
   {
@@ -45,6 +47,7 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'claude-code', depth: 'direct' },
       { platform: 'cursor', depth: 'recursive' },
       { platform: 'copilot', depth: 'direct' },
+      { platform: 'cline', depth: 'shallow' },
     ],
   },
   {
@@ -54,6 +57,7 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'cursor', depth: 'recursive' },
       { platform: 'copilot', depth: 'direct' },
       { platform: 'gemini', depth: 'shallow' },
+      { platform: 'cline', depth: 'shallow' },
     ],
   },
   { segment: '.cursor/skills', readers: [{ platform: 'cursor', depth: 'recursive' }] },
@@ -66,6 +70,8 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'cursor', depth: 'recursive' },
     ],
   },
+  { segment: '.cline/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
+  { segment: '.clinerules/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
 ];
 
 export interface SkillLocation {

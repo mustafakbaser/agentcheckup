@@ -299,6 +299,19 @@ export const ALLOWANCES = {
       reason:
         'The import rules do not judge files of a session started in a template or example folder: such files resolve imports in the projects they are copied into.',
     },
+    {
+      agent: 'cline',
+      code: 'blank-file',
+      rule: 'instr/empty-file',
+      reason:
+        'Cline drops a rule, workflow or skill without a body. instr/empty-file judges a file by its kind, so it does not report workflows, skills, an AGENTS.md whose body after frontmatter is blank, or a rule file named like another agent file, such as .clinerules/CLAUDE.md.',
+    },
+    {
+      agent: 'cline',
+      code: 'invalid-frontmatter',
+      reason:
+        'Cline drops a workflow or skill whose frontmatter does not parse or has a field of the wrong type. No rule judges workflows, and the skill rules do not report for Cline.',
+    },
   ] satisfies readonly {
     readonly agent: ContextAgent;
     readonly code: SkipCode;
@@ -326,7 +339,9 @@ export const ALLOWANCES = {
    * The agent skips the file for several reasons that different rules report, such as a Codex
    * skill without a description whose name is not text. The agent stops at the first reason in
    * the order it reads the file, and the plan records that one with its rule, so the other
-   * rules' findings match that skip.
+   * rules' findings match that skip. A skip no rule reports ({@link UNREPORTED_CODES}) is such a
+   * first reason too: Cline never reads a nested AGENTS.md, so a finding that it is blank or
+   * misnamed matches that `not-read` skip.
    */
   firstSkipReason: 'first-skip-reason',
 } as const;
@@ -573,12 +588,13 @@ class Checker {
       plan.skipped.some(
         (skip) =>
           this.#real(skip.path) === path &&
-          SKIP_RULES.some(
-            (other) =>
-              other.ruleId === skip.ruleId &&
-              other.agent === plan.agent &&
-              other.codes.includes(skip.code),
-          ),
+          ((skip.ruleId === undefined && UNREPORTED_CODES.has(skip.code)) ||
+            SKIP_RULES.some(
+              (other) =>
+                other.ruleId === skip.ruleId &&
+                other.agent === plan.agent &&
+                other.codes.includes(skip.code),
+            )),
       ),
     );
     if (skippedForAnother && this.#allow(ALLOWANCES.firstSkipReason)) return;

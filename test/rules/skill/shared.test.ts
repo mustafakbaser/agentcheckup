@@ -32,7 +32,7 @@ describe('skillLocation', () => {
     expect(skillLocation('.claude/skills/deploy/SKILL.md')).toEqual({
       root: '.claude/skills',
       relative: 'deploy/SKILL.md',
-      platforms: new Set(['claude-code', 'cursor', 'copilot']),
+      platforms: new Set(['claude-code', 'cursor', 'copilot', 'cline']),
     });
     expect(skillLocation('apps/web/.agents/skills/deploy/SKILL.md')?.root).toBe(
       'apps/web/.agents/skills',
@@ -47,6 +47,7 @@ describe('skillLocation', () => {
       sorted(skillLocation('.agents/skills/team/deploy/SKILL.md')?.platforms ?? new Set()),
     ).toEqual(['codex', 'cursor']);
     expect(sorted(skillLocation('.agents/skills/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'cline',
       'codex',
       'cursor',
       'gemini',
@@ -61,12 +62,20 @@ describe('skillLocation', () => {
       'codex',
       'cursor',
     ]);
+    // Cline reads a SKILL.md in the root and in each folder of it.
+    expect(sorted(skillLocation('.cline/skills/deploy/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'cline',
+    ]);
+    expect(sorted(skillLocation('.clinerules/skills/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'cline',
+    ]);
+    expect(skillLocation('.cline/skills/a/b/SKILL.md')?.platforms.size).toBe(0);
   });
 
   it('drops Codex for a skill.md with the wrong case', () => {
     expect(
       sorted(skillLocation('.agents/skills/x/skill.md', true)?.platforms ?? new Set()),
-    ).toEqual(['copilot', 'cursor', 'gemini']);
+    ).toEqual(['cline', 'copilot', 'cursor', 'gemini']);
   });
 
   it('ignores paths outside a skills root and look-alike directories', () => {
@@ -82,14 +91,15 @@ describe('skillReach', () => {
       sorted(
         skillReach(scope(), artifact('.gemini/skills/x/SKILL.md', ['.claude/skills/x/SKILL.md'])),
       ),
-    ).toEqual(['claude-code', 'copilot', 'cursor', 'gemini']);
+    ).toEqual(['claude-code', 'cline', 'copilot', 'cursor', 'gemini']);
   });
 
   it('treats a skill outside every root as reachable by all platforms', () => {
     expect(skillReach(scope(), artifact('plugins/p/skills/x/SKILL.md')).size).toBe(5);
+    // The skills directory adds Cline, which the skill rules do not judge outside one.
     expect(
       skillReach(scope(), artifact('.claude/skills/x/SKILL.md', ['skills/x/SKILL.md'])).size,
-    ).toBe(5);
+    ).toBe(6);
   });
 });
 
@@ -125,7 +135,7 @@ describe('placement', () => {
   it('prefers the skills directory over an enclosing plugin', () => {
     const plugin = scope(['.claude-plugin/plugin.json']);
     expect(placement(plugin, artifact('.claude/skills/x/SKILL.md'))).toEqual({
-      reach: new Set(['claude-code', 'cursor', 'copilot']),
+      reach: new Set(['claude-code', 'cursor', 'copilot', 'cline']),
       distributable: false,
       claudeProject: true,
     });
@@ -194,7 +204,7 @@ describe('audience', () => {
   it('is the reach for a skill outside every plugin', () => {
     expect(
       audience(scope(), artifact('.agents/skills/x/SKILL.md', ['.claude/skills/x/SKILL.md'])),
-    ).toEqual(new Set(['claude-code', 'codex', 'cursor', 'copilot', 'gemini']));
+    ).toEqual(new Set(['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'cline']));
   });
 });
 
