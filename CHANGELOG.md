@@ -2,99 +2,15 @@
 
 ## 0.1.0 (2026-10-17)
 
+First release. agentcheckup shows what each coding agent loads from a repository, checks the agent configuration against how the agents read it, fixes what has one right answer, and gates pull requests that change it. It runs offline and never executes anything from the repository.
 
 ### Features
 
-* **cli:** add the agentcheck command and programmatic API ([86f9712](https://github.com/mustafakbaser/agentcheckup/commit/86f9712532e78e864a459577f926772296aeca6a))
-* **cli:** add the context command, --baseline and --gate ([8d64d8d](https://github.com/mustafakbaser/agentcheckup/commit/8d64d8d89f4be5224933574853832ba7f5dc93b5))
-* **cli:** add the fix command and detail levels ([bf48553](https://github.com/mustafakbaser/agentcheckup/commit/bf485534c6888d40e84964453dfff126eb93f96f))
-* **cli:** check a scan against an organization policy with --policy ([3d9f450](https://github.com/mustafakbaser/agentcheckup/commit/3d9f4503c7e505823b0ae6674debd73e46b1e3de))
-* **codex:** read .codex/config.toml: MCP servers, hooks, permissions and env ([93efd0a](https://github.com/mustafakbaser/agentcheckup/commit/93efd0a97472a59f33555a8ab887ac3c86a31a9b))
-* **context:** fit the nine-agent matrix in 80 columns and accept platforms in --agent ([52a83eb](https://github.com/mustafakbaser/agentcheckup/commit/52a83ebfa208c5280b4ef1c4f53a581485785ce0))
-* **context:** model what Cline loads ([433f26b](https://github.com/mustafakbaser/agentcheckup/commit/433f26b7113c79a45820896aefd1cf13de819e94))
-* **context:** model what Devin Local loads ([385e407](https://github.com/mustafakbaser/agentcheckup/commit/385e4075577bd104310d2fc7b14b30b4ee6a6f97))
-* **context:** model what Gemini CLI loads, and report settings keys it ignores ([f381813](https://github.com/mustafakbaser/agentcheckup/commit/f381813d10e422f795a4515412fc6410a29be06b))
-* **context:** model what GitHub Copilot loads on the CLI, in VS Code and as the cloud agent ([b99f9ef](https://github.com/mustafakbaser/agentcheckup/commit/b99f9eff8187595d921bdaf4ff650e3e228a3719))
-* **context:** name six more agents in the load-plan contract, switched off ([54ee83f](https://github.com/mustafakbaser/agentcheckup/commit/54ee83f3ead5628a472193762c66d42e3a01cfaf))
-* **core:** add the data model, text decoding and platform classification ([0a9d2b1](https://github.com/mustafakbaser/agentcheckup/commit/0a9d2b19f4fc889fc203f8102165c0727140ea7b))
-* **core:** add the fix contract ([22208ca](https://github.com/mustafakbaser/agentcheckup/commit/22208caa186a55d194096097560fa3bfe89252e3))
-* **core:** add the rule engine, configuration, suppressions and scoring ([a859e09](https://github.com/mustafakbaser/agentcheckup/commit/a859e093086494c88d4865eea8ec10acaddcd1ca))
-* **core:** add types for load plans, the inventory and baseline diffs ([7f5baf6](https://github.com/mustafakbaser/agentcheckup/commit/7f5baf633fa6e27ef143117f2f0efa255dd68813))
-* **core:** compare a scan with a baseline report ([33b9250](https://github.com/mustafakbaser/agentcheckup/commit/33b9250560872ba18221cc7a616f8938df7e8717))
-* **core:** scan with load plans, a files-by-agents matrix and the inventory ([8c721c6](https://github.com/mustafakbaser/agentcheckup/commit/8c721c63969a783d6fbd153f1b8dd8c0dd15d30f))
-* **fix:** add builders that move Markdown sections and move, remove or comment YAML keys ([0309030](https://github.com/mustafakbaser/agentcheckup/commit/0309030c5755edd36ee622ad0c295fbfe635ae0e))
-* **fix:** add fixes that need the user's words, and refuse fixes that lose a risk finding ([a790c69](https://github.com/mustafakbaser/agentcheckup/commit/a790c697eae20da9d792d413b982e37be5a03678))
-* **fix:** ask for the user's words in fix -i and add rules that need them ([d5f2937](https://github.com/mustafakbaser/agentcheckup/commit/d5f29379d5d56fa0b47a1c6f5c5a52809eacbf90))
-* **fix:** plan, apply and verify fixes in memory ([6d887a9](https://github.com/mustafakbaser/agentcheckup/commit/6d887a94edb2c4e165a299e9a148b7f31efb53e4))
-* **fix:** turn safe fixes into pull request review suggestions ([a58b9d1](https://github.com/mustafakbaser/agentcheckup/commit/a58b9d1fcbd447350e6e7e36d7e2683dbc137750))
-* **inventory:** list MCP servers, hooks, permissions and env overrides ([dc0800e](https://github.com/mustafakbaser/agentcheckup/commit/dc0800ebb235f58c1b82456ab19dff888a9d9e57))
-* **io:** add a scan-root-confined file system walker ([6cf4bd1](https://github.com/mustafakbaser/agentcheckup/commit/6cf4bd1dc6adade3e596bde2503791356f704c8a))
-* **io:** read imported files and keep gitignore from hiding agent config ([a812d1f](https://github.com/mustafakbaser/agentcheckup/commit/a812d1f02aa89a36cc7fd073f00321ce9c98823b))
-* **io:** write fixes safely to the scanned repository ([c7c5a20](https://github.com/mustafakbaser/agentcheckup/commit/c7c5a200cbb7072e433d86e390f7699eccbefd98))
-* **parse:** add a TOML 1.0 parser for Codex config files ([be75403](https://github.com/mustafakbaser/agentcheckup/commit/be754039c0e6f602704b603683ec6e26c5fd74cc))
-* **parse:** add hardened frontmatter, Markdown, import and JSON parsers ([bdc7b4a](https://github.com/mustafakbaser/agentcheckup/commit/bdc7b4a205b61f7c3d27b5ca66fd1bdb5fa2f8e1))
-* **platforms:** classify Copilot, VS Code, Devin and Cline config and share their loading rules ([ea2fdd7](https://github.com/mustafakbaser/agentcheckup/commit/ea2fdd7f60b0a423e2641d650814940801813b75))
-* **platforms:** model what Claude Code loads ([5feb54e](https://github.com/mustafakbaser/agentcheckup/commit/5feb54e3d85ff3b097f24f79592967911120d711))
-* **platforms:** model what Codex loads ([c7fbdf6](https://github.com/mustafakbaser/agentcheckup/commit/c7fbdf6c49e1ffcedf62184de9f0cb57309d0afd))
-* **platforms:** model what Cursor loads ([c70c5e0](https://github.com/mustafakbaser/agentcheckup/commit/c70c5e05db372d56d78c0479464510f1e66d9b79))
-* **policy:** evaluate an organization policy against the inventory and load plans ([412858c](https://github.com/mustafakbaser/agentcheckup/commit/412858c8f8fa940130a36f05fa3f1b13edb68ced))
-* **report:** add stylish, JSON, SARIF, GitHub and Markdown output ([b9e92dd](https://github.com/mustafakbaser/agentcheckup/commit/b9e92ddd6cd70eca0335bbf8a5036817f9b7da59))
-* **report:** make context output easier to read ([4b7ace6](https://github.com/mustafakbaser/agentcheckup/commit/4b7ace695fa89a96766faccd16410f4bf643ed9e))
-* **report:** render fix plans as diffs, JSON and review suggestions ([a83c46a](https://github.com/mustafakbaser/agentcheckup/commit/a83c46ae67bd2e8a961b1843770455b493e5b887))
-* **report:** show load plans, the inventory and baseline changes ([0b87c71](https://github.com/mustafakbaser/agentcheckup/commit/0b87c71164188fafabcf03b96b26ab80f802556b))
-* **report:** show session-start context per agent as a table in pull request summaries ([4657b48](https://github.com/mustafakbaser/agentcheckup/commit/4657b486528b6c62df59f371b7ccf1084b768050))
-* **report:** show what each agent misses, why it matters and how to fix it ([ab93436](https://github.com/mustafakbaser/agentcheckup/commit/ab93436c3bc9b6955d50a152983df66b1821b10a))
-* **rules:** add instruction file, Cursor and Copilot rules ([1e55c31](https://github.com/mustafakbaser/agentcheckup/commit/1e55c311aabab626c1c8bf5e27d82703b803ee13))
-* **rules:** add JSON, MCP, hook, settings and risk rules ([f56da07](https://github.com/mustafakbaser/agentcheckup/commit/f56da0771069fac4e7ff947069c0f9798366483a))
-* **rules:** add SKILL.md rules ([886facf](https://github.com/mustafakbaser/agentcheckup/commit/886facf9f20b252d4abbb4e585cb206801d21beb))
-* **rules:** fix Cursor and GitHub Copilot configuration ([afdf917](https://github.com/mustafakbaser/agentcheckup/commit/afdf917a6fb2b5731de33916e944bae69a23b9a0))
-* **rules:** fix instruction files and suppression comments ([b31c10f](https://github.com/mustafakbaser/agentcheckup/commit/b31c10fc6c04da42940c7578ee575bf294864c92))
-* **rules:** fix JSON, MCP, hook and settings configuration ([5407114](https://github.com/mustafakbaser/agentcheckup/commit/5407114a4b77f312451bf88c8bfe68f45525dc8f))
-* **rules:** fix non-portable skill fields by moving them under metadata or recording why ([058a6cf](https://github.com/mustafakbaser/agentcheckup/commit/058a6cf8b25d738b0c40629a7b0ace2ecb8bb124))
-* **rules:** fix SKILL.md frontmatter, names and references ([14f7ff3](https://github.com/mustafakbaser/agentcheckup/commit/14f7ff35158691514a8a0a5edcdcff4fa2b85186))
-* **rules:** judge skills for Devin Local and Cline, and find a skill name used in two skills folders ([743ef56](https://github.com/mustafakbaser/agentcheckup/commit/743ef5658f8e529423de2d9f0f46e58bee54d70d))
-* **rules:** narrow broad skill allowed-tools to the commands the skill runs ([fc7cdbb](https://github.com/mustafakbaser/agentcheckup/commit/fc7cdbbfcea95131df5aed0a55647b2a07ab7e2c))
-* **rules:** report partly analyzed files and register all rules ([a15ecae](https://github.com/mustafakbaser/agentcheckup/commit/a15ecaee49530f32f5146eefe48af9f02cf4b35a))
-* **rules:** split an over-long skill body into linked section files ([a7e48c6](https://github.com/mustafakbaser/agentcheckup/commit/a7e48c640a7d444fce6934150302a690b40031f4))
-* **skill:** ship an agentcheckup skill for coding agents and a command to install it ([9d3c799](https://github.com/mustafakbaser/agentcheckup/commit/9d3c799a2c52f37163445eebbddf10c4b5346c85))
-* **tasks:** turn findings that need judgment into a prompt for a coding agent ([e1d3f2a](https://github.com/mustafakbaser/agentcheckup/commit/e1d3f2aa93053c1ecc8949e467211ed9ed0327d5))
+* **context:** load plans for Claude Code, Codex, Cursor, GitHub Copilot (CLI, VS Code and the cloud agent), Gemini CLI, Devin Local and Cline: what each agent loads at session start, when a path is in play, on request or not at all, and why, with evidence for every entry and a files-by-agents matrix.
+* **checks:** 65 rules for instruction files, skills, Cursor and Copilot rules, MCP configuration, hooks, settings and Codex `config.toml`, each backed by the agent's documentation or source code. Output as text, JSON, SARIF, GitHub annotations or Markdown.
+* **fix:** a dry-run diff by default. `--write` applies safe fixes, `--review` adds fixes to review, and `-i` asks for the words a fix needs, such as a "Use when" sentence. Every fix is verified by an in-memory re-scan before anything is written, and the writer stays inside the repository.
+* **tasks:** findings that need judgment become a prompt for a coding agent, with repository text fenced as untrusted data and a `tasks --check` command to confirm each one is done. The agentcheckup skill and `agentcheckup skill install` hand this flow to Claude Code, Codex, Cursor and Copilot.
+* **gate:** `--baseline` and `--gate` flag MCP servers, permissions, hooks, env overrides and hidden Unicode that a pull request adds, and `fix --format suggestions` turns safe fixes into review suggestions.
+* **policy:** `--policy` checks a repository against an organization policy: allowed MCP servers and pins, forbidden settings, denied tools and commands, required hooks and startup token budgets.
 
-
-### Bug fixes
-
-* **gate:** trip the hooks class on Copilot and Devin hook files that do not parse ([2ff97f0](https://github.com/mustafakbaser/agentcheckup/commit/2ff97f067f1264ff99ac94508803c01d6d065b9a))
-* **io:** accept the zero device ID from Windows path-based stat ([dc80680](https://github.com/mustafakbaser/agentcheckup/commit/dc80680b589243e66ec4e8ba29ad6ae0bd649cab))
-* **io:** compare file identities as exact 64-bit values ([691b4e5](https://github.com/mustafakbaser/agentcheckup/commit/691b4e5cd42a887fbc0bea8c3120a71bfd9f8b63))
-* **io:** decide on the opened handle when verifying a file before a fix ([4fe525b](https://github.com/mustafakbaser/agentcheckup/commit/4fe525b1915ae6fec1d984d598ca2a2e5c1783e1))
-* **io:** report symlink targets with forward slashes on Windows ([1367bf7](https://github.com/mustafakbaser/agentcheckup/commit/1367bf73791a9561c2c28a25b9b13f6c4c69c0d5))
-* keep fingerprints stable, gate every new permission, honor ignore in context ([b21b8f4](https://github.com/mustafakbaser/agentcheckup/commit/b21b8f4299352ba8a0fece40ea4ffa782bcf57d0))
-* **parse:** read .devin/config.json with comments, as Devin Local documents ([58db986](https://github.com/mustafakbaser/agentcheckup/commit/58db986dde3b6261052ada7c14f3036adf3b5ac2))
-* **report:** use the singular verb for one change under review ([638ddc6](https://github.com/mustafakbaser/agentcheckup/commit/638ddc68e94b65701186c4e7723643404721d053))
-* **rules:** check imported files and follow imports of symlinked instructions ([449f456](https://github.com/mustafakbaser/agentcheckup/commit/449f45614adec832f89b8740ca4ffc7eb6d0fcb0))
-
-
-### Performance
-
-* **fix:** verify fixes in batches and reuse parses across scans ([52fe10d](https://github.com/mustafakbaser/agentcheckup/commit/52fe10df3c426eb0a6e591089ccc59423b01b998))
-
-
-### Documentation
-
-* add architecture decision records ([07d5adf](https://github.com/mustafakbaser/agentcheckup/commit/07d5adfdf7fb1cfeffab8437a7a69130da38cdab))
-* add code of conduct and security policy ([3d217e7](https://github.com/mustafakbaser/agentcheckup/commit/3d217e727f0021b3e583e708b8ff3e6e6ddc6d2e))
-* add the agent loading reference and usage guides ([c426710](https://github.com/mustafakbaser/agentcheckup/commit/c426710a6d40ccfdbcc5eb4086c07cb235163bea))
-* add the generated rule reference and configuration schema ([4fae624](https://github.com/mustafakbaser/agentcheckup/commit/4fae624844e1d1044072d1e8f2a3a4bab1b2c891))
-* add the README, contributing guide and project agent instructions ([4ab4791](https://github.com/mustafakbaser/agentcheckup/commit/4ab4791f2985f07649f98eea1ca0181d72d51b5a))
-* **adr:** model what each agent loads and gate security-relevant changes ([fae5864](https://github.com/mustafakbaser/agentcheckup/commit/fae58649553799de4a9ec7c678379a88708ea498))
-* **adr:** write fixes to the scanned repository ([6d0eacb](https://github.com/mustafakbaser/agentcheckup/commit/6d0eacbf0fb3b10ec292758859643e2556c813c4))
-* cover the nine agents, Codex config.toml and the compact matrix, and record ADR 0009 ([7d1f447](https://github.com/mustafakbaser/agentcheckup/commit/7d1f4479dcdc16bde30edd5a33293d319e362132))
-* describe how cited sources are kept current ([a1fdfec](https://github.com/mustafakbaser/agentcheckup/commit/a1fdfeccf9b6e379d9c6fc942e4285785cd59569))
-* describe the fix command and the richer feedback ([faf0e41](https://github.com/mustafakbaser/agentcheckup/commit/faf0e412bfd038dde500908c6722b5ea8ee433da))
-* describe the fix, tasks and policy flow, and record ADR 0010 ([08094da](https://github.com/mustafakbaser/agentcheckup/commit/08094daae94b22b661650e355c7bbeee4b68be16))
-* land maintainer changes through a pull request ([ca41faf](https://github.com/mustafakbaser/agentcheckup/commit/ca41fafadfbae0ec845590cf65860e2c22e354b7))
-* lead with what each agent loads and the pull request gate ([5fb7b8b](https://github.com/mustafakbaser/agentcheckup/commit/5fb7b8b0596ff8973e7303dbc793c9f2f1a050c3))
-* **maintainers:** document the Actions setting release-please needs ([23b227d](https://github.com/mustafakbaser/agentcheckup/commit/23b227d63c117e6eeeeb39728c14e82f54ae29ca))
-* **policy:** describe Codex config.toml and the nine agents as they are now ([71c397c](https://github.com/mustafakbaser/agentcheckup/commit/71c397c7b9d8108d32b8bb00529d6efb666ee834))
-* record repository rulesets and settings ([57d4711](https://github.com/mustafakbaser/agentcheckup/commit/57d4711edd0c7e475986951c92c94c360d744398))
-* record the security settings turned on at launch ([7725d91](https://github.com/mustafakbaser/agentcheckup/commit/7725d91352c1931b9110c787de488fbfa1b1f44e))
-* use the project contact address for security and conduct reports ([c3998fb](https://github.com/mustafakbaser/agentcheckup/commit/c3998fb9a304e47f4ca0183aaafb092043badba4))
+See the [README](https://github.com/mustafakbaser/agentcheckup#readme) and the [docs](https://github.com/mustafakbaser/agentcheckup/tree/main/docs).
