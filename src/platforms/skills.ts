@@ -9,13 +9,18 @@ import type { Artifact, PlatformId, Snapshot } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
 import { pluginRootOf } from './location.js';
 
-/** Platforms that read SKILL.md files (READERS.skill in src/platforms/classify.ts). */
+/**
+ * Platforms that read SKILL.md files (READERS.skill in src/platforms/classify.ts), in
+ * PLATFORM_IDS order. Devin Local is `windsurf`.
+ */
 export const SKILL_PLATFORMS = [
   'claude-code',
   'codex',
   'cursor',
   'copilot',
   'gemini',
+  'windsurf',
+  'cline',
 ] as const satisfies readonly PlatformId[];
 
 /**
@@ -134,8 +139,9 @@ export function skillLocation(path: string, caseMismatch = false): SkillLocation
   const relative = path.slice(rootPath.length + 1);
   const platforms = new Set<PlatformId>();
   for (const reader of best.root.readers) {
-    // Codex discovers only the exact file name SKILL.md (discovery.rs).
-    if (caseMismatch && reader.platform === 'codex') continue;
+    // Codex and Cline discover only the exact file name SKILL.md (discovery.rs; the Cline SDK's
+    // `includeFile`).
+    if (caseMismatch && (reader.platform === 'codex' || reader.platform === 'cline')) continue;
     if (depthMatches(reader.depth, relative)) platforms.add(reader.platform);
   }
   return { root: rootPath, relative, platforms };

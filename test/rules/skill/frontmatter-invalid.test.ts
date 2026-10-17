@@ -31,15 +31,22 @@ const NESTED =
 const VALIDATORS = 'the skills-ref validator and the anthropics/skills packager reject it.';
 
 describe('skill/frontmatter-invalid', () => {
-  it('reports an unquoted colon that Codex repairs as a portability warning', () => {
+  it('reports an unquoted colon that Codex repairs and Cline does not', () => {
     expect(check('---\nname: deploy\ndescription: Deploys: production\n---\nRun.\n')).toEqual([
       {
-        severity: 'warn',
-        platforms: ['claude-code'],
-        message: `${NESTED} Codex quotes the value and loads the skill, and ${VALIDATORS}`,
+        severity: 'error',
+        platforms: ['claude-code', 'cline'],
+        message: `${NESTED} Codex quotes the value and loads the skill, Cline skips the skill, and ${VALIDATORS}`,
         range: range(3, 14, 3, 15),
       },
     ]);
+    // Without Cline, it is a portability warning.
+    expect(
+      check('---\nname: deploy\ndescription: Deploys: production\n---\nRun.\n', [
+        'claude-code',
+        'codex',
+      ])[0]?.severity,
+    ).toBe('warn');
   });
 
   it('does not report a repaired colon when only Codex is targeted', () => {
@@ -53,8 +60,8 @@ describe('skill/frontmatter-invalid', () => {
     expect(check(text)).toEqual([
       {
         severity: 'error',
-        platforms: ['claude-code'],
-        message: `${NESTED} Claude Code loads the skill with no fields set, Codex quotes the value and loads the skill, and ${VALIDATORS}`,
+        platforms: ['claude-code', 'cline'],
+        message: `${NESTED} Claude Code loads the skill with no fields set, Codex quotes the value and loads the skill, Cline skips the skill, and ${VALIDATORS}`,
         range: range(3, 14, 3, 15),
       },
     ]);
@@ -63,7 +70,10 @@ describe('skill/frontmatter-invalid', () => {
   it('reports a nested colon value that only Codex repairs', () => {
     const text =
       '---\nname: deploy\ndescription: Deploys.\nmetadata:\n  short-description: Ships: fast\n---\n';
-    expect(check(text)[0]).toMatchObject({ severity: 'error', platforms: ['claude-code'] });
+    expect(check(text)[0]).toMatchObject({
+      severity: 'error',
+      platforms: ['claude-code', 'cline'],
+    });
   });
 
   it('reports tab indentation, which Codex does not repair', () => {
@@ -71,8 +81,8 @@ describe('skill/frontmatter-invalid', () => {
     expect(check(text)).toEqual([
       {
         severity: 'error',
-        platforms: ['claude-code', 'codex'],
-        message: `The frontmatter is not valid YAML (Tabs are not allowed as indentation). Codex skips the skill, and ${VALIDATORS}`,
+        platforms: ['claude-code', 'codex', 'cline'],
+        message: `The frontmatter is not valid YAML (Tabs are not allowed as indentation). Codex and Cline skip the skill, and ${VALIDATORS}`,
         range: range(4, 1, 4, 2),
       },
     ]);
@@ -85,8 +95,8 @@ describe('skill/frontmatter-invalid', () => {
     expect(check('---\nname: deploy\ndescription: "Deploys\n---\n')).toEqual([
       {
         severity: 'error',
-        platforms: ['claude-code', 'codex'],
-        message: `The frontmatter is not valid YAML (Missing closing "quote). Claude Code loads the skill with no fields set, Codex skips the skill, and ${VALIDATORS}`,
+        platforms: ['claude-code', 'codex', 'cline'],
+        message: `The frontmatter is not valid YAML (Missing closing "quote). Claude Code loads the skill with no fields set, Codex and Cline skip the skill, and ${VALIDATORS}`,
         range: range(4, 1, 4, 1),
       },
     ]);
@@ -112,23 +122,27 @@ describe('skill/frontmatter-invalid', () => {
     expect(check(text)).toEqual([
       {
         severity: 'error',
-        platforms: ['claude-code', 'codex'],
+        platforms: ['claude-code', 'codex', 'cline'],
         message:
-          'The frontmatter repeats "description". Codex rejects a repeated field and skips the skill, and the skills-ref validator rejects duplicate keys.',
+          'The frontmatter repeats "description". Codex and Cline reject a repeated field and skip the skill, and the skills-ref validator rejects duplicate keys.',
         range: range(4, 1, 4, 12),
       },
     ]);
     expect(
       check('---\nname: deploy\n"description": One.\n"description": Two.\n---\n')[0]?.message,
-    ).toContain('repeats "description". Codex rejects');
-    expect(check(text, undefined, '.claude/skills/deploy/SKILL.md')).toEqual([]);
-    expect(check(text, undefined, '.agents/skills/deploy/SKILL.md')[0]?.message).toBe(
+    ).toContain('repeats "description". Codex and Cline reject');
+    expect(check(text, undefined, '.cursor/skills/deploy/SKILL.md')).toEqual([]);
+    expect(check(text, undefined, '.claude/skills/deploy/SKILL.md')[0]?.message).toBe(
+      'The frontmatter repeats "description". Cline rejects a repeated field and skips the skill.',
+    );
+    expect(check(text, undefined, '.codex/skills/deploy/SKILL.md')[0]?.message).toBe(
       'The frontmatter repeats "description". Codex rejects a repeated field and skips the skill.',
     );
   });
 
-  it('reports other repeated keys as a portability warning', () => {
-    expect(check('---\nname: deploy\ndescription: One.\ntags: a\ntags: b\n---\n')).toEqual([
+  it('reports other repeated keys as a portability warning where Cline does not read them', () => {
+    const text = '---\nname: deploy\ndescription: One.\ntags: a\ntags: b\n---\n';
+    expect(check(text, ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'])).toEqual([
       {
         severity: 'warn',
         platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'],
@@ -137,6 +151,16 @@ describe('skill/frontmatter-invalid', () => {
         range: range(5, 1, 5, 5),
       },
     ]);
+    expect(check(text)).toEqual([
+      {
+        severity: 'error',
+        platforms: ['claude-code', 'cline'],
+        message:
+          'The frontmatter repeats "tags". Cline rejects a repeated field and skips the skill, and the skills-ref validator rejects duplicate keys.',
+        range: range(5, 1, 5, 5),
+      },
+    ]);
+    expect(check(text, undefined, '.github/skills/deploy/SKILL.md')).toEqual([]);
   });
 
   it('reports TOML and language-tagged frontmatter', () => {
@@ -165,12 +189,19 @@ describe('skill/frontmatter-invalid', () => {
 
   it('describes only the agents that read the location', () => {
     const crlf = '---\r\nname: deploy\r\ndescription: Deploys: production\r\n---\r\n';
-    expect(check(crlf, undefined, '.agents/skills/deploy/SKILL.md')).toEqual([]);
+    expect(check(crlf, undefined, '.codex/skills/deploy/SKILL.md')).toEqual([]);
+    expect(check(crlf, undefined, '.agents/skills/deploy/SKILL.md')).toEqual([
+      expect.objectContaining({
+        severity: 'error',
+        platforms: ['cline'],
+        message: `${NESTED} Codex quotes the value and loads the skill, and Cline skips the skill.`,
+      }),
+    ]);
     expect(check(crlf, undefined, '.claude/skills/deploy/SKILL.md')).toEqual([
       expect.objectContaining({
         severity: 'error',
-        platforms: ['claude-code'],
-        message: `${NESTED} Claude Code loads the skill with no fields set.`,
+        platforms: ['claude-code', 'cline'],
+        message: `${NESTED} Claude Code loads the skill with no fields set, and Cline skips the skill.`,
       }),
     ]);
   });
@@ -180,7 +211,7 @@ describe('skill/frontmatter-invalid', () => {
     expect(check(text)).toEqual([
       {
         severity: 'info',
-        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'],
+        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'windsurf', 'cline'],
         message:
           'agentcheckup did not check this frontmatter: Frontmatter is 70,027 characters; the limit is 65,536.',
         range: range(1, 1, 4, 4),

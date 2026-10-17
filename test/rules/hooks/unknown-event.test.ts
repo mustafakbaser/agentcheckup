@@ -109,6 +109,36 @@ describe('hooks/unknown-event', () => {
     expect(run({ '.claude/settings.json': '{"hooks": {' })).toEqual([]);
   });
 
+  it("checks Devin Local's hook files, and reports another letter case as information", () => {
+    const v1 = json({ BeforeCommit: HOOK, pretooluse: HOOK, Stop: HOOK });
+    const config = json({ hooks: { pre_run_command: HOOK, SessionEnd: HOOK } });
+    expect(
+      run({
+        '.devin/hooks.v1.json': v1,
+        '.devin/config.local.json': config,
+        // Cascade's file, whose snake_case events are not checked.
+        '.devin/hooks.json': json({ hooks: { pre_read_code: HOOK } }),
+      }).map((finding) => [finding.path, finding.severity, finding.message]),
+    ).toEqual([
+      [
+        '.devin/config.local.json',
+        'error',
+        '"pre_run_command" is not a Devin Local hook event. Devin Local never fires such an event, so these hooks never run.',
+      ],
+      [
+        '.devin/hooks.v1.json',
+        'error',
+        '"BeforeCommit" is not a Devin Local hook event. Devin Local never fires such an event, so these hooks never run.',
+      ],
+      [
+        '.devin/hooks.v1.json',
+        'info',
+        '"pretooluse" is not a Devin Local hook event; it is spelled "PreToolUse". Devin Local documents event names in this spelling only and does not say whether it matches another, so these hooks may never run.',
+      ],
+    ]);
+    expect(run({ '.devin/hooks.v1.json': v1 }, ['claude-code'])).toEqual([]);
+  });
+
   it('does not compute suggestions for very long names', () => {
     expect(describeUnknownEvent('codex', 'x'.repeat(100))).toBe(
       `"${'x'.repeat(60)}…" is not a Codex hook event. Codex ignores them without a warning, so these hooks never run.`,

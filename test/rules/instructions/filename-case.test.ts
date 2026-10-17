@@ -54,7 +54,25 @@ describe('instr/filename-case', () => {
     expect(findings(result, RULE)).toEqual([]);
   });
 
-  it('does not list Windsurf for agents.md, which Cascade documents, but does for Agents.md', () => {
+  it('does not list Cline for a file in its folders, which it reads by any name or not at all', () => {
+    const result = lint(
+      {
+        '.clinerules/Agents.md': 'Rules.\n',
+        '.cline/skills/x/Agents.md': 'A skill resource.\n',
+        'Agents.md': 'Root.\n',
+      },
+      { rules },
+    );
+    expect(
+      result.findings.map((finding) => [finding.path, finding.platforms.includes('cline')]),
+    ).toEqual([
+      ['.cline/skills/x/Agents.md', false],
+      ['.clinerules/Agents.md', false],
+      ['Agents.md', true],
+    ]);
+  });
+
+  it('does not list Devin Local for agents.md, which Cascade documents, but does for Agents.md', () => {
     const lower = lint({ 'agents.md': 'x' }, { rules });
     expect(lower.findings[0]?.platforms).not.toContain('windsurf');
     expect(lower.findings[0]?.platforms).toContain('codex');

@@ -183,6 +183,18 @@ export const DEVIN_EVENTS = [
 ] as const;
 
 /**
+ * True when `name` is not a Devin Local event as written but is one in another letter case, such
+ * as `preToolUse`. Devin documents the names in one spelling and does not say whether it matches
+ * another, so hooks/unknown-event reports such a name as information and the plan marks the
+ * skip unverified. Hooks under any other name never run.
+ */
+export function devinEventInOtherCase(name: string): boolean {
+  const events: readonly string[] = DEVIN_EVENTS;
+  const lower = name.toLowerCase();
+  return !events.includes(name) && events.some((event) => event.toLowerCase() === lower);
+}
+
+/**
  * Keys of the `hooks` table in Codex's `config.toml` that configure hooks rather than name events.
  * Codex reads `hooks.state` only from user and session layers, so it has no effect in a project
  * file (SOURCES.codexHookState).

@@ -23,6 +23,25 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'cline-workflow',
 ]);
 
+/**
+ * Instruction kinds that instr/empty-file judges. The Cline load plan cites the rule for a blank
+ * file of these kinds and of no other.
+ */
+export const EMPTY_FILE_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  'agents-md',
+  'agents-override-md',
+  'claude-md',
+  'claude-local-md',
+  'claude-rule',
+  'gemini-md',
+  'windsurf-rule',
+  'windsurf-legacy-rules',
+  'cline-rule',
+  'cline-workflow',
+  'cursor-legacy-rules',
+  'copilot-instructions',
+]);
+
 /** Kinds whose content is JSON. */
 export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-settings',
@@ -57,9 +76,10 @@ export function configDocument(
 
 /**
  * Markdown kinds plus `imported-file`: a file that an instruction file imports with `@path`
- * (README.md, docs/guide.md), which Claude Code and Gemini CLI load with it. Their text reaches
- * the model like the importing file's, so the checks for hidden text (risk/hidden-unicode,
- * risk/hidden-comment), analysis/partial and inline suppression directives cover them too.
+ * (README.md, docs/guide.md), which Claude Code, Gemini CLI and the Copilot CLI load with it.
+ * Their text reaches the model like the importing file's, so the checks for hidden text
+ * (risk/hidden-unicode, risk/hidden-comment), analysis/partial and inline suppression directives
+ * cover them too.
  */
 export const MARKDOWN_OR_IMPORTED_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   ...MARKDOWN_KINDS,

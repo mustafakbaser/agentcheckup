@@ -4,14 +4,14 @@
 
 Skill frontmatter uses YAML that parsers read differently.
 
-|            |                                                        |
-| ---------- | ------------------------------------------------------ |
-| Severity   | `warn`                                                 |
-| Category   | `portability`                                          |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
-| Applies to | `skill`                                                |
-| Fixable    | Yes, `review`                                          |
-| Since      | 2026.10                                                |
+|            |                                                                            |
+| ---------- | -------------------------------------------------------------------------- |
+| Severity   | `warn`                                                                     |
+| Category   | `portability`                                                              |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline |
+| Applies to | `skill`                                                                    |
+| Fixable    | Yes, `review`                                                              |
+| Since      | 2026.10                                                                    |
 
 ## Why
 

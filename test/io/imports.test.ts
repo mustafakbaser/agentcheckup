@@ -102,7 +102,7 @@ describe('walk: import pass', () => {
     expect(result.artifacts).toContainEqual({
       path: 'README.md',
       kind: 'imported-file',
-      readers: ['claude-code', 'gemini'],
+      readers: ['claude-code', 'copilot', 'gemini'],
     });
     const plan = result.context.plans[0];
     const readme = plan?.entries.find((entry) => entry.id === 'import:README.md');

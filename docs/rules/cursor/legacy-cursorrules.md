@@ -17,7 +17,7 @@
 
 Cursor's help center calls the `.cursorrules` file in the project root "legacy" and says it "will be deprecated". Its migration steps move the content into a project rule in `.cursor/rules` with the type **Always Apply**, which matches the old behavior.
 
-Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor and Cline, and also in Codex, GitHub Copilot and Windsurf.
+Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor and Cline, and also in Codex, GitHub Copilot and Devin Local.
 
 ## Evidence
 

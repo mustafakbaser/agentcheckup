@@ -57,7 +57,7 @@ describe('cursor/md-file-ignored', () => {
         class: 'review',
         title: 'Rename .cursor/rules/style.md to style.mdc and add "globs"',
         changes: [],
-        notes: ['Devin Local in Windsurf reads the file under either name.'],
+        notes: ['Devin Local reads the file under either name.'],
         input: {
           field: 'cursor-globs',
           question: 'Attach this rule to the files that match glob patterns, such as src/**/*.ts?',

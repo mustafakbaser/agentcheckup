@@ -1,7 +1,8 @@
 import { editableFile } from '../../core/directive-fixes.js';
 import { RULESET_VERSION } from '../../core/meta.js';
-import type { Artifact, Fix } from '../../core/types.js';
+import type { Artifact, Fix, PlatformId } from '../../core/types.js';
 import { yamlInsertKey, yamlSetScalar } from '../../fix/index.js';
+import { clineSkillSkip } from '../../platforms/cline-skills.js';
 import { descriptionState } from '../../platforms/codex-skills.js';
 import { geminiSkipReasons } from '../../platforms/gemini-skills.js';
 import { firstBodyLine } from '../../platforms/skills.js';
@@ -17,6 +18,7 @@ import {
   sentence,
 } from '../shared/format.js';
 import {
+  cannotReadFrontmatter,
   type Impact,
   impactsOn,
   isDistributable,
@@ -24,7 +26,6 @@ import {
   OPENING_DELIMITER,
   reached,
   resolveImpacts,
-  SKILL_PLATFORMS,
   validFrontmatter,
   type ValidFrontmatter,
 } from './shared.js';
@@ -112,16 +113,17 @@ export const descriptionMissingRule = defineRule({
   meta: {
     id: 'skill/description-missing',
     title: 'Skill description is missing or empty',
-    rationale: `Agents decide when to use a skill by matching the request against its \`description\`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as \`# Deploy\` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.
+    rationale: `Agents decide when to use a skill by matching the request against its \`description\`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. Codex also skips one whose \`description\` is a list or a mapping, and Cline one whose \`description\` is not text, even a number or a boolean. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as \`# Deploy\` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.
 
 Add a \`description\` that says what the skill does and when to use it.`,
     category: 'loading',
     severity: 'error',
     appliesTo: ['skill'],
-    platforms: SKILL_PLATFORMS,
+    platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'cline'],
     sources: [
       SKILL_SOURCES.codexSkillParser,
       SKILL_SOURCES.geminiSkillLoader,
+      SOURCES.clineInstructionLoaderSource,
       SOURCES.claudeSkills,
       SOURCES.agentSkillsSpec,
       SOURCES.skillsRefValidator,
@@ -144,9 +146,32 @@ Add a \`description\` that says what the skill does and when to use it.`,
       if (frontmatter === undefined) continue;
       const { data } = frontmatter;
       const state = descriptionState(data);
-      if (state === 'text') continue;
+      // Cline drops a skill whose `description` is set and is not text, numbers and booleans
+      // included, unless it dropped the skill for an earlier reason.
+      const cline =
+        context.targets.has('cline') &&
+        reached(context, artifact, ['cline']).length > 0 &&
+        clineSkillSkip(artifact.decoded.text, frontmatter) === 'description-type';
       const present = data.keys.includes('description');
       const value = data.values['description'];
+      if (state === 'text') {
+        // A number or a boolean, which every other agent reads as text.
+        if (!cline) continue;
+        const only = resolveImpacts(context, artifact, [{ platform: 'cline', severity: 'error' }]);
+        if (only === undefined) continue;
+        const fix = typeDescription(artifact, undefined);
+        context.report({
+          artifact,
+          message: `\`description\` is ${describeType(value)}, not text. ${sentence(cannotReadFrontmatter(['cline']))}`,
+          severity: only.severity,
+          platforms: only.platforms,
+          span: data.keySpan('description') ?? OPENING_DELIMITER,
+          ...fixFields(
+            fix === undefined ? { guidance: WRITE_TEXT } : { fix, guidance: WRITE_TEXT },
+          ),
+        });
+        continue;
+      }
 
       const requiring = reached(context, artifact, ['cursor', 'copilot']);
       const distributable = isDistributable(context, artifact);
@@ -177,10 +202,12 @@ Add a \`description\` that says what the skill does and when to use it.`,
         const fix = typeDescription(artifact, undefined);
         repair = fix === undefined ? { guidance: WRITE_TEXT } : { fix, guidance: WRITE_TEXT };
         lead = `\`description\` is ${describeType(value)}, not text.`;
-        if (codex) {
-          clauses.push('Codex cannot read the frontmatter and skips the skill');
-          impacts.push({ platform: 'codex', severity: 'error' });
-        }
+        const skipping: PlatformId[] = [
+          ...(codex ? ['codex' as const] : []),
+          ...(cline ? ['cline' as const] : []),
+        ];
+        if (skipping.length > 0) clauses.push(cannotReadFrontmatter(skipping));
+        impacts.push(...impactsOn(skipping, 'error'));
         if (distributable) clauses.push('the skills-ref validator rejects it');
       } else if (state === 'missing') {
         lead = 'The frontmatter has no `description`.';

@@ -104,11 +104,28 @@ describe('skill/non-portable-field', () => {
       expect(check('user-invocable: false\n', '.claude/skills/deploy/SKILL.md')).toEqual([
         {
           severity: 'warn',
-          platforms: ['cursor'],
+          platforms: ['cursor', 'windsurf', 'cline'],
           message:
-            '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor, so the agents that load this skill treat it differently.',
+            '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor, Devin Local and Cline, so the agents that load this skill treat it differently.',
           range: { start: { line: 4, column: 1 }, end: { line: 4, column: 15 } },
         },
+      ]);
+    });
+
+    it('counts the fields Devin Local documents, and none for Cline', () => {
+      expect(
+        check('argument-hint: "[env]"\nmodel: opus\n', '.devin/skills/deploy/SKILL.md'),
+      ).toEqual([]);
+      expect(
+        check('argument-hint: "[env]"\n', '.agents/skills/deploy/SKILL.md').map((f) => [
+          f.platforms,
+          f.message,
+        ]),
+      ).toEqual([
+        [
+          ['codex', 'cursor', 'gemini', 'cline'],
+          '"argument-hint" is a documented skill field in GitHub Copilot and Devin Local but not in Codex, Cursor, Gemini CLI and Cline, so the agents that load this skill treat it differently.',
+        ],
       ]);
     });
 
@@ -126,9 +143,11 @@ describe('skill/non-portable-field', () => {
           plugin,
         ),
       ).toEqual([]);
-      expect(check('disable-model-invocation: true\n', '.claude/skills/deploy/SKILL.md')).toEqual(
-        [],
-      );
+      expect(
+        check('disable-model-invocation: true\n', '.claude/skills/deploy/SKILL.md', {
+          targets: ['claude-code', 'cursor', 'copilot'],
+        }),
+      ).toEqual([]);
     });
 
     it('judges a plugin skill without aliases by its plugin agents', () => {

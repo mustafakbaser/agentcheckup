@@ -117,6 +117,29 @@ describe('skill/field-type', () => {
     expect(check('metadata: {}\n')).toEqual([]);
   });
 
+  it('reports to Cline a disabled or enabled flag that is not a boolean', () => {
+    const run = (frontmatter: string, path = '.cline/skills/deploy/SKILL.md') =>
+      lint(
+        { [path]: `---\nname: deploy\ndescription: Deploys.\n${frontmatter}---\nSteps.\n` },
+        { rules: [fieldTypeRule] },
+      ).findings.map((f) => [f.severity, f.platforms, f.message, f.range.start.line]);
+    expect(run('disabled: "false"\n')).toEqual([
+      [
+        'error',
+        ['cline'],
+        '`disabled` is text, not a boolean. Cline cannot read the frontmatter and skips the skill.',
+        4,
+      ],
+    ]);
+    expect(run('enabled: 0\n')[0]?.[2]).toBe(
+      '`enabled` is a number, not a boolean. Cline cannot read the frontmatter and skips the skill.',
+    );
+    // Cline reads `enabled` only when `disabled` is not set, and booleans are fine.
+    expect(run('disabled: false\nenabled: 0\n')).toEqual([]);
+    expect(run('disabled: true\nenabled: false\n')).toEqual([]);
+    expect(run('disabled: "yes"\n', '.cursor/skills/deploy/SKILL.md')).toEqual([]);
+  });
+
   it('honors targets', () => {
     expect(check('metadata: text\n', 'skills/x/SKILL.md', ['codex'])).toEqual([
       expect.objectContaining({ severity: 'error', platforms: ['codex'] }),

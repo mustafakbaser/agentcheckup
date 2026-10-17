@@ -15,7 +15,7 @@ Cursor ignores .md files in .cursor/rules.
 
 ## Why
 
-Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there "is ignored by the rules system" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent in Windsurf (now Devin Desktop), does read `.md` files in `.cursor/rules`, so the same file applies in Windsurf and not in Cursor.
+Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there "is ignored by the rules system" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent of Devin Desktop (formerly Windsurf), does read `.md` files in `.cursor/rules`, so the same file applies in Devin Local and not in Cursor.
 
 A `README.md` in the directory is treated as documentation and is not reported.
 

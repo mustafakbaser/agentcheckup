@@ -80,10 +80,13 @@ describe('skillLocation', () => {
     expect(skillLocation('.cline/skills/a/b/SKILL.md')?.platforms.size).toBe(0);
   });
 
-  it('drops Codex for a skill.md with the wrong case', () => {
+  it('drops Codex and Cline for a skill.md with the wrong case', () => {
     expect(
       sorted(skillLocation('.agents/skills/x/skill.md', true)?.platforms ?? new Set()),
-    ).toEqual(['cline', 'copilot', 'cursor', 'gemini', 'windsurf']);
+    ).toEqual(['copilot', 'cursor', 'gemini', 'windsurf']);
+    expect(
+      sorted(skillLocation('.agents/skills/x/SKILL.md', false)?.platforms ?? new Set()),
+    ).toEqual(['cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf']);
   });
 
   it('ignores paths outside a skills root and look-alike directories', () => {
@@ -103,8 +106,7 @@ describe('skillReach', () => {
   });
 
   it('treats a skill outside every root as reachable by all platforms', () => {
-    expect(skillReach(scope(), artifact('plugins/p/skills/x/SKILL.md')).size).toBe(5);
-    // The skills directory adds Devin Local and Cline, which the skill rules do not judge outside one.
+    expect(skillReach(scope(), artifact('plugins/p/skills/x/SKILL.md')).size).toBe(7);
     expect(
       skillReach(scope(), artifact('.claude/skills/x/SKILL.md', ['skills/x/SKILL.md'])).size,
     ).toBe(7);

@@ -90,6 +90,29 @@
   ],
   "findings": [
     {
+      "ruleId": "skill/frontmatter-invalid",
+      "severity": "error",
+      "category": "loading",
+      "message": "The frontmatter is not valid YAML (Nested mappings are not allowed in compact mappings). Cline skips the skill.",
+      "path": ".claude/skills/Deploy_Prod/SKILL.md",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 14
+        },
+        "end": {
+          "line": 3,
+          "column": 15
+        }
+      },
+      "related": [],
+      "platforms": [
+        "cline"
+      ],
+      "fingerprint": "0e0c243c8f56d8:1",
+      "guidance": "put values that contain \": \" or start with \"[\", \"{\", \"@\" or a backtick in double quotes, and indent with spaces"
+    },
+    {
       "ruleId": "cursor/md-file-ignored",
       "severity": "error",
       "category": "loading",
@@ -134,7 +157,7 @@
         ],
         "notes": [
           "With \"alwaysApply: true\", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with \"globs\" or a \"description\".",
-          "Devin Local in Windsurf reads the file under either name."
+          "Devin Local reads the file under either name."
         ],
         "alternatives": [
           {
@@ -143,7 +166,7 @@
             "title": "Rename .cursor/rules/style.md to style.mdc and add \"globs\"",
             "changes": [],
             "notes": [
-              "Devin Local in Windsurf reads the file under either name."
+              "Devin Local reads the file under either name."
             ],
             "input": {
               "field": "cursor-globs",
@@ -276,12 +299,12 @@
   ],
   "score": {
     "formula": 1,
-    "score": 75,
+    "score": 71,
     "grade": "C",
     "capped": false,
     "categories": {
       "loading": {
-        "errors": 2,
+        "errors": 3,
         "warnings": 1,
         "infos": 0
       },
@@ -318,7 +341,7 @@
       },
       {
         "path": ".claude/skills/Deploy_Prod/SKILL.md",
-        "score": 100
+        "score": 60
       },
       {
         "path": ".cursor/rules/style.md",
@@ -343,7 +366,7 @@
     ]
   },
   "summary": {
-    "errors": 3,
+    "errors": 4,
     "warnings": 1,
     "infos": 0,
     "suppressed": 0
@@ -473,7 +496,7 @@
     {
       "id": "cursor/md-file-ignored",
       "title": "Cursor ignores .md files in .cursor/rules",
-      "rationale": "Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there \"is ignored by the rules system\" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent in Windsurf (now Devin Desktop), does read `.md` files in `.cursor/rules`, so the same file applies in Windsurf and not in Cursor.\n\nA `README.md` in the directory is treated as documentation and is not reported.\n\nRename the file to `.mdc` and add frontmatter, or move plain Markdown instructions to `AGENTS.md`.",
+      "rationale": "Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there \"is ignored by the rules system\" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent of Devin Desktop (formerly Windsurf), does read `.md` files in `.cursor/rules`, so the same file applies in Devin Local and not in Cursor.\n\nA `README.md` in the directory is treated as documentation and is not reported.\n\nRename the file to `.mdc` and add frontmatter, or move plain Markdown instructions to `AGENTS.md`.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -754,7 +777,7 @@
     {
       "id": "instr/empty-file",
       "title": "Instruction file is empty",
-      "rationale": "An instruction file with no content gives agents nothing to follow. Codex skips an empty or whitespace-only `AGENTS.md`. Claude Code strips block-level HTML comments from `CLAUDE.md` before loading it, so a `CLAUDE.md` with only comments is empty for Claude Code. A rule with frontmatter and no body adds no instructions.\n\nAn empty file still has effects: an empty `CLAUDE.md` stops Claude Code from reading `AGENTS.md`. An empty `AGENTS.override.md` next to an `AGENTS.md` is reported by `instr/override-shadows-agents-md` instead.\n\nAdd the instructions or delete the file.",
+      "rationale": "An instruction file with no content gives agents nothing to follow. Codex skips an empty or whitespace-only `AGENTS.md`. Claude Code strips block-level HTML comments from `CLAUDE.md` before loading it, so a `CLAUDE.md` with only comments is empty for Claude Code. A rule with frontmatter and no body adds no instructions.\n\nCline reads every Markdown file in `.clinerules/`, `.cline/rules/` and their `workflows/` folders as a rule or workflow, whatever its name, and drops one that is blank after its frontmatter. It removes the frontmatter of an `AGENTS.md` too, so an `AGENTS.md` with only frontmatter is empty for Cline.\n\nAn empty file still has effects: an empty `CLAUDE.md` stops Claude Code from reading `AGENTS.md`. An empty `AGENTS.override.md` next to an `AGENTS.md` is reported by `instr/override-shadows-agents-md` instead.\n\nAdd the instructions or delete the file.",
       "category": "loading",
       "severity": "warn",
       "appliesTo": [
@@ -767,6 +790,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "cline-workflow",
         "cursor-legacy-rules",
         "copilot-instructions"
       ],
@@ -796,6 +820,18 @@
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline: Rules",
+          "url": "https://docs.cline.bot/customization/cline-rules",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -863,7 +899,7 @@
     {
       "id": "instr/filename-case",
       "title": "Instruction file name has the wrong letter case",
-      "rationale": "Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.\n\nWindsurf's Cascade agent documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Windsurf; other spellings, such as `Agents.md`, are reported.\n\nRename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.",
+      "rationale": "Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.\n\nCascade, the older agent of Devin Desktop (formerly Windsurf), documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.\n\nRename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.",
       "category": "loading",
       "severity": "warn",
       "appliesTo": [
@@ -905,6 +941,12 @@
           "title": "Devin Desktop (Cascade): AGENTS.md (\"Both AGENTS.md and agents.md are recognized\")",
           "url": "https://docs.devin.ai/desktop/cascade/agents-md",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules)",
+          "url": "https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/instructions/user-instructions/cline-rules.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -1149,7 +1191,7 @@
     {
       "id": "instr/vague-directive",
       "title": "Instruction is generic advice that says nothing about the project",
-      "rationale": "Sentences such as \"Follow best practices\" or \"Write clean code\" tell an agent nothing about this project. Claude Code's documentation asks for instructions concrete enough to verify (\"Use 2-space indentation\" instead of \"Format code properly\"). Windsurf's says generic rules like \"write good code\" are already in Cascade's training data, and Cursor's says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.\n\nagentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.\n\nReplace it with the specific command, convention or path you mean, or delete it.",
+      "rationale": "Sentences such as \"Follow best practices\" or \"Write clean code\" tell an agent nothing about this project. Claude Code's documentation asks for instructions concrete enough to verify (\"Use 2-space indentation\" instead of \"Format code properly\"). the documentation of Devin Desktop (formerly Windsurf) says generic rules like \"write good code\" are already in Cascade's training data, and Cursor's says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.\n\nagentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.\n\nReplace it with the specific command, convention or path you mean, or delete it.",
       "category": "clarity",
       "severity": "info",
       "appliesTo": [
@@ -1277,7 +1319,7 @@
     {
       "id": "json/invalid-syntax",
       "title": "Configuration file is not valid JSON",
-      "rationale": "Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.\n\nGemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in every file.\n\nThe finding points at the first syntax error. Fix it and run agentcheckup again.",
+      "rationale": "Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.\n\nGemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in these files.\n\nDevin Local documents comments in `.devin/config.json` and `.devin/config.local.json`, so they are not reported there, but it does not document what it does with a file it cannot parse. Syntax errors in those files, `.devin/mcp_config.json`, `.devin/mcp_config.local.json` and `.devin/hooks.v1.json` are `info` findings.\n\nThe finding points at the first syntax error. Fix it and run agentcheckup again.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -1288,14 +1330,18 @@
         "cursor-hooks",
         "codex-hooks",
         "gemini-settings",
-        "copilot-hooks"
+        "copilot-hooks",
+        "devin-config",
+        "devin-mcp",
+        "devin-hooks"
       ],
       "platforms": [
         "claude-code",
         "codex",
         "cursor",
         "gemini",
-        "copilot"
+        "copilot",
+        "windsurf"
       ],
       "sources": [
         {
@@ -1351,6 +1397,12 @@
           "url": "https://docs.github.com/en/copilot/reference/hooks-reference",
           "checked": "2026-10-17",
           "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Configuration file (JSON with comments)",
+          "url": "https://docs.devin.ai/cli/reference/configuration/config-file",
+          "checked": "2026-10-17",
+          "status": "verified"
         }
       ],
       "since": "2026.10",
@@ -1358,7 +1410,7 @@
         "classes": [
           "review"
         ],
-        "summary": "Deletes the trailing commas and comments (in Gemini CLI settings, which allow comments, only the trailing commas) when they are the only syntax errors. Other syntax errors are left to you."
+        "summary": "Deletes the trailing commas and comments (in Gemini CLI settings and Devin Local config files, which allow comments, only the trailing commas) when they are the only syntax errors. Other syntax errors are left to you."
       }
     },
     {
@@ -1938,7 +1990,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2029,7 +2083,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2069,7 +2125,7 @@
     {
       "id": "skill/description-missing",
       "title": "Skill description is missing or empty",
-      "rationale": "Agents decide when to use a skill by matching the request against its `description`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as `# Deploy` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.\n\nAdd a `description` that says what the skill does and when to use it.",
+      "rationale": "Agents decide when to use a skill by matching the request against its `description`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. Codex also skips one whose `description` is a list or a mapping, and Cline one whose `description` is not text, even a number or a boolean. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as `# Deploy` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.\n\nAdd a `description` that says what the skill does and when to use it.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -2080,7 +2136,8 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "cline"
       ],
       "sources": [
         {
@@ -2093,6 +2150,12 @@
           "title": "Gemini CLI source: skillLoader.ts",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2154,7 +2217,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2238,8 +2303,8 @@
     },
     {
       "id": "skill/duplicate-name",
-      "title": "Two skills in one skills directory have the same name",
-      "rationale": "Agents identify a skill by its `name`, or by its directory name when `name` is missing. When two skills in the same skills directory share a name, Claude Code gives the `/name` command to only one of them, Codex lists both under the same name, Gemini CLI loads only the last one it finds, and GitHub Copilot requires names to be unique.\n\nOnly skills that an agent finds in the same skills directory are compared: Claude Code reads `<root>/<name>/SKILL.md`, Gemini CLI also `<root>/SKILL.md`, and Codex searches the whole tree. GitHub Copilot does not document a depth and is treated like Claude Code. A skill reached through several symlinks counts once.\n\nRename one of the skills.",
+      "title": "Two skills that an agent reads together have the same name",
+      "rationale": "Agents identify a skill by its `name`, or by its directory name when `name` is missing. When two skills that an agent reads together share a name, Claude Code gives the `/name` command to only one of them, Codex lists both under the same name, Gemini CLI and Cline load only the last one they find, and GitHub Copilot requires names to be unique. Cursor and Devin Local identify a skill by its directory and do not document what happens to two skills of one name.\n\nAn agent reads skills together when they are in one of its skills directories, or in two of its skills directories of the same project: Cursor, GitHub Copilot, Devin Local and Cline read both `.claude/skills` and `.agents/skills`, so a skill copied into both is two skills of one name to them. Claude Code reads `<root>/<name>/SKILL.md`, Gemini CLI and Cline also `<root>/SKILL.md`, and Codex and Cursor search the whole tree. GitHub Copilot does not document a depth and is treated like Claude Code. A skill without frontmatter counts under its directory name for the agents that load it so: Claude Code, Cursor, Devin Local and Cline. A skill reached through several symlinks counts once, so a symlink from one skills directory to the other is not reported.\n\nRename one of the skills, or, when they are the same skill, keep one copy and link to it from the other skills directory.",
       "category": "loading",
       "severity": "warn",
       "appliesTo": [
@@ -2248,8 +2313,11 @@
       "platforms": [
         "claude-code",
         "codex",
+        "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2281,6 +2349,24 @@
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
           "checked": "2026-10-14",
           "status": "verified"
+        },
+        {
+          "title": "Cursor: Skills",
+          "url": "https://cursor.com/docs/skills",
+          "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
+          "checked": "2026-10-17",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: unified-config-file-watcher.ts (a later skill with the same name replaces an earlier one)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts",
+          "checked": "2026-10-17",
+          "status": "verified"
         }
       ],
       "since": "2026.10"
@@ -2288,7 +2374,7 @@
     {
       "id": "skill/field-type",
       "title": "Skill frontmatter field has the wrong type or length",
-      "rationale": "The Agent Skills specification gives each optional field a type: `metadata` maps string keys to string values, `compatibility` is text of up to 500 characters, `allowed-tools` is a space-separated string, and `license` is text. Codex cannot read frontmatter whose `metadata` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a `compatibility` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for `allowed-tools`, but the specification defines a space-separated string.\n\nUse the types from the specification, and quote values that YAML would read as numbers or booleans.",
+      "rationale": "The Agent Skills specification gives each optional field a type: `metadata` maps string keys to string values, `compatibility` is text of up to 500 characters, `allowed-tools` is a space-separated string, and `license` is text. Codex cannot read frontmatter whose `metadata` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a `compatibility` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for `allowed-tools`, but the specification defines a space-separated string. Cline turns a skill off with `disabled: true` or `enabled: false`, and skips a skill whose `disabled` or `enabled` is not a boolean, such as `\"false\"` in quotes.\n\nUse the types from the specification, and quote values that YAML would read as numbers or booleans.",
       "category": "correctness",
       "severity": "warn",
       "appliesTo": [
@@ -2296,7 +2382,8 @@
       ],
       "platforms": [
         "claude-code",
-        "codex"
+        "codex",
+        "cline"
       ],
       "sources": [
         {
@@ -2315,6 +2402,12 @@
           "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2401,7 +2494,7 @@
     {
       "id": "skill/frontmatter-invalid",
       "title": "Skill frontmatter is not valid YAML",
-      "rationale": "When the YAML between the `---` lines does not parse, Claude Code loads the skill with no fields set: `/name` works, but Claude cannot match requests against the description. Codex skips the skill, unless quoting values that contain `: ` or start with `[`, `{`, `@` or a backtick makes the YAML parse; it retries once that way. Codex also skips a skill that repeats `name`, `description` or `metadata`. For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject the file.\n\nTOML (`+++`) and `---js` blocks are not frontmatter to any agent: Codex and Gemini CLI skip the skill, and Claude Code reads the block as instructions.\n\nQuote values that contain `: ` or start with a YAML indicator such as `[`, `{`, `@` or a backtick, indent with spaces, and do not repeat keys.",
+      "rationale": "When the YAML between the `---` lines does not parse, Claude Code loads the skill with no fields set: `/name` works, but Claude cannot match requests against the description. Codex skips the skill, unless quoting values that contain `: ` or start with `[`, `{`, `@` or a backtick makes the YAML parse; it retries once that way. Codex also skips a skill that repeats `name`, `description` or `metadata`. For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject the file.\n\nCline skips a skill whose YAML does not parse, and one that repeats any key, without a retry.\n\nTOML (`+++`) and `---js` blocks are not frontmatter to any agent: Codex and Gemini CLI skip the skill, and Claude Code reads the block as instructions.\n\nQuote values that contain `: ` or start with a YAML indicator such as `[`, `{`, `@` or a backtick, indent with spaces, and do not repeat keys.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -2412,7 +2505,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2431,6 +2526,12 @@
           "title": "Gemini CLI source: skillLoader.ts",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2506,7 +2607,7 @@
     {
       "id": "skill/name-dir-mismatch",
       "title": "Skill name does not match its directory name",
-      "rationale": "The Agent Skills specification, Cursor and GitHub Copilot in VS Code require `name` to equal the name of the directory that contains SKILL.md, and VS Code does not load a skill whose name does not match. The skills-ref validator compares both after NFKC normalization and rejects a mismatch, and the Claude API (with `skills-2025-10-02`) requires uploaded files to sit in a directory named after the skill. Claude Code and Codex do not require a match.\n\nOnly the agents that load the skill where it is count, so a skill in a plugin is judged by the plugin's agents. A SKILL.md at a plugin root is exempt, because there `name` deliberately differs from the plugin directory. The specification and upload requirements count only for skills that are installed or uploaded on their own.\n\nRename the directory or change `name` so that they match.",
+      "rationale": "The Agent Skills specification, Cursor, Cline and GitHub Copilot in VS Code require `name` to equal the name of the directory that contains SKILL.md, and VS Code does not load a skill whose name does not match. The skills-ref validator compares both after NFKC normalization and rejects a mismatch, and the Claude API (with `skills-2025-10-02`) requires uploaded files to sit in a directory named after the skill. Claude Code and Codex do not require a match.\n\nOnly the agents that load the skill where it is count, so a skill in a plugin is judged by the plugin's agents. A SKILL.md at a plugin root is exempt, because there `name` deliberately differs from the plugin directory. The specification and upload requirements count only for skills that are installed or uploaded on their own.\n\nRename the directory or change `name` so that they match.",
       "category": "correctness",
       "severity": "error",
       "appliesTo": [
@@ -2515,7 +2616,8 @@
       "platforms": [
         "claude-code",
         "cursor",
-        "copilot"
+        "copilot",
+        "cline"
       ],
       "sources": [
         {
@@ -2534,6 +2636,12 @@
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline: Skills",
+          "url": "https://docs.cline.bot/customization/skills",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2567,7 +2675,7 @@
     {
       "id": "skill/name-format",
       "title": "Skill name does not follow the Agent Skills naming rules",
-      "rationale": "The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in `name`, with no hyphen at the start or end and no `--`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, `<` or `>`, so typing the name does not invoke the skill.\n\nFor a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject a name that breaks these rules, and claude.ai upload rejects one with other characters or more than 64. skills-ref accepts non-ASCII lowercase letters, but the packager accepts only `a-z`, `0-9` and `-`.\n\nRename the skill to lowercase ASCII words joined by single hyphens, and rename its directory to match.",
+      "rationale": "The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in `name`, with no hyphen at the start or end and no `--`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, `<` or `>`, so typing the name does not invoke the skill. Codex skips a skill whose `name` is a list or a mapping, and Cline one whose `name` is not text, even a number or a boolean.\n\nFor a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject a name that breaks these rules, and claude.ai upload rejects one with other characters or more than 64. skills-ref accepts non-ASCII lowercase letters, but the packager accepts only `a-z`, `0-9` and `-`.\n\nRename the skill to lowercase ASCII words joined by single hyphens, and rename its directory to match.",
       "category": "correctness",
       "severity": "error",
       "appliesTo": [
@@ -2577,7 +2685,8 @@
         "claude-code",
         "codex",
         "cursor",
-        "copilot"
+        "copilot",
+        "cline"
       ],
       "sources": [
         {
@@ -2596,6 +2705,12 @@
           "title": "Codex source: SKILL.md frontmatter parser (parser.rs)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2641,7 +2756,7 @@
     {
       "id": "skill/name-missing",
       "title": "Skill name is missing or empty",
-      "rationale": "The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require a `name` field. Gemini CLI skips a SKILL.md whose frontmatter has no `name`, and loads a skill whose `name` is empty under an empty name. Claude Code and Codex fall back to the directory name, so the skill works there but not in the agents that require the field.\n\nAdd `name` with the directory name, in lowercase letters, digits and hyphens.",
+      "rationale": "The Agent Skills specification, Cursor, GitHub Copilot, Cline and the Claude API require a `name` field. Gemini CLI skips a SKILL.md whose frontmatter has no `name`, and loads a skill whose `name` is empty under an empty name. Claude Code, Codex and Devin Local fall back to the directory name, so the skill works there but not in the agents that require the field.\n\nAdd `name` with the directory name, in lowercase letters, digits and hyphens.",
       "category": "portability",
       "severity": "error",
       "appliesTo": [
@@ -2651,7 +2766,8 @@
         "claude-code",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "cline"
       ],
       "sources": [
         {
@@ -2670,6 +2786,12 @@
           "title": "GitHub Copilot: Add skills",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Cline: Skills",
+          "url": "https://docs.cline.bot/customization/skills",
+          "checked": "2026-10-17",
           "status": "verified"
         },
         {
@@ -2694,6 +2816,12 @@
           "title": "Codex source: skill loader (default name from the directory)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2748,7 +2876,7 @@
     {
       "id": "skill/non-portable-field",
       "title": "Skill frontmatter uses a field outside the Agent Skills specification",
-      "rationale": "The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, and GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`.\n\nFor a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.\n\nKeep extension fields in skills that only their agents load, and move your own data under `metadata`.",
+      "rationale": "The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`, Devin Local documents `argument-hint`, `model` and `agent` among others, and Cline documents none.\n\nFor a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.\n\nKeep extension fields in skills that only their agents load, and move your own data under `metadata`.",
       "category": "portability",
       "severity": "warn",
       "appliesTo": [
@@ -2759,7 +2887,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {
@@ -2796,6 +2926,18 @@
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
           "checked": "2026-10-14",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
+          "checked": "2026-10-17",
+          "status": "verified"
+        },
+        {
+          "title": "Cline: Skills",
+          "url": "https://docs.cline.bot/customization/skills",
+          "checked": "2026-10-17",
           "status": "verified"
         }
       ],
@@ -2849,7 +2991,9 @@
         "codex",
         "cursor",
         "copilot",
-        "gemini"
+        "gemini",
+        "windsurf",
+        "cline"
       ],
       "sources": [
         {

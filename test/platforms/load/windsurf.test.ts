@@ -529,12 +529,14 @@ describe('loadWindsurf: hooks', () => {
       expect(hook.inventoryId).toBe(hook.id);
       expect(inventory.hooks.map((item) => item.id)).toContain(hook.inventoryId);
     }
+    // hooks/unknown-event reports an event Devin Local does not fire in its own files.
     expect(skips(plan)).toEqual([
       '.claude/settings.json not-read - unverified',
       '.devin/hooks.json not-read - unverified',
-      '.devin/hooks.v1.json unknown-event - unverified',
+      '.devin/hooks.v1.json unknown-event hooks/unknown-event documented',
     ]);
     expect(plan.skipped.map((s) => s.name)).toEqual(['Notification', undefined, 'BeforeCommit']);
+    expectSkipsReported(built);
     expect(plan.assumptions).toContainEqual({
       key: 'devin.restrictedMode',
       value: false,
@@ -745,7 +747,7 @@ describe('loadWindsurf: the devin fixture', () => {
       'rule:.devin/rules/untriggered.md unknown unverified',
     ]);
     expect(skips(plan)).toEqual([
-      '.devin/hooks.v1.json unknown-event - unverified',
+      '.devin/hooks.v1.json unknown-event hooks/unknown-event documented',
       '.devin/mcp_config.json disabled - documented',
       '.github/skills/triage/SKILL.md disabled - documented',
       '.windsurf/global_rules.md shadowed-by-preferred - documented',
@@ -771,7 +773,7 @@ describe('loadWindsurf: the devin fixture', () => {
     const plans = matrixPlans(analysis, { agents: CONTEXT_AGENTS, config: analysis.config });
     const report = checkConsistency({ findings, plans, view: analysis });
     expect(report.mismatches).toEqual([]);
-    expect(report.allowed['skip-without-rule']).toBe(1);
+    expect(report.allowed['skip-without-rule']).toBeUndefined();
     const column = CONTEXT_AGENTS.indexOf('windsurf');
     const cells = buildMatrix(analysis, plans, CONTEXT_AGENTS).rows.map(
       (row) => `${row.path} ${row.cells[column] ?? ''}`,

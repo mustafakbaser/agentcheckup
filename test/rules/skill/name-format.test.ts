@@ -105,6 +105,37 @@ describe('skill/name-format', () => {
     expect(check('{a: b}')[0]?.message).toContain('is a map');
   });
 
+  it('reports to Cline a name that is not text, a number or a boolean included', () => {
+    const run = (name: string, path: string, body = 'Steps.\n') =>
+      lint(
+        { [path]: `---\nname: ${name}\ndescription: Deploys.\n---\n${body}` },
+        { rules: [nameFormatRule] },
+      ).findings.map((f) => [f.severity, f.platforms, f.message]);
+    expect(run('[a, b]', '.agents/skills/x/SKILL.md')).toEqual([
+      [
+        'error',
+        ['codex', 'cline'],
+        '`name` is a list, not text. Codex and Cline cannot read the frontmatter and skip the skill.',
+      ],
+    ]);
+    expect(run('42', '.claude/skills/x/SKILL.md')).toEqual([
+      [
+        'error',
+        ['cline'],
+        '`name` is a number, not text. Cline cannot read the frontmatter and skips the skill.',
+      ],
+    ]);
+    // Cline drops a skill without a body first, and does not read .cursor/skills.
+    expect(run('42', '.claude/skills/x/SKILL.md', '')).toEqual([]);
+    expect(run('true', '.cursor/skills/x/SKILL.md')).toEqual([]);
+    expect(
+      lint(
+        { '.claude/skills/x/SKILL.md': '---\nname: 42\ndescription: x\n---\nSteps.\n' },
+        { rules: [nameFormatRule], targets: ['claude-code', 'codex'] },
+      ).findings,
+    ).toEqual([]);
+  });
+
   it('does not report valid names or values handled elsewhere', () => {
     for (const name of [
       'deploy',

@@ -1,5 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { dirnamePosix } from '../../core/paths.js';
+import { clinePlace } from '../../platforms/cline-rules.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quote } from '../shared/format.js';
@@ -27,7 +28,7 @@ export const filenameCaseRule = defineRule({
     title: 'Instruction file name has the wrong letter case',
     rationale: [
       'Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.',
-      "Windsurf's Cascade agent documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Windsurf; other spellings, such as `Agents.md`, are reported.",
+      'Cascade, the older agent of Devin Desktop (formerly Windsurf), documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.',
       'Rename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.',
     ].join('\n\n'),
     category: 'loading',
@@ -39,6 +40,7 @@ export const filenameCaseRule = defineRule({
       SOURCES.claudeMemory,
       SOURCES.geminiMd,
       INSTRUCTION_SOURCES.cascadeAgentsMd,
+      SOURCES.clineRulesSource,
     ],
     since: RULESET_VERSION,
   },
@@ -48,8 +50,12 @@ export const filenameCaseRule = defineRule({
       if (artifact.caseMismatch === undefined) continue;
       // Cascade documents exactly two spellings, AGENTS.md and agents.md.
       const documentedForCascade = basename(artifact.path) === 'agents.md';
+      // In a folder of Cline's, the file is a rule or workflow to Cline, or nothing it reads.
+      const clineFolder = clinePlace(artifact.path) !== undefined;
       const platforms = targetedReaders(context, artifact).filter(
-        (platform) => !(documentedForCascade && platform === 'windsurf'),
+        (platform) =>
+          !(documentedForCascade && platform === 'windsurf') &&
+          !(clineFolder && platform === 'cline'),
       );
       if (platforms.length === 0) continue;
       const name = quote(basename(artifact.path));

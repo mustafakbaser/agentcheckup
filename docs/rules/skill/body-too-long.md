@@ -4,14 +4,14 @@
 
 Skill body is longer than recommended.
 
-|            |                                                        |
-| ---------- | ------------------------------------------------------ |
-| Severity   | `info`                                                 |
-| Category   | `budget`                                               |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
-| Applies to | `skill`                                                |
-| Fixable    | Yes, `review`                                          |
-| Since      | 2026.10                                                |
+|            |                                                                            |
+| ---------- | -------------------------------------------------------------------------- |
+| Severity   | `info`                                                                     |
+| Category   | `budget`                                                                   |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline |
+| Applies to | `skill`                                                                    |
+| Fixable    | Yes, `review`                                                              |
+| Since      | 2026.10                                                                    |
 
 ## Why
 

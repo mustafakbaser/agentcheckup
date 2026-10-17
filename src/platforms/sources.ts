@@ -349,6 +349,16 @@ export const SOURCES = {
     'https://docs.devin.ai/cli/extensibility/skills/overview',
     COVERAGE_CHECKED,
   ),
+  devinCliSkillsCreate: verified(
+    'Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)',
+    'https://docs.devin.ai/cli/extensibility/skills/creating-skills',
+    COVERAGE_CHECKED,
+  ),
+  devinCliConfigFile: verified(
+    'Devin CLI: Configuration file (JSON with comments)',
+    'https://docs.devin.ai/cli/reference/configuration/config-file',
+    COVERAGE_CHECKED,
+  ),
   devinCliHooks: verified(
     'Devin CLI: Hooks',
     'https://docs.devin.ai/cli/extensibility/hooks/overview',
@@ -403,6 +413,11 @@ export const SOURCES = {
   clinePathsSource: verified(
     'Cline source: storage/paths.ts (rule folders, root AGENTS.md, workflow folders)',
     'https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts',
+    COVERAGE_CHECKED,
+  ),
+  clineConfigWatcherSource: verified(
+    'Cline source: unified-config-file-watcher.ts (a later skill with the same name replaces an earlier one)',
+    'https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts',
     COVERAGE_CHECKED,
   ),
   agentsMd: verified('AGENTS.md open format', 'https://agents.md/'),

@@ -67,7 +67,7 @@ describe('instr/encoding', () => {
     expect(findings(result, RULE).map((finding) => [finding.severity, finding.message])).toEqual([
       [
         'info',
-        'This file is encoded as UTF-16 (little-endian). Claude Code, GitHub Copilot, Cursor and Windsurf do not document UTF-16 support; save it as UTF-8.',
+        'This file is encoded as UTF-16 (little-endian). Claude Code, GitHub Copilot, Cursor and Devin Local do not document UTF-16 support; save it as UTF-8.',
       ],
     ]);
   });

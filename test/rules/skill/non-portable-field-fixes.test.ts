@@ -128,7 +128,7 @@ describe('skill/non-portable-field fixes', () => {
       expect(remove).toMatchObject({
         title: `Remove "argument-hint", "paths" and "user-invocable" from ${DISTRIBUTABLE}`,
         notes: [
-          'Without "argument-hint", Claude Code and GitHub Copilot show no hint for the arguments when the skill is typed as a / command.',
+          'Without "argument-hint", Claude Code, GitHub Copilot and Devin Local show no hint for the arguments when the skill is typed as a / command.',
           'Without "paths", Claude Code and Cursor apply the skill to every file, not only to files that match its patterns.',
           'Without "user-invocable", Claude Code and GitHub Copilot list the skill in the / menu and run it when a user types its command.',
         ],
@@ -141,10 +141,10 @@ describe('skill/non-portable-field fixes', () => {
     it('names the readers of one documented field in the question', () => {
       const fix = fixOf(DISTRIBUTABLE, skill('model: opus\n'));
       expect(fix?.input?.question).toBe(
-        `"model" is not an Agent Skills field: Claude Code reads it, but ${REJECTED}. Keep it and record why?`,
+        `"model" is not an Agent Skills field: Claude Code and Devin Local read it, but ${REJECTED}. Keep it and record why?`,
       );
       expect(fix?.alternatives?.[0]?.notes).toEqual([
-        'Without "model", Claude Code runs the skill with the session\'s model.',
+        'Without "model", Claude Code and Devin Local run the skill with the session\'s model.',
       ]);
     });
 
@@ -180,7 +180,7 @@ describe('skill/non-portable-field fixes', () => {
       expect(fix?.input).toEqual({
         field: 'suppression-reason',
         question:
-          '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor. Keep it and record why?',
+          '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor, Devin Local and Cline. Keep it and record why?',
         label: 'a reason to keep "user-invocable"',
         target: { kind: 'directive', path: CLAUDE, line: 4, ruleId: ID },
       });
@@ -377,7 +377,7 @@ describe('#keep', () => {
     expect(result).toEqual({
       ok: false,
       message:
-        '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor, so the agents that load this skill treat it differently.',
+        '"user-invocable" is a documented skill field in Claude Code and GitHub Copilot but not in Cursor, Devin Local and Cline, so the agents that load this skill treat it differently.',
     });
     const written = applied(CLAUDE, skill('user-invocable: false\n'), completed);
     const scanned = lint(
@@ -403,6 +403,6 @@ describe('field effects', () => {
       .filter(([, effect]) => !effect.removable)
       .map(([key]) => key)
       .sort();
-    expect(kept).toEqual(['disable-model-invocation', 'disallowed-tools', 'hooks']);
+    expect(kept).toEqual(['agent', 'disable-model-invocation', 'disallowed-tools', 'hooks']);
   });
 });

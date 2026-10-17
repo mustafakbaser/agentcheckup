@@ -874,7 +874,7 @@ describe('permissions', () => {
         broad: true,
         effective: false,
         line: 4,
-        platforms: ['claude-code', 'codex', 'copilot', 'cursor', 'gemini'],
+        platforms: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
       },
     ]);
   });

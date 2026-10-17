@@ -43,13 +43,17 @@ export function quotePath(path: string): string {
   return quote(path, MAX_QUOTED_PATH_LENGTH);
 }
 
+/**
+ * Each platform's name in messages. `windsurf` is named after its agent, Devin Local, the default
+ * agent of Devin Desktop (formerly Windsurf), as AGENT_NAMES names it.
+ */
 const PLATFORM_NAMES: Readonly<Record<PlatformId, string>> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor',
   copilot: 'GitHub Copilot',
   gemini: 'Gemini CLI',
-  windsurf: 'Windsurf',
+  windsurf: AGENT_NAMES.windsurf,
   cline: 'Cline',
 };
 
@@ -69,9 +73,9 @@ export function platformList(platforms: readonly PlatformId[]): string {
 }
 
 /**
- * Who reads a platform's files, by name: its agent when it has one, such as Devin Local for
- * `windsurf` (AGENT_NAMES), and the platform when several agents share it, such as GitHub
- * Copilot for its CLI, VS Code and cloud agent.
+ * Who reads a platform's files, by name: its agent when it has one (AGENT_NAMES), and the
+ * platform when several agents share it, such as GitHub Copilot for its CLI, VS Code and cloud
+ * agent.
  */
 export function readerName(platform: PlatformId): string {
   const agents = ALL_CONTEXT_AGENTS.filter((agent) => CONTEXT_PLATFORM[agent] === platform);

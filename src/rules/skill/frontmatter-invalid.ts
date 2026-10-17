@@ -11,7 +11,7 @@ import {
 import { geminiSkipReasons, type GeminiSkipReason } from '../../platforms/gemini-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
-import { joinClauses, platformsDo, quote, sentence } from '../shared/format.js';
+import { joinClauses, platformList, platformsDo, quote, sentence } from '../shared/format.js';
 import { claudeCodeRepair, parsesAsFrontmatter } from './repair.js';
 import {
   type Impact,
@@ -90,21 +90,35 @@ function unsupportedProblem(scope: SkillScope, artifact: Artifact, result: Unsup
   };
 }
 
+/**
+ * `['cline']` when Cline is targeted and loads the skill from its location: its YAML parser
+ * rejects the file.
+ */
+function clineSkipping(scope: SkillScope, artifact: Artifact): ReturnType<typeof reached> {
+  return scope.targets.has('cline') ? reached(scope, artifact, ['cline']) : [];
+}
+
 function duplicateProblem(
   scope: SkillScope,
   artifact: Artifact,
   issue: ParseIssue,
   key: string,
 ): Problem {
-  if (codexRejectsDuplicate(key) && reached(scope, artifact, ['codex']).length > 0) {
+  // Codex rejects a repeated field it reads; Cline's YAML parser rejects any repeated key.
+  const skipping = [
+    ...(codexRejectsDuplicate(key) ? reached(scope, artifact, ['codex']) : []),
+    ...clineSkipping(scope, artifact),
+  ];
+  if (skipping.length > 0) {
+    const one = skipping.length === 1;
     return {
       message: withClauses(`The frontmatter repeats ${quote(key)}.`, [
-        'Codex rejects a repeated field and skips the skill',
+        `${platformList(skipping)} ${one ? 'rejects' : 'reject'} a repeated field and ${one ? 'skips' : 'skip'} the skill`,
         isDistributable(scope, artifact)
           ? 'the skills-ref validator rejects duplicate keys'
           : undefined,
       ]),
-      impacts: [{ platform: 'codex', severity: 'error' }, VALIDATORS],
+      impacts: [...impactsOn(skipping, 'error'), VALIDATORS],
       span: issue.span,
       guidance: `keep one ${quote(key)} line and delete the others`,
     };
@@ -130,14 +144,16 @@ function syntaxProblem(scope: SkillScope, artifact: Artifact, issue: ParseIssue)
     clauses.push('Claude Code loads the skill with no fields set');
     impacts.push({ platform: 'claude-code', severity: 'error' });
   }
-  if (reached(scope, artifact, ['codex']).length > 0) {
-    if (codexRecovers) {
-      clauses.push('Codex quotes the value and loads the skill');
-    } else {
-      clauses.push('Codex skips the skill');
-      impacts.push({ platform: 'codex', severity: 'error' });
-    }
-  }
+  // Codex retries once with quoted values; Cline does not.
+  const codex = reached(scope, artifact, ['codex']).length > 0;
+  if (codex && codexRecovers) clauses.push('Codex quotes the value and loads the skill');
+  const skipping = [
+    ...(codex && !codexRecovers ? ['codex' as const] : []),
+    ...clineSkipping(scope, artifact),
+  ];
+  const skips = platformsDo(skipping, SKIP, 'the skill');
+  if (skips !== undefined) clauses.push(skips);
+  impacts.push(...impactsOn(skipping, 'error'));
   if (isDistributable(scope, artifact)) clauses.push(VALIDATORS_REJECT);
   return {
     message: withClauses(`The frontmatter is not valid YAML (${reason(issue)}).`, clauses),
@@ -186,6 +202,8 @@ export const frontmatterInvalidRule = defineRule({
     title: 'Skill frontmatter is not valid YAML',
     rationale: `When the YAML between the \`---\` lines does not parse, Claude Code loads the skill with no fields set: \`/name\` works, but Claude cannot match requests against the description. Codex skips the skill, unless quoting values that contain \`: \` or start with \`[\`, \`{\`, \`@\` or a backtick makes the YAML parse; it retries once that way. Codex also skips a skill that repeats \`name\`, \`description\` or \`metadata\`. For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject the file.
 
+Cline skips a skill whose YAML does not parse, and one that repeats any key, without a retry.
+
 TOML (\`+++\`) and \`---js\` blocks are not frontmatter to any agent: Codex and Gemini CLI skip the skill, and Claude Code reads the block as instructions.
 
 Quote values that contain \`: \` or start with a YAML indicator such as \`[\`, \`{\`, \`@\` or a backtick, indent with spaces, and do not repeat keys.`,
@@ -197,6 +215,7 @@ Quote values that contain \`: \` or start with a YAML indicator such as \`[\`, \
       SOURCES.claudeSkills,
       SKILL_SOURCES.codexSkillParser,
       SKILL_SOURCES.geminiSkillLoader,
+      SOURCES.clineInstructionLoaderSource,
       SOURCES.skillsRefValidator,
       SKILL_SOURCES.anthropicsSkillValidator,
       SKILL_SOURCES.strictYaml,

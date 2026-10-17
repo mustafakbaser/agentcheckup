@@ -2,6 +2,7 @@ import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix, Span } from '../../core/types.js';
 import { yamlReplaceValue } from '../../fix/index.js';
+import { clineRead } from '../../platforms/cline-skills.js';
 import { codexRejectsMetadata } from '../../platforms/codex-skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
@@ -158,6 +159,18 @@ function allowedToolsProblem(value: unknown): Problem | undefined {
   };
 }
 
+/**
+ * `disabled` or `enabled` that is not a boolean, when it is the reason Cline drops the skill
+ * (`flag`, from clineRead).
+ */
+function clineFlagProblem(key: string, value: unknown): Problem {
+  return {
+    message: `\`${key}\` is ${describeType(value)}, not a boolean. Cline cannot read the frontmatter and skips the skill.`,
+    impacts: [{ platform: 'cline', severity: 'error' }],
+    guidance: `write "${key}" as true or false, without quotes`,
+  };
+}
+
 function licenseProblem(value: unknown): Problem | undefined {
   if (value === null || typeof value === 'string') return undefined;
   return {
@@ -171,17 +184,18 @@ export const fieldTypeRule = defineRule({
   meta: {
     id: 'skill/field-type',
     title: 'Skill frontmatter field has the wrong type or length',
-    rationale: `The Agent Skills specification gives each optional field a type: \`metadata\` maps string keys to string values, \`compatibility\` is text of up to 500 characters, \`allowed-tools\` is a space-separated string, and \`license\` is text. Codex cannot read frontmatter whose \`metadata\` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a \`compatibility\` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for \`allowed-tools\`, but the specification defines a space-separated string.
+    rationale: `The Agent Skills specification gives each optional field a type: \`metadata\` maps string keys to string values, \`compatibility\` is text of up to 500 characters, \`allowed-tools\` is a space-separated string, and \`license\` is text. Codex cannot read frontmatter whose \`metadata\` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a \`compatibility\` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for \`allowed-tools\`, but the specification defines a space-separated string. Cline turns a skill off with \`disabled: true\` or \`enabled: false\`, and skips a skill whose \`disabled\` or \`enabled\` is not a boolean, such as \`"false"\` in quotes.
 
 Use the types from the specification, and quote values that YAML would read as numbers or booleans.`,
     category: 'correctness',
     severity: 'warn',
     appliesTo: ['skill'],
-    platforms: ['claude-code', 'codex'],
+    platforms: ['claude-code', 'codex', 'cline'],
     sources: [
       SOURCES.agentSkillsSpec,
       SOURCES.claudeSkills,
       SKILL_SOURCES.codexSkillParser,
+      SOURCES.clineInstructionLoaderSource,
       SOURCES.skillsRefValidator,
       SKILL_SOURCES.anthropicsSkillValidator,
     ],
@@ -200,12 +214,21 @@ Use the types from the specification, and quote values that YAML would read as n
       const { data } = frontmatter;
       const distributable = isDistributable(context, artifact);
       const codex = reached(context, artifact, ['codex']).length > 0;
+      // Cline drops a skill whose `disabled` or `enabled` is not a boolean, unless it dropped
+      // the skill for an earlier reason.
+      const cline =
+        context.targets.has('cline') && reached(context, artifact, ['cline']).length > 0
+          ? clineRead(artifact.decoded.text, frontmatter, 'skill')
+          : undefined;
+      const flag =
+        cline?.kind === 'skipped' && cline.reason === 'flag-type' ? cline.field : undefined;
       const checks: [string, (value: unknown) => Problem | undefined][] = [
         ['metadata', (value) => metadataProblem(value, codex, distributable)],
         ['compatibility', compatibilityProblem],
         ['allowed-tools', allowedToolsProblem],
         ['license', licenseProblem],
       ];
+      if (flag !== undefined) checks.push([flag, (value) => clineFlagProblem(flag, value)]);
       for (const [key, test] of checks) {
         if (!data.keys.includes(key)) continue;
         const problem = test(data.values[key]);

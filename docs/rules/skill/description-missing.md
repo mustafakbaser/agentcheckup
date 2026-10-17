@@ -4,18 +4,18 @@
 
 Skill description is missing or empty.
 
-|            |                                                        |
-| ---------- | ------------------------------------------------------ |
-| Severity   | `error`                                                |
-| Category   | `loading`                                              |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
-| Applies to | `skill`                                                |
-| Fixable    | Yes, `review` or `input`                               |
-| Since      | 2026.10                                                |
+|            |                                                               |
+| ---------- | ------------------------------------------------------------- |
+| Severity   | `error`                                                       |
+| Category   | `loading`                                                     |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Cline |
+| Applies to | `skill`                                                       |
+| Fixable    | Yes, `review` or `input`                                      |
+| Since      | 2026.10                                                       |
 
 ## Why
 
-Agents decide when to use a skill by matching the request against its `description`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as `# Deploy` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.
+Agents decide when to use a skill by matching the request against its `description`. Codex skips a skill whose description is missing or empty, and Gemini CLI skips one without the key. Codex also skips one whose `description` is a list or a mapping, and Cline one whose `description` is not text, even a number or a boolean. When the key is omitted, Claude Code uses the first non-empty line of the body instead, so a heading such as `# Deploy` becomes the text Claude matches requests against; its documentation does not cover an empty value. The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require the field.
 
 Add a `description` that says what the skill does and when to use it.
 
@@ -23,6 +23,7 @@ Add a `description` that says what the skill does and when to use it.
 
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
 - [Gemini CLI source: skillLoader.ts](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-14
+- [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-17
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14

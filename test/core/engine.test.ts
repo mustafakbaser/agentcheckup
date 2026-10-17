@@ -101,7 +101,7 @@ describe('buildArtifacts', () => {
     const artifacts = buildArtifacts({ ...snapshot, files }, EMPTY_CONFIG);
     expect(artifacts.map((artifact) => [artifact.path, artifact.kind, artifact.readers])).toEqual([
       ['CLAUDE.md', 'claude-md', ['claude-code', 'copilot', 'cursor', 'windsurf']],
-      ['README.md', 'imported-file', ['claude-code', 'gemini']],
+      ['README.md', 'imported-file', ['claude-code', 'copilot', 'gemini']],
       [
         'x/AGENTS.md',
         'agents-md',

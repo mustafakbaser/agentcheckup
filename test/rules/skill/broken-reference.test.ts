@@ -25,7 +25,7 @@ describe('skill/broken-reference', () => {
     expect(check('See [the API](references/api.md) for details.\n')).toEqual([
       {
         severity: 'error',
-        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'],
+        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'windsurf', 'cline'],
         message:
           'Linked file "references/api.md" does not exist, so an agent that follows the link finds nothing.',
         range: { start: { line: 5, column: 5 }, end: { line: 5, column: 33 } },
@@ -78,7 +78,7 @@ describe('skill/broken-reference', () => {
     expect(check('[style](../shared/style.md)\n', { paths: ['skills/shared/style.md'] })).toEqual([
       {
         severity: 'warn',
-        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'],
+        platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'windsurf', 'cline'],
         message:
           'Link "../shared/style.md" leaves the skill directory, so it breaks when the skill is installed or uploaded on its own.',
         range: { start: { line: 5, column: 1 }, end: { line: 5, column: 28 } },

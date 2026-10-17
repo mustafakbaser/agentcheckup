@@ -58,8 +58,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'cline-rule': ['cline'],
   'cline-workflow': ['cline'],
   // Not a location the classifier matches: a file an instruction file imports (`@README.md`),
-  // which the two agents that expand imports load. See SourceFile.imported.
-  'imported-file': ['claude-code', 'gemini'],
+  // which the agents that expand imports load: Claude Code, Gemini CLI and the Copilot CLI
+  // (src/io/imports.ts). See SourceFile.imported.
+  'imported-file': ['claude-code', 'copilot', 'gemini'],
 };
 
 export interface Classification {

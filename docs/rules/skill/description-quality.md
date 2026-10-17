@@ -4,14 +4,14 @@
 
 Skill description is too short or does not say when to use it.
 
-|            |                                                        |
-| ---------- | ------------------------------------------------------ |
-| Severity   | `info`                                                 |
-| Category   | `clarity`                                              |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
-| Applies to | `skill`                                                |
-| Fixable    | Yes, `input`                                           |
-| Since      | 2026.10                                                |
+|            |                                                                            |
+| ---------- | -------------------------------------------------------------------------- |
+| Severity   | `info`                                                                     |
+| Category   | `clarity`                                                                  |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline |
+| Applies to | `skill`                                                                    |
+| Fixable    | Yes, `input`                                                               |
+| Since      | 2026.10                                                                    |
 
 ## Why
 

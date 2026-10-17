@@ -134,7 +134,7 @@ describe('loadCline: the workspace fixture', () => {
     ]);
     expect(skips(plan)).toEqual([
       '.agents/skills/team/deep/SKILL.md not-read - source-code',
-      '.cline/skills/broken/SKILL.md invalid-frontmatter - source-code',
+      '.cline/skills/broken/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
       '.clinerules/blank.md blank-file instr/empty-file source-code',
       '.clinerules/never.md never-active - documented',
       'packages/api/AGENTS.md not-read - source-code',
@@ -302,8 +302,10 @@ describe('loadCline: rules', () => {
       '2 rule:.clinerules/README.md startup documented',
       '3 rule:.clinerules/SKILL.md startup documented',
     ]);
-    // instr/empty-file judges .clinerules/CLAUDE.md as a CLAUDE.md, not for Cline.
-    expect(skips(built.plan)).toEqual(['.clinerules/CLAUDE.md blank-file - source-code']);
+    // instr/empty-file names Cline for a blank file in its rules folder, whatever its name.
+    expect(skips(built.plan)).toEqual([
+      '.clinerules/CLAUDE.md blank-file instr/empty-file source-code',
+    ]);
     expectSkipsReported(built);
   });
 
@@ -357,9 +359,10 @@ describe('loadCline: instructions', () => {
     const blank = build({ 'AGENTS.md': ' \n' });
     expect(skips(blank.plan)).toEqual(['AGENTS.md blank-file instr/empty-file source-code']);
     expectSkipsReported(blank);
-    // The SDK strips frontmatter from AGENTS.md too; instr/empty-file does not.
+    // The SDK strips frontmatter from AGENTS.md too, and instr/empty-file reports it for Cline.
     const frontmatter = build({ 'AGENTS.md': FRONTMATTER('name: x', '') });
-    expect(skips(frontmatter.plan)).toEqual(['AGENTS.md blank-file - source-code']);
+    expect(skips(frontmatter.plan)).toEqual(['AGENTS.md blank-file instr/empty-file source-code']);
+    expectSkipsReported(frontmatter);
   });
 
   it('reads .cursorrules and .windsurfrules at the workspace root only, by exact name', () => {
@@ -452,24 +455,49 @@ describe('loadCline: skills', () => {
   });
 
   it('skips skills the SDK rejects: bad YAML, fields of the wrong type, no body', () => {
-    const { plan } = build({
+    const built = build({
       '.cline/skills/yaml/SKILL.md': FRONTMATTER('name: [x'),
+      '.cline/skills/twice/SKILL.md': FRONTMATTER('description: x\nlicense: a\nlicense: b'),
       '.cline/skills/name/SKILL.md': FRONTMATTER('name: [a, b]\ndescription: x'),
+      '.cline/skills/number/SKILL.md': FRONTMATTER('name: 3\ndescription: x'),
       '.cline/skills/desc/SKILL.md': FRONTMATTER('description: 3'),
       '.cline/skills/flag/SKILL.md': FRONTMATTER('description: x\ndisabled: "yes"'),
+      '.cline/skills/on/SKILL.md': FRONTMATTER('description: x\nenabled: "no"'),
       '.cline/skills/empty/SKILL.md': FRONTMATTER('description: x', '\n'),
       '.cline/skills/list/SKILL.md': FRONTMATTER('- a\n- b'),
+      // The SDK reads `enabled` only when `disabled` is not set.
+      '.cline/skills/both/SKILL.md': FRONTMATTER('description: x\ndisabled: false\nenabled: 1'),
     });
+    const { plan } = built;
+    // Each skip cites the rule that reports the first problem the SDK meets.
     expect(skips(plan)).toEqual([
-      '.cline/skills/desc/SKILL.md invalid-frontmatter - source-code',
+      '.cline/skills/desc/SKILL.md invalid-frontmatter skill/description-missing source-code',
       '.cline/skills/empty/SKILL.md blank-file - source-code',
-      '.cline/skills/flag/SKILL.md invalid-frontmatter - source-code',
-      '.cline/skills/name/SKILL.md invalid-frontmatter - source-code',
-      '.cline/skills/yaml/SKILL.md invalid-frontmatter - source-code',
+      '.cline/skills/flag/SKILL.md invalid-frontmatter skill/field-type source-code',
+      '.cline/skills/name/SKILL.md invalid-frontmatter skill/name-format source-code',
+      '.cline/skills/number/SKILL.md invalid-frontmatter skill/name-format source-code',
+      '.cline/skills/on/SKILL.md invalid-frontmatter skill/field-type source-code',
+      '.cline/skills/twice/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
+      '.cline/skills/yaml/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
     ]);
+    expectSkipsReported(built);
     // YAML that is not a mapping gives the SDK no fields: the skill is named after its folder.
-    expect(summary(plan)).toEqual(['1 skill:.cline/skills/list/SKILL.md startup unverified']);
+    expect(summary(plan)).toEqual([
+      '1 skill:.cline/skills/both/SKILL.md startup documented',
+      '2 skill:.cline/skills/list/SKILL.md startup unverified',
+    ]);
     expect(entry(plan, 'skill:.cline/skills/list/SKILL.md')?.name).toBe('list');
+  });
+
+  it('cites no rule for a skill the skill rules leave alone', () => {
+    const built = build({
+      '.cline/skills/examples/SKILL.md': FRONTMATTER('name: [x'),
+      '.cline/skills/ok/SKILL.md': FRONTMATTER('name: ok\ndescription: Does ok.'),
+    });
+    expect(skips(built.plan)).toEqual([
+      '.cline/skills/examples/SKILL.md invalid-frontmatter - source-code',
+    ]);
+    expect(built.result.findings.filter((f) => f.platforms.includes('cline'))).toEqual([]);
   });
 
   it('lists name and description at startup, the body on demand, and the description limit', () => {

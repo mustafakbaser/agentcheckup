@@ -19,9 +19,11 @@
  *
  * Workflows in `.clinerules/workflows/` and `.cline/workflows/` run as commands (`manual`). The
  * SDK drops a rule, workflow or skill without a body, and a workflow or skill whose frontmatter
- * does not parse. Hook scripts in `.clinerules/hooks/` and `.cline/hooks/`, and JavaScript or
- * TypeScript plugins in `.cline/plugins/`, have no documented file format: the plan lists them
- * as incomplete. Cline reads no MCP server file from the repository.
+ * does not parse or has a field of the wrong type (src/platforms/cline-skills.ts, shared with the
+ * skill rules and instr/empty-file, whose findings the skips cite). Hook scripts in
+ * `.clinerules/hooks/` and `.cline/hooks/`, and JavaScript or TypeScript plugins in
+ * `.cline/plugins/`, have no documented file format: the plan lists them as incomplete. Cline
+ * reads no MCP server file from the repository.
  *
  * Cline reads `.markdown` and `.txt` rules and the extensionless `.clinerules` file, which the
  * scan does not read: they are listed as `unread:`.
@@ -42,7 +44,8 @@ import {
   clinePlace,
   isClineRuleFile,
 } from '../cline-rules.js';
-import { FRONTMATTER_LIMIT_CODES } from '../codex-skills.js';
+import { clineBody, clineBodyBlank, CLINE_SKIP_RULE, clineRead } from '../cline-skills.js';
+import { EMPTY_FILE_KINDS } from '../kinds.js';
 import { isBundledSkill } from '../location.js';
 import { basename, inPayloadFolder } from '../paths.js';
 import { SKILL_ROOTS, skillLocation } from '../skills.js';
@@ -125,18 +128,6 @@ const RULES = {
   filenameCase: 'instr/filename-case',
 } as const;
 
-/**
- * Kinds that instr/empty-file judges with Cline among the readers (READERS in ../classify.ts).
- * A blank file of another kind that Cline reads, such as `.clinerules/CLAUDE.md`, a workflow or a
- * skill, has no finding for Cline.
- */
-const EMPTY_FILE_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
-  'agents-md',
-  'cline-rule',
-  'cursor-legacy-rules',
-  'windsurf-legacy-rules',
-]);
-
 const TRIGGER_FOR_MODE: Readonly<Record<Exclude<ClineRuleMode, 'never'>, LoadTrigger>> = {
   always: 'startup',
   paths: 'on-path',
@@ -182,59 +173,6 @@ function totalOf(sizes: readonly Size[]): Size {
     sizes.reduce((sum, size) => sum + size.bytes, 0),
     sizes.reduce((sum, size) => sum + size.chars, 0),
   );
-}
-
-/**
- * The text Cline puts in context from a rule, workflow or skill: the body after valid
- * frontmatter, else the whole file. The SDK strips a byte order mark first, as the decoded text
- * already does.
- */
-function bodyOf(text: string, frontmatter: FrontmatterResult): string {
-  return frontmatter.kind === 'valid' ? text.slice(frontmatter.bodyOffset) : text;
-}
-
-/**
- * What the SDK's `parseMarkdownFrontmatter` and field checks make of a workflow or skill
- * (SOURCES.clineInstructionLoaderSource): its fields and body, `error` when it throws (YAML that
- * does not parse, or `name`, `description`, `disabled` or `enabled` of the wrong type), or
- * `limit` when agentcheckup stopped parsing the frontmatter. YAML that is not a mapping gives no
- * fields; a block without a closing line, or in another format, is body.
- */
-type SdkFrontmatter =
-  | {
-      readonly kind: 'parsed';
-      readonly fields: Readonly<Record<string, unknown>>;
-      readonly body: string;
-    }
-  | { readonly kind: 'error' }
-  | { readonly kind: 'limit' };
-
-const NO_FIELDS: Readonly<Record<string, unknown>> = Object.freeze({});
-
-function sdkFrontmatter(text: string, result: FrontmatterResult): SdkFrontmatter {
-  if (result.kind === 'invalid') {
-    const first = result.errors[0];
-    if (first !== undefined && FRONTMATTER_LIMIT_CODES.has(first.code)) return { kind: 'limit' };
-    if (first !== undefined && result.errors.every((issue) => issue.code === 'not-a-mapping')) {
-      return { kind: 'parsed', fields: NO_FIELDS, body: text.slice(result.bodyOffset) };
-    }
-    return { kind: 'error' };
-  }
-  if (result.kind !== 'valid') return { kind: 'parsed', fields: NO_FIELDS, body: text };
-  const fields = result.data.values;
-  const wrong = (key: string, type: 'string' | 'boolean'): boolean => {
-    const value = fields[key];
-    return value !== undefined && value !== null && typeof value !== type;
-  };
-  if (
-    wrong('name', 'string') ||
-    wrong('description', 'string') ||
-    wrong('disabled', 'boolean') ||
-    wrong('enabled', 'boolean')
-  ) {
-    return { kind: 'error' };
-  }
-  return { kind: 'parsed', fields, body: text.slice(result.bodyOffset) };
 }
 
 /** A file's size on disk, and the characters of what Cline receives from it. */
@@ -307,8 +245,8 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
   };
 
   /**
-   * A blank file Cline drops: the rule that reports it when instr/empty-file judges its kind
-   * for Cline and finds it empty.
+   * A file Cline drops because it gets nothing from it: instr/empty-file reports it when it
+   * judges the file's kind, as it judges every kind but a skill.
    */
   const blankSkip = (
     role: 'instructions' | 'rule' | 'command' | 'skill',
@@ -317,26 +255,23 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
     certainty: Certainty,
     evidence: readonly SourceKey[],
   ): void => {
-    const { text } = artifact.decoded;
-    // The rule finds a rule file with frontmatter and a blank body empty too.
-    const reported =
-      EMPTY_FILE_KINDS.has(artifact.kind) && (isBlank(text) || artifact.kind === 'cline-rule');
+    const reported = EMPTY_FILE_KINDS.has(artifact.kind);
     skip(
       {
         role,
         path,
         code: 'blank-file',
         ...(reported ? { ruleId: RULES.emptyFile } : {}),
-        size: receivedSize(artifact, text),
+        size: receivedSize(artifact, artifact.decoded.text),
       },
       certainty,
       evidence,
     );
   };
 
-  /** True when Cline gets nothing from the file: blank, or blank after valid frontmatter. */
+  /** True when Cline gets nothing from the file: blank, or blank after its frontmatter. */
   const isEmpty = (artifact: Artifact, frontmatter: FrontmatterResult): boolean =>
-    isBlank(bodyOf(artifact.decoded.text, frontmatter));
+    clineBodyBlank(artifact.decoded.text, frontmatter);
 
   // ------------------------------------------------------------------------------------------
   // AGENTS.md
@@ -385,7 +320,7 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
         role: 'instructions',
         path,
         realPath: artifact.realPath,
-        size: receivedSize(artifact, bodyOf(artifact.decoded.text, frontmatter)),
+        size: receivedSize(artifact, clineBody(artifact.decoded.text, frontmatter)),
         certainty: 'documented',
         evidence: ['clinePathsSource', 'clineRules'],
       },
@@ -418,7 +353,7 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
     }
     const activation = clineActivation(frontmatter);
     const certainty: Certainty = activation.documented && !nested ? 'documented' : 'unverified';
-    const received = bodyOf(artifact.decoded.text, frontmatter);
+    const received = clineBody(artifact.decoded.text, frontmatter);
     if (activation.mode === 'never') {
       skip(
         { role: 'rule', path, code: 'never-active', size: receivedSize(artifact, received) },
@@ -449,12 +384,17 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
     const where = local(path);
     const nested = depthIn(where, folder, 'workflow') > 0;
     const certainty: Certainty = nested ? 'unverified' : 'source-code';
-    const parsed = sdkFrontmatter(artifact.decoded.text, view.frontmatter(artifact));
-    if (parsed.kind === 'limit') {
+    const parsed = clineRead(artifact.decoded.text, view.frontmatter(artifact), 'workflow');
+    if (parsed.kind === 'unchecked') {
       incomplete.add(`unparsed:${path}`);
       return;
     }
-    if (parsed.kind === 'error') {
+    if (parsed.kind === 'skipped' && parsed.reason === 'no-body') {
+      blankSkip('command', path, artifact, certainty, LOADER_EVIDENCE);
+      return;
+    }
+    if (parsed.kind === 'skipped') {
+      // No rule judges a workflow's frontmatter.
       skip(
         {
           role: 'command',
@@ -465,10 +405,6 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
         certainty,
         LOADER_EVIDENCE,
       );
-      return;
-    }
-    if (isBlank(parsed.body)) {
-      blankSkip('command', path, artifact, certainty, LOADER_EVIDENCE);
       return;
     }
     entries.push({
@@ -555,20 +491,34 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
       }
       return;
     }
-    const parsed = sdkFrontmatter(artifact.decoded.text, view.frontmatter(artifact));
-    if (parsed.kind === 'limit') {
+    const parsed = clineRead(artifact.decoded.text, view.frontmatter(artifact), 'skill');
+    if (parsed.kind === 'unchecked') {
       incomplete.add(`unparsed:${path}`);
       return;
     }
-    if (parsed.kind === 'error') {
-      skip({ ...base, code: 'invalid-frontmatter', size: whole }, 'source-code', LOADER_EVIDENCE);
-      return;
-    }
-    const { body, fields } = parsed;
-    if (isBlank(body)) {
+    if (parsed.kind === 'skipped' && parsed.reason === 'no-body') {
       blankSkip('skill', path, artifact, 'source-code', LOADER_EVIDENCE);
       return;
     }
+    if (parsed.kind === 'skipped') {
+      // The skill rules leave alone a skill bundled in another one or in a template or example
+      // folder, so no rule reports why Cline drops it.
+      const judged =
+        !isBundledSkill(view.snapshot, artifact.path) && !inPayloadFolder(artifact.path);
+      const ruleId = judged ? CLINE_SKIP_RULE[parsed.reason] : undefined;
+      skip(
+        {
+          ...base,
+          code: 'invalid-frontmatter',
+          ...(ruleId === undefined ? {} : { ruleId }),
+          size: whole,
+        },
+        'source-code',
+        LOADER_EVIDENCE,
+      );
+      return;
+    }
+    const { body, fields } = parsed;
     // Without `name`, the SDK names the skill after its folder.
     const name = textField(fields, 'name') ?? basename(dirnamePosix(path));
     const description = textField(fields, 'description');

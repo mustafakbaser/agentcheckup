@@ -59,21 +59,23 @@ export const nameMissingRule = defineRule({
   meta: {
     id: 'skill/name-missing',
     title: 'Skill name is missing or empty',
-    rationale: `The Agent Skills specification, Cursor, GitHub Copilot and the Claude API require a \`name\` field. Gemini CLI skips a SKILL.md whose frontmatter has no \`name\`, and loads a skill whose \`name\` is empty under an empty name. Claude Code and Codex fall back to the directory name, so the skill works there but not in the agents that require the field.
+    rationale: `The Agent Skills specification, Cursor, GitHub Copilot, Cline and the Claude API require a \`name\` field. Gemini CLI skips a SKILL.md whose frontmatter has no \`name\`, and loads a skill whose \`name\` is empty under an empty name. Claude Code, Codex and Devin Local fall back to the directory name, so the skill works there but not in the agents that require the field.
 
 Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`,
     category: 'portability',
     severity: 'error',
     appliesTo: ['skill'],
-    platforms: ['claude-code', 'cursor', 'copilot', 'gemini'],
+    platforms: ['claude-code', 'cursor', 'copilot', 'gemini', 'cline'],
     sources: [
       SOURCES.agentSkillsSpec,
       SOURCES.cursorSkills,
       SKILL_SOURCES.copilotAddSkills,
+      SOURCES.clineSkills,
       SOURCES.claudeApiSkills,
       SKILL_SOURCES.geminiSkillLoader,
       SOURCES.claudeSkills,
       SKILL_SOURCES.codexSkillLoader,
+      SOURCES.devinCliSkillsCreate,
     ],
     since: RULESET_VERSION,
     fix: {
@@ -92,12 +94,17 @@ Add \`name\` with the directory name, in lowercase letters, digits and hyphens.`
       const empty = value === null || (typeof value === 'string' && value.trim() === '');
       if (present && !empty) continue;
 
-      const requiring = reached(context, artifact, ['cursor', 'copilot']);
+      const requiring = reached(context, artifact, ['cursor', 'copilot', 'cline']);
       const gemini = reached(context, artifact, ['gemini']).length > 0;
       // Gemini CLI skips a skill without the key and loads one with an empty value.
       const geminiSkips = geminiSkipReasons(frontmatter, artifact.decoded).includes('no-name');
-      // Codex treats an empty name as missing; Claude Code documents only the missing case.
-      const fallbacks = reached(context, artifact, present ? ['codex'] : ['claude-code', 'codex']);
+      // Codex treats an empty name as missing; Claude Code and Devin Local document only the
+      // missing case.
+      const fallbacks = reached(
+        context,
+        artifact,
+        present ? ['codex'] : ['claude-code', 'codex', 'windsurf'],
+      );
       const impacts: Impact[] = [
         ...requiring.map((platform) => ({ platform, severity: 'warn' }) as const),
         { platform: 'claude-code', severity: 'warn', scope: 'distribution' },

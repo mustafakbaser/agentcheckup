@@ -5,7 +5,7 @@ import { findings, lint, type LintOptions } from '../../helpers/lint.js';
 
 const ID = 'skill/duplicate-name';
 const skill = (name?: string) =>
-  `---\n${name === undefined ? '' : `name: ${name}\n`}description: Deploys.\n---\n`;
+  `---\n${name === undefined ? '' : `name: ${name}\n`}description: Deploys.\n---\nSteps.\n`;
 
 function check(
   files: Record<string, string>,
@@ -34,9 +34,9 @@ describe('skill/duplicate-name', () => {
       {
         path: '.claude/skills/b/SKILL.md',
         severity: 'warn',
-        platforms: ['claude-code', 'copilot'],
+        platforms: ['claude-code', 'copilot', 'cline'],
         message:
-          'Skill name "deploy" is also used by ".claude/skills/a/SKILL.md". Claude Code gives "/deploy" to only one of them, and GitHub Copilot requires names to be unique.',
+          'Skill name "deploy" is also used by ".claude/skills/a/SKILL.md". Claude Code gives "/deploy" to only one of them, GitHub Copilot requires names to be unique, and Cline loads only one of them.',
         range: { start: { line: 2, column: 7 }, end: { line: 2, column: 13 } },
         related: [
           {
@@ -57,8 +57,8 @@ describe('skill/duplicate-name', () => {
     expect(result.map((f) => [f.path, f.platforms, f.message])).toEqual([
       [
         '.claude/skills/x/SKILL.md',
-        ['claude-code'],
-        'Skill name "deploy" is also used by ".claude/skills/deploy/SKILL.md". Claude Code gives "/deploy" to only one of them.',
+        ['claude-code', 'cline'],
+        'Skill name "deploy" is also used by ".claude/skills/deploy/SKILL.md". Claude Code gives "/deploy" to only one of them, and Cline loads only one of them.',
       ],
     ]);
   });
@@ -68,10 +68,11 @@ describe('skill/duplicate-name', () => {
       '.agents/skills/a/tool/SKILL.md': skill(),
       '.agents/skills/b/tool/SKILL.md': skill(),
     });
+    // Cursor identifies a skill by its directory and does not document a clash: information.
     expect(result.map((f) => [f.platforms, f.message])).toEqual([
       [
-        ['codex'],
-        'Skill name "tool" is also used by ".agents/skills/a/tool/SKILL.md". Codex lists both under the same name.',
+        ['codex', 'cursor'],
+        'Skill name "tool" is also used by ".agents/skills/a/tool/SKILL.md". Codex lists both under the same name, and Cursor reads both and does not document which one the name reaches.',
       ],
     ]);
   });
@@ -95,20 +96,90 @@ describe('skill/duplicate-name', () => {
         '.claude/skills/b/SKILL.md': skill(fullwidth),
       }),
     ).toHaveLength(1);
+    // Only Cline compares names without regard to letter case.
     expect(
       check({
         '.claude/skills/a/SKILL.md': skill('deploy'),
         '.claude/skills/b/SKILL.md': skill('Deploy'),
-      }),
+      }).map((f) => [f.platforms, f.message]),
+    ).toEqual([
+      [
+        ['cline'],
+        'Skill name "Deploy" is also used by ".claude/skills/a/SKILL.md" as "deploy". Cline loads only one of them.',
+      ],
+    ]);
+    expect(
+      check(
+        {
+          '.claude/skills/a/SKILL.md': skill('deploy'),
+          '.claude/skills/b/SKILL.md': skill('Deploy'),
+        },
+        { targets: ['claude-code', 'copilot'] },
+      ),
     ).toEqual([]);
   });
 
-  it('does not compare skills in different skills directories', () => {
+  it('compares the skills directories of one project for the agents that read both', () => {
+    const result = check({
+      '.agents/skills/deploy/SKILL.md': skill('deploy'),
+      '.claude/skills/deploy/SKILL.md': skill('deploy'),
+    });
+    expect(result).toEqual([
+      {
+        path: '.claude/skills/deploy/SKILL.md',
+        severity: 'warn',
+        platforms: ['cursor', 'copilot', 'windsurf', 'cline'],
+        message:
+          'Skill name "deploy" is also used by ".agents/skills/deploy/SKILL.md". GitHub Copilot requires names to be unique, Cline loads only one of them, and Cursor and Devin Local read both and do not document which one the name reaches.',
+        range: { start: { line: 2, column: 7 }, end: { line: 2, column: 13 } },
+        related: [
+          {
+            path: '.agents/skills/deploy/SKILL.md',
+            message: 'Also named "deploy".',
+            range: { start: { line: 2, column: 7 }, end: { line: 2, column: 13 } },
+          },
+        ],
+      },
+    ]);
+    // Claude Code and Codex each read one of the two directories.
+    expect(
+      check(
+        {
+          '.agents/skills/deploy/SKILL.md': skill('deploy'),
+          '.claude/skills/deploy/SKILL.md': skill('deploy'),
+        },
+        { targets: ['claude-code', 'codex'] },
+      ),
+    ).toEqual([]);
+    // Gemini CLI reads .gemini/skills and .agents/skills, and keeps one of them.
+    expect(
+      check({
+        '.agents/skills/a/SKILL.md': skill('deploy'),
+        '.gemini/skills/b/SKILL.md': skill('deploy'),
+      }).map((f) => [f.path, f.platforms]),
+    ).toEqual([['.gemini/skills/b/SKILL.md', ['gemini']]]);
+  });
+
+  it('suggests keeping one copy of a skill copied into two skills directories', () => {
+    const lintResult = lint(
+      {
+        '.agents/skills/deploy/SKILL.md': skill('deploy'),
+        '.claude/skills/deploy/SKILL.md': skill('deploy'),
+      },
+      { rules: [duplicateNameRule] },
+    );
+    expect(lintResult.findings.map((f) => f.guidance)).toEqual([
+      'if both are the same skill, keep one copy and make ".claude/skills/deploy" a symlink to ".agents/skills/deploy"; otherwise rename one of them',
+    ]);
+  });
+
+  it('does not compare skills of different projects or outside skills directories', () => {
     expect(
       check({
         '.claude/skills/deploy/SKILL.md': skill('deploy'),
         'apps/web/.claude/skills/deploy/SKILL.md': skill('deploy'),
-        '.agents/skills/deploy/SKILL.md': skill('deploy'),
+        'apps/api/.agents/skills/deploy/SKILL.md': skill('deploy'),
+        '.cursor/skills/ship/SKILL.md': skill('deploy'),
         'skills/a/SKILL.md': skill('deploy'),
         'skills/b/SKILL.md': skill('deploy'),
       }),
@@ -136,10 +207,11 @@ describe('skill/duplicate-name', () => {
       },
       { symlinks: { '.claude/skills/deploy/SKILL.md': '.agents/skills/deploy/SKILL.md' } },
     );
+    // One finding: the other skill is one skill, whichever of its paths a platform reads.
     expect(result.map((f) => [f.path, f.message])).toEqual([
       [
         '.claude/skills/ship/SKILL.md',
-        'Skill name "deploy" is also used by ".claude/skills/deploy/SKILL.md". Claude Code gives "/deploy" to only one of them, and GitHub Copilot requires names to be unique.',
+        'Skill name "deploy" is also used by ".claude/skills/deploy/SKILL.md". Claude Code gives "/deploy" to only one of them, GitHub Copilot requires names to be unique, and Cline loads only one of them.',
       ],
     ]);
   });
@@ -176,6 +248,29 @@ describe('skill/duplicate-name', () => {
     expect(
       check({ '.agents/skills/a/x/skill.md': skill(), '.agents/skills/b/x/SKILL.md': skill() }),
     ).toEqual([]);
+  });
+
+  it('counts a skill without frontmatter under its directory name where agents load it so', () => {
+    const files = {
+      '.agents/skills/canary/SKILL.md': skill('canary'),
+      '.claude/skills/canary/SKILL.md': '@../../../.agents/skills/canary/SKILL.md\n',
+    };
+    // GitHub Copilot needs a name, and Claude Code reads only one of the two directories.
+    expect(check(files).map((f) => [f.path, f.severity, f.platforms, f.message])).toEqual([
+      [
+        '.claude/skills/canary/SKILL.md',
+        'warn',
+        ['cursor', 'windsurf', 'cline'],
+        'Skill name "canary" is also used by ".agents/skills/canary/SKILL.md". Cline loads only one of them, and Cursor and Devin Local read both and do not document which one the name reaches.',
+      ],
+    ]);
+    // Cline drops a skill without a body, so only Cursor and Devin Local see two skills.
+    expect(
+      check({ ...files, '.claude/skills/canary/SKILL.md': '' }).map((f) => [
+        f.severity,
+        f.platforms,
+      ]),
+    ).toEqual([['info', ['cursor', 'windsurf']]]);
   });
 
   it('skips skills without readable frontmatter', () => {

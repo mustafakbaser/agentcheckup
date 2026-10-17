@@ -165,6 +165,14 @@ export const SKIP_RULES: readonly SkipRule[] = [
     codes: ['invalid-frontmatter'],
     minSeverity: 'error',
   },
+  // Devin Local
+  { ruleId: 'hooks/unknown-event', agent: 'windsurf', codes: ['unknown-event'] },
+  // Cline drops a skill at the first problem it meets (src/platforms/cline-skills.ts); each rule
+  // names Cline only when its problem is that first one.
+  { ruleId: 'skill/frontmatter-invalid', agent: 'cline', codes: ['invalid-frontmatter'] },
+  { ruleId: 'skill/name-format', agent: 'cline', codes: ['invalid-frontmatter'] },
+  { ruleId: 'skill/description-missing', agent: 'cline', codes: ['invalid-frontmatter'] },
+  { ruleId: 'skill/field-type', agent: 'cline', codes: ['invalid-frontmatter'] },
   // Copilot, Gemini CLI, Devin Local and Cline
   ...skipsFor(NEWER_AGENTS, 'instr/empty-file', ['blank-file']),
   ...skipsFor(NEWER_AGENTS, 'instr/filename-case', ['case-mismatch']),
@@ -216,7 +224,7 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/duplicate-name',
-    agents: ['claude-code', 'codex', ...COPILOT_SURFACES, 'gemini'],
+    agents: ['claude-code', 'codex', 'cursor', ...COPILOT_SURFACES, 'gemini', 'windsurf', 'cline'],
     reason: 'Both skills are listed; the finding is about which one a name reaches.',
   },
   {
@@ -237,9 +245,21 @@ export const LOADS_ANYWAY: readonly {
       'The agent lists the skill without the fields it could not read. The finding never names Copilot, whose handling is not documented.',
   },
   {
+    ruleId: 'skill/frontmatter-invalid',
+    agents: ['windsurf'],
+    reason:
+      'The finding names Devin Local only for a skill that is installed or uploaded on its own, about validators or a check agentcheckup could not finish; Devin Local does not document what it does with frontmatter that does not parse.',
+  },
+  {
     ruleId: 'skill/frontmatter-missing',
     agents: ['claude-code'],
     reason: 'Claude Code lists the skill, named after its directory.',
+  },
+  {
+    ruleId: 'json/invalid-syntax',
+    agents: ['windsurf'],
+    reason:
+      'Devin Local does not document what it does with a file it cannot parse, so the finding is information and the plan lists the file as not analyzed.',
   },
   {
     ruleId: 'gemini/settings-key-ignored',
@@ -342,19 +362,13 @@ export const ALLOWANCES = {
       code: 'blank-file',
       rule: 'instr/empty-file',
       reason:
-        'Cline drops a rule, workflow or skill without a body. instr/empty-file judges a file by its kind, so it does not report workflows, skills, an AGENTS.md whose body after frontmatter is blank, or a rule file named like another agent file, such as .clinerules/CLAUDE.md.',
+        'Cline drops a skill without a body, and no rule reports an empty skill. instr/empty-file does not judge skills, nor a blank rule file of a kind it does not judge, such as .clinerules/SKILL.md.',
     },
     {
       agent: 'cline',
       code: 'invalid-frontmatter',
       reason:
-        'Cline drops a workflow or skill whose frontmatter does not parse or has a field of the wrong type. No rule judges workflows, and the skill rules do not report for Cline.',
-    },
-    {
-      agent: 'windsurf',
-      code: 'unknown-event',
-      reason:
-        "hooks/unknown-event does not check Devin Local's hook files (.devin/hooks.v1.json and the hooks of .devin/config.json), so a hook under an event Devin Local does not fire has no finding.",
+        'Cline drops a workflow whose frontmatter does not parse or has a field of the wrong type, and no rule judges workflows. The skill rules report the same for skills, but leave alone a skill bundled in another one or in a template or example folder.',
     },
     {
       agent: 'gemini',

@@ -84,12 +84,41 @@ describe('json/invalid-syntax', () => {
     // Valid files, other agents' targets, and JSON files of new kinds no source covers.
     expect(run({ '.github/hooks/policy.json': '{ "version": 1, "hooks": {} }\n' })).toEqual([]);
     expect(run({ '.github/hooks/policy.json': broken }, ['claude-code'])).toEqual([]);
+    expect(run({ '.vscode/mcp.json': '{\n  // servers\n  "servers": {}\n}\n' })).toEqual([]);
+  });
+
+  it('reports Devin Local files that do not parse as information', () => {
     expect(
       run({
-        '.vscode/mcp.json': '{\n  // servers\n  "servers": {}\n}\n',
         '.devin/mcp_config.json': '{',
-      }),
-    ).toEqual([]);
+        '.devin/hooks.v1.json': '{"Stop": [],}',
+        // Cascade's hooks file, which Devin Local does not read.
+        '.devin/hooks.json': '{',
+      }).map((finding) => [finding.path, finding.severity, finding.message]),
+    ).toEqual([
+      [
+        '.devin/hooks.v1.json',
+        'info',
+        'JSON does not allow trailing commas. Devin Local does not document whether it accepts them here; a strict JSON parser rejects the whole file.',
+      ],
+      [
+        '.devin/mcp_config.json',
+        'info',
+        'This file is not valid JSON (expected a closing brace). Devin Local does not document what it does with a file it cannot parse.',
+      ],
+    ]);
+  });
+
+  it('accepts comments in Devin Local config files, which Devin documents', () => {
+    const comments = '{\n  // hooks\n  "hooks": {} /* none yet */\n}\n';
+    expect(run({ '.devin/config.json': comments, '.devin/config.local.json': comments })).toEqual(
+      [],
+    );
+    const broken = '{\n  // hooks\n  "hooks": {}\n  "permissions": {}\n}\n';
+    expect(run({ '.devin/config.json': broken }).map((finding) => finding.message)).toEqual([
+      'This file is not valid JSON (expected a comma). Devin Local does not document what it does with a file it cannot parse.',
+    ]);
+    expect(run({ '.devin/config.json': broken }, ['claude-code'])).toEqual([]);
   });
 
   it('accepts comments in Gemini CLI settings but not trailing commas', () => {

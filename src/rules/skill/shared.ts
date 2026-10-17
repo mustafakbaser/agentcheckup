@@ -15,6 +15,7 @@ import type { FrontmatterResult } from '../../parse/types.js';
 import { isBundledSkill } from '../../platforms/location.js';
 import { inPayloadFolder } from '../../platforms/paths.js';
 import { placement, type SkillScope } from '../../platforms/skills.js';
+import { platformList } from '../shared/format.js';
 
 export { inPayloadFolder } from '../../platforms/paths.js';
 export {
@@ -147,6 +148,15 @@ export function reached(
 /** True when validators and upload paths apply to this skill (see Placement.distributable). */
 export function isDistributable(scope: SkillScope, artifact: Artifact): boolean {
   return placement(scope, artifact).distributable;
+}
+
+/**
+ * `Codex cannot read the frontmatter and skips the skill`, for one or more agents that drop a
+ * skill whose frontmatter has a field of the wrong type.
+ */
+export function cannotReadFrontmatter(platforms: readonly PlatformId[]): string {
+  const one = platforms.length === 1;
+  return `${platformList(platforms)} cannot read the frontmatter and ${one ? 'skips' : 'skip'} the skill`;
 }
 
 /** The same severity on every listed platform. */

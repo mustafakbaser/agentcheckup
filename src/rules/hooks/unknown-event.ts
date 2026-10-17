@@ -2,7 +2,8 @@ import { RULESET_VERSION } from '../../core/meta.js';
 import type { Artifact, Fix } from '../../core/types.js';
 import { jsonRenameKey } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
-import { codexMisplacedEvents } from '../../platforms/hooks.js';
+import type { Severity } from '../../core/types.js';
+import { codexMisplacedEvents, devinEventInOtherCase } from '../../platforms/hooks.js';
 import { configDocument, TOML_KINDS } from '../../platforms/kinds.js';
 import { at, FileFindings, keySpanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -45,6 +46,8 @@ interface UnknownEvent {
   readonly message: string;
   /** The event the message names as the intended one, if any. */
   readonly suggestion?: string;
+  /** Set when the consequence is not documented: information only. */
+  readonly severity?: Severity;
 }
 
 function unknownEvent(platform: HookPlatform, name: string): UnknownEvent {
@@ -53,6 +56,13 @@ function unknownEvent(platform: HookPlatform, name: string): UnknownEvent {
   const consequence = CONSEQUENCE[platform];
   const lower = name.toLowerCase();
   const spelled = events.find((event) => event.toLowerCase() === lower);
+  if (spelled !== undefined && platform === 'windsurf' && devinEventInOtherCase(name)) {
+    return {
+      message: `${quote(name)} is not a ${label} hook event; it is spelled ${quote(spelled)}. Devin Local documents event names in this spelling only and does not say whether it matches another, so these hooks may never run.`,
+      suggestion: spelled,
+      severity: 'info',
+    };
+  }
   if (spelled !== undefined) {
     return {
       message: `${quote(name)} is not a ${label} hook event; it is spelled ${quote(spelled)}. ${consequence}`,
@@ -110,6 +120,7 @@ export const unknownEventRule = defineRule({
     title: 'Hook event name is not one the agent fires',
     rationale: [
       'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.',
+      'Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade\'s snake_case events in `.devin/hooks.json` are not checked.',
       'Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.',
       'Rename the key to an event the agent fires.',
     ].join('\n\n'),
@@ -121,8 +132,10 @@ export const unknownEventRule = defineRule({
       'codex-config',
       'cursor-hooks',
       'gemini-settings',
+      'devin-config',
+      'devin-hooks',
     ],
-    platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
+    platforms: ['claude-code', 'codex', 'cursor', 'gemini', 'windsurf'],
     sources: [
       SOURCES.claudeHooks,
       SOURCES.claudeSettings,
@@ -131,6 +144,8 @@ export const unknownEventRule = defineRule({
       SOURCES.cursorHooks,
       HOOK_SOURCES.geminiHookReference,
       HOOK_SOURCES.geminiHookRegistry,
+      SOURCES.devinCliHooks,
+      SOURCES.devinCliHookEvents,
     ],
     since: RULESET_VERSION,
     fix: {
@@ -158,7 +173,7 @@ export const unknownEventRule = defineRule({
       const declared = new Set(events.map((event) => event.name));
       for (const event of events) {
         if (known.has(event.name)) continue;
-        const { message, suggestion } = unknownEvent(platform, event.name);
+        const { message, suggestion, severity } = unknownEvent(platform, event.name);
         const taken = suggestion !== undefined && declared.has(suggestion);
         const fix =
           canEdit && !toml && suggestion !== undefined && !taken
@@ -176,6 +191,7 @@ export const unknownEventRule = defineRule({
           ...at(keySpanOf(doc, event.path)),
           message,
           platforms: [platform],
+          ...(severity === undefined ? {} : { severity }),
           ...(fix === undefined ? {} : { fix }),
           ...(guidance === undefined ? {} : { guidance }),
         });

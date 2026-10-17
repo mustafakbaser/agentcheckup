@@ -45,7 +45,13 @@ import type { Artifact, ArtifactKind } from '../../core/types.js';
 import { isObject, own } from '../../parse/json-access.js';
 import { classify, isCandidateBasename } from '../classify.js';
 import { cursorActivation, type CursorRuleMode } from '../cursor-rules.js';
-import { DEVIN_EVENTS, hookHandlers, hookSourceOf } from '../hooks.js';
+import {
+  DEVIN_EVENTS,
+  devinEventInOtherCase,
+  hookEvents,
+  hookHandlers,
+  hookSourceOf,
+} from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
 import { mcpServers } from '../mcp.js';
@@ -694,18 +700,31 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     const ids = hookInventoryIds(path, handlers, source.platform);
     const inventoryIds = hookInventoryIds(artifact.path, handlers, source.platform);
     const events: readonly string[] = DEVIN_EVENTS;
+    if (!claude) {
+      // Devin fires only its documented events, so hooks under another name never run
+      // (hooks/unknown-event). Whether it matches a name in another letter case is not
+      // documented.
+      for (const event of hookEvents(doc, source.platform, source.root)) {
+        if (events.includes(event.name)) continue;
+        skip(
+          'hook',
+          path,
+          'unknown-event',
+          devinEventInOtherCase(event.name) ? 'unverified' : 'documented',
+          ['devinCliHooks', 'devinCliHookEvents'],
+          { name: event.name, ruleId: 'hooks/unknown-event' },
+        );
+      }
+    }
     handlers.forEach((handler, index) => {
       const id = ids[index] ?? '';
       const name = handler.event;
+      if (!claude && !events.includes(name)) return;
       if (disabled('hook', path, importedFrom, { id, name })) return;
       if (!events.includes(name)) {
-        // Devin fires only its documented events; how it treats another name is not documented.
-        // A Claude Code event Devin does not fire is one it does not read; a name in Devin's own
-        // files is an unknown event, which no rule checks for Devin yet.
-        skip('hook', path, claude ? 'not-read' : 'unknown-event', 'unverified', evidence, {
-          id,
-          name,
-        });
+        // A Claude Code event Devin does not fire is one it does not read; how it treats such a
+        // name is not documented.
+        skip('hook', path, 'not-read', 'unverified', evidence, { id, name });
         return;
       }
       const certain =

@@ -72,8 +72,9 @@ describe('instr/empty-file', () => {
       ['CLAUDE.md', '```\n<!-- kept in a code block -->\n```\n'],
       ['GEMINI.md', 'Kullanıcı arayüzü metinleri Türkçe olmalı. 🚀\n'],
       ['.claude/rules/testing.md', '---\npaths: src/**\n---\nUse vitest.\n'],
-      ['AGENTS.md', '---\ntitle: notes\n---\n'],
       ['.claude/rules/broken.md', '---\npaths: [\n---\n'],
+      // A rule whose YAML does not parse loads whole in Cline, which fails open.
+      ['.clinerules/broken.md', '---\npaths: [\n---\n'],
       ['AGENTS.md', '\u200B'],
     ])('%s with content %j', (path, text) => {
       const result = lint({ [path]: text }, { rules });
@@ -88,6 +89,65 @@ describe('instr/empty-file', () => {
     it('files no targeted platform reads', () => {
       const result = lint({ 'CLAUDE.md': '', '.cursorrules': '' }, { rules, targets: ['codex'] });
       expect(findings(result, RULE)).toEqual([]);
+    });
+
+    it('an AGENTS.md with only frontmatter, for agents that read the frontmatter as text', () => {
+      const result = lint(
+        { 'AGENTS.md': '---\ntitle: notes\n---\n' },
+        { rules, targets: ['claude-code', 'codex', 'cursor', 'copilot', 'windsurf'] },
+      );
+      expect(findings(result, RULE)).toEqual([]);
+    });
+  });
+
+  describe('Cline', () => {
+    it('reports an AGENTS.md with only frontmatter, which Cline removes, for Cline alone', () => {
+      const result = lint({ 'AGENTS.md': '---\ntitle: notes\n---\n' }, { rules });
+      expect(findings(result, RULE).map((finding) => finding.message)).toEqual([
+        'This file has frontmatter but no body. Cline removes the frontmatter before loading it, so it gets no instructions from it.',
+      ]);
+      expect(result.findings.map((finding) => finding.platforms)).toEqual([['cline']]);
+    });
+
+    it('reads every file in its rules and workflows folders as a rule, whatever its kind', () => {
+      const result = lint(
+        {
+          '.clinerules/CLAUDE.md': '',
+          '.clinerules/GEMINI.md': '---\nnote: x\n---\n',
+          '.clinerules/workflows/ship.md': '---\nname: ship\n---\n\n',
+          '.cline/workflows/release.md': '\n',
+          '.clinerules/AGENTS.override.md': '',
+          '.clinerules/AGENTS.md': 'Rules.\n',
+        },
+        { rules },
+      );
+      expect(
+        result.findings.map((finding) => [finding.path, finding.platforms.includes('cline')]),
+      ).toEqual([
+        ['.cline/workflows/release.md', true],
+        ['.clinerules/AGENTS.override.md', true],
+        ['.clinerules/CLAUDE.md', true],
+        ['.clinerules/GEMINI.md', true],
+        ['.clinerules/workflows/ship.md', true],
+      ]);
+      // The override next to an AGENTS.md is left to instr/override-shadows-agents-md for Codex.
+      expect(
+        result.findings.find((finding) => finding.path === '.clinerules/AGENTS.override.md')
+          ?.platforms,
+      ).toEqual(['cline']);
+      // Frontmatter is text to the other readers of GEMINI.md.
+      expect(
+        result.findings.find((finding) => finding.path === '.clinerules/GEMINI.md')?.platforms,
+      ).toEqual(['cline']);
+    });
+
+    it('does not name Cline for an AGENTS.md in its skills or hooks folders', () => {
+      const result = lint(
+        { '.cline/skills/x/AGENTS.md': '', '.clinerules/hooks/AGENTS.md': '' },
+        { rules },
+      );
+      expect(result.findings).toHaveLength(2);
+      for (const finding of result.findings) expect(finding.platforms).not.toContain('cline');
     });
   });
 

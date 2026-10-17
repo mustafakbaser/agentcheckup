@@ -4,18 +4,18 @@
 
 Skill frontmatter field has the wrong type or length.
 
-|            |                    |
-| ---------- | ------------------ |
-| Severity   | `warn`             |
-| Category   | `correctness`      |
-| Platforms  | Claude Code, Codex |
-| Applies to | `skill`            |
-| Fixable    | Yes, `review`      |
-| Since      | 2026.10            |
+|            |                           |
+| ---------- | ------------------------- |
+| Severity   | `warn`                    |
+| Category   | `correctness`             |
+| Platforms  | Claude Code, Codex, Cline |
+| Applies to | `skill`                   |
+| Fixable    | Yes, `review`             |
+| Since      | 2026.10                   |
 
 ## Why
 
-The Agent Skills specification gives each optional field a type: `metadata` maps string keys to string values, `compatibility` is text of up to 500 characters, `allowed-tools` is a space-separated string, and `license` is text. Codex cannot read frontmatter whose `metadata` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a `compatibility` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for `allowed-tools`, but the specification defines a space-separated string.
+The Agent Skills specification gives each optional field a type: `metadata` maps string keys to string values, `compatibility` is text of up to 500 characters, `allowed-tools` is a space-separated string, and `license` is text. Codex cannot read frontmatter whose `metadata` is text, a number or a boolean, and skips the skill. The skills-ref validator and the anthropics/skills packager reject a `compatibility` that is not text or is longer than 500 characters. Claude Code also accepts a YAML list for `allowed-tools`, but the specification defines a space-separated string. Cline turns a skill off with `disabled: true` or `enabled: false`, and skips a skill whose `disabled` or `enabled` is not a boolean, such as `"false"` in quotes.
 
 Use the types from the specification, and quote values that YAML would read as numbers or booleans.
 
@@ -24,6 +24,7 @@ Use the types from the specification, and quote values that YAML would read as n
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
+- [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-17
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 

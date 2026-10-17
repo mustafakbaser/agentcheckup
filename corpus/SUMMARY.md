@@ -12,8 +12,8 @@ Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 62 built-in rules) on
 | Repositories with artifacts |   79 |
 | Artifacts                   | 7615 |
 | Errors                      |  698 |
-| Warnings                    | 1238 |
-| Infos                       | 1542 |
+| Warnings                    | 1287 |
+| Infos                       | 1554 |
 | Repositories with findings  |   70 |
 | Rules that crashed          |    0 |
 
@@ -150,7 +150,7 @@ From the security inventory, which lists every item whether or not an agent load
 | 0-59 (F)                |            2 |
 | No artifacts (no score) |            1 |
 
-Mean 88.9, median 95, lowest 47. 0 capped by a `risk` error.
+Mean 88.7, median 95, lowest 47. 0 capped by a `risk` error.
 
 ## Findings by rule
 
@@ -208,7 +208,7 @@ Repository columns count repositories with at least one finding of that severity
 | `skill/description-missing`         | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/description-quality`         | info     |      0 |        0 |   657 |                 0 |                   0 |               40 |             40 |               72 |
 | `skill/description-too-long`        | error    |      2 |        0 |     0 |                 2 |                   0 |                0 |              2 |               72 |
-| `skill/duplicate-name`              | warn     |      0 |       18 |     0 |                 0 |                   1 |                0 |              1 |               72 |
+| `skill/duplicate-name`              | warn     |      0 |       35 |    12 |                 0 |                   4 |                1 |              5 |               72 |
 | `skill/field-type`                  | warn     |      1 |       79 |     0 |                 1 |                   7 |                0 |              7 |               72 |
 | `skill/frontmatter-bom`             | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/frontmatter-invalid`         | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
@@ -217,7 +217,7 @@ Repository columns count repositories with at least one finding of that severity
 | `skill/name-format`                 | error    |     84 |        2 |     0 |                 3 |                   1 |                0 |              4 |               72 |
 | `skill/name-missing`                | error    |      9 |        1 |     0 |                 2 |                   1 |                0 |              2 |               72 |
 | `skill/name-reserved-word`          | warn     |      0 |        6 |     0 |                 0 |                   3 |                0 |              3 |               72 |
-| `skill/non-portable-field`          | warn     |      0 |      607 |     0 |                 0 |                  27 |                0 |             27 |               72 |
+| `skill/non-portable-field`          | warn     |      0 |      639 |     0 |                 0 |                  29 |                0 |             29 |               72 |
 | `skill/shell-preprocessing`         | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/yaml-portability`            | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |               72 |
 
@@ -228,9 +228,9 @@ What agentcheckup offers for the findings above, as the scan reports it: a safe 
 | Findings                         | Count | Share | Repositories |
 | -------------------------------- | ----: | ----: | -----------: |
 | With a safe fix                  |   148 |    4% |           18 |
-| With a fix that needs review     | 1,528 |   44% |           54 |
-| With a fix that needs your words |   811 |   23% |           44 |
-| A task for a coding agent        |   925 |   27% |           50 |
+| With a fix that needs review     | 1,528 |   43% |           54 |
+| With a fix that needs your words |   843 |   24% |           44 |
+| A task for a coding agent        |   954 |   27% |           51 |
 | None of these: left to you       |    66 |    2% |           24 |
 
 Scores after applying the fixes in memory and verifying them, as `agentcheckup fix --write` and `fix --write --review` do. `mcp/literal-secret` stays opt-in and is not applied. The median gain is over the repositories whose score rises.
@@ -252,10 +252,10 @@ The replay (`run.ts --fix-replay --answers synthetic`) applies every fix to an i
 | Safe fixes that verification made review      |     0 |
 | Files changed                                 | 2,027 |
 | Repositories with a changed file              |    57 |
-| Fixes that need your words                    |   811 |
+| Fixes that need your words                    |   843 |
 | Answered with synthetic text and verified     |   600 |
 | Answers refused or dropped by verification    |     0 |
-| Not answered: no synthetic text for the field |   211 |
+| Not answered: no synthetic text for the field |   243 |
 | Violations                                    |     0 |
 
 ## Rule crashes

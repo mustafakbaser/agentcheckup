@@ -1,6 +1,7 @@
 import { codePointLength } from '../../core/measure.js';
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { PlatformId } from '../../core/types.js';
+import { clineSkillSkip } from '../../platforms/cline-skills.js';
 import { codexNameTooLong, nameNotText } from '../../platforms/codex-skills.js';
 import { vscodeSkillNameIssue } from '../../platforms/copilot.js';
 import { defineRule } from '../define.js';
@@ -14,6 +15,7 @@ import {
   sentence,
 } from '../shared/format.js';
 import {
+  cannotReadFrontmatter,
   type Impact,
   loadableSkills,
   normalizeName,
@@ -156,7 +158,7 @@ export const nameFormatRule = defineRule({
   meta: {
     id: 'skill/name-format',
     title: 'Skill name does not follow the Agent Skills naming rules',
-    rationale: `The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in \`name\`, with no hyphen at the start or end and no \`--\`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, \`<\` or \`>\`, so typing the name does not invoke the skill.
+    rationale: `The Agent Skills specification allows 1 to 64 lowercase letters, digits and hyphens in \`name\`, with no hyphen at the start or end and no \`--\`. GitHub Copilot in VS Code does not load a skill whose name has other characters, Cursor requires the same characters, and Codex skips a skill whose name is longer than 64 characters. Claude Code refuses a name with hidden, direction-changing or blank-like characters, \`<\` or \`>\`, so typing the name does not invoke the skill. Codex skips a skill whose \`name\` is a list or a mapping, and Cline one whose \`name\` is not text, even a number or a boolean.
 
 For a skill that is installed or uploaded on its own, the skills-ref validator and the anthropics/skills packager reject a name that breaks these rules, and claude.ai upload rejects one with other characters or more than 64. skills-ref accepts non-ASCII lowercase letters, but the packager accepts only \`a-z\`, \`0-9\` and \`-\`.
 
@@ -164,11 +166,12 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
     category: 'correctness',
     severity: 'error',
     appliesTo: ['skill'],
-    platforms: ['claude-code', 'codex', 'cursor', 'copilot'],
+    platforms: ['claude-code', 'codex', 'cursor', 'copilot', 'cline'],
     sources: [
       SOURCES.agentSkillsSpec,
       SKILL_SOURCES.vscodeSkills,
       SKILL_SOURCES.codexSkillParser,
+      SOURCES.clineInstructionLoaderSource,
       SOURCES.skillsRefValidator,
       SKILL_SOURCES.anthropicsSkillValidator,
       SOURCES.claudeApiSkills,
@@ -194,19 +197,33 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
       let impacts: readonly Impact[];
       let repair: FixOrGuidance;
       const { reach, distributable } = placement(context, artifact);
+      // Cline drops a skill whose `name` is set and is not text, numbers and booleans included,
+      // unless it dropped the skill for an earlier reason.
+      const cline =
+        context.targets.has('cline') &&
+        reach.has('cline') &&
+        clineSkillSkip(artifact.decoded.text, context.frontmatter(artifact)) === 'name-type';
       if (nameNotText(value)) {
-        const codex = reach.has('codex');
+        const skipping: PlatformId[] = [
+          ...(reach.has('codex') ? ['codex' as const] : []),
+          ...(cline ? ['cline' as const] : []),
+        ];
         const clauses = [
-          ...(codex ? ['Codex cannot read the frontmatter and skips the skill'] : []),
+          ...(skipping.length > 0 ? [cannotReadFrontmatter(skipping)] : []),
           ...(distributable ? ['the skills-ref validator rejects it'] : []),
         ];
         if (clauses.length === 0) continue;
         message = `\`name\` is ${describeType(value)}, not text. ${sentence(joinClauses(clauses))}`;
         impacts = [
-          ...(codex ? [{ platform: 'codex', severity: 'error' } as const] : []),
+          ...skipping.map((platform) => ({ platform, severity: 'error' }) as const),
           SPEC_INVALID,
         ];
         repair = { guidance: 'write "name" as one line of text, such as the directory name' };
+      } else if (cline && typeof value !== 'string') {
+        // A number or a boolean, which every other agent reads as text.
+        message = `\`name\` is ${describeType(value)}, not text. ${sentence(cannotReadFrontmatter(['cline']))}`;
+        impacts = [{ platform: 'cline', severity: 'error' }];
+        repair = { guidance: 'put "name" in double quotes so that YAML reads it as text' };
       } else if (typeof value === 'string') {
         const analysis = analyze(value, (platform) => reach.has(platform), distributable);
         if (analysis === undefined) continue;

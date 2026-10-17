@@ -89,7 +89,7 @@ describe('skill/description-missing', () => {
       expect.objectContaining({
         severity: 'error',
         message:
-          '`description` is a list, not text. Codex cannot read the frontmatter and skips the skill, and the skills-ref validator rejects it.',
+          '`description` is a list, not text. Codex and Cline cannot read the frontmatter and skip the skill, and the skills-ref validator rejects it.',
       }),
     ]);
     expect(check('---\nname: deploy\ndescription: {a: b}\n---\n')[0]?.message).toContain(
@@ -97,9 +97,32 @@ describe('skill/description-missing', () => {
     );
   });
 
-  it('accepts numbers and booleans, which agents read as text', () => {
+  it('accepts numbers and booleans, which agents other than Cline read as text', () => {
     expect(check('---\nname: deploy\ndescription: 42\n---\n')).toEqual([]);
-    expect(check('---\nname: deploy\ndescription: true\n---\n')).toEqual([]);
+    expect(
+      check('---\nname: deploy\ndescription: true\n---\nBody.\n', undefined, ['codex']),
+    ).toEqual([]);
+  });
+
+  it('reports to Cline a description that is a number or a boolean, which it cannot read', () => {
+    expect(check('---\nname: deploy\ndescription: true\n---\nBody.\n')).toEqual([
+      {
+        severity: 'error',
+        platforms: ['cline'],
+        message:
+          '`description` is a boolean, not text. Cline cannot read the frontmatter and skips the skill.',
+        range: { start: { line: 3, column: 1 }, end: { line: 3, column: 12 } },
+      },
+    ]);
+    // Cline drops a skill without a body first, and reads only its own skills directories.
+    expect(check('---\nname: deploy\ndescription: 42\n---\n\n')).toEqual([]);
+    expect(
+      check('---\nname: deploy\ndescription: 42\n---\nBody.\n', '.cursor/skills/deploy/SKILL.md'),
+    ).toEqual([]);
+    // A name of the wrong type comes first: skill/name-format reports it for Cline.
+    expect(check('---\nname: [d]\ndescription: [x]\n---\nBody.\n')[0]?.platforms).not.toContain(
+      'cline',
+    );
   });
 
   it('does not report a description or other frontmatter states', () => {

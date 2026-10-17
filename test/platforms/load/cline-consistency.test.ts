@@ -67,43 +67,72 @@ describe('Cline consistency on the fixtures', () => {
 });
 
 describe('Cline allowances', () => {
-  it('skip-without-rule: Cline drops a blank workflow, skill or oddly named rule file', () => {
+  it('skip-without-rule: Cline drops a skill without a body, which no rule reports', () => {
     const files = {
       'AGENTS.md': 'Rules.\n',
       '.clinerules/workflows/empty.md': '\n',
       '.clinerules/CLAUDE.md': '',
+      '.clinerules/SKILL.md': '',
       '.cline/skills/s/SKILL.md': '---\nname: s\ndescription: Does s.\n---\n',
     };
     const allowed = check(files);
     expect(brief(allowed.report.mismatches)).toEqual([]);
-    expect(allowed.report.allowed['skip-without-rule']).toBe(3);
+    expect(allowed.report.allowed['skip-without-rule']).toBe(2);
+    // instr/empty-file judges every kind of file in a rules or workflows folder but a skill.
     expect(clinePlan(allowed)?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
       ['.cline/skills/s/SKILL.md', 'blank-file', undefined],
-      ['.clinerules/CLAUDE.md', 'blank-file', undefined],
-      ['.clinerules/workflows/empty.md', 'blank-file', undefined],
+      ['.clinerules/CLAUDE.md', 'blank-file', 'instr/empty-file'],
+      ['.clinerules/SKILL.md', 'blank-file', undefined],
+      ['.clinerules/workflows/empty.md', 'blank-file', 'instr/empty-file'],
     ]);
     expect(brief(check(files, ['skip-without-rule']).report.mismatches)).toEqual([
       'skip-without-rule - cline .cline/skills/s/SKILL.md',
-      'skip-without-rule - cline .clinerules/CLAUDE.md',
-      'skip-without-rule - cline .clinerules/workflows/empty.md',
+      'skip-without-rule - cline .clinerules/SKILL.md',
     ]);
   });
 
-  it('skip-without-rule: Cline drops a skill or workflow whose frontmatter it cannot read', () => {
+  it('skip-without-rule: Cline drops a workflow whose frontmatter it cannot read', () => {
     const files = {
       'AGENTS.md': 'Rules.\n',
       '.cline/skills/s/SKILL.md': '---\nname: [s\n---\nBody.\n',
+      '.cline/skills/examples/SKILL.md': '---\nname: [s\n---\nBody.\n',
       '.cline/workflows/w.md': '---\nname: 3\n---\nSteps.\n',
     };
     const allowed = check(files);
     expect(brief(allowed.report.mismatches)).toEqual([]);
+    expect(allowed.report.allowed['skip-without-rule']).toBe(2);
+    // The skill rules report a skill's frontmatter, except in a template or example folder.
     expect(clinePlan(allowed)?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
-      ['.cline/skills/s/SKILL.md', 'invalid-frontmatter', undefined],
+      ['.cline/skills/examples/SKILL.md', 'invalid-frontmatter', undefined],
+      ['.cline/skills/s/SKILL.md', 'invalid-frontmatter', 'skill/frontmatter-invalid'],
       ['.cline/workflows/w.md', 'invalid-frontmatter', undefined],
     ]);
     expect(brief(check(files, ['skip-without-rule']).report.mismatches)).toEqual([
-      'skip-without-rule - cline .cline/skills/s/SKILL.md',
+      'skip-without-rule - cline .cline/skills/examples/SKILL.md',
       'skip-without-rule - cline .cline/workflows/w.md',
+    ]);
+  });
+
+  it('cites the skill rule of the first problem Cline meets in a skill', () => {
+    const { plans, report } = check({
+      'AGENTS.md': 'Rules.\n',
+      '.claude/skills/a/SKILL.md': '---\nname: [a, b]\ndescription: [x]\n---\nBody.\n',
+      '.claude/skills/b/SKILL.md': '---\ndescription: true\n---\nBody.\n',
+      '.agents/skills/c/SKILL.md':
+        '---\nname: c\ndescription: Does c.\nenabled: "no"\n---\nBody.\n',
+      '.agents/skills/d/SKILL.md': '---\nname: [d]\ndescription: Does d.\n---\n',
+    });
+    expect(brief(report.mismatches)).toEqual([]);
+    expect(report.allowed[ALLOWANCES.firstSkipReason]).toBeUndefined();
+    expect(
+      plans
+        .find((plan) => plan.agent === 'cline')
+        ?.skipped.map((s) => `${s.path} ${s.code} ${s.ruleId ?? '-'}`),
+    ).toEqual([
+      '.agents/skills/c/SKILL.md invalid-frontmatter skill/field-type',
+      '.agents/skills/d/SKILL.md blank-file -',
+      '.claude/skills/a/SKILL.md invalid-frontmatter skill/name-format',
+      '.claude/skills/b/SKILL.md invalid-frontmatter skill/description-missing',
     ]);
   });
 
@@ -163,7 +192,7 @@ describe('Cline consistency on generated snapshots', () => {
     fc
       .array(
         fc.tuple(
-          fc.constantFrom('name', 'description', 'paths', 'disabled'),
+          fc.constantFrom('name', 'description', 'paths', 'disabled', 'enabled'),
           fc.constantFrom('x', 'Does x.', '[src/**]', '[]', 'true', '3', '{a: 1}', ''),
         ),
         { maxLength: 3 },

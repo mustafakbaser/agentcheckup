@@ -22,7 +22,7 @@ export const nameDirMismatchRule = defineRule({
   meta: {
     id: 'skill/name-dir-mismatch',
     title: 'Skill name does not match its directory name',
-    rationale: `The Agent Skills specification, Cursor and GitHub Copilot in VS Code require \`name\` to equal the name of the directory that contains SKILL.md, and VS Code does not load a skill whose name does not match. The skills-ref validator compares both after NFKC normalization and rejects a mismatch, and the Claude API (with \`skills-2025-10-02\`) requires uploaded files to sit in a directory named after the skill. Claude Code and Codex do not require a match.
+    rationale: `The Agent Skills specification, Cursor, Cline and GitHub Copilot in VS Code require \`name\` to equal the name of the directory that contains SKILL.md, and VS Code does not load a skill whose name does not match. The skills-ref validator compares both after NFKC normalization and rejects a mismatch, and the Claude API (with \`skills-2025-10-02\`) requires uploaded files to sit in a directory named after the skill. Claude Code and Codex do not require a match.
 
 Only the agents that load the skill where it is count, so a skill in a plugin is judged by the plugin's agents. A SKILL.md at a plugin root is exempt, because there \`name\` deliberately differs from the plugin directory. The specification and upload requirements count only for skills that are installed or uploaded on their own.
 
@@ -30,11 +30,12 @@ Rename the directory or change \`name\` so that they match.`,
     category: 'correctness',
     severity: 'error',
     appliesTo: ['skill'],
-    platforms: ['claude-code', 'cursor', 'copilot'],
+    platforms: ['claude-code', 'cursor', 'copilot', 'cline'],
     sources: [
       SOURCES.agentSkillsSpec,
       SKILL_SOURCES.vscodeSkills,
       SOURCES.cursorSkills,
+      SOURCES.clineSkills,
       SOURCES.skillsRefValidator,
       SKILL_SOURCES.claudeSkillsApiGuide,
       SOURCES.claudeSkills,
@@ -70,12 +71,14 @@ Rename the directory or change \`name\` so that they match.`,
         const readers = readersAt(context.snapshot, path, artifact.caseMismatch !== undefined);
         const copilot = readers.has('copilot');
         const cursor = readers.has('cursor');
+        const cline = readers.has('cline');
         const impacts: Impact[] = [
           ...(own
             ? [{ platform: 'claude-code', severity: 'warn', scope: 'distribution' } as const]
             : []),
           ...(copilot ? [{ platform: 'copilot', severity: 'error' } as const] : []),
           ...(cursor ? [{ platform: 'cursor', severity: 'warn' } as const] : []),
+          ...(cline ? [{ platform: 'cline', severity: 'warn' } as const] : []),
         ];
         const resolved = resolveImpacts(context, artifact, impacts);
         if (resolved === undefined) continue;
@@ -85,6 +88,7 @@ Rename the directory or change \`name\` so that they match.`,
         const spec = own && isDistributable(context, artifact);
         const requirers = [
           ...(cursor ? ['Cursor'] : []),
+          ...(cline ? ['Cline'] : []),
           ...(spec ? ['the Agent Skills specification'] : []),
         ];
         const consequence = sentence(

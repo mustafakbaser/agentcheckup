@@ -37,7 +37,7 @@ type Context = Pick<RuleContext<undefined>, 'frontmatter' | 'snapshot'>;
 
 const ALWAYS_APPLY_NOTE =
   'With "alwaysApply: true", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with "globs" or a "description".';
-const DEVIN_NOTE = 'Devin Local in Windsurf reads the file under either name.';
+const DEVIN_NOTE = 'Devin Local reads the file under either name.';
 
 /** What the fix does besides the rename, or the manual step that replaces the fix. */
 type Plan =
@@ -228,7 +228,7 @@ export const mdFileIgnoredRule = defineRule({
     id: ID,
     title: 'Cursor ignores .md files in .cursor/rules',
     rationale: [
-      'Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there "is ignored by the rules system" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent in Windsurf (now Devin Desktop), does read `.md` files in `.cursor/rules`, so the same file applies in Windsurf and not in Cursor.',
+      'Cursor loads project rules from `.cursor/rules` only when they use the `.mdc` extension. Its documentation says a plain `.md` file there "is ignored by the rules system" because it has no frontmatter to set `description`, `globs` and `alwaysApply`. Devin Local, the default agent of Devin Desktop (formerly Windsurf), does read `.md` files in `.cursor/rules`, so the same file applies in Devin Local and not in Cursor.',
       'A `README.md` in the directory is treated as documentation and is not reported.',
       'Rename the file to `.mdc` and add frontmatter, or move plain Markdown instructions to `AGENTS.md`.',
     ].join('\n\n'),

@@ -85,6 +85,20 @@ export function isClineRuleFile(name: string): boolean {
 }
 
 /**
+ * True when Cline reads the file at `path` as a rule or a workflow, whatever its name: a rule
+ * file in a rules or workflows folder. `.clinerules/AGENTS.md` is a rule to Cline, not an
+ * AGENTS.md.
+ */
+export function isClineRuleOrWorkflow(path: string): boolean {
+  const place = clinePlace(path);
+  return (
+    place !== undefined &&
+    (place.role === 'rule' || place.role === 'workflow') &&
+    isClineRuleFile(path.slice(path.lastIndexOf('/') + 1))
+  );
+}
+
+/**
  * When Cline applies a rule:
  * - `always`: in every request. A rule without frontmatter or without `paths`, and a rule whose
  *   frontmatter does not parse: Cline's documentation says it then fails open.

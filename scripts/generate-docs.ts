@@ -35,7 +35,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   cursor: 'Cursor',
   copilot: 'GitHub Copilot',
   gemini: 'Gemini CLI',
-  windsurf: 'Windsurf',
+  windsurf: 'Devin Local',
   cline: 'Cline',
 };
 

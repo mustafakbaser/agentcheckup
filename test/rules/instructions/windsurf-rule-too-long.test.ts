@@ -19,7 +19,7 @@ describe('instr/windsurf-rule-too-long', () => {
         severity: 'info',
         path: '.windsurf/rules/style.md',
         message:
-          "This rule has 13,000 characters. Windsurf's Cascade agent limits each workspace rule file to 12,000 characters, and the text from line 121 on is past that limit.",
+          'This rule has 13,000 characters. Cascade, the older agent of Devin Desktop (formerly Windsurf), limits each workspace rule file to 12,000 characters, and the text from line 121 on is past that limit.',
         range: { start: { line: 121, column: 1 }, end: { line: 121, column: 100 } },
       },
     ]);
@@ -49,13 +49,13 @@ describe('instr/windsurf-rule-too-long', () => {
     expect(findings(over, RULE)).toEqual([
       expect.objectContaining({
         message:
-          "This rule has 12,001 characters. Windsurf's Cascade agent limits each workspace rule file to 12,000 characters, and the text from line 1 on is past that limit.",
+          'This rule has 12,001 characters. Cascade, the older agent of Devin Desktop (formerly Windsurf), limits each workspace rule file to 12,000 characters, and the text from line 1 on is past that limit.',
         range: { start: { line: 1, column: 24_001 }, end: { line: 1, column: 24_002 } },
       }),
     ]);
   });
 
-  it('does not run when Windsurf is not targeted', () => {
+  it('does not run when Devin Local is not targeted', () => {
     const result = lint({ '.windsurfrules': lines(200) }, { rules, targets: ['cursor'] });
     expect(findings(result, RULE)).toEqual([]);
   });

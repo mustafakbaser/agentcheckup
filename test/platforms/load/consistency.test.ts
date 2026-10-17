@@ -396,23 +396,29 @@ describe('allowances', () => {
     ).toEqual(['import-outside-root', 'import-unresolved']);
   });
 
-  it('skip-without-rule: a Devin Local hook under an event Devin Local does not fire', () => {
-    const files = {
+  it('cites hooks/unknown-event for a Devin Local hook under an event it does not fire', () => {
+    const checked = check({
       'AGENTS.md': 'Rules.\n',
       '.devin/hooks.v1.json':
-        '{"BeforeCommit":[{"hooks":[{"type":"command","command":"./x.sh"}]}]}',
-    };
-    const allowed = check(files);
-    expect(allowed.report.mismatches).toEqual([]);
-    expect(allowed.report.allowed['skip-without-rule']).toBe(1);
-    const devin = allowed.plans.find((plan) => plan.agent === 'windsurf');
-    expect(devin?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
-      ['.devin/hooks.v1.json', 'unknown-event', undefined],
+        '{"BeforeCommit":[{"hooks":[{"type":"command","command":"./x.sh"}]}],"stop":[]}',
+      '.devin/config.json':
+        '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./s.sh"}]}]}}',
+    });
+    expect(checked.report.mismatches).toEqual([]);
+    expect(checked.report.allowed['skip-without-rule']).toBeUndefined();
+    const devin = checked.plans.find((plan) => plan.agent === 'windsurf');
+    // An event without hooks is skipped too; one in another letter case is unverified.
+    expect(devin?.skipped.map((s) => [s.path, s.name, s.ruleId, s.certainty])).toEqual([
+      ['.devin/hooks.v1.json', 'BeforeCommit', 'hooks/unknown-event', 'documented'],
+      ['.devin/hooks.v1.json', 'stop', 'hooks/unknown-event', 'unverified'],
     ]);
-    // hooks/unknown-event does not check Devin Local's files.
-    expect(allowed.result.findings.filter((f) => f.ruleId === 'hooks/unknown-event')).toEqual([]);
-    expect(brief(check(files, {}, ['skip-without-rule']).report.mismatches)).toEqual([
-      'skip-without-rule - windsurf .devin/hooks.v1.json',
+    expect(
+      checked.result.findings
+        .filter((f) => f.ruleId === 'hooks/unknown-event')
+        .map((f) => [f.path, f.severity, f.platforms]),
+    ).toEqual([
+      ['.devin/hooks.v1.json', 'error', ['windsurf']],
+      ['.devin/hooks.v1.json', 'info', ['windsurf']],
     ]);
   });
 

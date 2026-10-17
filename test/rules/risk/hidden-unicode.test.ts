@@ -253,7 +253,7 @@ describe('risk/hidden-unicode: imported files', () => {
       }),
     ]);
     // For the agents that expand imports.
-    expect(result.findings[0]?.platforms).toEqual(['claude-code', 'gemini']);
+    expect(result.findings[0]?.platforms).toEqual(['claude-code', 'copilot', 'gemini']);
     // An imported file counts toward the score once it has an error.
     expect(result.score.artifacts.map((artifact) => artifact.path)).toEqual([
       'CLAUDE.md',

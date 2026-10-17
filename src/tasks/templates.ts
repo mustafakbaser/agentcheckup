@@ -231,7 +231,7 @@ const TEMPLATES: Readonly<Record<string, TaskTemplate>> = {
     guardRules: INSTRUCTION_GUARDS,
   },
   'instr/windsurf-rule-too-long': {
-    why: "Windsurf's Cascade agent limits each workspace rule file to 12,000 characters.",
+    why: 'Cascade, the older agent of Devin Desktop (formerly Windsurf), limits each workspace rule file to 12,000 characters.',
     do: [
       'split the rule into several rule files, each with its own activation mode',
       'or move reference material into files the rule points to',

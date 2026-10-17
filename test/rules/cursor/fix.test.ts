@@ -78,7 +78,7 @@ describe('cursor/md-file-ignored fixes', () => {
     );
     expect(fix?.notes).toEqual([
       'With "alwaysApply: true", Cursor adds this rule to every conversation. To load it only when it is relevant, replace it with "globs" or a "description".',
-      'Devin Local in Windsurf reads the file under either name.',
+      'Devin Local reads the file under either name.',
       'Update the links to ".cursor/rules/style.md" in "AGENTS.md" and "docs/AGENTS.md": they still point to the old name.',
     ]);
   });
@@ -286,7 +286,7 @@ describe('cursor/legacy-cursorrules fixes', () => {
     );
     expect(fix?.notes).toEqual([
       'Cline reads .cursorrules but not .cursor/rules, so it stops loading these instructions.',
-      'Devin Local in Windsurf reads .cursor/rules, so it starts loading these instructions.',
+      'Devin Local reads .cursor/rules, so it starts loading these instructions.',
     ]);
     expect(fix?.alternatives).toEqual([
       {
@@ -295,7 +295,7 @@ describe('cursor/legacy-cursorrules fixes', () => {
         title: 'Rename .cursorrules to AGENTS.md',
         changes: [{ kind: 'rename', from: '.cursorrules', to: 'AGENTS.md' }],
         notes: [
-          'Cursor and Cline keep reading these instructions as AGENTS.md, and Codex, GitHub Copilot and Windsurf start reading them.',
+          'Cursor and Cline keep reading these instructions as AGENTS.md, and Codex, GitHub Copilot and Devin Local start reading them.',
         ],
       },
     ]);

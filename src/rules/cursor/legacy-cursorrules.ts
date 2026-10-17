@@ -14,8 +14,7 @@ const RULE_PATH = '.cursor/rules/cursorrules.mdc';
 
 const CLINE_NOTE =
   'Cline reads .cursorrules but not .cursor/rules, so it stops loading these instructions.';
-const DEVIN_NOTE =
-  'Devin Local in Windsurf reads .cursor/rules, so it starts loading these instructions.';
+const DEVIN_NOTE = 'Devin Local reads .cursor/rules, so it starts loading these instructions.';
 
 type Context = Pick<RuleContext<undefined>, 'frontmatter' | 'snapshot'>;
 
@@ -33,7 +32,7 @@ function agentsMdAlternative(
     title: `Rename ${artifact.path} to ${target}`,
     changes: [renameFile(artifact, target)],
     notes: [
-      'Cursor and Cline keep reading these instructions as AGENTS.md, and Codex, GitHub Copilot and Windsurf start reading them.',
+      'Cursor and Cline keep reading these instructions as AGENTS.md, and Codex, GitHub Copilot and Devin Local start reading them.',
     ],
   };
 }
@@ -86,7 +85,7 @@ export const legacyCursorrulesRule = defineRule({
     title: '.cursorrules is a legacy file that Cursor plans to deprecate',
     rationale: [
       'Cursor\'s help center calls the `.cursorrules` file in the project root "legacy" and says it "will be deprecated". Its migration steps move the content into a project rule in `.cursor/rules` with the type **Always Apply**, which matches the old behavior.',
-      'Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor and Cline, and also in Codex, GitHub Copilot and Windsurf.',
+      'Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor and Cline, and also in Codex, GitHub Copilot and Devin Local.',
     ].join('\n\n'),
     category: 'loading',
     severity: 'info',

@@ -122,7 +122,7 @@ describe('risk/hidden-comment', () => {
         severity: 'info',
         path: 'README.md',
         message: expect.stringMatching(
-          /\. Claude Code and Gemini CLI read this file, comment included\.$/,
+          /\. Claude Code, GitHub Copilot and Gemini CLI read this file, comment included\.$/,
         ) as unknown,
       }),
     ]);

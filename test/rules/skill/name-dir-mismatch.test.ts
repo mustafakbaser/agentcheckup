@@ -22,7 +22,7 @@ function check(
 }
 
 const CONSEQUENCE =
-  'GitHub Copilot in VS Code does not load the skill, and Cursor and the Agent Skills specification require them to match.';
+  'GitHub Copilot in VS Code does not load the skill, and Cursor, Cline and the Agent Skills specification require them to match.';
 
 describe('skill/name-dir-mismatch', () => {
   it('reports a name that differs from the directory of a distributable skill', () => {
@@ -30,7 +30,7 @@ describe('skill/name-dir-mismatch', () => {
       {
         path: 'skills/deploy-prod/SKILL.md',
         severity: 'error',
-        platforms: ['claude-code', 'cursor', 'copilot'],
+        platforms: ['claude-code', 'cursor', 'copilot', 'cline'],
         message: `Skill name "deploy" does not match its directory "deploy-prod". ${CONSEQUENCE}`,
         range: { start: { line: 2, column: 7 }, end: { line: 2, column: 13 } },
       },
@@ -41,9 +41,9 @@ describe('skill/name-dir-mismatch', () => {
     expect(check({ '.agents/skills/deploy-prod/SKILL.md': skill('deploy') })).toEqual([
       expect.objectContaining({
         severity: 'error',
-        platforms: ['cursor', 'copilot'],
+        platforms: ['cursor', 'copilot', 'cline'],
         message:
-          'Skill name "deploy" does not match its directory "deploy-prod". GitHub Copilot in VS Code does not load the skill, and Cursor requires them to match.',
+          'Skill name "deploy" does not match its directory "deploy-prod". GitHub Copilot in VS Code does not load the skill, and Cursor and Cline require them to match.',
       }),
     ]);
   });
@@ -54,6 +54,17 @@ describe('skill/name-dir-mismatch', () => {
     const fullwidth = String.fromCodePoint(0xff44, 0xff45, 0xff50, 0xff4c, 0xff4f, 0xff59);
     expect(check({ [`skills/${fullwidth}/SKILL.md`]: skill('deploy') })).toEqual([]);
     expect(check({ 'skills/dağıt/SKILL.md': skill('dağıt') })).toEqual([]);
+  });
+
+  it('names Cline, whose documentation requires the match, as a warning', () => {
+    expect(check({ '.cline/skills/deploy-prod/SKILL.md': skill('deploy') })).toEqual([
+      expect.objectContaining({
+        severity: 'warn',
+        platforms: ['cline'],
+        message:
+          'Skill name "deploy" does not match its directory "deploy-prod". Cline requires them to match.',
+      }),
+    ]);
   });
 
   it('does not report where no agent that loads the skill enforces the match', () => {
@@ -111,7 +122,7 @@ describe('skill/name-dir-mismatch', () => {
     expect(result.map((f) => [f.path, f.message])).toEqual([
       [
         '.agents/skills/deploy/SKILL.md',
-        'Skill name "deploy" does not match the directory "ship" of its symlink ".claude/skills/ship/SKILL.md". GitHub Copilot in VS Code does not load the skill, and Cursor requires them to match.',
+        'Skill name "deploy" does not match the directory "ship" of its symlink ".claude/skills/ship/SKILL.md". GitHub Copilot in VS Code does not load the skill, and Cursor and Cline require them to match.',
       ],
     ]);
   });

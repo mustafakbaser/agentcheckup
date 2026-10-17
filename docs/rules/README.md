@@ -45,7 +45,7 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | [`instr/subagent-invalid`](instr/subagent-invalid.md)                       | error    | loading     | safe          | Claude Code skips a subagent with invalid frontmatter                 |
 | [`instr/symlink-materialized`](instr/symlink-materialized.md)               | error    | loading     | review        | Instruction file is a symlink checked out as plain text               |
 | [`instr/vague-directive`](instr/vague-directive.md)                         | info     | clarity     | manual        | Instruction is generic advice that says nothing about the project     |
-| [`instr/windsurf-rule-too-long`](instr/windsurf-rule-too-long.md)           | info     | budget      | manual        | Windsurf rule file exceeds Cascade's 12,000-character limit           |
+| [`instr/windsurf-rule-too-long`](instr/windsurf-rule-too-long.md)           | info     | budget      | manual        | Devin Desktop rule file exceeds Cascade's 12,000-character limit      |
 | [`json/duplicate-key`](json/duplicate-key.md)                               | warn     | correctness | safe          | JSON object repeats a key                                             |
 | [`json/invalid-syntax`](json/invalid-syntax.md)                             | error    | loading     | review        | Configuration file is not valid JSON                                  |
 | [`mcp/env-syntax-mismatch`](mcp/env-syntax-mismatch.md)                     | warn     | portability | review        | MCP configuration uses another agent's variable syntax                |
@@ -67,7 +67,7 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | [`skill/description-missing`](skill/description-missing.md)                 | error    | loading     | review, input | Skill description is missing or empty                                 |
 | [`skill/description-quality`](skill/description-quality.md)                 | info     | clarity     | input         | Skill description is too short or does not say when to use it         |
 | [`skill/description-too-long`](skill/description-too-long.md)               | error    | budget      | manual        | Skill description exceeds the upload or Claude Code listing limit     |
-| [`skill/duplicate-name`](skill/duplicate-name.md)                           | warn     | loading     | manual        | Two skills in one skills directory have the same name                 |
+| [`skill/duplicate-name`](skill/duplicate-name.md)                           | warn     | loading     | manual        | Two skills that an agent reads together have the same name            |
 | [`skill/field-type`](skill/field-type.md)                                   | warn     | correctness | review        | Skill frontmatter field has the wrong type or length                  |
 | [`skill/frontmatter-bom`](skill/frontmatter-bom.md)                         | error    | loading     | safe          | Skill file starts with a byte order mark                              |
 | [`skill/frontmatter-invalid`](skill/frontmatter-invalid.md)                 | error    | loading     | manual        | Skill frontmatter is not valid YAML                                   |

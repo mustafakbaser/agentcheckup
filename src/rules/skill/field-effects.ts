@@ -4,9 +4,11 @@
  * and its `#remove` fix prints the change as a note.
  *
  * Checked 2026-10-17 against the frontmatter references of Claude Code
- * (code.claude.com/docs/en/skills), Cursor (cursor.com/docs/skills) and GitHub Copilot in VS Code
- * (code.visualstudio.com/docs/agent-customization/agent-skills), which skill/non-portable-field
- * cites. Each note states the default the agents fall back to.
+ * (code.claude.com/docs/en/skills), Cursor (cursor.com/docs/skills), GitHub Copilot in VS Code
+ * (code.visualstudio.com/docs/agent-customization/agent-skills) and Devin Local
+ * (docs.devin.ai/cli/extensibility/skills/creating-skills), which skill/non-portable-field cites.
+ * Cline documents only `name` and `description` (docs.cline.bot/customization/skills). Each note
+ * states the default the agents fall back to.
  */
 import type { PlatformId } from '../../core/types.js';
 
@@ -31,10 +33,10 @@ export const FIELD_EFFECTS: Readonly<Record<string, FieldEffect>> = {
     withoutIt: 'Without "when_to_use", Claude Code matches requests against the description alone.',
   },
   'argument-hint': {
-    readers: ['claude-code', 'copilot'],
+    readers: ['claude-code', 'copilot', 'windsurf'],
     removable: true,
     withoutIt:
-      'Without "argument-hint", Claude Code and GitHub Copilot show no hint for the arguments when the skill is typed as a / command.',
+      'Without "argument-hint", Claude Code, GitHub Copilot and Devin Local show no hint for the arguments when the skill is typed as a / command.',
   },
   arguments: {
     readers: ['claude-code'],
@@ -61,9 +63,10 @@ export const FIELD_EFFECTS: Readonly<Record<string, FieldEffect>> = {
       'Without "disallowed-tools", Claude Code lets the model call the tools this skill withholds.',
   },
   model: {
-    readers: ['claude-code'],
+    readers: ['claude-code', 'windsurf'],
     removable: true,
-    withoutIt: 'Without "model", Claude Code runs the skill with the session\'s model.',
+    withoutIt:
+      'Without "model", Claude Code and Devin Local run the skill with the session\'s model.',
   },
   effort: {
     readers: ['claude-code'],
@@ -77,10 +80,11 @@ export const FIELD_EFFECTS: Readonly<Record<string, FieldEffect>> = {
       'Without "context", Claude Code and GitHub Copilot run the skill in the main conversation instead of a forked subagent.',
   },
   agent: {
-    readers: ['claude-code'],
-    removable: true,
+    readers: ['claude-code', 'windsurf'],
+    // Devin Local applies the tool restrictions of the named subagent profile.
+    removable: false,
     withoutIt:
-      'Without "agent", Claude Code runs the skill in the general-purpose subagent when it forks.',
+      'Without "agent", Claude Code runs the skill in the general-purpose subagent when it forks, and Devin Local runs it without the tool restrictions of the named subagent profile.',
   },
   background: {
     readers: ['claude-code'],

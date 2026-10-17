@@ -4,14 +4,14 @@
 
 Skill links to a missing file or outside its directory.
 
-|            |                                                        |
-| ---------- | ------------------------------------------------------ |
-| Severity   | `error`                                                |
-| Category   | `correctness`                                          |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
-| Applies to | `skill`                                                |
-| Fixable    | Yes, `safe` or `review`                                |
-| Since      | 2026.10                                                |
+|            |                                                                            |
+| ---------- | -------------------------------------------------------------------------- |
+| Severity   | `error`                                                                    |
+| Category   | `correctness`                                                              |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline |
+| Applies to | `skill`                                                                    |
+| Fixable    | Yes, `safe` or `review`                                                    |
+| Since      | 2026.10                                                                    |
 
 ## Why
 

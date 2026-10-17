@@ -24,9 +24,9 @@ describe('skill/name-missing', () => {
     expect(check('.agents/skills/deploy/SKILL.md', '---\ndescription: Deploys.\n---\n')).toEqual([
       {
         severity: 'error',
-        platforms: ['cursor', 'copilot', 'gemini'],
+        platforms: ['cursor', 'copilot', 'gemini', 'cline'],
         message:
-          'The frontmatter has no `name`. Gemini CLI skips the skill, Codex uses the directory name "deploy", and Cursor and GitHub Copilot require the field.',
+          'The frontmatter has no `name`. Gemini CLI skips the skill, Codex and Devin Local use the directory name "deploy", and Cursor, GitHub Copilot and Cline require the field.',
         range: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
       },
     ]);
@@ -36,9 +36,9 @@ describe('skill/name-missing', () => {
     expect(check('skills/deploy/SKILL.md', '---\ndescription: Deploys.\n---\n')).toEqual([
       expect.objectContaining({
         severity: 'error',
-        platforms: ['claude-code', 'cursor', 'copilot', 'gemini'],
+        platforms: ['claude-code', 'cursor', 'copilot', 'gemini', 'cline'],
         message:
-          'The frontmatter has no `name`. Gemini CLI skips the skill, Claude Code and Codex use the directory name "deploy", and Cursor, GitHub Copilot and claude.ai upload require the field.',
+          'The frontmatter has no `name`. Gemini CLI skips the skill, Claude Code, Codex and Devin Local use the directory name "deploy", and Cursor, GitHub Copilot, Cline and claude.ai upload require the field.',
       }),
     ]);
   });
@@ -47,9 +47,9 @@ describe('skill/name-missing', () => {
     expect(check('.claude/skills/deploy/SKILL.md', '---\ndescription: Deploys.\n---\n')).toEqual([
       expect.objectContaining({
         severity: 'warn',
-        platforms: ['cursor', 'copilot'],
+        platforms: ['cursor', 'copilot', 'cline'],
         message:
-          'The frontmatter has no `name`. Claude Code uses the directory name "deploy", and Cursor and GitHub Copilot require the field.',
+          'The frontmatter has no `name`. Claude Code and Devin Local use the directory name "deploy", and Cursor, GitHub Copilot and Cline require the field.',
       }),
     ]);
     expect(
@@ -79,9 +79,9 @@ describe('skill/name-missing', () => {
     expect(check('skills/deploy/SKILL.md', '---\nname: ""\ndescription: Deploys.\n---\n')).toEqual([
       {
         severity: 'warn',
-        platforms: ['claude-code', 'cursor', 'copilot', 'gemini'],
+        platforms: ['claude-code', 'cursor', 'copilot', 'gemini', 'cline'],
         message:
-          '`name` is empty. Gemini CLI loads the skill without a usable name, Codex uses the directory name "deploy", and Cursor, GitHub Copilot and claude.ai upload require a value.',
+          '`name` is empty. Gemini CLI loads the skill without a usable name, Codex uses the directory name "deploy", and Cursor, GitHub Copilot, Cline and claude.ai upload require a value.',
         range: { start: { line: 2, column: 1 }, end: { line: 2, column: 5 } },
       },
     ]);
@@ -96,7 +96,7 @@ describe('skill/name-missing', () => {
 
   it('describes a skill at the scan root without a directory name', () => {
     expect(check('SKILL.md', '---\ndescription: Deploys.\n---\n')[0]?.message).toBe(
-      'The frontmatter has no `name`. Gemini CLI skips the skill, Claude Code and Codex use the directory name, and Cursor, GitHub Copilot and claude.ai upload require the field.',
+      'The frontmatter has no `name`. Gemini CLI skips the skill, Claude Code, Codex and Devin Local use the directory name, and Cursor, GitHub Copilot, Cline and claude.ai upload require the field.',
     );
   });
 

@@ -217,7 +217,7 @@ export const nonPortableFieldRule = defineRule({
   meta: {
     id: RULE_ID,
     title: 'Skill frontmatter uses a field outside the Agent Skills specification',
-    rationale: `The Agent Skills specification defines six frontmatter fields: \`name\`, \`description\`, \`license\`, \`compatibility\`, \`metadata\` and \`allowed-tools\`. Claude Code reads its own extensions, such as \`when_to_use\`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents \`paths\`, \`disable-model-invocation\`, \`icon\`, \`color\` and \`globs\`, and GitHub Copilot in VS Code documents \`argument-hint\`, \`user-invocable\`, \`disable-model-invocation\` and \`context\`.
+    rationale: `The Agent Skills specification defines six frontmatter fields: \`name\`, \`description\`, \`license\`, \`compatibility\`, \`metadata\` and \`allowed-tools\`. Claude Code reads its own extensions, such as \`when_to_use\`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents \`paths\`, \`disable-model-invocation\`, \`icon\`, \`color\` and \`globs\`, GitHub Copilot in VS Code documents \`argument-hint\`, \`user-invocable\`, \`disable-model-invocation\` and \`context\`, Devin Local documents \`argument-hint\`, \`model\` and \`agent\` among others, and Cline documents none.
 
 For a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.
 
@@ -233,6 +233,8 @@ Keep extension fields in skills that only their agents load, and move your own d
       SKILL_SOURCES.anthropicsSkillValidator,
       SOURCES.cursorSkills,
       SKILL_SOURCES.vscodeSkills,
+      SOURCES.devinCliSkillsCreate,
+      SOURCES.clineSkills,
     ],
     since: RULESET_VERSION,
     fix: {
