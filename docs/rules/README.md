@@ -72,6 +72,6 @@ means guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe
 | [`skill/name-format`](skill/name-format.md)                                 | error    | correctness | safe, review | Skill name does not follow the Agent Skills naming rules              |
 | [`skill/name-missing`](skill/name-missing.md)                               | error    | portability | safe         | Skill name is missing or empty                                        |
 | [`skill/name-reserved-word`](skill/name-reserved-word.md)                   | warn     | portability | manual       | Skill name uses a reserved word or name                               |
-| [`skill/non-portable-field`](skill/non-portable-field.md)                   | warn     | portability | manual       | Skill frontmatter uses a field outside the Agent Skills specification |
+| [`skill/non-portable-field`](skill/non-portable-field.md)                   | warn     | portability | review       | Skill frontmatter uses a field outside the Agent Skills specification |
 | [`skill/shell-preprocessing`](skill/shell-preprocessing.md)                 | warn     | risk        | manual       | Skill runs a risky shell command before Claude reads it               |
 | [`skill/yaml-portability`](skill/yaml-portability.md)                       | warn     | portability | review       | Skill frontmatter uses YAML that parsers read differently             |

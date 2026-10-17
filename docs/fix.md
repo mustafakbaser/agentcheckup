@@ -386,7 +386,7 @@ section.
 
 <!-- Start of the fixable rules, generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
 
-37 of the 62 rules can attach a fix. The others give a manual step where they can name one.
+38 of the 62 rules can attach a fix. The others give a manual step where they can name one.
 
 | Rule                                                                              | Classes          | What the fix does                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -426,6 +426,7 @@ section.
 | [`skill/name-dir-mismatch`](rules/skill/name-dir-mismatch.md)                     | `safe`, `review` | Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. Directories are never renamed.                                                                                                                                                                                |
 | [`skill/name-format`](rules/skill/name-format.md)                                 | `safe`, `review` | Sets `name` to the directory name: safe when that is the name in lowercase with hyphens, review otherwise. A non-ASCII name or an invalid directory name is left to you.                                                                                                                                                 |
 | [`skill/name-missing`](rules/skill/name-missing.md)                               | `safe`           | Sets `name` to the directory name when that is a valid skill name.                                                                                                                                                                                                                                                       |
+| [`skill/non-portable-field`](rules/skill/non-portable-field.md)                   | `review`         | Moves keys that no agent documents under `metadata`, as quoted text, in a skill uploaded or installed on its own. `fix -i` can instead record why the fields stay, as a suppression with your reason, or remove agent-specific fields that do not restrict the model.                                                    |
 | [`skill/yaml-portability`](rules/skill/yaml-portability.md)                       | `review`         | Puts a value that YAML 1.1 reads as a boolean, or YAML 1.2 as a number, in double quotes. Anchors, aliases, tags and empty values are left to you.                                                                                                                                                                       |
 
 <!-- End of the fixable rules. -->

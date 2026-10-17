@@ -29,6 +29,7 @@ const FIXABLE = new Set([
   'skill/name-dir-mismatch',
   'skill/name-format',
   'skill/name-missing',
+  'skill/non-portable-field',
   'skill/yaml-portability',
 ]);
 
@@ -135,7 +136,6 @@ describe('skill fix metadata', () => {
       'skill/duplicate-name',
       'skill/frontmatter-invalid',
       'skill/name-reserved-word',
-      'skill/non-portable-field',
       'skill/shell-preprocessing',
     ]);
     const long = found(

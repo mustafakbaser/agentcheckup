@@ -10,7 +10,7 @@ Skill frontmatter uses a field outside the Agent Skills specification.
 | Category   | `portability`                                          |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                                |
-| Fixable    | No                                                     |
+| Fixable    | Yes, `review`                                          |
 | Since      | 2026.10                                                |
 
 ## Why
@@ -32,7 +32,11 @@ Keep extension fields in skills that only their agents load, and move your own d
 
 ## Fix
 
-Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+
+Moves keys that no agent documents under `metadata`, as quoted text, in a skill uploaded or installed on its own. `fix -i` can instead record why the fields stay, as a suppression with your reason, or remove agent-specific fields that do not restrict the model.
+
+Preview the fix with `agentcheckup fix --rule skill/non-portable-field`.
 
 ## Configuration
 

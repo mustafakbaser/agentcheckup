@@ -46,6 +46,10 @@ const EXPECTED: Readonly<Record<string, readonly (readonly [string, FixClass])[]
   'name-format/yaml-keyword-slug': [['skill/name-format#slug', 'safe']],
   'name-missing/missing-key': [['skill/name-missing#directory', 'safe']],
   'name-missing/null-keyword-directory': [['skill/name-missing#directory', 'safe']],
+  'non-portable-field/comments-near-keys': [['skill/non-portable-field#metadata', 'review']],
+  'non-portable-field/existing-metadata': [['skill/non-portable-field#metadata', 'review']],
+  'non-portable-field/flow-and-block-lists': [['skill/non-portable-field#metadata', 'review']],
+  'non-portable-field/numbers-and-booleans': [['skill/non-portable-field#metadata', 'review']],
   'yaml-portability/quote-scalars': [
     ['skill/yaml-portability#quote', 'review'],
     ['skill/yaml-portability#quote', 'review'],

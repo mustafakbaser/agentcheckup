@@ -8,6 +8,7 @@ import { skillRules } from '../../../src/rules/skill/index.js';
 const SOURCE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), '../../../src/rules/skill');
 const HELPERS = new Set([
   'index.ts',
+  'field-effects.ts',
   'fixes.ts',
   'format.ts',
   'repair.ts',
