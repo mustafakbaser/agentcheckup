@@ -2,8 +2,8 @@
  * Generates docs/rules/<family>/<name>.md for every rule, docs/rules/README.md (the catalog),
  * the table of rules with fixes in docs/fix.md (between the FIXABLE_START and FIXABLE_END
  * markers; the rest of that page is written by hand), and schemas/config.schema.json, from rule
- * metadata. Run with `pnpm docs:generate`. CI runs it with `--check` and fails if the committed
- * files are stale.
+ * metadata, and schemas/policy.schema.json from POLICY_JSON_SCHEMA. Run with `pnpm docs:generate`.
+ * CI runs it with `--check` and fails if the committed files are stale.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -13,6 +13,7 @@ import { CONFIG_JSON_SCHEMA } from '../src/core/config.js';
 import { DIRECTIVE_RULES } from '../src/core/directive-rules.js';
 import { CONFIG_FILE_NAME, RULESET_VERSION } from '../src/core/meta.js';
 import type { RuleMeta } from '../src/core/types.js';
+import { POLICY_JSON_SCHEMA } from '../src/policy/schema.js';
 import { builtinRules } from '../src/rules/index.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -203,6 +204,18 @@ outputs.set(
       $id: 'https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/config.schema.json',
       title: 'agentcheckup configuration',
       ...CONFIG_JSON_SCHEMA,
+    },
+    null,
+    2,
+  )}\n`,
+);
+outputs.set(
+  join('schemas', 'policy.schema.json'),
+  `${JSON.stringify(
+    {
+      $id: 'https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/policy.schema.json',
+      title: 'agentcheckup organization policy',
+      ...POLICY_JSON_SCHEMA,
     },
     null,
     2,

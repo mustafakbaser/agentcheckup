@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/policy.schema.json",
+  "policyVersion": 1, "name": "acme agent policy", "mode": "enforce", "existing": "report",
+  "mcp": { "allow": ["npm:@modelcontextprotocol/server-github", "pypi:mcp-server-fetch", "oci:ghcr.io/acme/mcp-db", "https://mcp.acme.internal", "https://*.acme.dev"], "allowLocal": false, "requirePin": true },
+  "forbid": ["bypass-permissions", "auto-approve-project-mcp", "broad-shell", "gemini-trust"],
+  "permissions": { "denyTools": ["WebFetch"], "denyCommands": ["curl", "wget", "ssh"] },
+  "hooks": { "require": [{ "agent": "claude-code", "event": "PreToolUse", "matcher": "Bash", "script": "scripts/hooks/guard.sh" }] },
+  "budgets": { "claude-code": { "startupTokens": 8000 }, "codex": { "startupTokens": 8000 } }
+}

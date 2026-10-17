@@ -13,30 +13,21 @@ import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
 import type { FixClass } from '../core/types.js';
 import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../inventory/types.js';
-import type {
-  Assumption,
-  ContextAgent,
-  ContextReport,
-  HiddenScope,
-  LoadEntry,
-  LoadPlan,
-  MatrixCell,
-  Size,
-  SkipCode,
+import {
+  AGENT_NAMES,
+  type Assumption,
+  type ContextAgent,
+  type ContextReport,
+  type HiddenScope,
+  type LoadEntry,
+  type LoadPlan,
+  type MatrixCell,
+  type Size,
+  type SkipCode,
 } from '../platforms/load/types.js';
 import { toJsonContext, toJsonInventory } from './json.js';
 
-export const AGENT_NAMES: Readonly<Record<ContextAgent, string>> = {
-  'claude-code': 'Claude Code',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  'copilot-cli': 'Copilot CLI',
-  'copilot-vscode': 'Copilot in VS Code',
-  'copilot-cloud': 'Copilot cloud agent',
-  gemini: 'Gemini CLI',
-  windsurf: 'Devin Local',
-  cline: 'Cline',
-};
+export { AGENT_NAMES };
 
 /**
  * Short labels for a matrix too wide for {@link AGENT_NAMES}: `group` names the product, and

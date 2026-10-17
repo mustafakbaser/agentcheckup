@@ -9,9 +9,11 @@
 import { replaceSpan } from '../fix/edits.js';
 import { lineEndAfter, lineStartBefore, roundTrips } from '../fix/text.js';
 import { DIRECTIVE_UNKNOWN_RULE, DIRECTIVE_UNUSED } from './directive-rules.js';
-import { positionAt } from './text.js';
+import { boundedDistance, positionAt } from './text.js';
 import { type Directive, FILE_KEYWORD, NEXT_LINE_KEYWORD } from './suppress.js';
 import type { Artifact, Fix, Span } from './types.js';
+
+export { boundedDistance };
 
 /**
  * Most findings one rule reports per file in the rule families that cap them (see
@@ -103,33 +105,6 @@ export function unusedDirectiveFix(artifact: Artifact, directive: Directive): Fi
     title: `Remove the unused directive on line ${line} of ${artifact.path}`,
     changes: [replaceSpan(artifact, directiveRemoval(artifact.decoded.text, directive.span), '')],
   };
-}
-
-/**
- * Levenshtein distance between `a` and `b` when it is at most `max`, otherwise `max + 1`. Stops
- * as soon as a row exceeds `max`, so the cost is bounded by the shorter string's length times
- * the longer one's, and the strings are short.
- */
-export function boundedDistance(a: string, b: string, max: number): number {
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-  for (let i = 1; i <= a.length; i++) {
-    const current = [i];
-    let rowMin = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      const value = Math.min(
-        (previous[j] ?? 0) + 1,
-        (current[j - 1] ?? 0) + 1,
-        (previous[j - 1] ?? 0) + cost,
-      );
-      current.push(value);
-      if (value < rowMin) rowMin = value;
-    }
-    if (rowMin > max) return max + 1;
-    previous = current;
-  }
-  return Math.min(previous[b.length] ?? max + 1, max + 1);
 }
 
 /**

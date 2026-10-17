@@ -62,6 +62,19 @@ export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
   cline: false,
 };
 
+/** Each agent's name in messages and reports. */
+export const AGENT_NAMES: Readonly<Record<ContextAgent, string>> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  'copilot-cli': 'Copilot CLI',
+  'copilot-vscode': 'Copilot in VS Code',
+  'copilot-cloud': 'Copilot cloud agent',
+  gemini: 'Gemini CLI',
+  windsurf: 'Devin Local',
+  cline: 'Cline',
+};
+
 /** Agents with a load model that is turned on ({@link LOADER_ENABLED}), in report order. */
 export const CONTEXT_AGENTS: readonly ContextAgent[] = ALL_CONTEXT_AGENTS.filter(
   (agent) => LOADER_ENABLED[agent],

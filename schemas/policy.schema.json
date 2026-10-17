@@ -1,0 +1,313 @@
+{
+  "$id": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/policy.schema.json",
+  "title": "agentcheckup organization policy",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policyVersion", "name"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "policyVersion": {
+      "description": "The policy format version.",
+      "const": 1
+    },
+    "name": {
+      "description": "Shown in reports.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "mode": {
+      "description": "\"enforce\" (default) fails the run on violations; \"audit\" only reports them.",
+      "enum": ["enforce", "audit"]
+    },
+    "existing": {
+      "description": "With a baseline: \"report\" (default) fails only on new violations, \"fail\" on all of them.",
+      "enum": ["report", "fail"]
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "description": "MCP servers that may be configured: npm:<name>[@version], pypi:<name>[==version], oci:<image>[@sha256:digest], or an origin such as https://mcp.example.com or https://*.example.com. When present, even empty, only listed servers pass.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^npm:(?:@[\\dA-Za-z~-][\\w.~-]*\\/)?[\\dA-Za-z~-][\\w.~-]*(?:@[=v]?\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?(?:\\+[\\w.-]+)?)?$"
+              },
+              {
+                "pattern": "^pypi:[\\dA-Za-z](?:[\\w.-]*[\\dA-Za-z])?(?:==\\d+(?:\\.\\d+)*(?:(?:a|b|rc)\\d+)?(?:\\.post\\d+)?(?:\\.dev\\d+)?)?$"
+              },
+              {
+                "pattern": "^oci:[\\da-z][\\d._a-z-]*(?::\\d+\\/[\\da-z][\\d._a-z-]*)?(?:\\/[\\da-z][\\d._a-z-]*)*(?:@sha256:[\\da-f]{64})?$"
+              },
+              {
+                "pattern": "^(?:https?|wss?):\\/\\/(?:(?:\\*\\.)?(?:[\\dA-Za-z](?:[\\dA-Za-z-]*[\\dA-Za-z])?\\.)*[\\dA-Za-z](?:[\\dA-Za-z-]*[\\dA-Za-z])?|\\[[\\d.:A-Fa-f]+\\])(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]\\d{4}|[1-9]\\d{0,3}))?$"
+              }
+            ]
+          }
+        },
+        "allowLocal": {
+          "description": "Allow servers that run a script from the repository. Default false.",
+          "type": "boolean"
+        },
+        "requirePin": {
+          "description": "Require an exact version, a digest or a repository script for every server that runs local code. Default false.",
+          "type": "boolean"
+        }
+      }
+    },
+    "forbid": {
+      "description": "Settings that must not be configured.",
+      "type": "array",
+      "items": {
+        "enum": [
+          "bypass-permissions",
+          "auto-approve-project-mcp",
+          "mcp-auto-approve",
+          "broad-shell",
+          "broad-write",
+          "gemini-trust",
+          "additional-directories",
+          "env-endpoint",
+          "env-tls",
+          "env-code-exec"
+        ]
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "denyTools": {
+          "description": "Tools no grant may let an agent use without asking.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[\\w.-]+$"
+          }
+        },
+        "denyCommands": {
+          "description": "Programs no shell grant may let an agent run without asking.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[\\w+.-]+$"
+          }
+        }
+      }
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require": {
+          "description": "Hooks that must be configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["agent", "event"],
+            "properties": {
+              "agent": {
+                "enum": ["claude-code", "codex", "cursor", "gemini"]
+              },
+              "event": {
+                "description": "A hook event the agent fires.",
+                "type": "string"
+              },
+              "matcher": {
+                "description": "Must equal the hook's matcher.",
+                "type": "string"
+              },
+              "script": {
+                "description": "A repository path the hook must run, such as scripts/hooks/guard.sh.",
+                "type": "string",
+                "minLength": 1
+              },
+              "command": {
+                "description": "Must equal the hook's command line.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "anyOf": [
+              {
+                "properties": {
+                  "agent": {
+                    "const": "claude-code"
+                  },
+                  "event": {
+                    "enum": [
+                      "SessionStart",
+                      "Setup",
+                      "UserPromptSubmit",
+                      "UserPromptExpansion",
+                      "PreToolUse",
+                      "PermissionRequest",
+                      "PermissionDenied",
+                      "PostToolUse",
+                      "PostToolUseFailure",
+                      "PostToolBatch",
+                      "Notification",
+                      "MessageDisplay",
+                      "SubagentStart",
+                      "SubagentStop",
+                      "TaskCreated",
+                      "TaskCompleted",
+                      "Stop",
+                      "StopFailure",
+                      "TeammateIdle",
+                      "InstructionsLoaded",
+                      "ConfigChange",
+                      "CwdChanged",
+                      "DirectoryAdded",
+                      "FileChanged",
+                      "WorktreeCreate",
+                      "WorktreeRemove",
+                      "PreCompact",
+                      "PostCompact",
+                      "PreModelSwitch",
+                      "PostModelSwitch",
+                      "Elicitation",
+                      "ElicitationResult",
+                      "SessionEnd"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "const": "codex"
+                  },
+                  "event": {
+                    "enum": [
+                      "PreToolUse",
+                      "PermissionRequest",
+                      "PostToolUse",
+                      "PreCompact",
+                      "PostCompact",
+                      "SessionStart",
+                      "SessionEnd",
+                      "UserPromptSubmit",
+                      "SubagentStart",
+                      "SubagentStop",
+                      "Stop",
+                      "Interrupt"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "const": "cursor"
+                  },
+                  "event": {
+                    "enum": [
+                      "sessionStart",
+                      "sessionEnd",
+                      "preToolUse",
+                      "postToolUse",
+                      "postToolUseFailure",
+                      "subagentStart",
+                      "subagentStop",
+                      "beforeShellExecution",
+                      "afterShellExecution",
+                      "beforeMCPExecution",
+                      "afterMCPExecution",
+                      "beforeReadFile",
+                      "afterFileEdit",
+                      "beforeSubmitPrompt",
+                      "preCompact",
+                      "stop",
+                      "afterAgentResponse",
+                      "afterAgentThought",
+                      "beforeTabFileRead",
+                      "afterTabFileEdit",
+                      "workspaceOpen"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "const": "gemini"
+                  },
+                  "event": {
+                    "enum": [
+                      "BeforeTool",
+                      "AfterTool",
+                      "BeforeAgent",
+                      "Notification",
+                      "AfterAgent",
+                      "SessionStart",
+                      "SessionEnd",
+                      "PreCompress",
+                      "BeforeModel",
+                      "AfterModel",
+                      "BeforeToolSelection"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "budgets": {
+      "description": "Startup context limits per agent.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claude-code": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        },
+        "codex": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        },
+        "cursor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startupTokens"],
+          "properties": {
+            "startupTokens": {
+              "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            }
+          }
+        }
+      }
+    }
+  }
+}

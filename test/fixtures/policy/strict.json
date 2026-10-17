@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/policy.schema.json",
+  "policyVersion": 1,
+  "name": "strict sample policy",
+  "mode": "enforce",
+  "existing": "fail",
+  "mcp": {
+    "allow": [
+      "npm:@modelcontextprotocol/server-github@2025.4.8",
+      "pypi:mcp-server-fetch==1.0.0",
+      "oci:ghcr.io/acme/mcp-db@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "https://mcp.acme.internal"
+    ],
+    "allowLocal": false,
+    "requirePin": true
+  },
+  "forbid": [
+    "bypass-permissions",
+    "auto-approve-project-mcp",
+    "mcp-auto-approve",
+    "broad-shell",
+    "broad-write",
+    "gemini-trust",
+    "additional-directories",
+    "env-endpoint",
+    "env-tls",
+    "env-code-exec"
+  ],
+  "permissions": {
+    "denyTools": ["WebFetch", "WebSearch"],
+    "denyCommands": ["curl", "wget", "ssh", "scp", "nc"]
+  },
+  "hooks": {
+    "require": [
+      {
+        "agent": "claude-code",
+        "event": "PreToolUse",
+        "matcher": "Bash",
+        "script": "scripts/hooks/guard.sh"
+      }
+    ]
+  },
+  "budgets": {
+    "claude-code": { "startupTokens": 8000 },
+    "codex": { "startupTokens": 8000 },
+    "cursor": { "startupTokens": 8000 }
+  }
+}

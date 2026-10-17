@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the strict sample policy > reports the context fixture, deterministically 1`] = `
+[
+  "mcp-not-allowed https://mcp.linear.app .cursor/mcp.json:3",
+  "mcp-not-allowed npm:@example/postgres-mcp@1.2.0 .cursor/mcp.json:4",
+  "mcp-not-allowed npm:@modelcontextprotocol/server-filesystem .mcp.json:3",
+  "mcp-not-allowed https://docs.example.com .mcp.json:12",
+  "mcp-unpinned npm:@modelcontextprotocol/server-filesystem .mcp.json:3",
+  "forbidden-setting broad-shell .claude/settings.json:3",
+  "forbidden-setting env-endpoint .claude/settings.json:7",
+  "denied-tool curl, wget, ssh, scp, nc .claude/settings.json:3",
+  "hook-missing claude-code PreToolUse matcher "Bash" script scripts/hooks/guard.sh ",
+  "startup-budget codex ",
+  "unanalyzed-config .codex/config.toml .codex/config.toml:-",
+]
+`;
