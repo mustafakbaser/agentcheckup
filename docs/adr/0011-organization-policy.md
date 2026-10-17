@@ -22,8 +22,8 @@ Three things make this harder than a configuration file:
   ([ADR 0005](0005-scoring.md)). A forbidden server that loads correctly is not a loading
   problem, and an organization's rules must not move a score that means the same in every
   repository.
-- **What cannot be known.** agentcheckup does not parse TOML, cannot read every launcher's
-  command line and cannot see user settings ([ADR 0003](0003-treat-scanned-repositories-as-hostile.md)).
+- **What cannot be known.** agentcheckup cannot read every launcher's command line, cannot
+  analyze a configuration file that does not parse, and cannot see user settings ([ADR 0003](0003-treat-scanned-repositories-as-hostile.md)).
   A check that passes whenever it cannot tell would invite configuration that hides from it.
 
 ## Decision
@@ -72,9 +72,10 @@ Three things make this harder than a configuration file:
 
 - Organizations get a check they can require across repositories without trusting any of them,
   and a policy rollout can start in audit mode.
-- Fail-closed checks have a cost: a `.codex/config.toml` is a violation whenever an inventory
-  check is on, until agentcheckup parses TOML. With a baseline and `"existing": "report"`, a file
-  the base branch already had does not fail the run.
+- Fail-closed checks have a cost: a configuration file agentcheckup cannot analyze, such as a
+  `.codex/config.toml` that is not valid TOML, is a violation whenever an inventory check is on.
+  With a baseline and `"existing": "report"`, a file the base branch already had does not fail
+  the run.
 - A required hook proves configuration, not behavior. The reports say so instead of implying a
   control the repository cannot enforce.
 - Gitignored personal files such as `.claude/settings.local.json` are checked on a developer's
