@@ -74,6 +74,10 @@ npm updates fail, switch npm updates to Renovate and keep Dependabot for GitHub 
 
 ## If something goes wrong
 
+- The publish job failed after the GitHub release was created: the tag is immutable, so fix the
+  workflow on `main`, then run it for that tag: `gh workflow run release.yml -f tag=v0.1.0`.
+  The run builds the tag's source, checks that `package.json` holds that version, and needs the
+  same `npm` environment approval as any publish.
 - A bad version was published: publish a fixed patch release. Use `npm deprecate` on the bad
   version with a message pointing to the fix. Do not unpublish.
 - A credential or workflow was compromised: revoke trusted publishing on npmjs.com first, then
