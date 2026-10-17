@@ -40,7 +40,7 @@ import type {
 import type { BaselineDiff, GateClass, GateHit, ItemDiff, PlanDelta } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import type { ScanResult } from './engine.js';
-import type { Finding, RuleMeta } from './types.js';
+import type { ArtifactKind, Finding, RuleMeta } from './types.js';
 
 // ---------------------------------------------------------------------------------------------
 // Gate classes
@@ -699,16 +699,33 @@ function isMcpConfig(entry: string): boolean {
 }
 
 /**
- * An inventory `incomplete` entry for a file whose hooks the inventory cannot list: a
- * `.codex/config.toml` it could not read (it declares hooks next to MCP servers), Cascade's
- * `.devin/hooks.json`, and the files in Cline's hook and plugin folders, which have no
- * documented format.
+ * Hook files whose agent is documented to run none of their hooks when the file does not parse
+ * as agentcheckup parses it (rules/json/invalid-syntax.ts cites each): Claude Code skips a
+ * settings file with a Settings Error, Codex skips a `hooks.json` with a warning, and Gemini CLI
+ * does not start.
+ */
+const INERT_WHEN_INVALID: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  'claude-settings',
+  'codex-hooks',
+  'gemini-settings',
+]);
+
+/**
+ * An inventory `incomplete` entry for a file whose hooks the inventory cannot list: a hook file
+ * it could not analyze, unless its agent is known to ignore such a file ({@link
+ * INERT_WHEN_INVALID}). That covers Copilot's and Devin Local's hook and settings files, whose
+ * readers' parsers are not documented (VS Code reads its own settings as JSONC), and a
+ * `.codex/config.toml`, which declares hooks next to MCP servers. Also Cascade's
+ * `.devin/hooks.json` and the files in Cline's hook and plugin folders, which have no documented
+ * format.
  */
 function isHookConfig(entry: string): boolean {
-  const { path } = incompletePath(entry);
+  const { path, invalid } = incompletePath(entry);
   const kind = classify(path)?.kind;
-  if (kind === 'codex-config') return true;
-  if (kind === 'devin-hooks' && hookSourceOf({ kind, path }) === undefined) return true;
+  if (kind === 'codex-config' || kind === 'devin-hooks') return true;
+  if (kind !== undefined && hookSourceOf({ kind, path }) !== undefined) {
+    return invalid === undefined || !INERT_WHEN_INVALID.has(kind);
+  }
   const role = clinePlace(path)?.role;
   return role === 'hook' || role === 'plugin';
 }

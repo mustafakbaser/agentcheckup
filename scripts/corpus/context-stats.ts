@@ -474,8 +474,7 @@ export function renderContextSection(
       'A local server is unpinned when its package has no exact version or digest, or when its ' +
       'command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. Broad ' +
       'permissions allow any shell command or any file write or edit, including skill ' +
-      '`allowed-tools`. `.codex/config.toml` is not parsed, so Codex servers and hooks declared ' +
-      'there are not counted.',
+      '`allowed-tools`, and Codex `.codex/config.toml` items.',
     '',
     table(
       ['', 'Repositories', 'Items'],

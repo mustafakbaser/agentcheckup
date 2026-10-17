@@ -139,7 +139,8 @@ It prints one plan per agent for a session started in the repository root:
 - `?` marks behavior no documentation or source code confirms. "Not visible" lists scopes
   outside the repository that agentcheckup never reads.
 
-For one agent, add `--agent claude-code`, `--agent codex` or `--agent cursor`. For a session
+For one agent, add `--agent <id>`: `claude-code`, `codex`, `cursor`, `copilot` (CLI, VS Code
+and cloud agent), `gemini`, `windsurf` (Devin Local) or `cline`. For a session
 started in a subdirectory, add `--cwd packages/api`. These variants are not pre-approved, so the
 user is asked first. `context` exits 0 whatever it finds. More:
 [references/context.md](references/context.md).

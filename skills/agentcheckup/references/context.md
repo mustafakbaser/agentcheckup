@@ -44,8 +44,10 @@ confirms. `≈tokens` is characters divided by 4, an estimate.
 
 ## Options
 
-- `context --agent codex`: one agent. The agents are `claude-code`, `codex` and `cursor`;
-  separate several with commas.
+- `context --agent codex`: one agent. The agents are `claude-code`, `codex`, `cursor`,
+  `copilot-cli`, `copilot-vscode`, `copilot-cloud`, `gemini`, `windsurf` (Devin Local) and
+  `cline`; `copilot` stands for its three surfaces and `all` for every agent. Separate several
+  with commas.
 - `context --cwd packages/api`: a session started in that directory, relative to the root,
   without `..`. Claude Code then reads `CLAUDE.md` files from the root down to it; Codex reads
   one `AGENTS.md` per directory from the project root down to it; Cursor treats it as the folder

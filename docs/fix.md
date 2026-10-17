@@ -199,8 +199,8 @@ the fix:
   note: GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice after this change (not verified).
 ```
 
-- **Tokens:** the estimated session-start context of Claude Code, Codex and Cursor in the
-  repository root, before and after, as `context` computes it (characters ÷ 4).
+- **Tokens:** the estimated session-start context of each targeted agent agentcheckup models,
+  in the repository root, before and after, as `context` computes it (characters ÷ 4).
 - **Gate:** an MCP server, hook, permission, env override or hidden Unicode that the fix adds or
   changes, with the [gate class](context.md#gate-classes) that would flag it in a pull request.
   A fix with a gate effect is always `review`.

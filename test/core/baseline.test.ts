@@ -554,6 +554,13 @@ describe('gate: mcp and mcp-unpinned', () => {
     });
     expect(hits(before, after)).toEqual([
       {
+        class: 'hooks',
+        id: '.github/hooks/*.json',
+        change: 'added',
+        summary:
+          'New hooks config .github/hooks/*.json is not analyzed, so its hooks cannot be checked',
+      },
+      {
         class: 'mcp',
         id: '.vscode/mcp.json',
         change: 'added',
@@ -608,10 +615,12 @@ describe('gate: mcp and mcp-unpinned', () => {
       '.vscode/mcp.json',
     ]) {
       const after = report({ inventory: { incomplete: [`invalid-json:${path}`] } });
+      // .devin/config.json declares hooks next to MCP servers, so it trips both classes.
+      const classes = path === '.devin/config.json' ? ['hooks', 'mcp'] : ['mcp'];
       expect(
         hits(report(), after).map((hit) => [hit.class, hit.id]),
         path,
-      ).toEqual([['mcp', `invalid-json:${path}`]]);
+      ).toEqual(classes.map((name) => [name, `invalid-json:${path}`]));
     }
   });
 
@@ -623,9 +632,15 @@ describe('gate: mcp and mcp-unpinned', () => {
           '.cline/hooks/pre.sh',
           '.cline/plugins/guard.js',
           '.devin/hooks.json',
-          // Not hook files the inventory skips: a rule file and Devin Local's own hooks file.
-          '.clinerules/style.md',
+          // Hook files that did not parse: an agent may read them anyway (VS Code reads
+          // .github/hooks as JSONC), so their hooks cannot be ruled out.
           'invalid-json:.devin/hooks.v1.json',
+          'invalid-json:.github/hooks/guard.json',
+          'invalid-json:.github/copilot/settings.json',
+          // Claude Code skips a settings file that does not parse, so its hooks never run.
+          'invalid-json:.claude/settings.json',
+          // Not a hook file: a rule.
+          '.clinerules/style.md',
         ],
       },
     });
@@ -634,6 +649,9 @@ describe('gate: mcp and mcp-unpinned', () => {
       ['hooks', '.cline/plugins/guard.js'],
       ['hooks', '.clinerules/hooks/PreToolUse'],
       ['hooks', '.devin/hooks.json'],
+      ['hooks', 'invalid-json:.devin/hooks.v1.json'],
+      ['hooks', 'invalid-json:.github/copilot/settings.json'],
+      ['hooks', 'invalid-json:.github/hooks/guard.json'],
     ]);
     expect(hits(report(), after).find((hit) => hit.id === '.devin/hooks.json')?.summary).toBe(
       'New hooks config .devin/hooks.json is not analyzed, so its hooks cannot be checked',
