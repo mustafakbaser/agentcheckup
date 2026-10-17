@@ -3,7 +3,7 @@
  * change after the scan. Each test walks a real directory, so the writer gets the identities the
  * walker records, then changes the tree before or during the write.
  */
-import { renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { constants, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import {
   chmod,
   link as hardLink,
@@ -369,11 +369,17 @@ describe('writeFixes: confinement', () => {
     const result = await writeOne(root, files, [
       { kind: 'replace', path: 'CLAUDE.md', bytes: bytes('new') },
     ]);
-    expect(result).toMatchObject({
-      status: 'skipped',
-      reason: 'refused-path',
-      detail: 'it is a symbolic link',
-    });
+    // Windows has no O_NOFOLLOW: the link is followed, and the file it leads to is not the one
+    // the scan recorded.
+    expect(result).toMatchObject(
+      (constants as Partial<typeof constants>).O_NOFOLLOW === undefined
+        ? {
+            status: 'skipped',
+            reason: 'changed-since-scan',
+            detail: 'another file replaced it since the scan',
+          }
+        : { status: 'skipped', reason: 'refused-path', detail: 'it is a symbolic link' },
+    );
     expect(await readFile(outside.file, 'utf8')).toBe(SECRET);
   });
 
