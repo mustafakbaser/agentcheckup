@@ -113,7 +113,7 @@ describe('load-plan contract', () => {
   it('turns on only the agents whose loader exists, in the same order', () => {
     expect(Object.keys(LOADER_ENABLED)).toEqual([...ALL_CONTEXT_AGENTS]);
     expect(CONTEXT_AGENTS).toEqual(ALL_CONTEXT_AGENTS.filter((agent) => LOADER_ENABLED[agent]));
-    expect(CONTEXT_AGENTS).toEqual(['claude-code', 'codex', 'cursor', 'cline']);
+    expect(CONTEXT_AGENTS).toEqual(['claude-code', 'codex', 'cursor', 'windsurf', 'cline']);
   });
 
   it('accepts a complete plan inside a context report', () => {

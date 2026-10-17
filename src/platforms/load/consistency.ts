@@ -312,6 +312,12 @@ export const ALLOWANCES = {
       reason:
         'Cline drops a workflow or skill whose frontmatter does not parse or has a field of the wrong type. No rule judges workflows, and the skill rules do not report for Cline.',
     },
+    {
+      agent: 'windsurf',
+      code: 'unknown-event',
+      reason:
+        "hooks/unknown-event does not check Devin Local's hook files (.devin/hooks.v1.json and the hooks of .devin/config.json), so a hook under an event Devin Local does not fire has no finding.",
+    },
   ] satisfies readonly {
     readonly agent: ContextAgent;
     readonly code: SkipCode;

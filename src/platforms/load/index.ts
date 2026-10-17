@@ -30,6 +30,7 @@ import {
   TRIGGER_RANK,
 } from './types.js';
 import type { LoadView } from './view.js';
+import { loadWindsurf } from './windsurf.js';
 
 export interface LoadPlansOptions {
   /** Agents to plan for, in any order; each is planned once. */
@@ -86,7 +87,7 @@ const LOADERS: Readonly<Record<ContextAgent, Loader>> = {
   'copilot-vscode': notModeled('copilot-vscode'),
   'copilot-cloud': notModeled('copilot-cloud'),
   gemini: notModeled('gemini'),
-  windsurf: notModeled('windsurf'),
+  windsurf: loadWindsurf,
   cline: loadCline,
 };
 

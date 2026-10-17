@@ -1,0 +1,8 @@
+{
+  "PreToolUse": [
+    { "matcher": "exec", "hooks": [{ "type": "command", "command": "./scripts/guard.sh" }] }
+  ],
+  "BeforeCommit": [
+    { "hooks": [{ "type": "command", "command": "./scripts/guard.sh" }] }
+  ]
+}

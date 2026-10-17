@@ -50,6 +50,7 @@ describe('scanForSummary', () => {
       'claude-code': ['CLAUDE.md'],
       codex: ['AGENTS.md'],
       cursor: ['AGENTS.md', 'CLAUDE.md'],
+      windsurf: ['AGENTS.md', 'CLAUDE.md'],
       cline: ['AGENTS.md'],
     });
     expect(repo.instructionTokens.codex).toBe(Math.ceil(AGENTS.length / 4));

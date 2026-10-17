@@ -237,6 +237,10 @@ describe('consistency on generated snapshots', () => {
     '.cursor/rules/README.md',
     'pkg/.cursor/rules/n.mdc',
     '.cursorrules',
+    '.windsurfrules',
+    '.devin/rules/r.md',
+    '.windsurf/rules/w.md',
+    '.devin/skills/d/SKILL.md',
   );
   const json = fc.constantFrom(
     '{',
@@ -247,6 +251,7 @@ describe('consistency on generated snapshots', () => {
     '{"hooks":{"Notification":[{"hooks":[{"type":"command","command":"n"}]}],"Stop":[{"hooks":[{"type":"http","url":"https://h/x"}]}]}}',
     '{"version":1,"hooks":{"beforeShellExecution":[{"command":"./g.sh"}],"PreToolUse":[{"command":"x"}]}}',
     '{"Stop":[{"hooks":[{"type":"command","command":"x"}]}]}',
+    '{"read_config_from":{"agents_standard":false,"claude":false,"cursor":false}}',
   );
   const jsonPath = fc.constantFrom(
     '.mcp.json',
@@ -257,6 +262,9 @@ describe('consistency on generated snapshots', () => {
     '.cursor/hooks.json',
     '.codex/hooks.json',
     'pkg/.codex/hooks.json',
+    '.devin/config.json',
+    '.devin/hooks.v1.json',
+    '.devin/mcp_config.json',
   );
   const files = fc
     .tuple(
@@ -335,6 +343,26 @@ describe('allowances', () => {
     expect(
       checkConsistency(input, { without: ['skip-without-rule'] }).mismatches.map((m) => m.code),
     ).toEqual(['import-outside-root', 'import-unresolved']);
+  });
+
+  it('skip-without-rule: a Devin Local hook under an event Devin Local does not fire', () => {
+    const files = {
+      'AGENTS.md': 'Rules.\n',
+      '.devin/hooks.v1.json':
+        '{"BeforeCommit":[{"hooks":[{"type":"command","command":"./x.sh"}]}]}',
+    };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed['skip-without-rule']).toBe(1);
+    const devin = allowed.plans.find((plan) => plan.agent === 'windsurf');
+    expect(devin?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
+      ['.devin/hooks.v1.json', 'unknown-event', undefined],
+    ]);
+    // hooks/unknown-event does not check Devin Local's files.
+    expect(allowed.result.findings.filter((f) => f.ruleId === 'hooks/unknown-event')).toEqual([]);
+    expect(brief(check(files, {}, ['skip-without-rule']).report.mismatches)).toEqual([
+      'skip-without-rule - windsurf .devin/hooks.v1.json',
+    ]);
   });
 
   it(`${ALLOWANCES.relatedCap}: instr/codex-size-budget lists at most 20 related files`, () => {

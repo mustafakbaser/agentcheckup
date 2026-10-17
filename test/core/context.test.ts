@@ -60,11 +60,12 @@ describe('scanWithContext', () => {
     const result = scanWithContext(snapshot, OPTIONS);
     const { context, ...rest } = result;
     expect(rest).toStrictEqual(scanSnapshot(snapshot, OPTIONS));
-    expect(context.agents).toEqual(['claude-code', 'codex', 'cursor', 'cline']);
+    expect(context.agents).toEqual(['claude-code', 'codex', 'cursor', 'windsurf', 'cline']);
     expect(context.plans.map((plan) => `${plan.agent}@${plan.cwd}`)).toEqual([
       'claude-code@',
       'codex@',
       'cursor@',
+      'windsurf@',
       'cline@',
     ]);
     expect(context.matrix).toBeUndefined();
@@ -115,13 +116,14 @@ describe('scanWithContext', () => {
       'codex@',
       'codex@pkg',
       'cursor@',
+      'windsurf@',
       'cline@',
     ]);
     expect(context.matrix?.rows.map((row) => [row.path, ...row.cells])).toEqual([
-      ['.mcp.json', 'startup', 'not-read', 'not-read', 'not-read'],
-      ['AGENTS.md', 'startup', 'startup', 'startup', 'startup'],
-      ['CLAUDE.md', 'startup', 'not-read', 'startup', 'not-read'],
-      ['pkg/AGENTS.md', 'skipped', 'start-dir', 'on-path', 'not-read'],
+      ['.mcp.json', 'startup', 'not-read', 'not-read', 'startup', 'not-read'],
+      ['AGENTS.md', 'startup', 'startup', 'startup', 'startup', 'startup'],
+      ['CLAUDE.md', 'startup', 'not-read', 'startup', 'startup', 'not-read'],
+      ['pkg/AGENTS.md', 'skipped', 'start-dir', 'on-path', 'on-path', 'not-read'],
     ]);
   });
 

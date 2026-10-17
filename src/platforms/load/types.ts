@@ -58,7 +58,7 @@ export const LOADER_ENABLED: Readonly<Record<ContextAgent, boolean>> = {
   'copilot-vscode': false,
   'copilot-cloud': false,
   gemini: false,
-  windsurf: false,
+  windsurf: true,
   cline: true,
 };
 

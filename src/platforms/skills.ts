@@ -37,8 +37,13 @@ export interface SkillRoot {
  * Project skill roots, verified 2026-10-14: Claude Code reads `.claude/skills`; Codex reads
  * `.agents/skills` and `.codex/skills`; Cursor reads `.agents`, `.cursor`, `.claude` and `.codex`
  * skills; GitHub Copilot reads `.github`, `.claude` and `.agents` skills; Gemini CLI reads
- * `.gemini/skills` and `.agents/skills`. Cline reads `.clinerules`, `.cline`, `.claude` and `.agents`
- * skills (SOURCES.clinePathsSource, checked 2026-10-17).
+ * `.gemini/skills` and `.agents/skills`.
+ *
+ * Devin Local (`windsurf`), verified 2026-10-17, reads `<name>/SKILL.md` in `.devin/skills`,
+ * `.windsurf/skills` and `.agents/skills` (SOURCES.devinCliSkills), and imports
+ * `.claude/skills/**\/SKILL.md` and `.github/skills/**\/SKILL.md` (SOURCES.devinReadConfigFrom).
+ * Cline reads `.clinerules`, `.cline`, `.claude` and `.agents` skills
+ * (SOURCES.clinePathsSource, checked 2026-10-17).
  */
 export const SKILL_ROOTS: readonly SkillRoot[] = [
   {
@@ -47,6 +52,7 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'claude-code', depth: 'direct' },
       { platform: 'cursor', depth: 'recursive' },
       { platform: 'copilot', depth: 'direct' },
+      { platform: 'windsurf', depth: 'recursive' },
       { platform: 'cline', depth: 'shallow' },
     ],
   },
@@ -57,11 +63,18 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'cursor', depth: 'recursive' },
       { platform: 'copilot', depth: 'direct' },
       { platform: 'gemini', depth: 'shallow' },
+      { platform: 'windsurf', depth: 'direct' },
       { platform: 'cline', depth: 'shallow' },
     ],
   },
   { segment: '.cursor/skills', readers: [{ platform: 'cursor', depth: 'recursive' }] },
-  { segment: '.github/skills', readers: [{ platform: 'copilot', depth: 'direct' }] },
+  {
+    segment: '.github/skills',
+    readers: [
+      { platform: 'copilot', depth: 'direct' },
+      { platform: 'windsurf', depth: 'recursive' },
+    ],
+  },
   { segment: '.gemini/skills', readers: [{ platform: 'gemini', depth: 'shallow' }] },
   {
     segment: '.codex/skills',
@@ -70,6 +83,8 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
       { platform: 'cursor', depth: 'recursive' },
     ],
   },
+  { segment: '.devin/skills', readers: [{ platform: 'windsurf', depth: 'direct' }] },
+  { segment: '.windsurf/skills', readers: [{ platform: 'windsurf', depth: 'direct' }] },
   { segment: '.cline/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
   { segment: '.clinerules/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
 ];

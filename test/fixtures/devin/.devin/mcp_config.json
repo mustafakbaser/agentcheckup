@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "docs": { "url": "https://docs.example.com/mcp" },
+    "old": { "command": "npx", "args": ["-y", "old-server@1.0.0"], "disabled": true }
+  }
+}

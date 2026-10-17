@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CONTEXT_AGENTS } from '../src/platforms/load/types.js';
+
 const root = fileURLToPath(new URL('..', import.meta.url));
 const work = await mkdtemp(join(tmpdir(), 'agentcheckup-smoke-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -119,7 +121,14 @@ try {
   if (!runCli(['context', repo], 0).includes('Claude Code context')) {
     fail('context printed no Claude Code plan');
   }
-  if (!/^AGENTS\.md(?: +startup){4}$/m.test(runCli(['context', repo, '--matrix'], 0))) {
+  // Every agent the matrix shows loads the root AGENTS.md at session start.
+  const matrix = runCli(['context', repo, '--matrix'], 0).split('\n');
+  const cells = matrix
+    .find((line) => line.startsWith('AGENTS.md '))
+    ?.split(' ')
+    .filter(Boolean)
+    .slice(1);
+  if (cells?.length !== CONTEXT_AGENTS.length || cells.some((cell) => cell !== 'startup')) {
     fail('context --matrix printed no matrix row for AGENTS.md');
   }
   const baseline = join(work, 'baseline.json');

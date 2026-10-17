@@ -32,7 +32,7 @@ describe('skillLocation', () => {
     expect(skillLocation('.claude/skills/deploy/SKILL.md')).toEqual({
       root: '.claude/skills',
       relative: 'deploy/SKILL.md',
-      platforms: new Set(['claude-code', 'cursor', 'copilot', 'cline']),
+      platforms: new Set(['claude-code', 'cursor', 'copilot', 'windsurf', 'cline']),
     });
     expect(skillLocation('apps/web/.agents/skills/deploy/SKILL.md')?.root).toBe(
       'apps/web/.agents/skills',
@@ -56,8 +56,16 @@ describe('skillLocation', () => {
       ['gemini'],
     );
     expect(sorted(skillLocation('.github/skills/deploy/SKILL.md')?.platforms ?? new Set())).toEqual(
-      ['copilot'],
+      ['copilot', 'windsurf'],
     );
+    // Devin Local reads `<name>/SKILL.md` in its own roots and any depth in the imported ones.
+    expect(sorted(skillLocation('.github/skills/a/b/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'windsurf',
+    ]);
+    expect(sorted(skillLocation('.devin/skills/deploy/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'windsurf',
+    ]);
+    expect(skillLocation('.windsurf/skills/a/b/SKILL.md')?.platforms.size).toBe(0);
     expect(sorted(skillLocation('.codex/skills/a/b/SKILL.md')?.platforms ?? new Set())).toEqual([
       'codex',
       'cursor',
@@ -75,7 +83,7 @@ describe('skillLocation', () => {
   it('drops Codex for a skill.md with the wrong case', () => {
     expect(
       sorted(skillLocation('.agents/skills/x/skill.md', true)?.platforms ?? new Set()),
-    ).toEqual(['cline', 'copilot', 'cursor', 'gemini']);
+    ).toEqual(['cline', 'copilot', 'cursor', 'gemini', 'windsurf']);
   });
 
   it('ignores paths outside a skills root and look-alike directories', () => {
@@ -91,15 +99,15 @@ describe('skillReach', () => {
       sorted(
         skillReach(scope(), artifact('.gemini/skills/x/SKILL.md', ['.claude/skills/x/SKILL.md'])),
       ),
-    ).toEqual(['claude-code', 'cline', 'copilot', 'cursor', 'gemini']);
+    ).toEqual(['claude-code', 'cline', 'copilot', 'cursor', 'gemini', 'windsurf']);
   });
 
   it('treats a skill outside every root as reachable by all platforms', () => {
     expect(skillReach(scope(), artifact('plugins/p/skills/x/SKILL.md')).size).toBe(5);
-    // The skills directory adds Cline, which the skill rules do not judge outside one.
+    // The skills directory adds Devin Local and Cline, which the skill rules do not judge outside one.
     expect(
       skillReach(scope(), artifact('.claude/skills/x/SKILL.md', ['skills/x/SKILL.md'])).size,
-    ).toBe(6);
+    ).toBe(7);
   });
 });
 
@@ -135,7 +143,7 @@ describe('placement', () => {
   it('prefers the skills directory over an enclosing plugin', () => {
     const plugin = scope(['.claude-plugin/plugin.json']);
     expect(placement(plugin, artifact('.claude/skills/x/SKILL.md'))).toEqual({
-      reach: new Set(['claude-code', 'cursor', 'copilot', 'cline']),
+      reach: new Set(['claude-code', 'cursor', 'copilot', 'windsurf', 'cline']),
       distributable: false,
       claudeProject: true,
     });
@@ -204,7 +212,9 @@ describe('audience', () => {
   it('is the reach for a skill outside every plugin', () => {
     expect(
       audience(scope(), artifact('.agents/skills/x/SKILL.md', ['.claude/skills/x/SKILL.md'])),
-    ).toEqual(new Set(['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'cline']));
+    ).toEqual(
+      new Set(['claude-code', 'codex', 'cursor', 'copilot', 'gemini', 'windsurf', 'cline']),
+    );
   });
 });
 
