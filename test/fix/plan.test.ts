@@ -412,6 +412,33 @@ describe('paths', () => {
     expect(statuses(result)).toEqual(['test/fix:planned']);
   });
 
+  // Reduced from apache/airflow in the corpus: sdk/_shared/AGENTS.md is a symlink to
+  // core/_shared/AGENTS.md, so sdk/ might be a link too, unless a file below it was read at its
+  // own path, which a file below a symlinked directory never is.
+  it('allows a create below a directory that holds a file read at its own path', () => {
+    const files: FileMap = {
+      'core/_shared/AGENTS.md': '# Shared\n',
+      'sdk/_shared/AGENTS.md': '# Shared\n',
+      'sdk/schema/AGENTS.md': '# Schema\n',
+    };
+    const extras: SnapshotExtras = {
+      symlinks: { 'sdk/_shared/AGENTS.md': 'core/_shared/AGENTS.md' },
+    };
+    const allowed = refused(
+      () => [{ kind: 'create', path: 'sdk/schema/CLAUDE.md', text: '@AGENTS.md\n' }],
+      files,
+      extras,
+    );
+    expect(statuses(allowed)).toEqual(['test/fix:planned']);
+    const below = refused(
+      () => [{ kind: 'create', path: 'sdk/_shared/CLAUDE.md', text: '@AGENTS.md\n' }],
+      files,
+      extras,
+    );
+    expect(statuses(below)).toEqual(['test/fix:skipped:refused-path']);
+    expect(below.manual[0]?.guidance).toMatch(/sdk\/_shared\/ may be a symbolic link/);
+  });
+
   it('skips a fix whose edits do not fit the file', () => {
     for (const changes of [
       [edit(99, 0, 'x')],

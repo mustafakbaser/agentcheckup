@@ -7,14 +7,14 @@ instructions, `.mcp.json` and hooks, including monorepos with nested `AGENTS.md`
 scans each one at a fixed commit with every built-in rule, so the false-positive rate of the rule
 set can be measured and compared across changes.
 
-| File                     | Committed | What it is                                                                                                           |
-| ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------- |
-| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`                                                    |
-| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: what agents load, artifacts, findings by rule, scores                                          |
-| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity                                                |
-| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review                                             |
-| `golden.json`            | no        | Every finding per repository, for checking that a refactor changes none                                              |
-| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `golden.ts`, `pin.ts`, `consistency.ts`, `context-stats.ts`, and the walk emulation they share |
+| File                     | Committed | What it is                                                                                                                                            |
+| ------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [repos.json](repos.json) | yes       | The corpus: `{ repo, sha, why }` per repository, sorted by `repo`                                                                                     |
+| [SUMMARY.md](SUMMARY.md) | yes       | Aggregate statistics: what agents load, artifacts, findings by rule, fixes, scores                                                                    |
+| `results.json`           | no        | Per repository: artifacts, score, finding counts by rule and severity                                                                                 |
+| `REPORT.md`              | no        | Per-rule sample findings (repository, path, line, message) for FP review                                                                              |
+| `golden.json`            | no        | Every finding per repository, for checking that a refactor changes none                                                                               |
+| `scripts/corpus/`        | yes       | `fetch.ts`, `run.ts`, `golden.ts`, `pin.ts`, `consistency.ts`, `context-stats.ts`, `fix-replay.ts`, `fix-stats.ts`, and the walk emulation they share |
 
 Publication policy: following [ADR 0005](../docs/adr/0005-scoring.md), only aggregate statistics
 are committed (`SUMMARY.md`); per-repository results (`results.json`, `REPORT.md`, `golden.json`)
@@ -45,11 +45,28 @@ npx tsx scripts/corpus/fetch.ts && npx tsx scripts/corpus/run.ts
   ([context-stats.ts](../scripts/corpus/context-stats.ts)). That section adds counts up across the
   corpus and names no repository, path or server. A loader that throws makes `run.ts` exit 1, like
   a rule crash.
+- Without options, `run.ts` also applies the fixes `agentcheckup fix --write` and
+  `fix --write --review` would apply, in memory, to every repository that has one, for the
+  "Fixes" section of `SUMMARY.md` ([fix-stats.ts](../scripts/corpus/fix-stats.ts)): how many
+  findings have a safe fix, a fix that needs review, or guidance only, and how many repositories
+  would score higher. Aggregates only. A fix run that throws makes `run.ts` exit 1. Verifying a
+  fix scans the repository again, so this takes most of the run's time: about 40 minutes in all,
+  most of it on the one repository with about 250 fixable findings (2026-10-16).
 - `run.ts --consistency` plans every repository the same way and checks the plans against the
   findings, as `test/platforms/load/consistency.test.ts` does on fixtures: every file a plan
   skips because of a problem must have its finding, and every loading finding its skip. It prints
   the mismatches grouped by rule, writes nothing, and exits 1 if there is any mismatch or a loader
   crash. It combines with `--only` and `--check-golden`.
+- `run.ts --fix-replay` runs `agentcheckup fix` on an in-memory copy of every repository with
+  every fix selected (safe, review, and the `mcp/literal-secret` opt-in) and checks the result
+  ([fix-replay.ts](../scripts/corpus/fix-replay.ts)): every applied fix resolves its findings,
+  the fixed copy has no new error or warning (new infos are listed), a second run plans nothing,
+  the fixed copy passes the `--consistency` check, nothing crashes, `applyPlan` accepts every
+  planned fix, and verification drops no fix a rule offered. It prints what happened to the fixes
+  of each rule, the time per repository, and every violation with its repository, rule, path and
+  reason; it writes nothing and exits 1 on any violation. It combines with `--only`. A violation
+  is a bug in a rule's fix or in the planner: fix it there, never in the check. The whole corpus
+  takes about 25 minutes, 18 of them on the repository with the most fixes.
 - `run.ts --write-golden` scans the whole corpus and writes only `golden.json`: for each
   repository, every finding as rule id, path, range, severity, fingerprint and a hash of the
   message, sorted. `run.ts --check-golden` scans again, compares with `golden.json` and writes

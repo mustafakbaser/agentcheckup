@@ -4,9 +4,9 @@
  * still needs a dependency at runtime.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -135,37 +135,96 @@ try {
   );
   runCli([repo, '--gate', 'security'], 2);
 
-  // fix on a copy of the smoke fixture: a dry run, --write --review, then a second dry run that
-  // must plan nothing. Until the rules emit fixes there may be nothing to change, so the first
-  // dry run may exit 0 or 1. TODO(maintainer): once the rule fixes land, expect exit 1 and
-  // specific fixes here.
-  const copy = join(work, 'fix-repo');
-  await cp(fixture, copy, { recursive: true });
+  // fix on a demo repository with known fixable findings: CLAUDE.md without the AGENTS.md
+  // import (safe), a Cursor rule saved as .md (review) and an MCP server with a url but no type
+  // (review). The dry run lists all three and exits 1; --write applies only the safe fix;
+  // --write --review applies the rest; a last dry run plans nothing and exits 0.
+  const demo = join(work, 'fix-repo');
+  const demoFiles: Readonly<Record<string, string>> = {
+    'AGENTS.md': '# Acme API\n\nRun `pnpm test` before every commit.\n',
+    'CLAUDE.md': '# Claude notes\n\nUse the staging database for manual tests.\n',
+    '.cursor/rules/x.md': 'Prefer named exports in TypeScript files.\n',
+    '.mcp.json':
+      '{\n  "mcpServers": {\n    "docs": {\n      "url": "https://example.com/mcp"\n    }\n  }\n}\n',
+  };
+  for (const [path, text] of Object.entries(demoFiles)) {
+    await mkdir(dirname(join(demo, path)), { recursive: true });
+    await writeFile(join(demo, path), text);
+  }
+  const readDemo = (path: string): Promise<string> => readFile(join(demo, path), 'utf8');
+  const exists = (path: string): Promise<boolean> =>
+    access(join(demo, path)).then(
+      () => true,
+      () => false,
+    );
   interface FixJson {
     mode: string;
-    fixes: { status: string }[];
+    fixes: { id: string; class: string; status: string }[];
   }
-  const fixCli = (args: readonly string[], expected: readonly number[]): string => {
+  const fixCli = (args: readonly string[], expected: number): string => {
     const result = spawnSync(process.execPath, [cli, 'fix', ...args], {
-      cwd: copy,
+      cwd: demo,
       encoding: 'utf8',
     });
-    if (result.status === null || !expected.includes(result.status)) {
-      fail(`fix ${args.join(' ')} exited ${result.status}, expected ${expected.join(' or ')}`);
+    if (result.status !== expected) {
+      fail(`fix ${args.join(' ')} exited ${result.status}, expected ${expected}: ${result.stderr}`);
     }
     return result.stdout;
   };
-  const dryRun = JSON.parse(fixCli(['--format', 'json'], [0, 1])) as FixJson;
+  const fixIds = (report: FixJson, status: string): string =>
+    report.fixes
+      .filter((entry) => entry.status === status)
+      .map((entry) => `${entry.class} ${entry.id}`)
+      .sort()
+      .join(', ');
+  const SAFE_FIX = 'safe instr/agents-md-ignored-by-claude#import';
+  const REVIEW_FIXES =
+    'review cursor/md-file-ignored#always-apply, review mcp/url-without-type#http';
+
+  const dryRun = JSON.parse(fixCli(['--format', 'json'], 1)) as FixJson;
   if (dryRun.mode !== 'dry-run') fail('fix --format json did not report a dry run');
-  fixCli([], [0, 1]);
-  const written = fixCli(['--write', '--review'], [0, 1]);
-  const expectedSummary = dryRun.fixes.length === 0 ? 'No fixes applied.' : 'Re-scanned:';
-  if (!written.includes(expectedSummary)) fail(`fix --write printed no summary: ${written}`);
-  const again = JSON.parse(fixCli(['--format', 'json'], [0, 1])) as FixJson;
-  if (again.fixes.some((entry) => entry.status === 'planned')) {
-    fail('a second fix dry run still planned fixes');
+  const planned = fixIds(dryRun, 'planned');
+  if (planned !== `${REVIEW_FIXES}, ${SAFE_FIX}`) fail(`fix planned ${planned}`);
+  const diff = fixCli([], 1);
+  for (const title of [
+    'Add "@AGENTS.md" as line 1 of CLAUDE.md',
+    'Rename .cursor/rules/x.md to x.mdc',
+    'Add "type": "http" to MCP server "docs"',
+  ]) {
+    if (!diff.includes(title)) fail(`fix printed no "${title}": ${diff}`);
   }
-  fixCli(['--write', '--untrusted'], [2]);
+
+  const safe = JSON.parse(fixCli(['--write', '--format', 'json'], 0)) as FixJson;
+  if (fixIds(safe, 'applied') !== SAFE_FIX) fail(`fix --write applied ${fixIds(safe, 'applied')}`);
+  if (!(await readDemo('CLAUDE.md')).startsWith('@AGENTS.md\n\n# Claude notes\n')) {
+    fail('fix --write did not add the AGENTS.md import to CLAUDE.md');
+  }
+  if (!(await exists('.cursor/rules/x.md')) || (await exists('.cursor/rules/x.mdc'))) {
+    fail('fix --write renamed the Cursor rule, a fix that needs review');
+  }
+  if ((await readDemo('.mcp.json')) !== demoFiles['.mcp.json']) {
+    fail('fix --write changed .mcp.json, a fix that needs review');
+  }
+
+  const review = JSON.parse(fixCli(['--write', '--review', '--format', 'json'], 0)) as FixJson;
+  if (fixIds(review, 'applied') !== REVIEW_FIXES) {
+    fail(`fix --write --review applied ${fixIds(review, 'applied')}`);
+  }
+  if (
+    (await exists('.cursor/rules/x.md')) ||
+    !(await readDemo('.cursor/rules/x.mdc')).startsWith('---\nalwaysApply: true\n---\n')
+  ) {
+    fail('fix --write --review did not turn the Cursor rule into x.mdc with alwaysApply');
+  }
+  if (!(await readDemo('.mcp.json')).includes('"type": "http",')) {
+    fail('fix --write --review did not add "type": "http" to .mcp.json');
+  }
+
+  const again = JSON.parse(fixCli(['--format', 'json'], 0)) as FixJson;
+  if (again.fixes.length > 0)
+    fail(`a second fix dry run still planned ${fixIds(again, 'planned')}`);
+  fixCli([], 0);
+  fixCli(['--untrusted', '--write'], 2);
 
   process.stdout.write(
     `smoke: ok (${files.length} files, ${report.findings.length} findings, score ${report.score.score})\n`,

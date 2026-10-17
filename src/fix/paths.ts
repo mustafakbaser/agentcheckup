@@ -74,16 +74,23 @@ export function parentDirectories(path: string): string[] {
  *
  * A file reached through a symlink has `symlinkTarget`. When its name equals the target's name,
  * the link may be the file itself or any directory between the root and the file whose remaining
- * path the target shares, so every such directory counts as a possible link. Unresolved
- * symlinks and directories the walk did not list count too. A create or rename target below one
- * of them is refused; the writer checks each directory with lstat again before writing.
+ * path the target shares, so every such directory counts as a possible link, unless a file below
+ * it was read at its own path: a file below a symlinked directory always has `symlinkTarget`.
+ * Unresolved symlinks and directories the walk did not list count too. A create or rename target
+ * below one of them is refused; the writer checks each directory with lstat again before writing.
  */
 export function blockedDirectories(snapshot: Snapshot): Set<string> {
+  const real = new Set<string>();
+  for (const file of snapshot.files) {
+    if (file.symlinkTarget !== undefined) continue;
+    for (const directory of parentDirectories(file.path)) real.add(directory);
+  }
   const blocked = new Set<string>();
   for (const file of snapshot.files) {
     const target = file.symlinkTarget;
     if (target === undefined) continue;
     for (const directory of parentDirectories(file.path)) {
+      if (real.has(directory)) continue;
       const rest = file.path.slice(directory.length);
       if (!(target === rest || target.endsWith(`/${rest}`))) continue;
       if (target.slice(0, target.length - rest.length) !== directory) blocked.add(directory);

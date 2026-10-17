@@ -189,6 +189,26 @@ Repository columns count repositories with at least one finding of that severity
 | `skill/shell-preprocessing`         | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/yaml-portability`            | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |               72 |
 
+## Fixes
+
+What `agentcheckup fix` offers for the findings above, as the scan reports it: a safe fix (`fix --write` applies it), a fix that needs review (`fix --write --review` or `fix -i`), or guidance only (a manual step the tool prints). The review count includes the opt-in fix of `mcp/literal-secret`. See [Fixing what it finds](../docs/fix.md).
+
+| Findings                     | Count | Share | Repositories |
+| ---------------------------- | ----: | ----: | -----------: |
+| With a safe fix              |   148 |    4% |           18 |
+| With a fix that needs review |   394 |   11% |           32 |
+| Guidance only                | 2,869 |   83% |           65 |
+| Neither                      |    64 |    2% |           12 |
+
+Scores after applying the fixes in memory and verifying them, as `agentcheckup fix --write` and `fix --write --review` do. `mcp/literal-secret` stays opt-in and is not applied. The median gain is over the repositories whose score rises.
+
+|                                  | After safe fixes | After safe and review fixes |
+| -------------------------------- | ---------------: | --------------------------: |
+| Repositories with a higher score |               12 |                          28 |
+| Median gain                      |               +3 |                          +3 |
+| Repositories with a lower score  |                0 |                           0 |
+| Fix runs that crashed            |                0 |                           0 |
+
 ## Rule crashes
 
 None.

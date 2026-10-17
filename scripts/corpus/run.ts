@@ -23,17 +23,24 @@
  *                                                     (consistency.ts); prints mismatches grouped
  *                                                     by rule (writes nothing; combines with
  *                                                     --only and --check-golden)
+ *   npx tsx scripts/corpus/run.ts --fix-replay        run `agentcheckup fix` with every fix
+ *                                                     selected on an in-memory copy of every
+ *                                                     repository and check the result
+ *                                                     (fix-replay.ts); prints a summary by rule
+ *                                                     and every violation (writes nothing;
+ *                                                     combines with --only)
  *
  * Each repository is scanned the way `agentcheckup --untrusted` scans a checkout: the Snapshot is
  * built by replaying the walker over the git tree (virtual-walk.ts), and the repository cannot
  * suppress findings. Without options, each repository is also planned as `agentcheckup context
  * --matrix` plans it, for the aggregate "What agents load" section of SUMMARY.md
- * (context-stats.ts).
+ * (context-stats.ts), and fixed in memory as `agentcheckup fix --write` and `fix --write
+ * --review` would fix it, for the aggregate "Fixes" section (fix-stats.ts).
  *
- * Exit status: 0 ok, 1 a rule or loader crashed on at least one repository (listed on stderr),
- * --check-golden found a difference, or --consistency found a mismatch or a loader crash, 2 the
- * cache is incomplete (run fetch.ts first) or --check-golden has no corpus/golden.json to compare
- * with.
+ * Exit status: 0 ok, 1 a rule, loader or fix run crashed on at least one repository (listed on
+ * stderr), --check-golden found a difference, --consistency found a mismatch or a loader crash,
+ * or --fix-replay found a violation, 2 the cache is incomplete (run fetch.ts first) or
+ * --check-golden has no corpus/golden.json to compare with.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -51,6 +58,8 @@ import { builtinRules } from '../../src/rules/index.js';
 import { CORPUS_DIR, loadRepos, log, type RepoEntry, repoLabel } from './common.js';
 import { type RepoConsistency, renderConsistency, repoConsistency } from './consistency.js';
 import { type RepoContextFacts, renderContextSection, scanForSummary } from './context-stats.js';
+import { type RepoReplay, renderReplay, replayRepo } from './fix-replay.js';
+import { fixFacts, type RepoFixFacts, renderFixSection } from './fix-stats.js';
 import {
   compareGolden,
   findingCount,
@@ -72,6 +81,7 @@ const { values } = parseArgs({
     'check-golden': { type: 'boolean', default: false },
     'ignore-fingerprints': { type: 'boolean', default: false },
     consistency: { type: 'boolean', default: false },
+    'fix-replay': { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -84,6 +94,12 @@ if (values['ignore-fingerprints'] && !values['check-golden']) {
 }
 if (values['write-golden'] && values.consistency) {
   throw new Error('--write-golden and --consistency cannot be combined');
+}
+if (
+  values['fix-replay'] &&
+  (values['write-golden'] || values['check-golden'] || values.consistency)
+) {
+  throw new Error('--fix-replay combines only with --only');
 }
 if (values['write-golden'] && values.only.length > 0) {
   throw new Error('--write-golden records the whole corpus and cannot be combined with --only');
@@ -609,6 +625,7 @@ function renderSummary(
   scanned: readonly Scanned[],
   crashes: readonly Crash[],
   context: readonly RepoContextFacts[],
+  fixes: readonly RepoFixFacts[],
 ): string {
   const stats = ruleStats(scanned);
   const reposWith = (stat: RuleStats, severity?: Severity): string =>
@@ -685,6 +702,10 @@ function renderSummary(
             String(stat.applicableRepos),
           ]),
         ),
+    '',
+    '## Fixes',
+    '',
+    renderFixSection(fixes),
     '',
     '## Rule crashes',
     '',
@@ -808,11 +829,18 @@ if (values['check-golden'] && savedGolden === undefined) {
 
 // The default mode writes SUMMARY.md, whose "What agents load" section needs load plans.
 const writesSummary =
-  !values.consistency && !values['write-golden'] && !values['check-golden'] && only.size === 0;
+  !values.consistency &&
+  !values['write-golden'] &&
+  !values['check-golden'] &&
+  !values['fix-replay'] &&
+  only.size === 0;
 
 const scanned: Scanned[] = [];
 const consistency: RepoConsistency[] = [];
 const contextFacts: RepoContextFacts[] = [];
+const replays: RepoReplay[] = [];
+const fixFactsList: RepoFixFacts[] = [];
+const fixCrashes: string[] = [];
 const loaderCrashes: string[] = [];
 const incomplete: string[] = [];
 const importsNotFetched: string[] = [];
@@ -826,7 +854,14 @@ for (const entry of selected) {
     importsNotFetched.push(`${repoLabel(entry)}: ${String(loaded.importsNotFetched.length)}`);
   }
   let result: RuleResult;
-  if (values.consistency) {
+  if (values['fix-replay']) {
+    const replayed = replayRepo(repoLabel(entry), loaded.snapshot);
+    replays.push(replayed.replay);
+    // A crash of fixRounds is a violation; the scan the rest of the harness makes still runs.
+    result =
+      replayed.before ??
+      scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
+  } else if (values.consistency) {
     // The same rules on the same analysis the plans are built from.
     const checked = repoConsistency(repoLabel(entry), loaded.snapshot);
     consistency.push(checked);
@@ -838,6 +873,11 @@ for (const entry of selected) {
       loaderCrashes.push(`${repoLabel(entry)}: ${forTerminal(planned.facts.crash)}`);
     }
     result = planned.result;
+    const fixed = fixFacts(loaded.snapshot, result);
+    fixFactsList.push(fixed);
+    for (const message of Object.values(fixed.crashes)) {
+      fixCrashes.push(`${repoLabel(entry)}: ${forTerminal(message)}`);
+    }
   } else {
     result = scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
   }
@@ -867,6 +907,12 @@ if (values.consistency) {
   if (rendered.problems > 0) process.exitCode = 1;
 }
 
+if (values['fix-replay']) {
+  const rendered = renderReplay(replays);
+  process.stdout.write(rendered.text);
+  if (rendered.violations > 0) process.exitCode = 1;
+}
+
 if (values['write-golden']) {
   const golden = makeGolden(scanned.map(({ entry, result }) => goldenRepo(entry, result)));
   await writeFile(GOLDEN_FILE, serializeGolden(golden));
@@ -882,7 +928,7 @@ if (values['write-golden']) {
     !values['ignore-fingerprints'],
   );
   if (status !== 0) process.exitCode = status;
-} else if (values.consistency) {
+} else if (values.consistency || values['fix-replay']) {
   // Printed above.
 } else if (only.size > 0) {
   for (const { entry, result, summary } of scanned) {
@@ -910,7 +956,7 @@ if (values['write-golden']) {
   await writeFormatted(path.join(CORPUS_DIR, 'REPORT.md'), renderReport(repos, scanned, crashes));
   await writeFormatted(
     path.join(CORPUS_DIR, 'SUMMARY.md'),
-    renderSummary(repos, scanned, crashes, contextFacts),
+    renderSummary(repos, scanned, crashes, contextFacts, fixFactsList),
   );
   const totals = zero();
   for (const { summary } of scanned) {
@@ -941,5 +987,10 @@ if (crashes.length > 0) {
 
 if (loaderCrashes.length > 0) {
   log(`\nLoaders crashed on real input:\n${loaderCrashes.map((line) => `- ${line}`).join('\n')}`);
+  process.exitCode = 1;
+}
+
+if (fixCrashes.length > 0) {
+  log(`\nFix runs crashed on real input:\n${fixCrashes.map((line) => `- ${line}`).join('\n')}`);
   process.exitCode = 1;
 }
