@@ -64,6 +64,11 @@ export interface PolicySubject {
 }
 
 export interface PolicyInput {
+  /**
+   * Lowercase hex SHA-256 of the policy file's bytes, as `shasum -a 256` prints it. The caller
+   * reads the file and computes it; reports print it so readers can tell which policy ran.
+   */
+  readonly sha256: string;
   /** The scan under review. */
   readonly current: PolicySubject;
   /** The scan to compare with, such as the base branch's report. */
@@ -109,7 +114,7 @@ export function evaluatePolicy(policy: Policy, input: PolicyInput): PolicyReport
 
   return {
     name: policy.name,
-    sha256: policy.sha256,
+    sha256: input.sha256,
     mode: policy.mode,
     insideScanRoot: input.insideScanRoot ?? false,
     checks: activeChecks(policy).length,

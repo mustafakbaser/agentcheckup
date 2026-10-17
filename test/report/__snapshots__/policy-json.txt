@@ -1,0 +1,58 @@
+{
+  "name": "acme agent policy",
+  "sha256": "e69b0fe7a008c4f1d2b3a4958677e8f9a0b1c2d3e4f5061728394a5b6c7d8e9f",
+  "mode": "enforce",
+  "insideScanRoot": false,
+  "checks": 7,
+  "violations": [
+    {
+      "id": "mcp-not-allowed:mcp:.mcp.json#fetch@0123456789abcdef",
+      "check": "mcp-not-allowed",
+      "entry": "npm:mcp-fetch-server",
+      "path": ".mcp.json",
+      "line": 4,
+      "message": "MCP server \"fetch\" runs npm package mcp-fetch-server, which the policy does not allow.",
+      "baseline": "new",
+      "fails": true
+    },
+    {
+      "id": "denied-tool:perm:.claude/settings.json#permissions.allow=Bash(curl:*)@fedcba9876543210",
+      "check": "denied-tool",
+      "entry": "curl",
+      "path": ".claude/settings.json",
+      "line": 3,
+      "agent": "claude-code",
+      "message": "permissions.allow \"Bash(curl:*)\" lets Claude Code run curl without asking; the policy denies curl.",
+      "baseline": "unchanged",
+      "fails": false
+    },
+    {
+      "id": "hook-missing:{\"agent\":\"claude-code\",\"event\":\"PreToolUse\",\"matcher\":\"Bash\",\"script\":\"scripts/hooks/guard.sh\"}",
+      "check": "hook-missing",
+      "entry": "claude-code PreToolUse matcher \"Bash\" script scripts/hooks/guard.sh",
+      "agent": "claude-code",
+      "message": "The policy requires a Claude Code PreToolUse hook with matcher \"Bash\" that runs \"scripts/hooks/guard.sh\", and none is configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.",
+      "baseline": "new",
+      "fails": true
+    },
+    {
+      "id": "startup-budget:claude-code",
+      "check": "startup-budget",
+      "entry": "claude-code",
+      "agent": "claude-code",
+      "message": "Claude Code loads ≈9,840 tokens at session start in ./ (policy limit ≈8,000).",
+      "baseline": "unchanged",
+      "fails": false
+    },
+    {
+      "id": "unanalyzed-config:.codex/config.toml",
+      "check": "unanalyzed-config",
+      "entry": ".codex/config.toml",
+      "path": ".codex/config.toml",
+      "message": "agentcheckup does not parse TOML, so what it configures cannot be checked against the policy.",
+      "baseline": "new",
+      "fails": true
+    }
+  ],
+  "notes": []
+}

@@ -50,6 +50,18 @@ export interface ReadJsonOptions extends ReadInputOptions {
  * `invalidUtf8` is `replace`, not UTF-8.
  */
 export async function readTextInput(filePath: string, options: ReadInputOptions): Promise<string> {
+  const bytes = await readInputBytes(filePath, options);
+  return decodeTextInput(bytes, filePath, options.label, options.invalidUtf8);
+}
+
+/**
+ * Reads the bytes of `filePath`. Throws {@link InputFileError} when the file is missing, a
+ * symlink, not a regular file, larger than `maxBytes` or unreadable.
+ */
+export async function readInputBytes(
+  filePath: string,
+  options: ReadInputOptions,
+): Promise<Uint8Array> {
   const { label } = options;
   const maxBytes = options.maxBytes ?? DEFAULT_INPUT_MAX_BYTES;
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
@@ -99,10 +111,23 @@ export async function readTextInput(filePath: string, options: ReadInputOptions)
         );
     }
   }
+  return outcome.bytes;
+}
+
+/**
+ * `bytes` as UTF-8 text, without a BOM. Throws {@link InputFileError} when not UTF-8, unless
+ * `invalidUtf8` is `replace`.
+ */
+export function decodeTextInput(
+  bytes: Uint8Array,
+  filePath: string,
+  label: string,
+  invalidUtf8: ReadInputOptions['invalidUtf8'] = 'error',
+): string {
   try {
     // fatal: invalid UTF-8 is an error, not silently replaced text. The BOM is dropped.
-    const fatal = options.invalidUtf8 !== 'replace';
-    return new TextDecoder('utf-8', { fatal }).decode(outcome.bytes);
+    const fatal = invalidUtf8 !== 'replace';
+    return new TextDecoder('utf-8', { fatal }).decode(bytes);
   } catch (error) {
     throw new InputFileError(`${label} ${filePath} is not valid UTF-8 text.`, { cause: error });
   }

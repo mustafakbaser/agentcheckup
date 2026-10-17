@@ -11,7 +11,6 @@ import { formatInteger } from '../core/format.js';
 import { normalizeRelative } from '../core/paths.js';
 import { npmPin } from '../inventory/package-spec.js';
 import { HOOK_EVENTS, HOOK_PLATFORMS, type HookPlatform } from '../platforms/hooks.js';
-import { canonicalJson } from '../platforms/inventory-ids.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { platformName, quote } from '../rules/shared/format.js';
 import { nearest } from './text.js';
@@ -26,7 +25,6 @@ import {
   PYPI_ENTRY,
   TOOL_NAME,
 } from './schema.js';
-import { sha256Hex } from '../core/sha256.js';
 import {
   type AllowEntry,
   EXISTING_MODES,
@@ -191,7 +189,6 @@ export function parsePolicy(json: unknown): PolicyParseResult {
   return {
     policy: {
       name,
-      sha256: sha256Hex(canonicalJson(json)),
       mode,
       existing,
       mcp,

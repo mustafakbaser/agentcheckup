@@ -59,6 +59,7 @@ import type {
   SkippedLoad,
 } from '../platforms/load/types.js';
 import { ALL_CONTEXT_AGENTS, TRIGGER_RANK } from '../platforms/load/types.js';
+import { toJsonPolicy } from './policy-json.js';
 import { forJsonOutput } from './sanitize.js';
 
 function position(value: Position): Position {
@@ -666,6 +667,7 @@ export function toJsonReport(result: ScanResult): ScanResult {
     inventory: toJsonInventory(result.inventory),
     ...(result.context === undefined ? {} : { context: toJsonContext(result.context) }),
     ...(result.baseline === undefined ? {} : { baseline: toJsonBaseline(result.baseline) }),
+    ...(result.policy === undefined ? {} : { policy: toJsonPolicy(result.policy) }),
   };
 }
 

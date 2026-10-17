@@ -48,6 +48,7 @@ import {
 } from './common.js';
 import { fix } from './fix.js';
 import { CONTEXT_HELP, FIX_HELP, HELP, TASKS_HELP } from './help.js';
+import { loadPolicy, policyFailure, PolicyFileError, withPolicy } from './policy.js';
 import { ansiStyle } from './style.js';
 import { tasks } from './tasks.js';
 
@@ -94,6 +95,10 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
           ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
       io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);
+      return EXIT.usage;
+    }
+    if (error instanceof PolicyFileError) {
+      for (const line of error.lines) io.stderr(`${forTerminal(line)}\n`);
       return EXIT.usage;
     }
     if (
@@ -175,6 +180,8 @@ function warn(result: ScanResult, format: string, io: Io): void {
         'count as new.\n',
     );
   }
+  const policy = policyFailure(result);
+  if (policy !== undefined && !HUMAN_FORMATS.has(format)) io.stderr(`${forTerminal(policy)}\n`);
 }
 
 /**
@@ -215,6 +222,7 @@ function scanWithRootPlans(snapshot: Snapshot, scanOptions: ScanOptions, io: Io)
 
 async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
   const root = resolve(io.cwd, options.path);
+  const policy = await loadPolicy(options.policy, root, io.cwd);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
@@ -235,8 +243,9 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
     : rootPlans
       ? scanWithRootPlans(snapshot, scanOptions, io)
       : scanSnapshot(snapshot, scanOptions);
+  const checked = withPolicy(scanned, policy, baseline, snapshot, scanOptions);
   const result = rebaseResult(
-    withBaseline(scanned, baseline, options.gate),
+    withBaseline(checked, baseline, options.gate),
     pathPrefix(root, io, options.format),
   );
 
@@ -348,7 +357,8 @@ function joinSections(...sections: readonly string[]): string {
 
 /**
  * Exit code of a scan. With a baseline, `failOn` counts new findings only; the score still
- * covers every finding, and a tripped gate fails too.
+ * covers every finding, and a tripped gate fails too. A policy violation that fails the run
+ * fails it whatever `failOn` says.
  */
 export function exitCodeFor(
   result: ScanResult,
@@ -357,6 +367,9 @@ export function exitCodeFor(
 ): ExitCode {
   if (result.ruleFailures.length > 0) return EXIT.internal;
   if (gateTripped(result)) return EXIT.findings;
+  if (result.policy?.violations.some((violation) => violation.fails) === true) {
+    return EXIT.findings;
+  }
   if (failOn !== 'none') {
     const threshold = SEVERITIES.indexOf(failOn);
     const compared = result.baseline !== undefined;

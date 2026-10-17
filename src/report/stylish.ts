@@ -34,6 +34,7 @@ import {
   whyText,
 } from './feedback.js';
 import { gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
+import { renderPolicy } from './policy-stylish.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
   breakdown,
@@ -668,6 +669,8 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
   if (failures.length > 0) blocks.push(failures);
   const gate = renderGateHits(result, context);
   if (gate.length > 0) blocks.push(gate);
+  const policy = renderPolicy(result, { style: context.style, ascii });
+  if (policy.length > 0) blocks.push(policy);
 
   const summary = [
     countsLine(result, context),

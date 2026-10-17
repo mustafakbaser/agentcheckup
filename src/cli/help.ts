@@ -42,6 +42,9 @@ Options
       --gate <classes>     Exit 1 on security-relevant changes since --baseline:
                            ${GATE_CLASSES.join(', ')},
                            or security for all of them, or none
+      --policy <file>      Check the scan against an organization policy: allowed MCP
+                           servers, forbidden settings, required hooks, startup budgets.
+                           Implies --untrusted; cannot be combined with --config
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
@@ -59,8 +62,9 @@ the workspace when the scanned directory is inside it.
 Exit codes
   0  No findings at or above --fail-on, the score meets --min-score, and no gate tripped
   1  Findings at or above --fail-on (new ones only, with --baseline), the score is
-     below --min-score, or --gate found security-relevant changes
-  2  Invalid arguments, configuration or baseline
+     below --min-score, --gate found security-relevant changes, or a --policy
+     violation fails the run
+  2  Invalid arguments, configuration, baseline or policy file
   3  Internal error (a rule or the scanner crashed)
 
 ${FOOTER}`;

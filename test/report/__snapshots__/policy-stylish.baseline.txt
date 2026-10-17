@@ -1,0 +1,7 @@
+Policy acme agent policy (enforce · sha256 e69b0fe7a008 · 7 checks)
+  .mcp.json:4              fails     new  MCP server "fetch" runs npm package mcp-fetch-server, which the policy does not allow.  mcp-not-allowed
+  —                        fails     new  The policy requires a Claude Code PreToolUse hook with matcher "Bash" that runs "scripts/hooks/guard.sh", and none is configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.  hook-missing
+  .codex/config.toml       fails     new  agentcheckup does not parse TOML, so what it configures cannot be checked against the policy.  unanalyzed-config
+  .claude/settings.json:3  reported       permissions.allow "Bash(curl:*)" lets Claude Code run curl without asking; the policy denies curl.  denied-tool
+  —                        reported       Claude Code loads ≈9,840 tokens at session start in ./ (policy limit ≈8,000).  startup-budget
+✖ 3 of 5 violations fail the run · 3 new, 2 unchanged since the baseline

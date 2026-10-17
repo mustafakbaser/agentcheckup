@@ -22,6 +22,7 @@ import {
 } from '../platforms/load/index.js';
 import { buildMatrix, matrixPlans } from '../platforms/load/matrix.js';
 import type { ContextAgent, ContextReport } from '../platforms/load/types.js';
+import type { PolicyReport } from '../policy/types.js';
 import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import { EMPTY_CONFIG, type ResolvedConfig } from './config.js';
@@ -199,6 +200,11 @@ export interface ScanResult {
   readonly context?: ContextReport;
   /** Comparison with the `--baseline` report, when one was given. */
   readonly baseline?: BaselineDiff;
+  /**
+   * The check against the `--policy` file, when one was given. Violations are not findings: they
+   * never change the score, and no configuration or directive can suppress them.
+   */
+  readonly policy?: PolicyReport;
 }
 
 /** A scan with load plans: what {@link scanWithContext} returns. */
@@ -210,7 +216,10 @@ export interface ContextScanResult extends ScanResult {
  * What {@link runRules} returns: the findings and everything about them. {@link scanSnapshot} adds
  * the inventory, {@link scanWithContext} the inventory and the load plans.
  */
-export type RuleResult = Omit<ScanResult, 'inventory' | 'context' | 'baseline' | 'pathBase'>;
+export type RuleResult = Omit<
+  ScanResult,
+  'inventory' | 'context' | 'baseline' | 'pathBase' | 'policy'
+>;
 
 interface PendingFinding {
   readonly meta: RuleMeta;

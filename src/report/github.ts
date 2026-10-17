@@ -30,6 +30,7 @@ import {
   whyText,
 } from './feedback.js';
 import { gateRows } from './gate.js';
+import { policyAnnotations } from './policy-github.js';
 import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
 import { truncate } from './text.js';
 
@@ -148,7 +149,8 @@ function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
  *
  * With `--baseline`, only new findings are annotated (unchanged ones were there before the
  * change under review), each security-relevant change that trips `--gate` gets an error
- * annotation, and a baseline from another ruleset gets a warning.
+ * annotation, and a baseline from another ruleset gets a warning. With `--policy`, violations
+ * get annotations of their own (policy-github.ts).
  */
 export function formatGithub(result: ScanResult, options: GithubOptions = {}): string {
   const level = options.level ?? 'default';
@@ -171,6 +173,7 @@ export function formatGithub(result: ScanResult, options: GithubOptions = {}): s
       );
     }
   }
+  lines.push(...policyAnnotations(result));
   for (const failure of result.ruleFailures) {
     lines.push(
       command(

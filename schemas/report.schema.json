@@ -103,7 +103,93 @@
     },
     "inventory": { "$ref": "#/$defs/inventory" },
     "context": { "$ref": "#/$defs/contextReport" },
-    "baseline": { "$ref": "#/$defs/baselineDiff" }
+    "baseline": { "$ref": "#/$defs/baselineDiff" },
+    "policy": {
+      "description": "The check against the `--policy` file. Violations are not findings: they have no rule id, never change the score, and no configuration or directive can suppress them. Messages hold raw repository text, quoted, on one line and bounded in length; they carry no `path:line`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "mode", "insideScanRoot", "checks", "violations", "notes"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sha256": {
+          "description": "SHA-256 of the policy file's bytes, as `shasum -a 256` prints it.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "mode": {
+          "description": "`enforce` fails the run on violations; `audit` reports them and never fails.",
+          "enum": ["enforce", "audit"]
+        },
+        "insideScanRoot": {
+          "description": "True when the policy file lies inside the scanned directory, so a change under review can edit it.",
+          "type": "boolean"
+        },
+        "checks": {
+          "description": "How many checks the policy turns on.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "violations": {
+          "description": "Sorted by check, then path, line and id.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "check", "entry", "message", "fails"],
+            "properties": {
+              "id": {
+                "description": "What a baseline comparison matches: the check, the subject and, for an inventory item, its digest. Relative to the scanned directory: never carries `pathBase`.",
+                "type": "string",
+                "minLength": 1
+              },
+              "check": {
+                "enum": [
+                  "mcp-not-allowed",
+                  "mcp-unpinned",
+                  "forbidden-setting",
+                  "denied-tool",
+                  "hook-missing",
+                  "startup-budget",
+                  "unanalyzed-config"
+                ]
+              },
+              "entry": {
+                "description": "What the violation is about: the server in allowlist form, the `forbid` name, the denied tools and commands, the hook requirement, the agent, or the `incomplete` entry.",
+                "type": "string"
+              },
+              "path": { "$ref": "#/$defs/path" },
+              "line": { "type": "integer", "minimum": 1 },
+              "agent": { "$ref": "#/$defs/contextAgent" },
+              "message": { "type": "string" },
+              "baseline": {
+                "description": "Set when the scan ran with `--baseline`.",
+                "enum": ["new", "unchanged"]
+              },
+              "fails": {
+                "description": "True when this violation fails the run (exit code 1).",
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "notes": {
+          "description": "Remarks on the whole run, such as audit mode or a baseline without load plans.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "message"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "message": { "type": "string" },
+              "path": { "$ref": "#/$defs/path" },
+              "line": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    }
   },
   "$defs": {
     "count": { "type": "integer", "minimum": 0 },

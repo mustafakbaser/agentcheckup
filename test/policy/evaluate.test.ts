@@ -27,6 +27,13 @@ function policyOf(document: object): Policy {
   return result.policy;
 }
 
+/** A file digest. The CLI computes the real one from the policy file's bytes. */
+const SHA256 = '0123456789abcdef'.repeat(4);
+
+function evaluate(policy: Policy, input: Omit<PolicyInput, 'sha256'>): PolicyReport {
+  return evaluatePolicy(policy, { sha256: SHA256, ...input });
+}
+
 function scan(files: FileMap): ContextScanResult {
   const result = scanWithContext(snapshotFrom(files, { paths: ['.git/'] }), {
     rules: builtinRules,
@@ -39,10 +46,12 @@ function scan(files: FileMap): ContextScanResult {
 function run(
   document: object,
   files: FileMap,
-  options: Omit<PolicyInput, 'current' | 'baseline'> & { readonly baseline?: FileMap } = {},
+  options: Omit<PolicyInput, 'sha256' | 'current' | 'baseline'> & {
+    readonly baseline?: FileMap;
+  } = {},
 ): PolicyReport {
   const { baseline, ...rest } = options;
-  return evaluatePolicy(policyOf(document), {
+  return evaluate(policyOf(document), {
     current: scan(files),
     ...(baseline === undefined ? {} : { baseline: scan(baseline) }),
     ...rest,
@@ -786,12 +795,9 @@ describe('startup-budget', () => {
     const tokens = current.context.plans.find((plan) => plan.agent === 'claude-code')?.totals
       .startup.tokens;
     expect(tokens).toBeGreaterThan(8000);
-    const report = evaluatePolicy(
-      policyOf({ budgets: { 'claude-code': { startupTokens: 8000 } } }),
-      {
-        current,
-      },
-    );
+    const report = evaluate(policyOf({ budgets: { 'claude-code': { startupTokens: 8000 } } }), {
+      current,
+    });
     expect(brief(report)).toEqual([
       {
         check: 'startup-budget',
@@ -823,7 +829,7 @@ describe('startup-budget', () => {
 
   it('fails closed when an agent was not planned', () => {
     const policy = policyOf({ budgets: { cursor: { startupTokens: 10 } } });
-    const report = evaluatePolicy(policy, { current: { inventory: scan({}).inventory } });
+    const report = evaluate(policy, { current: { inventory: scan({}).inventory } });
     expect(messages(report)).toEqual([
       'Cursor has no load plan in this scan, so its startup context cannot be checked (policy limit ≈10).',
     ]);
@@ -933,8 +939,8 @@ describe('baselines', () => {
   it('matches a baseline written from another directory', () => {
     const policy = policyOf(allowNothing);
     const current = scan(after);
-    const plain = evaluatePolicy(policy, { current, baseline: scan(before) });
-    const rebased = evaluatePolicy(policy, {
+    const plain = evaluate(policy, { current, baseline: scan(before) });
+    const rebased = evaluate(policy, {
       current: rebaseResult(current, 'repo'),
       baseline: rebaseResult(scan(before), 'other/place'),
     });
@@ -963,7 +969,7 @@ describe('baselines', () => {
   it('notes what an old baseline cannot show', () => {
     const policy = policyOf({ ...allowNothing, budgets: { 'claude-code': { startupTokens: 1 } } });
     const baseline: PolicySubject = {};
-    const report = evaluatePolicy(policy, { current: scan(after), baseline });
+    const report = evaluate(policy, { current: scan(after), baseline });
     expect(report.violations.every((violation) => violation.baseline === 'new')).toBe(true);
     expect(report.notes.map((note) => note.id)).toEqual([
       'baseline-without-inventory',
@@ -992,18 +998,18 @@ describe('the report', () => {
       hooks: { require: [{ agent: 'claude-code', event: 'Stop' }] },
       budgets: { codex: { startupTokens: 1 } },
     });
-    const report = evaluatePolicy(policy, { current: scan({}), insideScanRoot: true });
+    const report = evaluate(policy, { current: scan({}), insideScanRoot: true });
     expect(report).toMatchObject({
       name: 'test policy',
-      sha256: policy.sha256,
+      sha256: SHA256,
       mode: 'enforce',
       insideScanRoot: true,
       checks: 7,
     });
     expect(report.notes.map((note) => note.id)).toEqual(['policy-inside-scan-root']);
-    expect(evaluatePolicy(policyOf({}), { current: scan({}) })).toEqual({
+    expect(evaluate(policyOf({}), { current: scan({}) })).toEqual({
       name: 'test policy',
-      sha256: policyOf({}).sha256,
+      sha256: SHA256,
       mode: 'enforce',
       insideScanRoot: false,
       checks: 0,
@@ -1048,7 +1054,7 @@ describe('the strict sample policy', () => {
   it('reports the context fixture, deterministically', async () => {
     const current = await contextFixture();
     const policy = strictPolicy();
-    const report = evaluatePolicy(policy, { current });
+    const report = evaluate(policy, { current });
     const reversed: PolicySubject = {
       inventory: {
         mcpServers: [...current.inventory.mcpServers].reverse(),
@@ -1059,8 +1065,8 @@ describe('the strict sample policy', () => {
       },
       context: { plans: [...current.context.plans].reverse() },
     };
-    expect(evaluatePolicy(policy, { current: reversed })).toEqual(report);
-    expect(evaluatePolicy(policy, { current })).toEqual(report);
+    expect(evaluate(policy, { current: reversed })).toEqual(report);
+    expect(evaluate(policy, { current })).toEqual(report);
     expect(new Set(report.violations.map((violation) => violation.id)).size).toBe(
       report.violations.length,
     );
@@ -1070,7 +1076,7 @@ describe('the strict sample policy', () => {
   });
 
   it('reports nothing for a repository that follows it', () => {
-    const report = evaluatePolicy(strictPolicy(), {
+    const report = evaluate(strictPolicy(), {
       current: scan({
         'CLAUDE.md': '# Project\n\nUse pnpm.\n',
         'AGENTS.md': '# Project\n\nUse pnpm.\n',

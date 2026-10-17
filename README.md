@@ -280,6 +280,31 @@ agentcheckup from outside the checkout, as the Action does, so a package committ
 repository cannot stand in for it. [Baselines and the gate](docs/context.md#baselines-and-the-gate)
 gives the exact rules.
 
+## Enforce an organization policy
+
+The gate asks for review; a policy says what is acceptable at all. Write the rules once and check
+every repository against them:
+
+```json
+{
+  "policyVersion": 1,
+  "name": "acme agent policy",
+  "mcp": { "allow": ["npm:@modelcontextprotocol/server-github"], "requirePin": true },
+  "forbid": ["bypass-permissions", "broad-shell"],
+  "permissions": { "denyCommands": ["curl", "wget"] },
+  "budgets": { "claude-code": { "startupTokens": 8000 } }
+}
+```
+
+```sh
+npx agentcheckup --policy acme-agent-policy.json
+```
+
+A violation fails the run unless the policy is in audit mode. Violations never change the score,
+and the repository cannot switch them off: `--policy` ignores its configuration and inline
+directives. Read the policy from the base branch or a central repository, never from the pull
+request. [Organization policy](docs/policy.md) covers every check, baselines and the trust model.
+
 ## What it catches
 
 agentcheckup also checks each file against how the agents load it. Each rule is backed by the

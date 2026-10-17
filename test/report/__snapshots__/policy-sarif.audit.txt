@@ -1,0 +1,221 @@
+{
+  "rules": [
+    {
+      "id": "policy/mcp-not-allowed",
+      "name": "PolicyMcpNotAllowed",
+      "shortDescription": {
+        "text": "MCP server not allowed"
+      },
+      "fullDescription": {
+        "text": "An MCP server runs a package, image or origin that mcp.allow does not list."
+      },
+      "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#mcp-not-allowed",
+      "help": {
+        "text": "An MCP server runs a package, image or origin that mcp.allow does not list.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#mcp-not-allowed",
+        "markdown": "**MCP server not allowed**\n\nAn MCP server runs a package, image or origin that mcp.allow does not list.\n\n[Policy documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#mcp-not-allowed)"
+      },
+      "defaultConfiguration": {
+        "level": "error"
+      },
+      "properties": {
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    {
+      "id": "policy/denied-tool",
+      "name": "PolicyDeniedTool",
+      "shortDescription": {
+        "text": "Denied tool or command"
+      },
+      "fullDescription": {
+        "text": "A grant lets an agent use a tool or run a command without asking that the policy denies."
+      },
+      "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#denied-tool",
+      "help": {
+        "text": "A grant lets an agent use a tool or run a command without asking that the policy denies.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#denied-tool",
+        "markdown": "**Denied tool or command**\n\nA grant lets an agent use a tool or run a command without asking that the policy denies.\n\n[Policy documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#denied-tool)"
+      },
+      "defaultConfiguration": {
+        "level": "error"
+      },
+      "properties": {
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    {
+      "id": "policy/hook-missing",
+      "name": "PolicyHookMissing",
+      "shortDescription": {
+        "text": "Required hook missing"
+      },
+      "fullDescription": {
+        "text": "A hook the policy requires is not configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off."
+      },
+      "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#hook-missing",
+      "help": {
+        "text": "A hook the policy requires is not configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#hook-missing",
+        "markdown": "**Required hook missing**\n\nA hook the policy requires is not configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.\n\n[Policy documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#hook-missing)"
+      },
+      "defaultConfiguration": {
+        "level": "error"
+      },
+      "properties": {
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    {
+      "id": "policy/startup-budget",
+      "name": "PolicyStartupBudget",
+      "shortDescription": {
+        "text": "Startup context over budget"
+      },
+      "fullDescription": {
+        "text": "An agent's largest load plan holds more startup tokens than the policy's budget for it."
+      },
+      "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#startup-budget",
+      "help": {
+        "text": "An agent's largest load plan holds more startup tokens than the policy's budget for it.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#startup-budget",
+        "markdown": "**Startup context over budget**\n\nAn agent's largest load plan holds more startup tokens than the policy's budget for it.\n\n[Policy documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#startup-budget)"
+      },
+      "defaultConfiguration": {
+        "level": "error"
+      },
+      "properties": {
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    {
+      "id": "policy/unanalyzed-config",
+      "name": "PolicyUnanalyzedConfig",
+      "shortDescription": {
+        "text": "Configuration not analyzed"
+      },
+      "fullDescription": {
+        "text": "A configuration file could not be analyzed, so it may hide a violation. The policy fails closed."
+      },
+      "helpUri": "https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#unanalyzed-config",
+      "help": {
+        "text": "A configuration file could not be analyzed, so it may hide a violation. The policy fails closed.\n\nDocumentation: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#unanalyzed-config",
+        "markdown": "**Configuration not analyzed**\n\nA configuration file could not be analyzed, so it may hide a violation. The policy fails closed.\n\n[Policy documentation](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md#unanalyzed-config)"
+      },
+      "defaultConfiguration": {
+        "level": "error"
+      },
+      "properties": {
+        "tags": [
+          "policy"
+        ]
+      }
+    }
+  ],
+  "results": [
+    {
+      "ruleId": "policy/mcp-not-allowed",
+      "ruleIndex": 0,
+      "level": "warning",
+      "message": {
+        "text": "MCP server \"fetch\" runs npm package mcp-fetch-server, which the policy does not allow."
+      },
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": ".mcp.json",
+              "uriBaseId": "%SRCROOT%"
+            },
+            "region": {
+              "startLine": 4
+            }
+          }
+        }
+      ],
+      "partialFingerprints": {
+        "agentcheckup-policy/v1": "mcp-not-allowed:mcp:.mcp.json#fetch@0123456789abcdef"
+      },
+      "properties": {
+        "policy": true
+      }
+    },
+    {
+      "ruleId": "policy/denied-tool",
+      "ruleIndex": 1,
+      "level": "warning",
+      "message": {
+        "text": "permissions.allow \"Bash(curl:*)\" lets Claude Code run curl without asking; the policy denies curl."
+      },
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": ".claude/settings.json",
+              "uriBaseId": "%SRCROOT%"
+            },
+            "region": {
+              "startLine": 3
+            }
+          }
+        }
+      ],
+      "partialFingerprints": {
+        "agentcheckup-policy/v1": "denied-tool:perm:.claude/settings.json#permissions.allow=Bash(curl:*)@fedcba9876543210"
+      },
+      "properties": {
+        "policy": true
+      }
+    },
+    {
+      "ruleId": "policy/unanalyzed-config",
+      "ruleIndex": 4,
+      "level": "warning",
+      "message": {
+        "text": "agentcheckup does not parse TOML, so what it configures cannot be checked against the policy."
+      },
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": ".codex/config.toml",
+              "uriBaseId": "%SRCROOT%"
+            }
+          }
+        }
+      ],
+      "partialFingerprints": {
+        "agentcheckup-policy/v1": "unanalyzed-config:.codex/config.toml"
+      },
+      "properties": {
+        "policy": true
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "level": "warning",
+      "message": {
+        "text": "The policy requires a Claude Code PreToolUse hook with matcher \"Bash\" that runs \"scripts/hooks/guard.sh\", and none is configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off."
+      },
+      "associatedRule": {
+        "id": "policy/hook-missing",
+        "index": 2
+      }
+    },
+    {
+      "level": "warning",
+      "message": {
+        "text": "Claude Code loads ≈9,840 tokens at session start in ./ (policy limit ≈8,000)."
+      },
+      "associatedRule": {
+        "id": "policy/startup-budget",
+        "index": 3
+      }
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseAllowEntry, parsePolicy, UNKNOWN_FIELD_REASON } from '../../src/policy/parse.js';
@@ -57,7 +56,6 @@ describe('parsePolicy', () => {
       'origin',
       'origin',
     ]);
-    expect(policy.sha256).toMatch(/^[\da-f]{64}$/);
   });
 
   it('reads the strict sample policy', () => {
@@ -71,7 +69,6 @@ describe('parsePolicy', () => {
     const policy = policyOf(minimal);
     expect(policy).toEqual({
       name: 'test policy',
-      sha256: policy.sha256,
       mode: 'enforce',
       existing: 'report',
       mcp: { allowLocal: false, requirePin: false },
@@ -113,29 +110,6 @@ describe('parsePolicy', () => {
     expect(policy.requireHooks).toEqual([
       { agent: 'cursor', event: 'stop', script: 'scripts/x.sh' },
     ]);
-  });
-});
-
-describe('the policy digest', () => {
-  it('does not depend on key order or formatting', () => {
-    const a = policyOf({ policyVersion: 1, name: 'x', forbid: ['broad-shell'], mode: 'audit' });
-    const b = policyOf(
-      JSON.parse(
-        '{ "mode": "audit",\n  "forbid": [ "broad-shell" ], "name": "x", "policyVersion": 1 }',
-      ),
-    );
-    expect(a.sha256).toBe(b.sha256);
-  });
-
-  it('changes with any value', () => {
-    const a = policyOf({ ...minimal, forbid: ['broad-shell'] });
-    const b = policyOf({ ...minimal, forbid: ['broad-write'] });
-    expect(a.sha256).not.toBe(b.sha256);
-  });
-
-  it('is the SHA-256 of the canonical JSON', () => {
-    const canonical = '{"name":"test policy","policyVersion":1}';
-    expect(policyOf(minimal).sha256).toBe(createHash('sha256').update(canonical).digest('hex'));
   });
 });
 

@@ -3,6 +3,7 @@ import type { ScanResult } from './engine.js';
 import type { FileChange, Fix } from './types.js';
 import type { Inventory } from '../inventory/types.js';
 import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
+import type { PolicyReport } from '../policy/types.js';
 
 /**
  * Prefixes every path in a scan result with `prefix` (a POSIX directory, no trailing slash) and
@@ -16,9 +17,11 @@ import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
  * Rebased: finding, artifact, skipped and symlink paths; the paths a finding's fix changes
  * (`path`, `from` and `to`, in alternatives too); load-plan working directories, entry, skip
  * and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files;
- * baseline paths. Ids that embed a path (`<kind>:<path>…`: plan entries, skips, inventory
- * items, `inventoryId`, baseline id lists and gate hits other than `unicode`) get the prefix
- * after their kind, so they keep matching `<kind>:${path}`. Not rebased, because they are text
+ * baseline paths; policy violation and note paths. Ids that embed a path (`<kind>:<path>…`: plan
+ * entries, skips, inventory items, `inventoryId`, baseline id lists and gate hits other than
+ * `unicode`) get the prefix after their kind, so they keep matching `<kind>:${path}`. Policy
+ * violation ids are not rebased: like fingerprints, they stay relative to the scanned
+ * directory, so they match across working directories. Not rebased, because they are text
  * as written rather than repository paths: `patterns` (globs), hook `script` and `command`, MCP
  * `command` and `args`, hidden-scope locations, limit labels, summaries, and the titles, notes
  * and text of fixes. A limit subject is always a path (a group of files uses its working
@@ -199,5 +202,17 @@ function mapPaths(result: ScanResult, map: PathMap): ScanResult {
     inventory: mapInventory(result.inventory, map),
     ...(result.context === undefined ? {} : { context: mapContext(result.context, map) }),
     ...(result.baseline === undefined ? {} : { baseline: mapBaseline(result.baseline, map) }),
+    ...(result.policy === undefined ? {} : { policy: mapPolicy(result.policy, map) }),
+  };
+}
+
+/** Violation and note paths. Violation ids are relative to the scanned directory: never mapped. */
+function mapPolicy(report: PolicyReport, map: PathMap): PolicyReport {
+  const withPath = <T extends { readonly path?: string }>(item: T): T =>
+    item.path === undefined ? item : { ...item, path: map(item.path) };
+  return {
+    ...report,
+    violations: report.violations.map(withPath),
+    notes: report.notes.map(withPath),
   };
 }

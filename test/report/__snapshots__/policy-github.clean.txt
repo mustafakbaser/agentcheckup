@@ -1,0 +1,1 @@
+::notice title=policy::Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.

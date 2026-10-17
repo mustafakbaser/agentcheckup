@@ -17,12 +17,16 @@
  * `insertedContent.text` is the new text, exactly. Creates, renames, re-encodings and fixes that
  * touch several files have no SARIF form here, and fixes that apply only when named
  * (mcp/literal-secret) are never offered.
+ *
+ * With `--policy`, violations follow the findings as results of `policy/<check>` rules
+ * (policy-sarif.ts), within the same result cap.
  */
 import type { ScanResult } from '../core/engine.js';
 import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Fix, FixClass, Range, RuleMeta, Severity } from '../core/types.js';
 import { fixOf } from './feedback.js';
 import { isNewRuleFinding, newRuleSet } from './gate.js';
+import { policySarif } from './policy-sarif.js';
 import { forJsonOutput, forSarifMessage, forSarifText } from './sanitize.js';
 import {
   breakdown,
@@ -67,7 +71,7 @@ interface SarifRegion {
 
 interface SarifPhysicalLocation {
   readonly artifactLocation: { readonly uri: string; readonly uriBaseId: string };
-  readonly region?: SarifRegion;
+  readonly region?: SarifRegion | { readonly startLine: number };
 }
 
 interface SarifLocation {
@@ -76,7 +80,7 @@ interface SarifLocation {
   readonly message?: SarifMessage;
 }
 
-interface SarifRule {
+export interface SarifRule {
   readonly id: string;
   readonly name: string;
   readonly shortDescription: SarifMessage;
@@ -105,7 +109,7 @@ interface SarifFix {
   readonly properties: { readonly class: FixClass };
 }
 
-interface SarifResult {
+export interface SarifResult {
   readonly ruleId: string;
   readonly ruleIndex: number;
   readonly level: SarifLevel;
@@ -122,12 +126,13 @@ interface SarifResult {
   readonly fixes?: readonly SarifFix[];
   /**
    * `newRule`: a new finding of a rule newer than the baseline's rule set, which the baseline
-   * could not have reported. Set only then.
+   * could not have reported. Set only then. `policy`: a `--policy` violation, not a finding
+   * (policy-sarif.ts).
    */
-  readonly properties?: { readonly newRule: true };
+  readonly properties?: { readonly newRule?: true; readonly policy?: true };
 }
 
-interface SarifNotification {
+export interface SarifNotification {
   readonly level: SarifLevel;
   readonly message: SarifMessage;
   readonly associatedRule?: { readonly id: string; readonly index?: number };
@@ -434,12 +439,16 @@ function executionNotifications(
 /** The SARIF log object (for callers that post-process it). */
 export function toSarif(result: ScanResult): SarifLog {
   const { rules, index } = buildRules(result);
-  const findings = capFindings(result.findings, MAX_RESULTS);
+  const policy = policySarif(result, rules.length);
+  const findings = capFindings(result.findings, Math.max(0, MAX_RESULTS - policy.results.length));
   const newRules = newRuleSet(result);
   const results = findings.map((finding) =>
     toResult(finding, index.get(finding.ruleId) ?? 0, newRules),
   );
+  results.push(...policy.results);
+  rules.push(...policy.rules);
   const execution = executionNotifications(result, index, result.findings.length - findings.length);
+  execution.push(...policy.notifications);
   const configuration = result.configWarnings.map((warning) => ({
     level: 'warning' as const,
     message: { text: nonEmpty(forSarifMessage(warning), 'Configuration warning') },

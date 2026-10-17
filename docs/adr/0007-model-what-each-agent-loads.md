@@ -3,7 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-15
 - Amended by: [0008](0008-write-fixes-to-the-scanned-repository.md), which brings autofix into
-  scope
+  scope, and [0011](0011-organization-policy.md), which lets an organization policy fail a run
+  on startup tokens
 
 ## Context
 

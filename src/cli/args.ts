@@ -53,6 +53,8 @@ export interface ScanCommandOptions extends SharedCommandOptions {
   readonly context: boolean;
   /** `--compact`, `--verbose` or neither: how much stylish, markdown and github output show. */
   readonly level: DetailLevel;
+  /** `--policy`: an organization policy file to check the scan against. Implies untrusted. */
+  readonly policy: string | undefined;
 }
 
 export interface ContextCommandOptions extends SharedCommandOptions {
@@ -217,6 +219,7 @@ const SCAN_ONLY = [
   'context',
   'compact',
   'verbose',
+  'policy',
 ] as const;
 const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
 const FIX_ONLY = ['write', 'review', 'interactive', 'rule', 'diff'] as const;
@@ -302,7 +305,17 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
   rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
-  const shared = sharedOptions(values, positionals[0]);
+  const policy = values['policy'] as string | undefined;
+  if (policy !== undefined && values['config'] !== undefined) {
+    throw new UsageError(
+      '--policy ignores configuration files, so it cannot be combined with --config.',
+    );
+  }
+  // A policy run is untrusted: the change under review cannot turn checks off or hide files.
+  const shared = {
+    ...sharedOptions(values, positionals[0]),
+    ...(policy === undefined ? {} : { useConfig: false, untrusted: true }),
+  };
   const context = values['context'] === true;
   if (shared.contextWindow !== undefined && !context) {
     throw new UsageError('--context-window needs --context, or use the context command.');
@@ -326,6 +339,7 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
       context,
       level:
         values['compact'] === true ? 'compact' : values['verbose'] === true ? 'verbose' : 'default',
+      policy,
     },
   };
 }
@@ -487,6 +501,7 @@ export function parseCommand(argv: readonly string[]): Command {
       check: { type: 'boolean' },
       max: { type: 'string' },
       diff: { type: 'string' },
+      policy: { type: 'string' },
     },
   });
 

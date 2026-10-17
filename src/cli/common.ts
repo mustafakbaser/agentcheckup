@@ -45,10 +45,11 @@ export interface Io {
 /**
  * - 0: clean. `context` without `--gate` always exits 0 unless something fails. `fix`: nothing to
  *   change in a dry run, or every selected fix was applied and verified.
- * - 1: (new) findings at or above `--fail-on`, a score below `--min-score`, or a tripped gate.
- *   `fix`: a dry run found changes, or a selected fix was not applied.
- * - 2: invalid arguments, configuration, `--cwd`, `--agent`, `--rule` or baseline; an unwritable
- *   output.
+ * - 1: (new) findings at or above `--fail-on`, a score below `--min-score`, a tripped gate, or a
+ *   policy violation that fails the run. `fix`: a dry run found changes, or a selected fix was
+ *   not applied.
+ * - 2: invalid arguments, configuration, `--cwd`, `--agent`, `--rule`, baseline or policy file;
+ *   an unwritable output.
  * - 3: internal error, including a rule or loader that crashed.
  */
 export const EXIT = { ok: 0, findings: 1, usage: 2, internal: 3 } as const;

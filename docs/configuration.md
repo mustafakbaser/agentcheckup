@@ -99,6 +99,15 @@ These stay hidden with `--untrusted` when `.gitignore` excludes them:
 
 To scan everything, add `--no-gitignore`.
 
+## Organization policy
+
+`--policy <file>` checks a scan against rules your organization sets: which MCP servers may run,
+forbidden settings, denied tools and commands, required hooks and startup budgets. It implies
+`--untrusted`, so the repository cannot switch a check off, and it cannot be combined with
+`--config`. A violation fails the run with exit code 1 unless the policy is in audit mode; a
+policy file that is not valid exits with code 2. [Organization policy](policy.md) describes the
+format, the checks and the trust model.
+
 ## How much a scan shows
 
 The `stylish`, `markdown` and `github` formats have three levels of detail. In `stylish`:

@@ -5,8 +5,9 @@
  * Size: a PR comment body is limited to 65,536 characters and a step summary to 1 MiB, so the
  * findings table stops at `maxFindings` rows or MAX_TABLE_CHARACTERS, whichever comes first,
  * and says how many findings it left out. With `--baseline`, the summary of changes
- * (baseline-markdown.ts) comes out of the same budget, and so does the table of what each agent
- * misses: the findings table gets what they leave.
+ * (baseline-markdown.ts) comes out of the same budget, and so do the table of what each agent
+ * misses and, with `--policy`, the policy section (policy-markdown.ts): the findings table gets
+ * what they leave.
  *
  * At the `default` and `verbose` levels (see {@link DetailLevel}), a table of what each agent
  * misses (from the root load plans, when the result has them) comes before the findings, the
@@ -28,6 +29,7 @@ import {
   ruleCode as safeRuleCode,
   ruleLink as safeRuleLink,
 } from './markdown-common.js';
+import { policySection } from './policy-markdown.js';
 import { forMarkdown } from './sanitize.js';
 import {
   breakdown,
@@ -285,6 +287,8 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
     if (details.length > 0)
       blocks.push(details.flatMap((line, i) => (i === 0 ? [line] : ['', line])));
   }
+  const policy = policySection(result);
+  if (policy.length > 0) blocks.push(policy);
   const baseline = baselineSummary(result, MAX_BASELINE_CHARACTERS);
   if (baseline.length > 0) blocks.push(baseline);
   const failures = ruleFailures(result);
@@ -293,7 +297,10 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
   if (notes.length > 0) blocks.push(notes);
   const impact = detailed ? impactSection(result) : [];
   if (impact.length > 0) blocks.push(impact);
-  const used = [...baseline, ...impact].reduce((size, line) => size + line.length + 1, 0);
+  const used = [...policy, ...baseline, ...impact].reduce(
+    (size, line) => size + line.length + 1,
+    0,
+  );
   const findings = findingsSection(
     result,
     maxFindings,

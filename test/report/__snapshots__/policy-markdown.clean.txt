@@ -1,0 +1,7 @@
+### Policy: acme agent policy
+
+**No violations.**
+
+Mode `enforce` · sha256 `e69b0fe7a008` · 7 checks · [what the checks mean](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md)
+
+- Configured, not enforced\: hooks fail open on errors and timeouts, and user settings can turn them off\.

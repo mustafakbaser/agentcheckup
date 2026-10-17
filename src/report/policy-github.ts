@@ -1,0 +1,74 @@
+/**
+ * GitHub Actions annotations for a `--policy` check, titled `policy: <check>`: an error for each
+ * violation that fails the run, a warning for each other violation the change brings (audit
+ * mode, or no baseline), on the file and line when the violation has them, and a notice for
+ * each note. A violation the baseline had that does not fail the run was there before the change,
+ * so, like an unchanged finding, it is not annotated.
+ *
+ * Every property value and message goes through the workflow-command sanitizers, so each
+ * annotation is one line and no policy or repository text can start a command of its own.
+ */
+import type { ScanResult } from '../core/engine.js';
+import { quote } from '../rules/shared/format.js';
+import { checkDocsUrl, isPolicyCheck, shortSha } from './policy-common.js';
+import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
+
+type Property = readonly [string, string];
+
+const LINE_BREAK = /\r\n?|\n/g;
+
+/**
+ * Text for one line of an annotation body. The body's lines are joined with line breaks, so a
+ * line break inside a value is shown as `⏎` and cannot fake a line such as `Docs:`.
+ */
+function oneLine(text: string): string {
+  return text.replace(LINE_BREAK, NEWLINE_MARKER);
+}
+
+/** `::<command> k=v,k=v::<data>`, all values already escaped. */
+function command(
+  name: 'error' | 'warning' | 'notice',
+  properties: readonly Property[],
+  data: string,
+): string {
+  const list = properties.map(([key, value]) => `${key}=${value}`).join(',');
+  return `::${name} ${list}::${data}`;
+}
+
+/** The annotations, one per line, without line endings; none without a policy. */
+export function policyAnnotations(result: ScanResult): string[] {
+  const report = result.policy;
+  if (report === undefined) return [];
+  const source = oneLine(`Policy: ${quote(report.name)} (sha256 ${shortSha(report.sha256)})`);
+  const lines: string[] = [];
+  for (const violation of report.violations) {
+    if (!violation.fails && violation.baseline === 'unchanged') continue;
+    const properties: Property[] = [];
+    if (violation.path !== undefined) {
+      properties.push(['file', forWorkflowProperty(violation.path)]);
+      if (violation.line !== undefined) {
+        properties.push(['line', String(Math.max(1, violation.line))]);
+      }
+    }
+    properties.push(['title', forWorkflowProperty(`policy: ${violation.check}`)]);
+    const body = [oneLine(violation.message), source];
+    if (isPolicyCheck(violation.check)) body.push(`Docs: ${checkDocsUrl(violation.check)}`);
+    lines.push(
+      command(
+        violation.fails ? 'error' : 'warning',
+        properties,
+        forWorkflowCommand(body.join('\n')),
+      ),
+    );
+  }
+  for (const note of report.notes) {
+    lines.push(
+      command(
+        'notice',
+        [['title', forWorkflowProperty('policy')]],
+        forWorkflowCommand(oneLine(note.message)),
+      ),
+    );
+  }
+  return lines;
+}

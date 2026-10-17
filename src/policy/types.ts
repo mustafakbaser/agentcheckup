@@ -88,11 +88,6 @@ export interface HookRequirement {
 /** A policy file after validation, with defaults applied. */
 export interface Policy {
   readonly name: string;
-  /**
-   * Lowercase hex SHA-256 of the policy document in canonical JSON: object keys sorted by code
-   * point, no whitespace. The same policy gives the same digest however it is formatted.
-   */
-  readonly sha256: string;
   readonly mode: PolicyMode;
   readonly existing: ExistingMode;
   readonly mcp: {
@@ -172,6 +167,7 @@ export interface PolicyNote {
 /** The `policy` field of a report. */
 export interface PolicyReport {
   readonly name: string;
+  /** Lowercase hex SHA-256 of the policy file's bytes, as `shasum -a 256` prints it. */
   readonly sha256: string;
   readonly mode: PolicyMode;
   /** True when the policy file lies inside the scanned directory, so a change can edit it. */

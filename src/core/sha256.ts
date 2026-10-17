@@ -1,9 +1,8 @@
 /**
  * SHA-256 (FIPS 180-4) of a string's UTF-8 bytes, as lowercase hex, for pure modules: task ids
- * and the policy digest need a stable hash that a reader can recompute with any tool, and
- * `node:crypto` would tie a pure module to Node.js, as src/core/fingerprint.ts explains for its
- * own hash. Inputs are short (a rule id and a path, a policy file), so a plain implementation is
- * fast enough.
+ * need a stable hash that a reader can recompute with any tool, and `node:crypto` would tie a
+ * pure module to Node.js, as src/core/fingerprint.ts explains for its own hash. Inputs are short
+ * (a rule id and a path), so a plain implementation is fast enough.
  */
 
 const K = new Uint32Array([
