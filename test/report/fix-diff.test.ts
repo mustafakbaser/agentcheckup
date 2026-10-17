@@ -666,3 +666,48 @@ describe('fixes that need input', () => {
     );
   });
 });
+
+describe('findings that need judgment', () => {
+  const verified = 'Verified on an in-memory copy: 5 findings resolved, 0 new, 1 left';
+
+  it('ends the verification line of the dry run with the tasks command', () => {
+    const output = plain({ ...sampleRun, judgment: 3 });
+    expect(output).toContain(`\n${verified} · 3 need judgment: agentcheckup tasks\n`);
+    expect(output).not.toContain(`${verified}.`);
+    expect(plain({ ...sampleRun, judgment: 1 })).toContain(
+      `\n${verified} · 1 needs judgment: agentcheckup tasks\n`,
+    );
+    expect(plain({ ...sampleRun, judgment: 3 }, true)).toContain(
+      `\n${verified} - 3 need judgment: agentcheckup tasks\n`,
+    );
+  });
+
+  it('says nothing when no finding needs judgment', () => {
+    expect(plain({ ...sampleRun, judgment: 0 })).toBe(plain(sampleRun));
+    expect(plain({ ...sampleRun, judgment: undefined })).toBe(plain(sampleRun));
+  });
+
+  it('is the last line when nothing is planned, after the fixes that need words', () => {
+    const run: FixRun = {
+      mode: 'dry-run',
+      fixes: [],
+      files: [],
+      manual: sampleRun.manual,
+      verification: { resolved: 0, remaining: 2, introduced: [] },
+      awaitingInput: [INPUTS[1]!],
+      judgment: 2,
+    };
+    expect(plain(run).split('\n').slice(-3)).toEqual([
+      '1 fix needs your words: run agentcheckup fix -i to answer it.',
+      '2 findings need judgment: agentcheckup tasks',
+      '',
+    ]);
+    expect(plain({ ...run, awaitingInput: [], judgment: 1 })).toBe(
+      'Nothing to fix.\nmanual  instr/import-unresolved  CLAUDE.md:3  create docs/setup.md or correct the path\n1 finding needs judgment: agentcheckup tasks\n',
+    );
+  });
+
+  it('leaves the summary after --write alone', () => {
+    expect(formatFixSummary({ ...writtenRun, judgment: 3 })).toBe(formatFixSummary(writtenRun));
+  });
+});

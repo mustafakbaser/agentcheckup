@@ -13,6 +13,7 @@ changed by adding a new record that supersedes the old one, never by editing his
 | [0006](0006-scope-for-the-first-release.md)           | Scope for the first release                                    | Accepted |
 | [0007](0007-model-what-each-agent-loads.md)           | Model what each agent loads and gate security-relevant changes | Accepted |
 | [0008](0008-write-fixes-to-the-scanned-repository.md) | Write fixes to the scanned repository                          | Accepted |
+| [0010](0010-fixes-beyond-deterministic-edits.md)      | Fixes beyond deterministic edits                               | Accepted |
 | [0011](0011-organization-policy.md)                   | Check repositories against an organization policy              | Accepted |
 
 New records use [the template](template.md).

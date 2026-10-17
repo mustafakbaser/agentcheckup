@@ -292,8 +292,16 @@ export interface RuleMeta {
   /**
    * Present when the rule can attach a fix to its findings: every class its fixes may have, and
    * one sentence on what the fix does. Rendered in the rule docs and by `explain`.
+   *
+   * `input` says whether the fix it attaches needs the user's words ({@link Fix.input}): `all`
+   * when every fix does, `some` when some findings get such a fix instead of a ready one.
+   * Alternatives that only `fix -i` offers do not count. The docs show these fixes as `input`.
    */
-  readonly fix?: { readonly classes: readonly FixClass[]; readonly summary: string };
+  readonly fix?: {
+    readonly classes: readonly FixClass[];
+    readonly summary: string;
+    readonly input?: 'all' | 'some';
+  };
 }
 
 // ---------------------------------------------------------------------------------------------

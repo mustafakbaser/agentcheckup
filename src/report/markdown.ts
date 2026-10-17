@@ -11,7 +11,8 @@
  *
  * At the `default` and `verbose` levels (see {@link DetailLevel}), a table of what each agent
  * misses (from the root load plans, when the result has them) comes before the findings, the
- * findings get a Fix column, and a closing line says how to preview the fixes. With a baseline
+ * findings get a Fix column (`needs your words (fix -i)` for a fix that needs the user's words),
+ * and a closing line says how to preview the fixes and answer those. With a baseline
  * whose comparison has plan deltas, the table lists only the skips the change adds. `compact`
  * is the report from before fixes.
  */
@@ -20,7 +21,15 @@ import { REPOSITORY_URL } from '../core/meta.js';
 import { formatInteger } from '../core/format.js';
 import { CATEGORIES, type Finding } from '../core/types.js';
 import { baselineSummary } from './baseline-markdown.js';
-import { type DetailLevel, fixCounts, fixOf, impactOf, type ImpactRow } from './feedback.js';
+import {
+  type DetailLevel,
+  fixCounts,
+  fixOf,
+  impactOf,
+  type ImpactRow,
+  INPUT_FIX_LABEL,
+  needsWords,
+} from './feedback.js';
 import { newRuleSet } from './gate.js';
 import {
   cappedRows,
@@ -153,9 +162,19 @@ function ruleLink(ruleId: string): string {
 }
 
 /**
+ * The Fix cell: the class of the finding's fix, `needs your words (fix -i)` for a fix that
+ * needs the user's words, or `—`.
+ */
+function fixCell(finding: Finding): string {
+  const fix = fixOf(finding, 'pull-request');
+  if (fix === undefined) return '—';
+  return needsWords(fix) ? INPUT_FIX_LABEL : fix.class;
+}
+
+/**
  * One table row. A new finding is marked **new**, or **new rule** when its rule is newer than
  * the baseline's rule set, so it is not mistaken for a regression. With `withFix`, a last cell
- * holds the class of the finding's fix, or `—`.
+ * says what fixes the finding ({@link fixCell}).
  */
 function findingRow(finding: Finding, newRules: ReadonlySet<string>, withFix: boolean): string {
   const where = `${text(finding.path, MAX_PATH_LENGTH)}:${finding.range.start.line}`;
@@ -166,7 +185,7 @@ function findingRow(finding: Finding, newRules: ReadonlySet<string>, withFix: bo
     marked = `**${newRules.has(finding.ruleId) ? 'new rule' : 'new'}** ${severity}`;
   }
   const row = `| ${where} | ${marked} | ${ruleLink(finding.ruleId)} | ${message} |`;
-  return withFix ? `${row} ${fixOf(finding, 'pull-request')?.class ?? '—'} |` : row;
+  return withFix ? `${row} ${fixCell(finding)} |` : row;
 }
 
 /**
@@ -263,12 +282,23 @@ function impactSection(result: ScanResult): string[] {
   ];
 }
 
-/** `Preview 4 fixes locally: \`npx agentcheckup fix\``, when any finding has a fix. */
+/**
+ * `Preview 4 fixes locally: \`npx agentcheckup fix\``, when any finding has a fix, followed by
+ * `· 1 needs your words: \`npx agentcheckup fix -i\`` when a fix needs the user's words.
+ */
 function previewLine(result: ScanResult): string[] {
   const counts = fixCounts(result.findings, 'pull-request');
   const fixes = counts.safe + counts.review;
-  if (fixes === 0) return [];
-  return [`Preview ${plural(fixes, 'fix', 'fixes')} locally: \`npx agentcheckup fix\``];
+  const parts: string[] = [];
+  if (fixes > 0) {
+    parts.push(`Preview ${plural(fixes, 'fix', 'fixes')} locally: \`npx agentcheckup fix\``);
+  }
+  if (counts.input > 0) {
+    const verb = counts.input === 1 ? 'needs' : 'need';
+    const subject = fixes > 0 ? String(counts.input) : plural(counts.input, 'fix', 'fixes');
+    parts.push(`${subject} ${verb} your words: \`npx agentcheckup fix -i\``);
+  }
+  return parts.length === 0 ? [] : [parts.join(' · ')];
 }
 
 /** Markdown report ending with a newline. */

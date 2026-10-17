@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-10-16
+- Amended by: [0010](0010-fixes-beyond-deterministic-edits.md), which adds fixes that need the
+  user's words, moved content, a guard against losing risk findings and `skill install`
 
 ## Context
 

@@ -10,7 +10,7 @@ Cursor rule is applied only when @-mentioned.
 | Category   | `loading`     |
 | Platforms  | Cursor        |
 | Applies to | `cursor-rule` |
-| Fixable    | Yes, `review` |
+| Fixable    | Yes, `input`  |
 | Since      | 2026.10       |
 
 ## Why
@@ -27,11 +27,11 @@ Add `alwaysApply: true`, `globs` or a `description`, or set `alwaysApply: false`
 
 ## Fix
 
-Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `input` ([fix classes](../../fix.md#safe-review-and-manual)).
 
 Needs your words: `agentcheckup fix -i` asks for the glob patterns of the files the rule is for and writes them as "globs", adding frontmatter when the file has none.
 
-Preview the fix with `agentcheckup fix --rule cursor/rule-never-applied`.
+Answer it with `agentcheckup fix -i --rule cursor/rule-never-applied`, which asks for your words.
 
 ## Configuration
 

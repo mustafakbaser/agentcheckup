@@ -5,6 +5,7 @@
 export {
   buildTasks,
   DEFAULT_MAX_TASKS,
+  judgmentCount,
   MAX_TASKS,
   preambleOf,
   TASK_ID_PATTERN,

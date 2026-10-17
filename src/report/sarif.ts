@@ -16,7 +16,9 @@
  * code units (the run's `columnKind`) of the decoded text, without a byte order mark, and whose
  * `insertedContent.text` is the new text, exactly. Creates, renames, re-encodings and fixes that
  * touch several files have no SARIF form here, and fixes that apply only when named
- * (mcp/literal-secret) are never offered.
+ * (mcp/literal-secret) are never offered. A fix that needs the user's words changes nothing
+ * until `agentcheckup fix -i` asks for them, so it has no `fixes` entry either: the result's
+ * `properties.fix` says `needs your words (fix -i)`, as the stylish and GitHub output do.
  *
  * With `--policy`, violations follow the findings as results of `policy/<check>` rules
  * (policy-sarif.ts), within the same result cap.
@@ -24,7 +26,7 @@
 import type { ScanResult } from '../core/engine.js';
 import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Fix, FixClass, Range, RuleMeta, Severity } from '../core/types.js';
-import { fixOf } from './feedback.js';
+import { fixOf, INPUT_FIX_LABEL, needsWords } from './feedback.js';
 import { isNewRuleFinding, newRuleSet } from './gate.js';
 import { policySarif } from './policy-sarif.js';
 import { forJsonOutput, forSarifMessage, forSarifText } from './sanitize.js';
@@ -127,9 +129,14 @@ export interface SarifResult {
   /**
    * `newRule`: a new finding of a rule newer than the baseline's rule set, which the baseline
    * could not have reported. Set only then. `policy`: a `--policy` violation, not a finding
-   * (policy-sarif.ts).
+   * (policy-sarif.ts). `fix`: `needs your words (fix -i)` when the finding's fix needs the
+   * user's words, which has no SARIF form: it changes nothing until `agentcheckup fix -i` asks.
    */
-  readonly properties?: { readonly newRule?: true; readonly policy?: true };
+  readonly properties?: {
+    readonly newRule?: true;
+    readonly policy?: true;
+    readonly fix?: typeof INPUT_FIX_LABEL;
+  };
 }
 
 export interface SarifNotification {
@@ -331,6 +338,10 @@ export function toSarifFix(fix: Fix): SarifFix | undefined {
 function toResult(finding: Finding, ruleIndex: number, newRules: ReadonlySet<string>): SarifResult {
   const fix = fixOf(finding, 'pull-request');
   const sarifFix = fix === undefined ? undefined : toSarifFix(fix);
+  const properties: NonNullable<SarifResult['properties']> = {
+    ...(isNewRuleFinding(finding, newRules) ? { newRule: true } : {}),
+    ...(fix !== undefined && needsWords(fix) ? { fix: INPUT_FIX_LABEL } : {}),
+  };
   const related = finding.related.slice(0, MAX_RELATED).map((location, position) => ({
     id: position + 1,
     physicalLocation: physicalLocation(location.path, location.range),
@@ -357,7 +368,7 @@ function toResult(finding: Finding, ruleIndex: number, newRules: ReadonlySet<str
         }
       : {}),
     ...(sarifFix === undefined ? {} : { fixes: [sarifFix] }),
-    ...(isNewRuleFinding(finding, newRules) ? { properties: { newRule: true } } : {}),
+    ...(Object.keys(properties).length > 0 ? { properties } : {}),
   };
 }
 

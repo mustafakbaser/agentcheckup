@@ -31,6 +31,10 @@
  * Fixes that need the user's words (`FixRun.awaitingInput`) change nothing until `fix -i` asks
  * for the words, so they have no diff: each is one `input` line next to the manual steps, and a
  * last line counts them. `fix --format json` lists them in `awaitingInput`.
+ *
+ * When findings need judgment (`FixRun.judgment`: what `agentcheckup tasks` would hand to a
+ * coding agent), the dry run's verification line ends with `· 3 need judgment: agentcheckup
+ * tasks`; without a verification line, the count is the last line.
  */
 import { compareStrings } from '../core/compare.js';
 import { formatInteger } from '../core/format.js';
@@ -105,6 +109,11 @@ export interface FixRun {
   readonly verification: FixVerification;
   /** Selected fixes that need the user's words, in plan order. Absent means none. */
   readonly awaitingInput?: readonly AwaitingInput[] | undefined;
+  /**
+   * Findings that `agentcheckup tasks` hands to an agent (src/tasks `judgmentCount`), for the
+   * last line of the dry run. Absent means none.
+   */
+  readonly judgment?: number | undefined;
 }
 
 export interface FixDiffOptions {
@@ -793,6 +802,16 @@ function verificationCounts(verification: FixVerification): string {
   return `${count(verification.resolved, 'finding')} resolved, ${formatInteger(verification.introduced.length)} new, ${formatInteger(verification.remaining)} left`;
 }
 
+/** The command that writes the findings that need judgment as tasks for a coding agent. */
+const TASKS_COMMAND = 'agentcheckup tasks';
+
+/** `3 need judgment: agentcheckup tasks`, or nothing when no finding needs judgment. */
+function judgmentText(judgment: number | undefined, subject: boolean): string | undefined {
+  if (judgment === undefined || judgment <= 0) return undefined;
+  const what = subject ? count(judgment, 'finding') : formatInteger(judgment);
+  return `${what} ${judgment === 1 ? 'needs' : 'need'} judgment: ${TASKS_COMMAND}`;
+}
+
 function finish(lines: readonly string[]): string {
   return `${guardWorkflowCommands(lines.join('\n'))}\n`;
 }
@@ -828,10 +847,17 @@ export function formatFixDiff(run: FixRun, options: FixDiffOptions = {}): string
   for (const step of run.manual) lines.push(manualLine(step, context));
   if (planned) {
     const lead = run.mode === 'dry-run' ? 'Verified on an in-memory copy' : 'Re-scanned';
-    lines.push(`${lead}: ${verificationCounts(run.verification)}.`);
+    const judgment = judgmentText(run.judgment, false);
+    lines.push(
+      judgment === undefined
+        ? `${lead}: ${verificationCounts(run.verification)}.`
+        : `${lead}: ${verificationCounts(run.verification)} ${context.symbols.dot} ${judgment}`,
+    );
     lines.push(...introducedLines(run.verification, context));
   }
   lines.push(...inputCount(inputs));
+  const judgment = planned ? undefined : judgmentText(run.judgment, true);
+  if (judgment !== undefined) lines.push(judgment);
   return finish(lines);
 }
 

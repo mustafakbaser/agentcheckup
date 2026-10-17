@@ -6,123 +6,138 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Claude Code, Codex and Cursor read different files from the same repository, and they rarely say
-what they skipped. agentcheckup reads your agent configuration and shows, for each agent, what is
-in context when a session starts, what loads later, and what is skipped and why. In a pull
-request, it shows how that changed and flags new MCP servers, hooks, permissions and environment
-overrides for review.
+what they skipped. agentcheckup shows, for each agent, what is in context when a session starts,
+what loads later, and what is skipped and why. It checks every file against how the agents load
+it, fixes what has one correct form, writes the rest as tasks for your coding agent, and flags
+new MCP servers, hooks, permissions and environment overrides in pull requests.
 
 ```sh
-npx agentcheckup context
+npx agentcheckup context   # what each agent loads
+npx agentcheckup           # what is wrong, and why
+npx agentcheckup fix       # preview the fixes; changes nothing
+npx agentcheckup tasks     # the rest, as a prompt for a coding agent
 ```
 
 No configuration, no API key, no network requests, no telemetry. Node.js 22.12 or newer.
 
-Here it runs on a small pnpm monorepo with a `CLAUDE.md`, three `AGENTS.md` files, two skills, a
-`.mcp.json` and a Claude Code hook (output trimmed):
+The examples below run on one small repository: an `AGENTS.md`, a `CLAUDE.md` that imports a
+missing `docs/setup.md`, a Cursor rule saved as `.md`, an MCP server with a `url` but no `type`,
+a skill without a description, and a skill whose description does not say when to use it.
+Output is trimmed.
+
+## See what each agent loads
 
 ```text
+$ npx agentcheckup context
 Claude Code context · ./
-At session start                         bytes  ≈tokens
-  1  CLAUDE.md                             198       50
-  2  Skills listing (1 skill, metadata)    105       27
-                                  Total    303     ≈ 76
-  MCP, asks first:    github  stdio  npx -y @modelcontextprotocol/server-github@2025.4.8 (pinned)
-  Hooks, asks first:  PreToolUse Bash → scripts/hooks/block-prod-db.sh (fails open)
+…
+At session start                          bytes  ≈tokens
+  1  CLAUDE.md                               62       16
+  2  Skills listing (2 skills, metadata)    110       28
+                                   Total    172     ≈ 43
 
 On demand
-  .claude/skills/release/SKILL.md  body 187 bytes ≈ 47, when the model picks it
-  .claude/rules/testing.md         168 bytes ≈ 42, when Claude opens **/*.test.ts
+  .claude/skills/deploy/SKILL.md  body 41 bytes ≈ 11, when the model picks it
+  .claude/skills/pdf/SKILL.md     body 17 bytes ≈ 5, when the model picks it
 
 Skipped
-  AGENTS.md               a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
-  packages/api/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: review
-  packages/web/AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: review
+  .mcp.json › docs           "url" without "type"                     mcp/url-without-type               fix: review
+  AGENTS.md                  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
+  CLAUDE.md › docs/setup.md  the import does not resolve              instr/import-unresolved
 
 Codex context · ./
-At session start                         bytes  ≈tokens
-  1  AGENTS.md                             786      197
-  2  Skills listing (1 skill, metadata)    163       41
-                                  Total    949    ≈ 238
-
+…
 Cursor context · ./
 …
 Skipped
-  .cursor/rules/testing.md  only .mdc files are read here  cursor/md-file-ignored  fix: review
+  .cursor/rules/style.md  only .mdc files are read here  cursor/md-file-ignored  fix: review
 
-4 of 4 skips can be fixed: agentcheckup fix
+3 of 4 skips can be fixed: agentcheckup fix
 ```
 
-Every plan also states its assumptions (such as the Claude Code version and a trusted
-workspace) and the scopes it cannot see, such as `~/.claude` and managed settings. A skip that
-`agentcheckup fix` can remove ends with the class of its fix.
-
-The matrix shows the whole repository at once:
+Every plan also states its assumptions, such as the Claude Code version and a trusted workspace,
+and the scopes it cannot see, such as `~/.claude` and managed settings. `--cwd <dir>` plans a
+session started in another directory, and the matrix shows the whole repository at once:
 
 ```text
 $ npx agentcheckup context --matrix
 …
-Files by agent              Claude Code   Codex       Cursor
-.agents/skills/db-migrate   —             listed      listed
-.claude/rules/testing.md    on-path       —           —
-.claude/settings.json       startup       —           startup
-.claude/skills/release      listed        —           listed
-.cursor/rules/react.mdc     —             —           on-path
-.cursor/rules/testing.md    —             —           skipped
-.mcp.json                   startup       —           —
-AGENTS.md                   skipped       startup     startup
-CLAUDE.md                   startup       —           startup
-packages/api/AGENTS.md      skipped       start-dir   on-path
-packages/web/AGENTS.md      skipped       start-dir   on-path
+Files by agent           Claude Code   Codex     Cursor
+.claude/skills/deploy    listed        —         listed
+.claude/skills/pdf       listed        —         listed
+.cursor/rules/style.md   —             —         skipped
+.mcp.json                skipped       —         —
+AGENTS.md                skipped       startup   startup
+CLAUDE.md                startup       —         startup
 ```
 
-Here Claude Code never sees `AGENTS.md`, Codex never sees `CLAUDE.md`, and Cursor ignores
-`testing.md` because it is not an `.mdc` file. [What each agent loads](docs/context.md) explains
-every column and cell.
+Here Claude Code never sees `AGENTS.md` or the MCP server, Codex never sees `CLAUDE.md` or the
+skills, and Cursor ignores `style.md` because it is not an `.mdc` file.
+[What each agent loads](docs/context.md) explains every column and cell.
 
 In [80 public repositories](corpus/SUMMARY.md#what-agents-load) with agent configuration, the
 three agents load different instruction files at session start in 41 of the 71 repositories
 where any of them loads instructions. By default, Claude Code skips the root `AGENTS.md` in 11 of
 the 55 repositories that have one, because a `CLAUDE.md` is read instead.
 
-## Fix what it finds
+## Find what is wrong
 
 A scan starts with what each agent misses. Under each finding, a `why` line adds what the load
-plans know and the message does not, and a `fix` or `how` line says what to do. Here it runs on a
-small repository with an `AGENTS.md`, a `CLAUDE.md` that imports a missing `docs/setup.md`, a
-Cursor rule saved as `.md`, an MCP server with a `url` but no `type`, and a skill without a
-description (output trimmed):
+plans know and the message does not, and a `fix` or `how` line says what to do:
 
 ```text
 $ npx agentcheckup
 What each agent misses
   Claude Code  MCP server docs is skipped: "url" without "type"                                 fix: review
-               AGENTS.md is skipped: a CLAUDE.md on the path is read instead (≈82 tokens)       fix: safe
+               AGENTS.md is skipped: a CLAUDE.md on the path is read instead (≈28 tokens)       fix: safe
                docs/setup.md is skipped: CLAUDE.md imports it, but the import does not resolve  manual
-  Codex        skill deploy is skipped: no description (≈13 tokens)                             fix: review
   Cursor       .cursor/rules/style.md is skipped: only .mdc files are read here (≈9 tokens)     fix: review
 
-.cursor/rules/style.md
-  1:1  error  Cursor loads only .mdc files from .cursor/rules, so it ignores "style.md". Rename it to "style.mdc" and add frontmatter with description, globs or alwaysApply.  cursor/md-file-ignored
-              why  Cursor never loads these ≈9 tokens.
-              fix  review: Rename .cursor/rules/style.md to style.mdc and add "alwaysApply: true"
+.claude/skills/pdf/SKILL.md
+  3:14  info  The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.  skill/description-quality
+              fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in .claude/skills/pdf/SKILL.md
 …
 AGENTS.md
   1:1  warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md. Add the line "@AGENTS.md" to that file so Claude Code reads both.  instr/agents-md-ignored-by-claude
                 ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
-                why  Claude Code never loads these ≈82 tokens; Codex and Cursor do.
+                why  Claude Code never loads these ≈28 tokens; Codex and Cursor do.
                 fix  safe: Add "@AGENTS.md" as line 1 of CLAUDE.md
-…
-✖ 5 problems (4 errors, 1 warning, 0 infos)
-  loading 3 errors, 1 warning · correctness 1 error
-Agent config score 64/100 (D) · ruleset 2026.10
-Fixes: 1 safe (agentcheckup fix --write) · 3 need review (agentcheckup fix -i) · 1 manual
+
+CLAUDE.md
+  3:6  error  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  instr/import-unresolved
+              how  create "docs/setup.md" or correct the path; no file named "setup.md" exists
+
+✖ 6 problems (3 errors, 2 warnings, 1 info)
+  loading 2 errors, 2 warnings · correctness 1 error · clarity 1 info
+Agent config score 72/100 (C) · ruleset 2026.10
+Fixes: 1 safe (agentcheckup fix --write) · 3 need review (agentcheckup fix -i) · 1 needs your words (agentcheckup fix -i) · 1 manual
 ```
 
-`--compact` prints the findings without these additions and tags each one that has a fix as
-`fixable`. `--verbose` adds each rule's docs URL, rationale and sources.
+`--compact` prints only the findings, and `--verbose` adds each rule's docs URL, rationale and
+sources. Each rule is backed by the agent's documentation or source code, for example:
 
-`agentcheckup fix` shows what it would change as a diff, checked by scanning a fixed copy in
-memory. It changes nothing:
+- **[Codex stops reading `AGENTS.md` at 32 KiB](docs/rules/instr/codex-size-budget.md)**, counted
+  across every `AGENTS.md` from the repository root down to the working directory.
+- **[Claude Code ignores `AGENTS.md` when a `CLAUDE.md` exists](docs/rules/instr/agents-md-ignored-by-claude.md)**
+  in the same directory or above it, unless `CLAUDE.md` imports it with `@AGENTS.md`.
+- **[A `SKILL.md` without frontmatter on line 1](docs/rules/skill/frontmatter-missing.md)** is
+  skipped by Codex and Gemini CLI, and
+  **[a skill body over 500 lines](docs/rules/skill/body-too-long.md)** stays in Claude Code's
+  context on every later turn.
+- **[Imports that point to missing files](docs/rules/instr/import-unresolved.md)**, hook events an
+  agent does not know, and hook timeouts in the wrong unit.
+- **[Invisible Unicode](docs/rules/risk/hidden-unicode.md)** and
+  [credentials committed in MCP configuration](docs/rules/mcp/literal-secret.md).
+
+The rules cover Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Desktop (formerly
+Windsurf) and Cline. The [rule catalog](docs/rules/README.md) lists all of them.
+[What coding agents read](docs/platforms.md) documents each agent's loading behavior with sources,
+and [One configuration for every agent](docs/portability.md) shows how to share one setup.
+
+## Fix what has one right answer
+
+`agentcheckup fix` shows each fix as a diff, checked by scanning a fixed copy of the repository
+in memory. It changes nothing:
 
 ```text
 $ npx agentcheckup fix
@@ -130,14 +145,6 @@ $ npx agentcheckup fix
 review  cursor/md-file-ignored  Rename .cursor/rules/style.md to style.mdc and add "alwaysApply: true"
 rename from .cursor/rules/style.md
 rename to .cursor/rules/style.mdc
---- a/.cursor/rules/style.md
-+++ b/.cursor/rules/style.mdc
-@@ -1 +1,4 @@
-+---
-+alwaysApply: true
-+---
- Always use TypeScript strict mode.
-  effect: Cursor session start ≈99 → ≈114 tokens
 …
 safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.md
 --- a/CLAUDE.md
@@ -148,50 +155,109 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
  # Acme API
 
  Read @docs/setup.md before you start the service.
-  effect: Claude Code session start ≈16 → ≈101 tokens
-  effect: Cursor session start ≈99 → ≈102 tokens
+  effect: Claude Code session start ≈43 → ≈74 tokens
+  effect: Cursor session start ≈64 → ≈67 tokens
+…
+input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)
 …
 manual  instr/import-unresolved  CLAUDE.md:5  create "docs/setup.md" or correct the path; no file named "setup.md" exists
-Verified on an in-memory copy: 4 findings resolved, 2 new, 1 left.
+Verified on an in-memory copy: 4 findings resolved, 2 new, 2 left · 2 need judgment: agentcheckup tasks
+…
+1 fix needs your words: run agentcheckup fix -i to answer it.
 ```
 
-The 2 new findings are infos that the fixed files raise, such as a description that is too short
-to match requests. A fix may add infos, never an error or a warning. Then apply the fixes:
-
-```text
-$ npx agentcheckup fix --write --review
-…
-Applied 4 fixes to 4 files. Re-scanned: 4 findings resolved, 2 new, 1 left.
-  Claude Code ≈16 → ≈101 tokens at session start · Codex ≈82 → ≈102 tokens at session start · Cursor ≈99 → ≈125 tokens at session start
-  Changed MCP server docs (sse, https://mcp.example.com) (gate class mcp)
-…
-Review the changes with git status and git diff.
-
-$ npx agentcheckup
-…
-✖ 3 problems (1 error, 0 warnings, 2 infos)
-  correctness 1 error · risk 1 info · clarity 1 info
-Agent config score 82/100 (B) · ruleset 2026.10
-```
-
-What agentcheckup can do about a finding falls into one of three classes:
+The 2 new findings are infos that the fixed files raise, such as a copied description too short
+to match requests. A fix may add infos, never an error or a warning. What agentcheckup can do
+about a finding is one of four things:
 
 - **safe:** a fix with one correct form that keeps your text and adds or changes no MCP server,
   hook, permission or env override, such as the `@AGENTS.md` import. `fix --write` applies these.
-- **review:** any other change agentcheckup can make, such as a description copied from the
-  skill body, or a `"type"` that lets Claude Code start a server. `fix --write --review` applies
-  these too, and `fix -i` asks about each fix.
-- **manual:** no fix. The `how` line says what to do, such as creating `docs/setup.md`.
+- **review:** any other change agentcheckup can make, such as the rename above, a `"type"` that
+  lets Claude Code start a server, or moving the largest sections of a long skill body into
+  linked files. `fix --write --review` applies these too, and `fix -i` asks about each one.
+- **needs your words:** the fix knows where the change goes, but you write it, such as a
+  "Use when ..." sentence for a skill description. Only `fix -i` asks for the words.
+- **manual:** no fix. The `how` line says what to do, and the next section hands it to an agent.
+
+`fix -i` writes your words into a copy in memory and runs every rule on it before it offers the
+change. An answer that does not resolve the finding, or adds a problem, is refused in the rule's
+words and asked again:
+
+```text
+$ npx agentcheckup fix -i --rule skill/description-quality
+…
+(1/1) Add a sentence that says when to use this skill? [y]es [n]o [s]uppress [q]uit (Enter: no) y
+a "Use when ..." clause › Use when the user asks to read, fill or merge PDF files.
+…
+-description: Extract text and tables from PDF files, fill forms and merge documents.
++description: "Extract text and tables from PDF files, fill forms and merge documents. Use when the user asks to read, fill or merge PDF files."
+…
+✓ re-scanned: the finding is resolved; no new problem.
+Use this? [y]es [e]dit [n]o (Enter: yes)
+…
+Applied 1 fix to 1 file. Re-scanned: 1 finding resolved, 0 new, 5 left.
+```
 
 Nothing is written without `--write` or `-i`, and a dry run exits 1 when it would change a file.
 Writes stay inside the scanned directory, never go through a symlink or a hard link, write each
 file atomically, and are refused for a file that changed since the scan. `--untrusted` allows
-only the preview; [ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) has the
-design.
+only the preview. [Fixing findings](docs/fix.md) covers every option and lists every rule with a
+fix; [ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) and
+[ADR 0010](docs/adr/0010-fixes-beyond-deterministic-edits.md) have the design.
 
-[Fixing findings](docs/fix.md) covers every option and lists every rule with a fix.
+## Hand the rest to your agent
 
-## Review agent config in pull requests
+Some findings need judgment: the file a broken import meant, the commands a skill's
+`allowed-tools` should allow. `agentcheckup tasks` writes them as a prompt for a coding agent,
+with rules for every task and a check to run when it is done. It only reads.
+
+```sh
+claude "$(npx agentcheckup tasks)"   # or codex, or paste the output into any agent
+npx agentcheckup tasks --check       # exit 0 when no task is open
+```
+
+```text
+$ npx agentcheckup tasks
+# agentcheckup tasks · 2 open · …
+Rules for every task:
+- Edit only the file a task names. Do not create, rename or delete files unless the task says so.
+- Never add or widen allowed-tools, permissions, hooks, MCP servers or env overrides.
+…
+## 2/2 · ac-bb0bd14d · skill/description-quality (info)
+File: `.claude/skills/pdf/SKILL.md` line 3, frontmatter key `description`
+…
+Current value:
+~~~~untrusted
+Extract text and tables from PDF files, fill forms and merge documents.
+~~~~
+Do: keep the meaning; say in one sentence what the skill does, with words from the skill body; end with one sentence starting "Use when" that names the requests and keywords that should trigger the skill.
+…
+## For you
+These need the user's decision. Do not change them; list them for the user when you finish.
+- `.mcp.json` line 3 · mcp/url-without-type (error): …
+```
+
+Findings with a ready fix are never tasks: step 0 of the prompt tells the agent to preview them
+with `fix` and to ask you before it applies them. Credentials, hidden content, MCP servers,
+hooks, permissions and settings are listed for you and never handed to an agent. Every command
+in the prompt is pinned to the version you ran, repository text is fenced as data, and
+credentials are redacted. `tasks --check <id>` exits 0 once a task's finding is gone and its
+file still passes the rules that guard it.
+
+To let your agent run this loop itself, install the agentcheckup skill:
+
+```sh
+npx agentcheckup skill install
+```
+
+It copies the skill into `.claude/skills/agentcheckup`, or `.agents/skills` when your targets
+leave out Claude Code, after checking it in memory with every rule. The skill has the agent list
+the tasks, preview fixes, ask you before every change and check each task. Its `allowed-tools`
+pre-approve only read-only agentcheckup commands; the pull request gate below flags them once,
+in the pull request that adds the skill. See [Tasks for a coding agent](docs/tasks.md) and
+[The agentcheckup skill](docs/skill.md).
+
+## Gate pull requests
 
 A pull request that adds an MCP server, a hook or a permission changes what runs on your
 developers' machines. A well-formed change produces no lint finding, so nothing asks for review.
@@ -218,53 +284,38 @@ jobs:
       - uses: mustafakbaser/agentcheckup-action@v0.1.0
 ```
 
-The gate looks at what changed since the base commit. Removals never trip it. By default it
-fails the check when a pull request:
-
-- adds or changes an MCP server (the summary says when its package is not pinned to an exact
-  version or digest), or adds an MCP config file agentcheckup cannot analyze;
-- adds a permission that lets an agent do more without asking, such as a `permissions.allow`
-  entry (the summary marks broad ones: any shell command, any file write or edit), an extra
-  directory or a skill's `allowed-tools`, auto-approves MCP servers, or sets or changes
-  `defaultMode`;
-- adds or changes a hook;
-- adds an env override that sets an endpoint, a credential, TLS behavior or code execution, such
-  as `ANTHROPIC_BASE_URL`, `NODE_TLS_REJECT_UNAUTHORIZED` or `NODE_OPTIONS`, or points an
-  existing endpoint override somewhere else;
-- adds hidden Unicode: tag characters and bidirectional overrides a reviewer cannot see.
-
-New lint findings at or above `error` fail the check too; findings that were already on the base
-branch do not. The job summary for a pull request that adds an MCP server, widens a permission,
-adds a hook and points Claude Code at another API endpoint looks like this:
+The gate looks at what changed since the base commit; removals never trip it. By default it
+fails the check when a pull request adds or changes an MCP server (or an MCP config file
+agentcheckup cannot analyze), a hook, a permission that lets an agent do more without asking
+(a `permissions.allow` entry, a skill's `allowed-tools`, auto-approved MCP servers,
+`defaultMode`), an env override that sets an endpoint, a credential, TLS behavior or code
+execution, or hidden Unicode. New lint findings at or above `error` fail it too; findings already
+on the base branch do not. The job summary for a pull request that adds an MCP server, widens a
+permission, adds a hook and points Claude Code at another API endpoint starts like this, followed
+by the session-start context per agent and the findings:
 
 > **Needs review: 4 security-relevant changes**
 >
-> | Change                         | Where                                | Detail                                                                 |
-> | :----------------------------- | :----------------------------------- | :--------------------------------------------------------------------- |
-> | **New MCP server, not pinned** | .mcp.json › browser                  | New MCP server browser (stdio, `npx -y @acme/browser-mcp`, not pinned) |
-> | Permission widened             | .claude/settings.json                | permissions.allow adds Bash(curl:\*)                                   |
-> | New hook                       | .claude/settings.json › SessionStart | New hook SessionStart → scripts/hooks/session-start.sh                 |
-> | Env override                   | .claude/settings.json                | Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net        |
->
-> Findings: no new findings, 1 resolved.
->
-> **Session-start context**
->
-> | Agent                |              Before |                After |       Change | Limits                                         |
-> | :------------------- | ------------------: | -------------------: | -----------: | :--------------------------------------------- |
-> | Claude Code          | ≈31 tokens, 2 files | ≈155 tokens, 2 files | ≈+124 tokens | —                                              |
-> | Codex                |  ≈28 tokens, 1 file |   ≈28 tokens, 1 file |    unchanged | AGENTS.md chain 110 of 32,768 bytes (under 1%) |
-> | Codex (packages/api) | ≈38 tokens, 2 files |  ≈38 tokens, 2 files |    unchanged | AGENTS.md chain 149 of 32,768 bytes (under 1%) |
-> | Codex (packages/web) | ≈38 tokens, 2 files |  ≈38 tokens, 2 files |    unchanged | AGENTS.md chain 151 of 32,768 bytes (under 1%) |
-> | Cursor               | ≈54 tokens, 3 files | ≈185 tokens, 3 files | ≈+131 tokens | —                                              |
+> | Change                         | Where                                | Detail                                                               |
+> | :----------------------------- | :----------------------------------- | :------------------------------------------------------------------- |
+> | **New MCP server, not pinned** | .mcp.json › browser                  | New MCP server browser (stdio, npx -y @acme/browser-mcp, not pinned) |
+> | Permission widened             | .claude/settings.json                | permissions.allow adds Bash(curl:\*)                                 |
+> | New hook                       | .claude/settings.json › SessionStart | New hook SessionStart → scripts/hooks/session-start.sh               |
+> | Env override                   | .claude/settings.json                | Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net      |
 
-Endpoint values are shown as their URL origin. Credential values never appear in reports.
-
-The gate does not approve anything. Pair the required check with
+Endpoint values are shown as their URL origin. Credential values never appear in reports. The
+gate does not approve anything: pair the required check with
 [CODEOWNERS](https://github.com/mustafakbaser/agentcheckup-action#requiring-the-check-and-codeowners)
-on agent-config paths (`.mcp.json`, `.claude/`, `.cursor/`, `.codex/`, `AGENTS.md`, `CLAUDE.md`
-and others), so a person who owns that configuration reviews each change. The Action's README
-covers SARIF upload, pull request comments, forks and the full list of inputs.
+on agent-config paths, so a person who owns that configuration reviews each change. The Action's
+README covers SARIF upload, pull request comments, forks and the full list of inputs.
+
+The safe fixes that fall inside a pull request's diff can become review comments with suggested
+changes, for the Action to post; nothing is written to the repository:
+
+```sh
+gh pr diff 42 > pr.diff
+npx agentcheckup fix --untrusted --format suggestions --diff pr.diff --output suggestions.json
+```
 
 Without the Action, run the same comparison yourself:
 
@@ -280,7 +331,7 @@ agentcheckup from outside the checkout, as the Action does, so a package committ
 repository cannot stand in for it. [Baselines and the gate](docs/context.md#baselines-and-the-gate)
 gives the exact rules.
 
-## Enforce an organization policy
+### Enforce an organization policy
 
 The gate asks for review; a policy says what is acceptable at all. Write the rules once and check
 every repository against them:
@@ -296,8 +347,12 @@ every repository against them:
 }
 ```
 
-```sh
-npx agentcheckup --policy acme-agent-policy.json
+```text
+$ npx agentcheckup --policy acme-agent-policy.json
+…
+Policy acme agent policy (enforce · sha256 b88dda9383ac · 6 checks)
+  .mcp.json:3  fails  MCP server "docs" connects to https://mcp.example.com, which the policy does not allow.  mcp-not-allowed
+✖ 1 violation fails the run
 ```
 
 A violation fails the run unless the policy is in audit mode. Violations never change the score,
@@ -305,53 +360,16 @@ and the repository cannot switch them off: `--policy` ignores its configuration 
 directives. Read the policy from the base branch or a central repository, never from the pull
 request. [Organization policy](docs/policy.md) covers every check, baselines and the trust model.
 
-## What it catches
-
-agentcheckup also checks each file against how the agents load it. Each rule is backed by the
-agent's documentation or source code:
-
-- **[Codex stops reading `AGENTS.md` at 32 KiB](docs/rules/instr/codex-size-budget.md)**, counted
-  across every `AGENTS.md` from the repository root down to the working directory.
-- **[Claude Code ignores `AGENTS.md` when a `CLAUDE.md` exists](docs/rules/instr/agents-md-ignored-by-claude.md)**
-  in the same directory or above it, unless `CLAUDE.md` imports it with `@AGENTS.md`.
-- **[A `SKILL.md` without frontmatter on line 1](docs/rules/skill/frontmatter-missing.md)** is
-  skipped by Codex and Gemini CLI.
-- **[Cursor ignores `.md` files in `.cursor/rules/`](docs/rules/cursor/md-file-ignored.md)**.
-- **[An MCP server with a `url` but no `type`](docs/rules/mcp/url-without-type.md)** is skipped
-  by Claude Code.
-- **[Imports that point to missing files](docs/rules/instr/import-unresolved.md)**, hook events an
-  agent does not know, and hook timeouts in the wrong unit.
-- **[Invisible Unicode](docs/rules/risk/hidden-unicode.md)** and
-  [credentials committed in MCP configuration](docs/rules/mcp/literal-secret.md).
-
-The rules cover Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Desktop (formerly
-Windsurf) and Cline. The [rule catalog](docs/rules/README.md) lists all of them.
-[What coding agents read](docs/platforms.md) documents each agent's loading behavior with sources,
-and [One configuration for every agent](docs/portability.md) shows how to share one setup.
-
-```text
-$ npx agentcheckup --compact
-…
-.cursor/rules/testing.md
-  1:1  error  Cursor loads only .mdc files from .cursor/rules, so it ignores "testing.md". Rename it to "testing.mdc" and add frontmatter with description, globs or alwaysApply.  cursor/md-file-ignored  fixable (review)
-
-AGENTS.md
-  1:1  warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md. Add the line "@AGENTS.md" to that file so Claude Code reads both.  instr/agents-md-ignored-by-claude  fixable
-                ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
-…
-✖ 5 problems (1 error, 3 warnings, 1 info)
-  loading 1 error, 3 warnings · risk 1 info
-Agent config score 84/100 (B) · ruleset 2026.10
-```
-
 ## Usage
 
 ```text
-agentcheckup [path] [options]           Check agent configuration
-agentcheckup fix [path] [options]       Preview fixes as a diff, or apply them with --write or -i
-agentcheckup context [path] [options]   Show what each agent loads
-agentcheckup rules [--json]             List the rules
-agentcheckup explain <rule-id>          Explain one rule
+agentcheckup [path] [options]                Check agent configuration
+agentcheckup fix [path] [options]            Preview fixes as a diff, or apply them with --write or -i
+agentcheckup tasks [path] [options]          Write the findings that need judgment as tasks for an agent
+agentcheckup context [path] [options]        Show what each agent loads
+agentcheckup skill install [path] [options]  Install the agentcheckup skill for coding agents
+agentcheckup rules [--json]                  List the rules
+agentcheckup explain <rule-id>               Explain one rule
 ```
 
 ```sh
@@ -361,18 +379,20 @@ npx agentcheckup --targets claude-code,codex        # only the agents you use
 npx agentcheckup --format sarif --output agentcheckup.sarif
 npx agentcheckup fix                                # preview every fix; changes nothing
 npx agentcheckup fix --write                        # apply the safe fixes
-npx agentcheckup fix -i                             # ask about each fix
+npx agentcheckup fix --write --review               # also apply the fixes that need review
+npx agentcheckup fix -i                             # ask about each fix, and for your words
+npx agentcheckup tasks --format json                # the tasks as JSON
 npx agentcheckup context --cwd packages/api         # a session started in packages/api
 npx agentcheckup context --agent codex --format markdown
 npx agentcheckup explain instr/codex-size-budget
 ```
 
 Formats: `stylish` (default), `json`, `sarif`, `github` (annotations), `markdown` and `badge` for
-a check; `diff` (default) and `json` for `fix`; `text` (default), `json` and `markdown` for
-`context`. `--compact` and `--verbose` set how much `stylish` shows, and `--compact` also
-shortens `markdown` and `github`. `--help`, `fix --help` and `context --help` list every option.
-In a Git hook, `npx agentcheckup --fail-on error` works with any hook manager; a scan takes well
-under a second on most repositories.
+a check; `diff` (default), `json` and `suggestions` for `fix`; `markdown` (default) and `json` for
+`tasks`; `text` (default), `json` and `markdown` for `context`. `--compact` and `--verbose` set
+how much `stylish` shows, and `--compact` also shortens `markdown` and `github`. `--help` and
+`<command> --help` list every option. In a Git hook, `npx agentcheckup --fail-on error` works
+with any hook manager; a scan takes well under a second on most repositories.
 
 From code:
 
@@ -391,17 +411,19 @@ The API is not stable before 1.0. The JSON report follows
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                               |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.   |
-| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, or security-relevant changes caught by `--gate`      |
-| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline that cannot be read or used; an unusable `--output` |
-| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                               |
+| Code | Meaning                                                                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.                                         |
+| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, security-relevant changes caught by `--gate`, or a `--policy` violation that fails the run |
+| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline or policy file that cannot be read or used; an unusable `--output`                        |
+| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                                     |
 
 `fix` exits 0 when a dry run has nothing to change or every selected fix was applied and
 verified, 1 when a dry run would change a file or a selected fix was not applied, 2 on invalid
-arguments such as `--review` without `--write`, and 3 on an internal error. See
-[Exit codes](docs/fix.md#exit-codes).
+arguments such as `--review` without `--write`, and 3 on an internal error. Fixes that need your
+words and manual steps do not change the exit code. `tasks` exits 1 while a task is open, and
+`tasks --check` 0 once the given tasks are done. See [fix](docs/fix.md#exit-codes),
+[tasks](docs/tasks.md#exit-codes) and [skill install](docs/skill.md#with-agentcheckup).
 
 ## Configuration
 
@@ -441,13 +463,12 @@ Load plans follow the same evidence: every entry cites its sources, and anything
 documentation nor source code confirms is marked `unverified` and shown with "?". See
 [ADR 0007](docs/adr/0007-model-what-each-agent-loads.md).
 
-Before release, every rule and every load plan was run against 80 public repositories with
-agent configuration (7,596 files). Each finding class was reviewed by hand for false positives.
-A consistency check compares the plans with the findings: a file a plan skips because of a
-problem must have the finding that reports it, and every finding about loading must have its
-skip. The
-[aggregate results](corpus/SUMMARY.md), the repository list and the harness are in
-[corpus/](corpus/). Per-repository results are not published.
+Before release, every rule, load plan and fix was run against 80 public repositories with agent
+configuration. Each finding class was reviewed by hand for false positives. A
+consistency check compares the plans with the findings, and a replay applies every fix in memory
+and checks that it resolves its findings, adds no error or warning and leaves nothing for a
+second run. The [aggregate results](corpus/SUMMARY.md), the repository list and the harness are
+in [corpus/](corpus/). Per-repository results are not published.
 
 ## Score
 
@@ -471,11 +492,13 @@ agentcheckup is built to run on repositories you do not trust:
 - It never reads outside the directory you point it at. Symlinks and imports that leave it are
   reported, not followed. It never reads your home directory, so user-scope configuration is
   listed as not visible instead.
-- Scans and `context` only read. Only `fix --write` and `fix -i` write, and only inside the
-  scanned directory: never through a symlink or a hard link, never inside `.git`, never onto an
-  existing file when creating or renaming one, and never to a file that changed since the scan.
-  Each new version goes to a temporary file first and then into place. `fix --untrusted` is a
-  dry run only.
+- Scans, `context` and `tasks` only read. Only `fix --write`, `fix -i` and `skill install` write,
+  and only inside the scanned directory: never through a symlink or a hard link, never inside
+  `.git`, never onto an existing file when creating or renaming one, and never to a file that
+  changed since the scan. Each new version goes to a temporary file first and then into place.
+  `fix --untrusted` is a dry run only, and `skill install` refuses `--untrusted`.
+- A task prompt treats repository text as data: it is fenced and redacted, and every command in
+  it is a pinned agentcheckup command, never one from the repository.
 - Parsers and rules are bounded against crafted input, and every output format escapes
   terminal control sequences, CI workflow commands and Markdown.
 - Reports and fix diffs never contain credential values: MCP `env` and `headers` keep their
@@ -488,8 +511,9 @@ agentcheckup is built to run on repositories you do not trust:
   only with a supported schema version.
 
 The design is in [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md), and for
-writing fixes in [ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md). Report
-vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+writing fixes in [ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) and
+[ADR 0010](docs/adr/0010-fixes-beyond-deterministic-edits.md). Report vulnerabilities privately
+as described in [SECURITY.md](SECURITY.md).
 
 ## Limits
 
@@ -505,17 +529,21 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
   CLI, Devin Desktop and Cline are covered by rules, and load plans for them will follow.
 - **Token counts are estimates:** characters divided by 4, shown with "≈". They are rough for
   code and non-Latin text.
-- **No TOML parser yet.** MCP servers and hooks in `.codex/config.toml` are reported as not
-  analyzed, never guessed.
+- **`.codex/config.toml` is not read yet.** MCP servers and hooks declared there are reported as
+  not analyzed, never guessed.
+- **Words and tasks are checked, not judged.** agentcheckup checks that your answer in `fix -i`
+  or an agent's change resolves the finding and breaks no rule, not that the text is right.
+  Review what an agent changed as you would any diff.
 
 ## Status
 
 agentcheckup is in early development. Rule set `2026.10` covers static checks, and
 `agentcheckup fix` repairs the findings it can, within the limits of
-[ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md). Behavioral probes that run
-agents and hook generation are out of scope until they can be done safely; see
-[ADR 0006](docs/adr/0006-scope-for-the-first-release.md) and
-[ADR 0007](docs/adr/0007-model-what-each-agent-loads.md).
+[ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) and
+[ADR 0010](docs/adr/0010-fixes-beyond-deterministic-edits.md). Behavioral probes that run
+agents, hook generation and an MCP server mode are out of scope for now; see
+[ADR 0006](docs/adr/0006-scope-for-the-first-release.md),
+[ADR 0007](docs/adr/0007-model-what-each-agent-loads.md) and ADR 0010.
 
 ## Contributing
 

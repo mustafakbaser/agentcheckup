@@ -202,6 +202,34 @@ describe('feedback helpers', () => {
         ]
       `);
     });
+
+    it('reads "needs your words (fix -i)" in Markdown, with the command after the preview line', () => {
+      const output = formatMarkdown(result);
+      const row = output.split('\n').find((line) => line.includes('skill/description-quality'));
+      expect(row?.endsWith(' | needs your words (fix -i) |')).toBe(true);
+      expect(output).not.toMatch(/description-quality.*\| review \|/);
+      expect(output).toContain(
+        '\n\nPreview 1 fix locally: `npx agentcheckup fix` · 1 needs your words: `npx agentcheckup fix -i`\n\n',
+      );
+      // Only fixes that need words: no preview, but the command that asks for them.
+      const alone = formatMarkdown(makeResult({ findings: [asking, asking] }));
+      expect(alone).toContain('\n\n2 fixes need your words: `npx agentcheckup fix -i`\n\n');
+      expect(alone).not.toContain('Preview');
+      expect(formatMarkdown(result, { level: 'compact' })).not.toContain('your words');
+    });
+
+    it('marks the SARIF result with "needs your words (fix -i)" and offers no SARIF fix', () => {
+      const log = toSarif(result);
+      const [words, safe] = log.runs[0].results;
+      expect(words?.ruleId).toBe('skill/description-quality');
+      expect(words?.fixes).toBeUndefined();
+      expect(words?.properties).toEqual({ fix: 'needs your words (fix -i)' });
+      // A ready fix keeps its SARIF form and gets no such property.
+      expect(safe?.fixes?.[0]?.properties).toEqual({ class: 'safe' });
+      expect(safe?.properties).toBeUndefined();
+      const parsed = JSON.parse(formatSarif(result)) as object;
+      expect(validateSarif(parsed), JSON.stringify(validateSarif.errors)).toBe(true);
+    });
   });
 
   it('joins names and takes the first paragraph', () => {

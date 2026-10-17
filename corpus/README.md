@@ -46,12 +46,14 @@ npx tsx scripts/corpus/fetch.ts && npx tsx scripts/corpus/run.ts
   corpus and names no repository, path or server. A loader that throws makes `run.ts` exit 1, like
   a rule crash.
 - Without options, `run.ts` also applies the fixes `agentcheckup fix --write` and
-  `fix --write --review` would apply, in memory, to every repository that has one, for the
-  "Fixes" section of `SUMMARY.md` ([fix-stats.ts](../scripts/corpus/fix-stats.ts)): how many
-  findings have a safe fix, a fix that needs review, or guidance only, and how many repositories
-  would score higher. Aggregates only. A fix run that throws makes `run.ts` exit 1. The whole run
-  takes about 35 seconds (2026-10-16): verification scans a repository with fixes a few more
-  times, and the scans share the parses of the files the fixes leave unchanged.
+  `fix --write --review` would apply, in memory, to every repository that has one, and runs the
+  replay of `--fix-replay --answers synthetic` below, for the "Fixes" section of `SUMMARY.md`
+  ([fix-stats.ts](../scripts/corpus/fix-stats.ts)): how many findings have a safe fix, a fix
+  that needs review, a fix that needs the user's words, a task for a coding agent or none of
+  these; how many repositories would score higher; and the replay totals. Aggregates only. A fix
+  run that throws or a replay violation makes `run.ts` exit 1; `--fix-replay` then names it. The
+  whole run takes about two minutes (2026-10-17): verification scans a repository with fixes a
+  few more times, and the scans share the parses of the files the fixes leave unchanged.
 - `run.ts --consistency` plans every repository the same way and checks the plans against the
   findings, as `test/platforms/load/consistency.test.ts` does on fixtures: every file a plan
   skips because of a problem must have its finding, and every loading finding its skip. It prints

@@ -196,23 +196,40 @@ Repository columns count repositories with at least one finding of that severity
 
 ## Fixes
 
-What `agentcheckup fix` offers for the findings above, as the scan reports it: a safe fix (`fix --write` applies it), a fix that needs review (`fix --write --review` or `fix -i`), or guidance only (a manual step the tool prints). The review count includes the opt-in fix of `mcp/literal-secret`. See [Fixing what it finds](../docs/fix.md).
+What agentcheckup offers for the findings above, as the scan reports it: a safe fix (`fix --write` applies it), a fix that needs review (`fix --write --review` or `fix -i`), a fix that needs your words (only `fix -i` asks for them), or, without a fix, a task that `agentcheckup tasks` hands to a coding agent. The rest have no fix and are never handed to an agent: credentials, hidden content, MCP servers, hooks, permissions and settings. The review count includes the opt-in fix of `mcp/literal-secret`. See [Fixing findings](../docs/fix.md) and [Tasks for a coding agent](../docs/tasks.md).
 
-| Findings                     | Count | Share | Repositories |
-| ---------------------------- | ----: | ----: | -----------: |
-| With a safe fix              |   148 |    4% |           18 |
-| With a fix that needs review |   394 |   11% |           32 |
-| Guidance only                | 2,869 |   83% |           65 |
-| Neither                      |    64 |    2% |           12 |
+| Findings                         | Count | Share | Repositories |
+| -------------------------------- | ----: | ----: | -----------: |
+| With a safe fix                  |   148 |    4% |           18 |
+| With a fix that needs review     | 1,528 |   44% |           54 |
+| With a fix that needs your words |   811 |   23% |           44 |
+| A task for a coding agent        |   925 |   27% |           50 |
+| None of these: left to you       |    63 |    2% |           23 |
 
 Scores after applying the fixes in memory and verifying them, as `agentcheckup fix --write` and `fix --write --review` do. `mcp/literal-secret` stays opt-in and is not applied. The median gain is over the repositories whose score rises.
 
 |                                  | After safe fixes | After safe and review fixes |
 | -------------------------------- | ---------------: | --------------------------: |
-| Repositories with a higher score |               12 |                          28 |
+| Repositories with a higher score |               12 |                          30 |
 | Median gain                      |               +3 |                          +3 |
 | Repositories with a lower score  |                0 |                           0 |
 | Fix runs that crashed            |                0 |                           0 |
+
+The replay (`run.ts --fix-replay --answers synthetic`) applies every fix to an in-memory copy of each repository, the opt-in fix of `mcp/literal-secret` included, and checks that each one resolves its findings, adds no error or warning, leaves nothing for a second run and keeps the load plans consistent with the findings. It then answers each fix that needs words as `fix -i` would, with synthetic text, and checks the same. A violation is a bug in a rule or in the planner.
+
+| Replay                                        | Count |
+| --------------------------------------------- | ----: |
+| Fixes planned                                 | 1,571 |
+| Applied and verified                          | 1,571 |
+| Skipped or deferred                           |     0 |
+| Safe fixes that verification made review      |     0 |
+| Files changed                                 | 2,027 |
+| Repositories with a changed file              |    57 |
+| Fixes that need your words                    |   811 |
+| Answered with synthetic text and verified     |   600 |
+| Answers refused or dropped by verification    |     0 |
+| Not answered: no synthetic text for the field |   211 |
+| Violations                                    |     0 |
 
 ## Rule crashes
 

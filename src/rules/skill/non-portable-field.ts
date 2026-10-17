@@ -237,6 +237,7 @@ Keep extension fields in skills that only their agents load, and move your own d
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
+      input: 'some',
       summary:
         'Moves keys that no agent documents under `metadata`, as quoted text, in a skill uploaded or installed on its own. `fix -i` can instead record why the fields stay, as a suppression with your reason, or remove agent-specific fields that do not restrict the model.',
     },

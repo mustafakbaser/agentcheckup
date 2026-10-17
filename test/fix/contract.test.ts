@@ -256,7 +256,12 @@ describe('the public fix contract', () => {
 
   it('lets rules declare fixes and guidance, and findings carry them', () => {
     expectTypeOf<RuleMeta['fix']>().toEqualTypeOf<
-      { readonly classes: readonly FixClass[]; readonly summary: string } | undefined
+      | {
+          readonly classes: readonly FixClass[];
+          readonly summary: string;
+          readonly input?: 'all' | 'some';
+        }
+      | undefined
     >();
     expectTypeOf<RuleMeta>().not.toHaveProperty('fixable');
     expectTypeOf<ReportDescriptor['fix']>().toEqualTypeOf<Fix | undefined>();
@@ -712,5 +717,45 @@ describe('rule metadata', () => {
       expect(new Set(meta.fix.classes).size, meta.id).toBe(meta.fix.classes.length);
       expect(meta.fix.summary.trim(), meta.id).not.toBe('');
     }
+  });
+
+  it("says which rules attach fixes that need the user's words", () => {
+    const result = scanSnapshot(
+      snapshotFrom({
+        '.claude/skills/pdf/SKILL.md':
+          '---\nname: pdf\ndescription: Extract text and tables from PDF files, fill forms and merge documents.\n---\n\nRun the script.\n',
+        '.claude/skills/empty/SKILL.md': '---\nname: empty\n---\n',
+        '.claude/skills/deploy/SKILL.md': '---\nname: deploy\n---\n\nDeploy the API.\n',
+        '.cursor/rules/tabs.mdc': 'Use tabs.\n',
+        '.cursor/rules/style.md': 'Use strict mode.\n',
+      }),
+      { rules: builtinRules },
+    );
+    const declared = new Map(builtinRules.map(({ meta }) => [meta.id, meta.fix?.input]));
+    const withInput = new Set<string>();
+    for (const finding of result.findings) {
+      if (finding.fix === undefined) continue;
+      if (finding.fix.input === undefined) {
+        // A ready fix: the rule must not say that every fix needs words.
+        expect(declared.get(finding.ruleId), finding.ruleId).not.toBe('all');
+      } else {
+        withInput.add(finding.ruleId);
+        expect(declared.get(finding.ruleId), finding.ruleId).toBeDefined();
+      }
+    }
+    expect([...withInput].sort()).toEqual([
+      'cursor/rule-never-applied',
+      'skill/description-missing',
+      'skill/description-quality',
+    ]);
+    // The deploy skill's description is copied from its body: a ready fix, not one for words.
+    expect(
+      result.findings.some(
+        (finding) =>
+          finding.ruleId === 'skill/description-missing' &&
+          finding.path === '.claude/skills/deploy/SKILL.md' &&
+          finding.fix?.input === undefined,
+      ),
+    ).toBe(true);
   });
 });

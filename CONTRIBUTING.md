@@ -41,15 +41,19 @@ Useful commands:
 ```text
 src/
   core/        engine, config, scoring, baseline comparison, suppressions (pure)
-  parse/       hardened YAML frontmatter, Markdown, imports, JSON          (pure)
+  parse/       hardened YAML frontmatter, Markdown, imports, JSON, TOML    (pure)
   platforms/   which files each agent reads, and where                     (pure)
     load/      load plans: what one agent loads for one working directory  (pure)
   inventory/   MCP servers, hooks, permissions and env overrides           (pure)
   rules/       one file per rule, grouped by family                        (pure)
   fix/         plan, apply and verify fixes on a copy in memory            (pure)
+  tasks/       findings that need judgment, as tasks for a coding agent    (pure)
+  policy/      organization policy: parse it, check a scan against it      (pure)
   report/      stylish, JSON, SARIF, GitHub, Markdown, context, fix output (pure)
   io/          the only code that touches the file system; write-fix.ts is the only writer
   cli/         argument parsing and process handling
+skills/
+  agentcheckup/  the skill `agentcheckup skill install` copies; ships in the package
 scripts/
   corpus/      the real-world corpus harness (see corpus/README.md)
   drift/       the weekly check of cited sources
@@ -60,8 +64,10 @@ this. The boundary keeps the core usable in a browser or editor, and keeps file 
 reviewed place. The reasoning is in [docs/adr](docs/adr/README.md).
 
 agentcheckup scans repositories that may be hostile. When you touch parsing, file access or
-output, read [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md) first, and
-[ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) when you touch fixes.
+output, read [ADR 0003](docs/adr/0003-treat-scanned-repositories-as-hostile.md) first,
+[ADR 0008](docs/adr/0008-write-fixes-to-the-scanned-repository.md) when you touch fixes, and
+[ADR 0010](docs/adr/0010-fixes-beyond-deterministic-edits.md) when you touch fixes that need
+the user's words, moved content, tasks or the skill.
 
 ## Adding a rule
 
@@ -112,27 +118,47 @@ Rules only describe fixes: `src/fix` plans, applies and verifies them in memory,
 
 3. **Build every change with the builders in `src/fix/edits.ts`:** `insertLine`, `replaceSpan`,
    `yamlSetScalar`, `yamlInsertKey`, `yamlReplaceValue`, `yamlRenameKey`, `yamlReplaceScalar`,
-   `prependFrontmatter`, `moveFrontmatterToTop`, the `json*` builders, `renameFile`,
-   `createFile` and `reencode`. Never compute offsets or parse raw text yourself, not even to
-   check an edit. The builders take line endings, indentation and quote style from the
-   neighboring lines. The YAML and JSON builders parse their result again and return `undefined`
-   when an edit would not give exactly the intended value; then offer no fix. Text copied from the repository goes through `safeCopiedText` and is written
-   with `quoteYaml` or `quoteJson`; names derived from content go through `skillSlug`.
+   `yamlRemoveKey`, `yamlMoveUnderMapping`, `yamlInsertComment`, `yamlReplaceListItems`,
+   `prependFrontmatter`, `moveFrontmatterToTop`, the `json*` builders, `moveSections`,
+   `renameFile`, `createFile` and `reencode`. Never compute offsets or parse raw text yourself,
+   not even to check an edit. The builders take line endings, indentation and quote style from
+   the neighboring lines. The YAML and JSON builders parse their result again and return
+   `undefined` when an edit would not give exactly the intended value; then offer no fix. Text
+   copied from the repository goes through `safeCopiedText` and is written with `quoteYaml` or
+   `quoteJson`; names derived from content go through `skillSlug`.
 4. **Choose the class.** `safe` only when the fix is deterministic, has one correct form and
    keeps the author's prose. A fix that activates or changes an MCP server, a hook, a permission
    or an env override is always `review`. Verification also treats a `safe` fix with such an
    effect as `review`, but do not rely on it.
 5. **Give a manual step** when there is no fix: `guidance` on the finding, one line the message
    does not already say, such as `create "docs/setup.md" or correct the path`.
-6. **Test it with golden fixtures.** Each case is a directory under `test/fixtures/fix/` named
+6. **Ask for the user's words** when the fix knows where a change goes but not what it says,
+   such as a "Use when ..." sentence. Such a fix has `changes: []` and an `input` (`field`,
+   `question`, `label`, `initial` and `target`); declare `input: 'all'` in `meta.fix` when every
+   fix of the rule needs words, `'some'` when some do. Only `fix -i` asks. `completeInput` in
+   `src/fix/input.ts` checks the answer's shape and writes it with the builders; never splice an
+   answer into a file. Offer other ways to fix the same finding as `alternatives`, which only
+   `-i` shows.
+7. **Move content only with `moveSections`.** It moves whole Markdown sections, byte for byte,
+   into new files next to the original and leaves a link under each heading. Moved text leaves
+   the scan, so keep a section in place when it holds anything a rule must still see: render-time
+   commands, `$N` or declared placeholders, HTML comments, hidden or bidirectional characters,
+   remote-script lines, reference links, the target of a fragment link, or a link that would
+   break. Verification fails any fix that loses a `risk` finding it does not claim. See
+   [ADR 0010](docs/adr/0010-fixes-beyond-deterministic-edits.md).
+8. **Test it with golden fixtures.** Each case is a directory under `test/fixtures/fix/` named
    after the rule and the case, such as `cursor/md-file-ignored/no-frontmatter/`. It holds a
    `before/` tree and the `after/` tree that `fix --write --review --rule <rule>` must produce,
    byte for byte. The test also checks that the fix resolves the rule's findings, adds no error
    or warning, and that a second run plans nothing. Add cases that must not be fixed, such as a
    file reached through a symlink, and hostile input such as copied text with a line break or
-   hidden Unicode. Check that every class the rule attaches is in `meta.fix.classes`.
-7. **Regenerate docs** with `pnpm docs:generate`, which writes the rule's Fix section and its
-   row in [docs/fix.md](docs/fix.md#rules-with-fixes), and run the corpus fix replay below.
+   hidden Unicode. Check that every class the rule attaches is in `meta.fix.classes`. Test a fix
+   that needs words with a scripted prompt, as `test/cli/fix-input.test.ts` does: the prefill, an
+   answer the rule refuses, and hostile answers with a line break, bidirectional characters or
+   `-->`.
+9. **Regenerate docs** with `pnpm docs:generate`, which writes the rule's Fix section and its
+   row in [docs/fix.md](docs/fix.md#rules-with-fixes), and run the corpus fix replay below, with
+   `--answers synthetic` for a fix that needs words.
 
 ## Changing what an agent loads
 
@@ -166,6 +192,8 @@ costs more trust than a missed finding. See [ADR 0007](docs/adr/0007-model-what-
 | `... --check-golden --ignore-fingerprints`        | After a fingerprint scheme change: compare every field but the fingerprint                |
 | `npx tsx scripts/corpus/run.ts --consistency`     | Plan every repository as `context --matrix` does and check the plans against the findings |
 | `npx tsx scripts/corpus/run.ts --fix-replay`      | Apply every fix to each repository in memory and check what the fixes leave behind        |
+| `... --fix-replay --answers synthetic`            | Also answer every fix that needs words with synthetic text, as `fix -i` would             |
+| `npx tsx scripts/corpus/run.ts --tasks-check`     | Build the `agentcheckup tasks` output for every repository and check it                   |
 | `npx tsx scripts/corpus/run.ts --only owner/name` | Print one repository's findings                                                           |
 
 A refactor must leave `--check-golden` clean, and a loader change must leave `--consistency`

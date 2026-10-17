@@ -78,6 +78,7 @@ import { formatFixJson } from '../report/fix-json.js';
 import { forTerminal } from '../report/sanitize.js';
 import type { Style } from '../report/stylish.js';
 import { builtinRules } from '../rules/index.js';
+import { judgmentCount } from '../tasks/index.js';
 import { type FixCommandOptions, UsageError } from './args.js';
 import {
   allRuleMeta,
@@ -195,15 +196,22 @@ function reportCrashes(scan: Pick<ScanResult, 'ruleFailures'>, io: Io): void {
 // ---------------------------------------------------------------------------------------------
 
 async function dryRun(session: Session, rounds: FixRounds): Promise<ExitCode> {
-  const view = viewOf(
-    session,
-    'dry-run',
-    [...rounds.applied, ...rounds.deferred, ...rounds.skipped],
-    rounds.files.map(changedFile),
-    rounds.manual,
-    rounds.verification,
-    rounds.awaitingInput,
-  );
+  const view: FixView = {
+    ...viewOf(
+      session,
+      'dry-run',
+      [...rounds.applied, ...rounds.deferred, ...rounds.skipped],
+      rounds.files.map(changedFile),
+      rounds.manual,
+      rounds.verification,
+      rounds.awaitingInput,
+    ),
+    // What `agentcheckup tasks` would hand to an agent now, for the last line of the diff.
+    judgment: judgmentCount(
+      rounds.before.findings,
+      new Map(rounds.before.artifacts.map((artifact) => [artifact.path, artifact.kind])),
+    ),
+  };
   const report =
     session.options.format === 'json'
       ? formatFixJson(view)

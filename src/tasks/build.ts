@@ -126,6 +126,24 @@ export function taskGroups(scan: TaskScan): FindingGroup[] {
   );
 }
 
+/**
+ * How many findings the tasks hand to an agent: unsuppressed, without a ready fix, and not "For
+ * you". The `fix` dry run counts them in its last line. `kinds` maps the scan's artifact paths
+ * to their kinds; a path it lacks is classified from the path alone, as in {@link reasonOf}.
+ */
+export function judgmentCount(
+  findings: readonly Finding[],
+  kinds: ReadonlyMap<string, Artifact['kind']>,
+): number {
+  let count = 0;
+  for (const finding of findings) {
+    if (finding.suppressed !== undefined || hasReadyFix(finding)) continue;
+    const kind = kinds.get(finding.path) ?? classify(finding.path)?.kind;
+    if (forYouReason(finding.ruleId, kind) === undefined) count++;
+  }
+  return count;
+}
+
 const SEVERITY_ORDER: Readonly<Record<Severity, number>> = { error: 0, warn: 1, info: 2 };
 
 function highest(findings: readonly Finding[]): Severity {

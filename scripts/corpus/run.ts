@@ -47,11 +47,13 @@
  * suppress findings. Without options, each repository is also planned as `agentcheckup context
  * --matrix` plans it, for the aggregate "What agents load" section of SUMMARY.md
  * (context-stats.ts), and fixed in memory as `agentcheckup fix --write` and `fix --write
- * --review` would fix it, for the aggregate "Fixes" section (fix-stats.ts).
+ * --review` would fix it, then replayed as `--fix-replay --answers synthetic` does, for the
+ * aggregate "Fixes" section (fix-stats.ts).
  *
  * Exit status: 0 ok, 1 a rule, loader or fix run crashed on at least one repository (listed on
  * stderr), --check-golden found a difference, --consistency found a mismatch or a loader crash,
- * or --fix-replay found a violation, 2 the cache is incomplete (run fetch.ts first) or
+ * or --fix-replay (or the replay of the default mode) found a violation, 2 the cache is
+ * incomplete (run fetch.ts first) or
  * --check-golden has no corpus/golden.json to compare with.
  */
 import { readFile, writeFile } from 'node:fs/promises';
@@ -81,7 +83,13 @@ import { type RepoConsistency, renderConsistency, repoConsistency } from './cons
 import { type RepoContextFacts, renderContextSection, scanForSummary } from './context-stats.js';
 import { renderAnswers, type RepoAnswers, replayAnswers } from './answer-replay.js';
 import { type RepoReplay, renderReplay, replayRepo } from './fix-replay.js';
-import { fixFacts, type RepoFixFacts, renderFixSection } from './fix-stats.js';
+import {
+  fixFacts,
+  type RepoFixFacts,
+  renderFixSection,
+  type ReplayFacts,
+  replayFacts,
+} from './fix-stats.js';
 import {
   compareGolden,
   findingCount,
@@ -695,6 +703,7 @@ function renderSummary(
   crashes: readonly Crash[],
   context: readonly RepoContextFacts[],
   fixes: readonly RepoFixFacts[],
+  replays: readonly ReplayFacts[],
 ): string {
   const stats = ruleStats(scanned);
   const reposWith = (stat: RuleStats, severity?: Severity): string =>
@@ -774,7 +783,7 @@ function renderSummary(
     '',
     '## Fixes',
     '',
-    renderFixSection(fixes),
+    renderFixSection(fixes, replays),
     '',
     '## Rule crashes',
     '',
@@ -910,6 +919,8 @@ const contextFacts: RepoContextFacts[] = [];
 const replays: RepoReplay[] = [];
 const answered: RepoAnswers[] = [];
 const fixFactsList: RepoFixFacts[] = [];
+const replayFactsList: ReplayFacts[] = [];
+const replayViolations: string[] = [];
 const fixCrashes: string[] = [];
 const loaderCrashes: string[] = [];
 const incomplete: string[] = [];
@@ -952,6 +963,12 @@ for (const entry of selected) {
     fixFactsList.push(fixed);
     for (const message of Object.values(fixed.crashes)) {
       fixCrashes.push(`${repoLabel(entry)}: ${forTerminal(message)}`);
+    }
+    // The replay totals of the "Fixes" section; --fix-replay prints the violations themselves.
+    const replayed = replayFacts(repoLabel(entry), loaded.snapshot);
+    replayFactsList.push(replayed);
+    if (replayed.violations > 0) {
+      replayViolations.push(`${repoLabel(entry)}: ${String(replayed.violations)}`);
     }
   } else {
     result = scanSnapshot(loaded.snapshot, { rules: builtinRules, trustDirectives: false });
@@ -1036,7 +1053,7 @@ if (values['write-golden']) {
   await writeFormatted(path.join(CORPUS_DIR, 'REPORT.md'), renderReport(repos, scanned, crashes));
   await writeFormatted(
     path.join(CORPUS_DIR, 'SUMMARY.md'),
-    renderSummary(repos, scanned, crashes, contextFacts, fixFactsList),
+    renderSummary(repos, scanned, crashes, contextFacts, fixFactsList, replayFactsList),
   );
   const totals = zero();
   for (const { summary } of scanned) {
@@ -1072,5 +1089,13 @@ if (loaderCrashes.length > 0) {
 
 if (fixCrashes.length > 0) {
   log(`\nFix runs crashed on real input:\n${fixCrashes.map((line) => `- ${line}`).join('\n')}`);
+  process.exitCode = 1;
+}
+
+if (replayViolations.length > 0) {
+  log(
+    `\nThe fix replay found violations; see --fix-replay --answers synthetic --only <repo>:\n` +
+      replayViolations.map((line) => `- ${line}`).join('\n'),
+  );
   process.exitCode = 1;
 }

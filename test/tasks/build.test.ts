@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { codePointLength } from '../../src/core/measure.js';
-import { buildTasks, taskId } from '../../src/tasks/index.js';
+import { buildTasks, judgmentCount, taskId } from '../../src/tasks/index.js';
 import { MAX_VALUE_CHARS, MAX_VALUE_LINES } from '../../src/tasks/excerpt.js';
 import { GITHUB_TOKEN, SAMPLE_REPO, scanOf } from './fixture.js';
 
@@ -185,6 +185,37 @@ describe('buildTasks', () => {
   it('has nothing to do for a clean repository', () => {
     const clean = buildTasks(scanOf({ 'AGENTS.md': '# Project\n\nRun `pnpm test` first.\n' }));
     expect(clean).toMatchObject({ open: 0, tasks: [], steps: [], forYou: [] });
+  });
+});
+
+describe('judgmentCount', () => {
+  const kinds = (scan: typeof sample) =>
+    new Map([...scan.analysis.index].map(([path, artifact]) => [path, artifact.kind]));
+
+  it('counts the findings the tasks hold: not ready fixes, not "For you"', () => {
+    const list = buildTasks(sample, { max: 500 });
+    const held = list.tasks.reduce(
+      (sum, task) => sum + 1 + task.also.length + task.omittedLocations,
+      0,
+    );
+    // Two broken links in one skill are one task and two findings.
+    expect(held).toBe(8);
+    expect(judgmentCount(sample.findings, kinds(sample))).toBe(held);
+  });
+
+  it('classifies a path the map lacks from the path alone', () => {
+    expect(judgmentCount(sample.findings, new Map())).toBe(8);
+  });
+
+  it('leaves out suppressed findings, and has nothing for a clean repository', () => {
+    const suppressed = scanOf({
+      ...SAMPLE_REPO,
+      'AGENTS.md':
+        '# Project\n\n<!-- agentcheckup-disable-next-line instr/vague-directive -- kept on purpose -->\nWrite clean code.\n',
+    });
+    expect(judgmentCount(suppressed.findings, kinds(suppressed))).toBe(7);
+    const clean = scanOf({ 'AGENTS.md': '# Project\n\nRun `pnpm test` first.\n' });
+    expect(judgmentCount(clean.findings, kinds(clean))).toBe(0);
   });
 });
 

@@ -10,7 +10,7 @@ Skill description is missing or empty.
 | Category   | `loading`                                              |
 | Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI |
 | Applies to | `skill`                                                |
-| Fixable    | Yes, `review`                                          |
+| Fixable    | Yes, `review` or `input`                               |
 | Since      | 2026.10                                                |
 
 ## Why
@@ -32,7 +32,7 @@ Add a `description` that says what the skill does and when to use it.
 
 ## Fix
 
-Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
+Classes: `review`, `input` ([fix classes](../../fix.md#safe-review-and-manual)).
 
 Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words.
 

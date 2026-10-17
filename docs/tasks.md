@@ -16,6 +16,11 @@ npx agentcheckup tasks --check                # exit 0 when no task is open
 npx agentcheckup tasks --check ac-7f3c91d2    # exit 0 when this task is done
 ```
 
+The dry run of `agentcheckup fix` ends with the number of findings that are tasks, such as
+`· 3 need judgment: agentcheckup tasks`. To let an agent run `tasks` and `fix` itself, asking
+you before each change, install [the agentcheckup skill](skill.md). The design is in
+[ADR 0010](adr/0010-fixes-beyond-deterministic-edits.md).
+
 ## Options
 
 | Option                  | Meaning                                                                                                    |

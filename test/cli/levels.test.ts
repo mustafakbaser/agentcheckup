@@ -99,4 +99,17 @@ describe('explain', () => {
     expect(await run(['explain', 'instr/claude-md-too-long'], io)).toBe(EXIT.ok);
     expect(io.output()).toContain('\nFix:        No automatic fix; guidance only\n\n');
   });
+
+  it('names a fix that needs your words as input, with the command that asks for them', async () => {
+    const io = capture();
+    expect(await run(['explain', 'skill/description-quality'], io)).toBe(EXIT.ok);
+    expect(io.output()).toContain(
+      '\nFix:        input (agentcheckup fix -i --rule skill/description-quality)\n',
+    );
+    const some = capture();
+    expect(await run(['explain', 'skill/description-missing'], some)).toBe(EXIT.ok);
+    expect(some.output()).toContain(
+      '\nFix:        review, input (agentcheckup fix --rule skill/description-missing)\n',
+    );
+  });
 });

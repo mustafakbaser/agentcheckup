@@ -111,6 +111,26 @@ describe('agentcheckup fix: dry run', () => {
     expect(io.output()).toBe('Nothing to fix.\n');
   });
 
+  it('counts the findings that need judgment, as agentcheckup tasks lists them', async () => {
+    const root = await repo({
+      'AGENTS.md': UNFIXED,
+      // An import of a missing file: no fix, so a task.
+      'GEMINI.md': '# Gemini\n\n@docs/missing.md\n',
+      // A deprecated transport in an MCP file: no fix, but for the user, never a task.
+      '.mcp.json':
+        '{ "mcpServers": { "docs": { "type": "sse", "url": "https://x.example/sse" } } }\n',
+    });
+    const { code, io } = await fix(root, []);
+    expect(code).toBe(EXIT.findings);
+    expect(io.output()).toMatch(
+      /\nVerified on an in-memory copy: 2 findings resolved, 0 new, \d+ left · 1 needs judgment: agentcheckup tasks\n$/,
+    );
+
+    const json = await fix(root, ['--format', 'json']);
+    expect(json.io.output()).not.toContain('judgment');
+    parseReport(json.io.output());
+  });
+
   it('writes JSON that matches schemas/fix.schema.json', async () => {
     const root = await repo();
     const { code, io } = await fix(root, ['--format', 'json']);

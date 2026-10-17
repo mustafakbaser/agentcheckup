@@ -148,6 +148,7 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
+      input: 'all',
       summary:
         'Needs your words: `agentcheckup fix -i` asks for a "Use when ..." sentence and appends it to the description, or for a new description when it has fewer than 8 words, and checks the answer against this rule before writing it.',
     },

@@ -345,9 +345,11 @@ describe('fixes that need your words outside -i', () => {
     const root = await repo({ [SKILL]: PDF });
     const io = capture(root);
     expect(await run(['fix'], io)).toBe(EXIT.ok);
+    // The finding is also a task for a coding agent: the last line says so.
     expect(io.output()).toBe(
       `input   skill/description-quality  ${SKILL}:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)\n` +
-        '1 fix needs your words: run agentcheckup fix -i to answer it.\n',
+        '1 fix needs your words: run agentcheckup fix -i to answer it.\n' +
+        '1 finding needs judgment: agentcheckup tasks\n',
     );
 
     const json = capture(root);

@@ -25,6 +25,7 @@ import { formatBaselineMarkdown } from '../report/baseline-markdown.js';
 import { formatBaselineText } from '../report/baseline-text.js';
 import { formatContextMarkdown } from '../report/context-markdown.js';
 import { formatContextText } from '../report/context-text.js';
+import { fixLabels } from '../report/feedback.js';
 import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
 import { forTerminal } from '../report/sanitize.js';
@@ -438,11 +439,15 @@ function explain(ruleId: string, io: Io): ExitCode {
   return EXIT.ok;
 }
 
-/** `Fix:` and the classes a rule's fixes can have with its summary, or that it has none. */
+/**
+ * `Fix:` and the classes a rule's fixes can have (`input` for one that needs the user's words)
+ * with its summary, or that it has none.
+ */
 function fixLines(meta: RuleMeta): string {
   if (meta.fix === undefined) return 'Fix:        No automatic fix; guidance only';
+  const command = meta.fix.input === 'all' ? 'agentcheckup fix -i' : 'agentcheckup fix';
   return (
-    `Fix:        ${meta.fix.classes.join(', ')} (agentcheckup fix --rule ${meta.id})\n` +
+    `Fix:        ${fixLabels(meta.fix).join(', ')} (${command} --rule ${meta.id})\n` +
     `            ${meta.fix.summary}`
   );
 }

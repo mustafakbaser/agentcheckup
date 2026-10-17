@@ -16,7 +16,7 @@ import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { ruleDocsUrl } from '../core/meta.js';
-import type { Finding, Fix, FixClass } from '../core/types.js';
+import type { Finding, Fix, FixClass, RuleMeta } from '../core/types.js';
 import {
   CONTEXT_AGENTS,
   type ContextAgent,
@@ -78,6 +78,16 @@ export const INPUT_FIX_LABEL = 'needs your words (fix -i)';
  */
 export function needsWords(fix: Fix): boolean {
   return fix.input !== undefined;
+}
+
+/**
+ * The classes of a rule's fixes as `explain` and the docs name them: `input` stands for a fix
+ * that needs the user's words, in place of the classes when every fix of the rule needs them
+ * (`RuleMeta.fix.input`), after them when some do.
+ */
+export function fixLabels(fix: NonNullable<RuleMeta['fix']>): string[] {
+  if (fix.input === 'all') return ['input'];
+  return fix.input === 'some' ? [...fix.classes, 'input'] : [...fix.classes];
 }
 
 /** The manual step to show for a finding: none for a suppressed finding or blank guidance. */

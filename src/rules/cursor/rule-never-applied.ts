@@ -59,6 +59,7 @@ export const ruleNeverAppliedRule = defineRule({
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
+      input: 'all',
       summary:
         'Needs your words: `agentcheckup fix -i` asks for the glob patterns of the files the rule is for and writes them as "globs", adding frontmatter when the file has none.',
     },

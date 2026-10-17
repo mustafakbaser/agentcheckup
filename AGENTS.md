@@ -17,10 +17,10 @@ files and fixes what it can. Node.js >= 22.12, pnpm 12, ESM only.
 ## Layout
 
 - `src/core`, `src/parse`, `src/platforms`, `src/inventory`, `src/rules`, `src/fix`,
-  `src/report` must not import `node:fs`, `node:process` or other I/O modules. ESLint enforces
-  it.
+  `src/tasks`, `src/policy`, `src/report` must not import `node:fs`, `node:process` or other I/O
+  modules. ESLint enforces it.
 - File system access only in `src/io`. Process handling only in `src/cli`. Only
-  `src/io/write-fix.ts` writes to the scanned repository.
+  `src/io/write-fix.ts` writes to the scanned repository, for `fix` and `skill install`.
 - Rules: `src/rules/<family>/<name>.ts`, tests in `test/rules/<family>/<name>.test.ts`.
 - Fixes: planned, applied and verified in memory in `src/fix`; edit builders in
   `src/fix/edits.ts`.
@@ -28,6 +28,10 @@ files and fixes what it can. Node.js >= 22.12, pnpm 12, ESM only.
   shared by a rule and a loader lives in `src/platforms/`, once.
 - Security inventory (MCP servers, hooks, permissions, env overrides): `src/inventory/`, tests in
   `test/inventory/`.
+- Tasks for coding agents (`agentcheckup tasks`): `src/tasks/`, tests in `test/tasks/`.
+  Organization policy (`--policy`): `src/policy/`, tests in `test/policy/`.
+- The agentcheckup skill: `skills/agentcheckup/`, shipped in the package and installed by
+  `src/cli/skill.ts`; tests in `test/skill/`.
 
 ## Rules for changes
 
@@ -41,6 +45,9 @@ files and fixes what it can. Node.js >= 22.12, pnpm 12, ESM only.
 - A fix is `safe` only when it is deterministic, has one correct form and keeps the author's
   prose. A fix that activates or changes an MCP server, hook, permission or env override is
   `review`. Fixes never delete files, rename directories, make case-only renames or run git.
+- A fix that needs the user's words has `input` and no `changes`; declare it in
+  `meta.fix.input`. Only `moveSections` moves text, whole sections into new files; keep a
+  section in place when moving it would hide it from a rule. See ADR 0010.
 - Fix tests: golden cases in `test/fixtures/fix/<rule>/<case>/before/` and `after/`, byte for
   byte; a second run must plan nothing. See CONTRIBUTING.md.
 - Every load-plan entry and skip cites `evidence`; behavior no source confirms is `unverified`.

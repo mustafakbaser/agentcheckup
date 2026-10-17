@@ -2,8 +2,10 @@
  * Generates docs/rules/<family>/<name>.md for every rule, docs/rules/README.md (the catalog),
  * the table of rules with fixes in docs/fix.md (between the FIXABLE_START and FIXABLE_END
  * markers; the rest of that page is written by hand), and schemas/config.schema.json, from rule
- * metadata; schemas/policy.schema.json from POLICY_JSON_SCHEMA; schemas/suggestions.schema.json
- * from src/report/suggestions-json.ts; and the table of how `agentcheckup tasks` handles each
+ * metadata, where a fix that needs the user's words shows as `input` (`fixLabels` in
+ * src/report/feedback.ts); schemas/policy.schema.json from POLICY_JSON_SCHEMA;
+ * schemas/suggestions.schema.json from src/report/suggestions-json.ts; and the table of how
+ * `agentcheckup tasks` handles each
  * rule in docs/tasks.md (between the TASK_RULES_START and TASK_RULES_END markers) and
  * schemas/tasks.schema.json, from src/tasks. Run with
  * `pnpm docs:generate`. CI runs it with `--check` and fails if the committed files are stale.
@@ -17,6 +19,7 @@ import { DIRECTIVE_RULES } from '../src/core/directive-rules.js';
 import { CONFIG_FILE_NAME, RULESET_VERSION } from '../src/core/meta.js';
 import type { RuleMeta } from '../src/core/types.js';
 import { POLICY_JSON_SCHEMA } from '../src/policy/schema.js';
+import { fixLabels } from '../src/report/feedback.js';
 import { SUGGESTIONS_JSON_SCHEMA } from '../src/report/suggestions-json.js';
 import { builtinRules } from '../src/rules/index.js';
 import { forYouReason } from '../src/tasks/for-you.js';
@@ -36,11 +39,15 @@ const PLATFORM_NAMES: Record<string, string> = {
   cline: 'Cline',
 };
 
-/** The "Fixable" row: the classes of fix the rule can attach, from `meta.fix`. */
+/**
+ * The "Fixable" row: the classes of fix the rule can attach, from `meta.fix`, with `input` for
+ * a fix that needs the user's words.
+ */
 function fixable(meta: RuleMeta): string {
-  const classes = meta.fix?.classes ?? [];
-  if (classes.length === 0) return 'No';
-  return `Yes, ${classes.map((name) => `\`${name}\``).join(' or ')}`;
+  if (meta.fix === undefined) return 'No';
+  return `Yes, ${fixLabels(meta.fix)
+    .map((name) => `\`${name}\``)
+    .join(' or ')}`;
 }
 
 /**
@@ -59,9 +66,11 @@ function markdownText(text: string, cell = false): string {
   return out;
 }
 
-/** The classes of a rule's fixes, as code: `` `safe`, `review` ``. */
+/** The classes of a rule's fixes, as code: `` `safe`, `review` ``, or `` `input` ``. */
 function fixClasses(fix: NonNullable<RuleMeta['fix']>): string {
-  return fix.classes.map((name) => `\`${name}\``).join(', ');
+  return fixLabels(fix)
+    .map((name) => `\`${name}\``)
+    .join(', ');
 }
 
 /** Where docs/fix.md explains the classes, from a rule page. */
@@ -72,11 +81,15 @@ function fixSection(meta: RuleMeta): string {
   if (meta.fix === undefined) {
     return `Guidance only. This rule has no automatic fix. Where the rule can name a step, its finding says what to change ([fix classes](${FIX_CLASSES_LINK})).`;
   }
+  const command =
+    meta.fix.input === 'all'
+      ? `Answer it with \`agentcheckup fix -i --rule ${meta.id}\`, which asks for your words.`
+      : `Preview the fix with \`agentcheckup fix --rule ${meta.id}\`.`;
   return `Classes: ${fixClasses(meta.fix)} ([fix classes](${FIX_CLASSES_LINK})).
 
 ${markdownText(meta.fix.summary)}
 
-Preview the fix with \`agentcheckup fix --rule ${meta.id}\`.`;
+${command}`;
 }
 
 function rulePage(meta: RuleMeta): string {
@@ -134,7 +147,7 @@ suppress one occurrence with a reason:
 
 /** The "Fix" column of the catalog: the classes of the rule's fixes, or `manual`. */
 function fixColumn(meta: RuleMeta): string {
-  return meta.fix === undefined ? 'manual' : meta.fix.classes.join(', ');
+  return meta.fix === undefined ? 'manual' : fixLabels(meta.fix).join(', ');
 }
 
 function catalog(rules: readonly RuleMeta[]): string {
@@ -154,8 +167,9 @@ Severity policy: \`error\` means a documented platform behavior skips, ignores, 
 breaks the file. \`warn\` means degraded behavior or a portability problem. \`info\` is advice
 and never affects the score. See [ADR 0004](../adr/0004-evidence-backed-rules.md).
 
-The Fix column gives the classes of fix a rule can attach for \`agentcheckup fix\`. \`manual\`
-means guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-review-and-manual).
+The Fix column gives the classes of fix a rule can attach for \`agentcheckup fix\`. \`input\`
+means the fix needs your words, which only \`agentcheckup fix -i\` asks for. \`manual\` means
+guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-review-and-manual).
 
 | Rule | Severity | Category | Fix | Problem |
 | --- | --- | --- | --- | --- |
@@ -177,7 +191,7 @@ function fixableRules(rules: readonly RuleMeta[]): string {
           `| [\`${meta.id}\`](rules/${meta.id}.md) | ${fixClasses(meta.fix)} | ${markdownText(meta.fix.summary, true)} |`,
         ],
   );
-  return `${rows.length} of the ${rules.length} rules can attach a fix. The others give a manual step where they can name one.
+  return `${rows.length} of the ${rules.length} rules can attach a fix. The others give a manual step where they can name one. \`input\` marks a fix that [needs your words](#fixes-that-need-your-words).
 
 | Rule | Classes | What the fix does |
 | --- | --- | --- |

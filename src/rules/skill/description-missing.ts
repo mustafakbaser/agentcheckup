@@ -131,6 +131,7 @@ Add a \`description\` that says what the skill does and when to use it.`,
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
+      input: 'some',
       summary:
         'Copies the first line of the body, which Claude Code uses when `description` is omitted, into `description` for you to reword. `agentcheckup fix -i` also offers typing the description instead; when no line can be copied, or the value is not text, typing it is the fix and needs your words.',
     },
