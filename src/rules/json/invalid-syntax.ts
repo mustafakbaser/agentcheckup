@@ -67,11 +67,19 @@ const BEHAVIOR: Readonly<Partial<Record<ArtifactKind, KindBehavior>>> = {
     consequence: 'Gemini CLI stops at startup with a configuration error until the file is fixed.',
     strict: true,
   },
+  // The hooks reference says invalid JSON rejects the whole file; it does not say whether
+  // comments and trailing commas count as invalid.
+  'copilot-hooks': {
+    platform: 'copilot',
+    consequence: 'GitHub Copilot rejects the whole file, so none of its hooks run.',
+    strict: false,
+  },
 };
 
 const AGENT: Readonly<Record<string, string>> = {
   'claude-code': 'Claude Code',
   cursor: 'Cursor',
+  copilot: 'GitHub Copilot',
 };
 
 const ID = 'json/invalid-syntax';
@@ -190,8 +198,8 @@ export const invalidSyntaxRule = defineRule({
     id: ID,
     title: 'Configuration file is not valid JSON',
     rationale: [
-      'Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses.',
-      'Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.',
+      'Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.',
+      'Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in every file.',
       'The finding points at the first syntax error. Fix it and run agentcheckup again.',
     ].join('\n\n'),
     category: 'loading',
@@ -204,8 +212,9 @@ export const invalidSyntaxRule = defineRule({
       'cursor-hooks',
       'codex-hooks',
       'gemini-settings',
+      'copilot-hooks',
     ],
-    platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
+    platforms: ['claude-code', 'codex', 'cursor', 'gemini', 'copilot'],
     sources: [
       SOURCES.claudeSettings,
       JSON_SOURCES.claudePluginTroubleshooting,
@@ -215,6 +224,7 @@ export const invalidSyntaxRule = defineRule({
       SOURCES.cursorMcp,
       SOURCES.cursorHooks,
       JSON_SOURCES.cursorStrictness,
+      SOURCES.copilotHooksReference,
     ],
     since: RULESET_VERSION,
     fix: {

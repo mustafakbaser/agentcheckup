@@ -18,7 +18,7 @@ import { compareStrings } from '../core/compare.js';
 import { hash53 } from '../core/fingerprint.js';
 import { redactArgs, redactCommand, urlOrigin } from '../inventory/redact.js';
 import { type JsonObject, own } from '../parse/json-access.js';
-import type { HookHandler } from './hooks.js';
+import type { HookHandler, HookPlatform } from './hooks.js';
 import type { McpServer } from './mcp.js';
 
 /**
@@ -54,18 +54,30 @@ export function mcpInventoryIds(
 /**
  * Ids of the hook handlers `file` declares, in the same order. Pass every handler in the file,
  * those under unknown events included, as `hookHandlers(doc, platform, { includeUnknown: true })`
- * lists them.
+ * lists them, and the platform whose file it is: a GitHub Copilot hook's id covers every command
+ * field ({@link hookCommandLines}).
  */
 export function hookInventoryIds(
   file: string,
   handlers: readonly Pick<HookHandler, 'event' | 'handler'>[],
+  platform?: HookPlatform,
 ): string[] {
   return numberRepeats(
     handlers.map(({ event, handler }) => {
-      const what = hookCommandLine(handler) ?? canonicalJson(hookTarget(handler) ?? {});
+      const what =
+        (platform === 'copilot' ? copilotCommandText(handler) : hookCommandLine(handler)) ??
+        canonicalJson(hookTarget(handler) ?? {});
       return `hook:${file}#${event}:${hash53(what).slice(-8)}`;
     }),
   );
+}
+
+/** Every command field of a Copilot hook as `field: line`, one per line, or undefined. */
+function copilotCommandText(handler: JsonObject): string | undefined {
+  const lines = hookCommandLines(handler, 'copilot');
+  return lines.length === 0
+    ? undefined
+    : lines.map(({ field, line }) => `${field}: ${line}`).join('\n');
 }
 
 /** `perm:<file>#<key>=<value>`. `value` must already have credentials masked. */
@@ -90,19 +102,59 @@ function quoteArg(arg: string): string {
   return arg === '' || /[\s"'\\]/.test(arg) ? JSON.stringify(arg) : arg;
 }
 
-/**
- * A command hook's command line with credentials removed (src/inventory/redact.ts). Claude Code's
- * exec form keeps the program in `command` and its arguments in `args`; they are joined, each
- * argument quoted when it needs to be. Undefined for a handler without a `command` string.
- */
-export function hookCommandLine(handler: JsonObject): string | undefined {
-  const command = stringOf(own(handler, 'command'));
-  if (command === undefined) return undefined;
-  const redacted = redactCommand(command);
-  const args = own(handler, 'args');
+/** `program` and the string items of `args`, redacted, each argument quoted when it needs to be. */
+function execLine(program: string, args: unknown): string {
+  const redacted = redactCommand(program);
   if (!Array.isArray(args)) return redacted;
   const strings = args.filter((arg): arg is string => typeof arg === 'string');
   return [redacted, ...redactArgs(strings).map(quoteArg)].join(' ');
+}
+
+/**
+ * A command hook's command line with credentials removed (src/inventory/redact.ts). Claude Code's
+ * exec form keeps the program in `command` and its arguments in `args`; they are joined, each
+ * argument quoted when it needs to be. With `platform` set to `copilot`, the first of the
+ * handler's command fields ({@link hookCommandLines}). Undefined for a handler without one.
+ */
+export function hookCommandLine(handler: JsonObject, platform?: HookPlatform): string | undefined {
+  if (platform === 'copilot') return hookCommandLines(handler, platform)[0]?.line;
+  const command = stringOf(own(handler, 'command'));
+  return command === undefined ? undefined : execLine(command, own(handler, 'args'));
+}
+
+/**
+ * Fields of a GitHub Copilot hook that hold a shell command: the CLI's `bash` and `powershell`
+ * with `command` as the fallback for both (SOURCES.copilotHooksReference), and VS Code's
+ * per-system overrides of `command` (SOURCES.vscodeHooksReference). The CLI's `exec` with `args`
+ * runs a program without a shell.
+ */
+const COPILOT_COMMAND_FIELDS = ['bash', 'command', 'powershell', 'linux', 'osx', 'windows'];
+
+export interface HookCommandLine {
+  /** The field that holds the command, such as `command`, `bash` or `exec`. */
+  readonly field: string;
+  /** The command line, redacted. */
+  readonly line: string;
+}
+
+/**
+ * Every command a hook handler can run, redacted, field by field: for a GitHub Copilot hook each
+ * of its command fields and `exec`, on the systems and surfaces that read them; for the other
+ * platforms the one {@link hookCommandLine}.
+ */
+export function hookCommandLines(handler: JsonObject, platform?: HookPlatform): HookCommandLine[] {
+  if (platform !== 'copilot') {
+    const line = hookCommandLine(handler);
+    return line === undefined ? [] : [{ field: 'command', line }];
+  }
+  const lines: HookCommandLine[] = [];
+  for (const field of COPILOT_COMMAND_FIELDS) {
+    const value = stringOf(own(handler, field));
+    if (value !== undefined) lines.push({ field, line: redactCommand(value) });
+  }
+  const exec = stringOf(own(handler, 'exec'));
+  if (exec !== undefined) lines.push({ field: 'exec', line: execLine(exec, own(handler, 'args')) });
+  return lines;
 }
 
 /**

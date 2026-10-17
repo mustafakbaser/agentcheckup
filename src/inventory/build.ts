@@ -18,7 +18,13 @@ import { compareStrings } from '../core/compare.js';
 import { hash53 } from '../core/fingerprint.js';
 import { dirnamePosix } from '../core/paths.js';
 import { positionAt } from '../core/text.js';
-import type { Artifact, ArtifactKind, PlatformId, Span } from '../core/types.js';
+import {
+  type Artifact,
+  type ArtifactKind,
+  type PlatformId,
+  type Span,
+  TOML_KINDS,
+} from '../core/types.js';
 import {
   isObject,
   type JsonObject,
@@ -35,12 +41,15 @@ import {
   gateFailsOpen,
   type HookPlatform,
   hookHandlers,
-  hookPlatformOf,
+  type HookSource,
+  hookSourceOf,
 } from '../platforms/hooks.js';
+import { clinePlace } from '../platforms/cline-rules.js';
 import {
   canonicalJson,
   envInventoryId,
   hookCommandLine,
+  hookCommandLines,
   hookInventoryIds,
   hookTarget,
   mcpInventoryIds,
@@ -49,7 +58,14 @@ import {
 } from '../platforms/inventory-ids.js';
 import type { LoadView } from '../platforms/load/view.js';
 import { isBundledSkill, pluginRootOf } from '../platforms/location.js';
-import { isClaudeMcpConfig, type McpServer, mcpServers, urlWithoutType } from '../platforms/mcp.js';
+import {
+  isClaudeMcpConfig,
+  MCP_KINDS,
+  type McpServer,
+  mcpServers,
+  transportOf,
+  urlWithoutType,
+} from '../platforms/mcp.js';
 import { inPayloadFolder, joinPath, projectRootOf } from '../platforms/paths.js';
 import { broadGrant, IGNORED_MODES, splitToolRules } from '../platforms/permissions.js';
 import { placement } from '../platforms/skills.js';
@@ -68,20 +84,18 @@ import type {
   PermissionItem,
 } from './types.js';
 
-/** Kinds whose `mcpServers` the MCP walker reads. */
-const MCP_KINDS: ReadonlySet<ArtifactKind> = new Set([
-  'mcp-json',
-  'cursor-mcp',
-  'gemini-settings',
-  'claude-plugin-manifest',
-]);
-
-/** JSON kinds the inventory reads. A file of these kinds that fails to parse is `incomplete`. */
+/**
+ * JSON kinds the inventory reads: those that declare MCP servers (src/platforms/mcp.ts) or hooks
+ * (src/platforms/hooks.ts). A file of these kinds that fails to parse is `incomplete`.
+ */
 const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   ...MCP_KINDS,
   'claude-settings',
   'codex-hooks',
   'cursor-hooks',
+  'copilot-hooks',
+  'copilot-settings',
+  'devin-hooks',
 ]);
 
 /**
@@ -136,11 +150,6 @@ function pathKey(path: JsonPath): string {
   return path.map(String).join('.');
 }
 
-/** True when `path` is `name` or ends with `/name`. */
-function endsWithPath(path: string, name: string): boolean {
-  return path === name || path.endsWith(`/${name}`);
-}
-
 /** At most this many vendor tokens are masked in one permission value. */
 const MAX_MASKED = 64;
 
@@ -183,35 +192,6 @@ function endpointShown(value: string | undefined): string | undefined {
 // MCP servers
 // ---------------------------------------------------------------------------------------------
 
-const TRANSPORTS: Readonly<Record<string, McpServerItem['transport']>> = {
-  stdio: 'stdio',
-  local: 'stdio',
-  http: 'http',
-  'streamable-http': 'http',
-  streamableHttp: 'http',
-  sse: 'sse',
-  ws: 'ws',
-};
-
-/**
- * The transport an entry declares: its `type`, else stdio for a `command`, else Gemini CLI's
- * `httpUrl` (streamable HTTP). A `url` without `type` is `unknown`: Claude Code skips it, and the
- * other agents' documentation does not settle which remote transport they pick.
- */
-function transportOf(artifact: Artifact, config: JsonObject): McpServerItem['transport'] {
-  const type = own(config, 'type');
-  if (type !== undefined) {
-    return typeof type === 'string' && Object.hasOwn(TRANSPORTS, type)
-      ? (TRANSPORTS[type] ?? 'unknown')
-      : 'unknown';
-  }
-  if (typeof own(config, 'command') === 'string') return 'stdio';
-  if (artifact.kind === 'gemini-settings' && typeof own(config, 'httpUrl') === 'string') {
-    return 'http';
-  }
-  return 'unknown';
-}
-
 interface Approvals {
   readonly enableAll?: boolean;
   readonly enabled: ReadonlySet<string>;
@@ -245,33 +225,30 @@ class InventoryBuilder {
     if (!JSON_KINDS.has(artifact.kind)) return;
     const doc = this.#view.json(artifact);
     if (!doc.ok) {
-      this.#incomplete.add(`invalid-json:${artifact.path}`);
+      // VS Code reads its configuration files with comments and trailing commas, which strict
+      // JSON rejects, so such a `.vscode/mcp.json` is not analyzed rather than invalid.
+      this.#incomplete.add(
+        artifact.kind === 'vscode-mcp' ? artifact.path : `invalid-json:${artifact.path}`,
+      );
       return;
     }
     if (MCP_KINDS.has(artifact.kind)) this.#addServers(artifact, doc);
-    const hookPlatform = hookPlatformOf(artifact);
-    if (hookPlatform !== undefined) this.#addHooks(artifact, doc, hookPlatform);
+    const hooks = hookSourceOf(artifact);
+    if (hooks !== undefined) this.#addHooks(artifact, doc, hooks);
+    // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
+    else if (artifact.kind === 'devin-hooks') this.#incomplete.add(artifact.path);
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
   }
 
   /**
-   * Configuration files the classifier does not read, so their servers and hooks are not listed:
-   * Codex's `config.toml` (TOML is not parsed), VS Code's `.vscode/mcp.json`, the Copilot CLI's
-   * `.github/mcp.json`, Copilot's `.github/hooks/*.json`, and inventory files the walk skipped
-   * (too large or unreadable).
+   * Configuration files whose servers and hooks are not listed: Codex's `config.toml` (TOML is
+   * not parsed), the files in Cline's hook and plugin folders (scripts and JavaScript modules in
+   * no documented format), and inventory files the walk skipped (too large or unreadable).
    */
   addUnparsedConfigs(): void {
     const { snapshot } = this.#view;
     for (const path of snapshot.paths) {
-      if (path.endsWith('/')) continue;
-      if (
-        endsWithPath(path, '.codex/config.toml') ||
-        endsWithPath(path, '.vscode/mcp.json') ||
-        endsWithPath(path, '.github/mcp.json') ||
-        isCopilotHookFile(path)
-      ) {
-        this.#incomplete.add(path);
-      }
+      if (!path.endsWith('/') && isUnparsedConfig(path)) this.#incomplete.add(path);
     }
     for (const entry of snapshot.skipped) {
       const kind = classify(entry.path)?.kind;
@@ -420,18 +397,21 @@ class InventoryBuilder {
 
   // Hooks ------------------------------------------------------------------------------------
 
-  #addHooks(artifact: Artifact, doc: ParsedJson, platform: HookPlatform): void {
+  #addHooks(artifact: Artifact, doc: ParsedJson, source: HookSource): void {
+    const { platform } = source;
     const platforms = sortedPlatforms(artifact.readers);
     const root = projectRootOf(artifact);
     const syntax = hookCommandSyntax(this.#view.snapshot, platform, root);
-    const hooks = hookHandlers(doc, platform, { includeUnknown: true });
-    const ids = hookInventoryIds(artifact.path, hooks);
+    const hooks = hookHandlers(doc, platform, { includeUnknown: true, root: source.root });
+    const ids = hookInventoryIds(artifact.path, hooks, platform);
     hooks.forEach((hook, index) => {
       const { handler, type } = hook;
-      const rawCommand = stringOf(own(handler, 'command'));
-      // Claude Code's exec form joins `command` and `args`.
-      const command = hookCommandLine(handler);
+      const rawCommands = rawCommandsOf(handler, platform);
+      // Claude Code's exec form joins `command` and `args`; a Copilot hook shows its first
+      // command field, and its digest covers all of them.
+      const command = hookCommandLine(handler, platform);
       const target = command === undefined ? hookTarget(handler) : undefined;
+      const variants = platform === 'copilot' ? hookCommandLines(handler, platform) : [];
       const matcher = stringOf(own(hook.group, 'matcher'));
       const script = scriptOf(handler, hook.path, type, platform, root, syntax);
       const fields = {
@@ -442,9 +422,9 @@ class InventoryBuilder {
         ...(command === undefined ? {} : { command }),
         ...(script === undefined ? {} : { script }),
         failsOpen: hook.known && gateFailsOpen(platform, hook),
-        remoteScript:
-          rawCommand !== undefined &&
-          findRemoteExecution(rawCommand, 0, rawCommand.length) !== undefined,
+        remoteScript: rawCommands.some(
+          (raw) => findRemoteExecution(raw, 0, raw.length) !== undefined,
+        ),
       };
       this.#hooks.push({
         id: ids[index] ?? '',
@@ -452,7 +432,11 @@ class InventoryBuilder {
         line: lineOf(artifact, spanOf(doc, [...hook.path, 'command']) ?? keySpanOf(doc, hook.path)),
         platforms,
         ...fields,
-        digestFields: { ...fields, ...(target === undefined ? {} : { target }) },
+        digestFields: {
+          ...fields,
+          ...(target === undefined ? {} : { target }),
+          ...(variants.length > 1 ? { commands: variants } : {}),
+        },
       });
     });
   }
@@ -646,16 +630,34 @@ function switchShown(value: string | undefined): string | undefined {
 
 const SWITCH_VALUES: ReadonlySet<string> = new Set(['0', '1', 'true', 'false', 'yes', 'no']);
 
-/** `.github/hooks/<name>.json`, where GitHub Copilot reads hooks. */
-function isCopilotHookFile(path: string): boolean {
-  const parts = path.split('/');
-  const count = parts.length;
-  return (
-    count >= 3 &&
-    parts[count - 2] === 'hooks' &&
-    parts[count - 3] === '.github' &&
-    (parts[count - 1] ?? '').endsWith('.json')
-  );
+/**
+ * A configuration file that can declare MCP servers or hooks the inventory cannot list: a TOML
+ * kind, or a file in Cline's hook or plugin folders. Cheap tests first: every path of the scan
+ * passes through here.
+ */
+function isUnparsedConfig(path: string): boolean {
+  if (path.endsWith('.toml')) {
+    const kind = classify(path)?.kind;
+    return kind !== undefined && TOML_KINDS.has(kind);
+  }
+  if (!path.toLowerCase().includes('.cline')) return false;
+  const role = clinePlace(path)?.role;
+  return role === 'hook' || role === 'plugin';
+}
+
+/**
+ * The raw strings a hook runs as commands, for the remote-script check: `command`, and for a
+ * GitHub Copilot hook every command field (src/platforms/inventory-ids.ts).
+ */
+function rawCommandsOf(handler: JsonObject, platform: HookPlatform): string[] {
+  const fields =
+    platform === 'copilot'
+      ? ['bash', 'command', 'powershell', 'linux', 'osx', 'windows', 'exec']
+      : ['command'];
+  return fields.flatMap((field) => {
+    const value = own(handler, field);
+    return typeof value === 'string' ? [value] : [];
+  });
 }
 
 /** `/`, `~` and `~/`: a working directory that reaches every file of the machine or the user. */

@@ -4,20 +4,20 @@
 
 Configuration file is not valid JSON.
 
-|            |                                                                                                                         |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `error`                                                                                                                 |
-| Category   | `loading`                                                                                                               |
-| Platforms  | Claude Code, Codex, Cursor, Gemini CLI                                                                                  |
-| Applies to | `claude-settings`, `claude-plugin-manifest`, `mcp-json`, `cursor-mcp`, `cursor-hooks`, `codex-hooks`, `gemini-settings` |
-| Fixable    | Yes, `review`                                                                                                           |
-| Since      | 2026.10                                                                                                                 |
+|            |                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `error`                                                                                                                                  |
+| Category   | `loading`                                                                                                                                |
+| Platforms  | Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot                                                                                   |
+| Applies to | `claude-settings`, `claude-plugin-manifest`, `mcp-json`, `cursor-mcp`, `cursor-hooks`, `codex-hooks`, `gemini-settings`, `copilot-hooks` |
+| Fixable    | Yes, `review`                                                                                                                            |
+| Since      | 2026.10                                                                                                                                  |
 
 ## Why
 
-Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses.
+Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.
 
-Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.
+Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in every file.
 
 The finding points at the first syntax error. Fix it and run agentcheckup again.
 
@@ -31,6 +31,7 @@ The finding points at the first syntax error. Fix it and run agentcheckup again.
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
 - [Cursor forum: "The mcp.json parser can't handle JavaScript comments" (user report)](https://forum.cursor.com/t/92529), unverified, checked 2026-10-14
+- [GitHub Copilot: Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), verified, checked 2026-10-17
 
 ## Fix
 

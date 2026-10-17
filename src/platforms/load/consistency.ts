@@ -7,6 +7,10 @@
  *   has a matching skip in a plan of that agent where the file is in scope. Every other finding
  *   in the `loading` category is listed in {@link LOADS_ANYWAY} with the reason it is not a skip.
  *
+ * Findings name platforms, plans name agents. The agents of one platform, such as the three
+ * Copilot surfaces, form a group: a finding of the platform matches a skip in any of the group's
+ * plans ({@link CONTEXT_PLATFORM}).
+ *
  * Where the two cannot match one to one, a named allowance says why ({@link ALLOWANCES}); each
  * has a test in test/platforms/load/consistency.test.ts. Nothing else is ignored.
  *
@@ -16,10 +20,11 @@
  * `scripts/corpus/run.ts --consistency` on the corpus. Pure.
  */
 import { compareStrings } from '../../core/compare.js';
-import type { Finding } from '../../core/types.js';
+import { type Finding, type PlatformId, SEVERITIES, type Severity } from '../../core/types.js';
 import { skillLocation } from '../skills.js';
 import { codexSeesBlank, isBlank } from './codex-text.js';
 import {
+  ALL_CONTEXT_AGENTS,
   CONTEXT_PLATFORM,
   type ContextAgent,
   type LoadPlan,
@@ -40,6 +45,27 @@ export interface SkipRule {
   readonly onHidingFile?: boolean;
   /** A cut counts as the skip: a plan entry with `truncated` matches the finding too. */
   readonly truncates?: boolean;
+  /**
+   * Only findings of this severity or higher mean the skip. Lower ones are advice about a file
+   * the agent loads, such as a Copilot instructions file with only a `description`, which VS Code
+   * loads on demand, or an AGENTS.md chain that is close to Codex's byte budget.
+   */
+  readonly minSeverity?: Severity;
+}
+
+/** The Copilot surfaces, which share the `copilot` platform. */
+const COPILOT_SURFACES = ['copilot-cli', 'copilot-vscode', 'copilot-cloud'] as const;
+
+/** The agents that came after Claude Code, Codex and Cursor, which share several mappings. */
+const NEWER_AGENTS = [...COPILOT_SURFACES, 'gemini', 'windsurf', 'cline'] as const;
+
+/** One mapping of `ruleId` to `codes` for each of `agents`. */
+function skipsFor(
+  agents: readonly ContextAgent[],
+  ruleId: string,
+  codes: readonly SkipCode[],
+): SkipRule[] {
+  return agents.map((agent) => ({ ruleId, agent, codes }));
 }
 
 /** Which findings mean which skips. A rule appears once per agent. */
@@ -65,6 +91,8 @@ export const SKIP_RULES: readonly SkipRule[] = [
     codes: ['over-byte-budget'],
     onHidingFile: true,
     truncates: true,
+    // It also warns near the limit, before anything is cut.
+    minSeverity: 'error',
   },
   { ruleId: 'instr/empty-file', agent: 'codex', codes: ['blank-file'] },
   { ruleId: 'instr/filename-case', agent: 'codex', codes: ['case-mismatch'] },
@@ -88,6 +116,31 @@ export const SKIP_RULES: readonly SkipRule[] = [
   { ruleId: 'instr/filename-case', agent: 'cursor', codes: ['case-mismatch'] },
   { ruleId: 'hooks/unknown-event', agent: 'cursor', codes: ['unknown-event'] },
   { ruleId: 'json/invalid-syntax', agent: 'cursor', codes: ['invalid-json'] },
+  // GitHub Copilot: the CLI, VS Code and the cloud agent. The cloud agent applies a path-specific
+  // file only through `applyTo`; a description-only file (info) is one VS Code loads on demand.
+  ...skipsFor(COPILOT_SURFACES, 'copilot/instructions-misplaced', [
+    'wrong-location',
+    'case-mismatch',
+  ]),
+  {
+    ruleId: 'copilot/apply-to',
+    agent: 'copilot-cloud',
+    codes: ['no-apply-to'],
+    minSeverity: 'warn',
+  },
+  ...skipsFor(COPILOT_SURFACES, 'json/invalid-syntax', ['invalid-json']),
+  // Gemini CLI
+  { ruleId: 'instr/import-depth', agent: 'gemini', codes: ['import-too-deep'] },
+  { ruleId: 'instr/import-outside-root', agent: 'gemini', codes: ['import-outside-root'] },
+  { ruleId: 'instr/import-unresolved', agent: 'gemini', codes: ['import-unresolved'] },
+  { ruleId: 'hooks/unknown-event', agent: 'gemini', codes: ['unknown-event'] },
+  { ruleId: 'json/invalid-syntax', agent: 'gemini', codes: ['invalid-json'] },
+  { ruleId: 'skill/description-missing', agent: 'gemini', codes: ['no-description'] },
+  { ruleId: 'skill/frontmatter-bom', agent: 'gemini', codes: ['bom'] },
+  { ruleId: 'skill/frontmatter-missing', agent: 'gemini', codes: ['no-frontmatter'] },
+  // Copilot, Gemini CLI, Devin Local and Cline
+  ...skipsFor(NEWER_AGENTS, 'instr/empty-file', ['blank-file']),
+  ...skipsFor(NEWER_AGENTS, 'instr/filename-case', ['case-mismatch']),
 ];
 
 /**
@@ -101,12 +154,12 @@ export const LOADS_ANYWAY: readonly {
 }[] = [
   {
     ruleId: 'instr/encoding',
-    agents: ['claude-code', 'codex', 'cursor'],
+    agents: ['claude-code', 'codex', 'cursor', ...NEWER_AGENTS],
     reason: 'The agent reads the file; the text arrives garbled.',
   },
   {
     ruleId: 'instr/symlink-materialized',
-    agents: ['claude-code', 'codex', 'cursor'],
+    agents: ['claude-code', 'codex', 'cursor', ...NEWER_AGENTS],
     reason: 'The agent reads the stored link target as the file content.',
   },
   {
@@ -131,7 +184,7 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/duplicate-name',
-    agents: ['claude-code', 'codex'],
+    agents: ['claude-code', 'codex', ...COPILOT_SURFACES, 'gemini'],
     reason: 'Both skills are listed; the finding is about which one a name reaches.',
   },
   {
@@ -146,8 +199,9 @@ export const LOADS_ANYWAY: readonly {
   },
   {
     ruleId: 'skill/frontmatter-invalid',
-    agents: ['claude-code', 'cursor'],
-    reason: 'The agent lists the skill without the fields it could not read.',
+    agents: ['claude-code', 'cursor', 'gemini'],
+    reason:
+      'The agent lists the skill without the fields it could not read; Gemini CLI reads the name and description lines without YAML.',
   },
   {
     ruleId: 'skill/frontmatter-missing',
@@ -164,7 +218,26 @@ export const LOADS_ANYWAY: readonly {
     agents: ['cursor'],
     reason: 'The rule loads only when @-mentioned: a `manual` entry.',
   },
+  {
+    ruleId: 'copilot/apply-to',
+    agents: ['copilot-cli', 'copilot-vscode'],
+    reason:
+      'The finding is about the cloud agent and code review; the CLI and VS Code load the file through its applyTo or description, or when it is attached.',
+  },
 ];
+
+/**
+ * Skip codes no rule reports, so their skips carry no `ruleId` and need no allowance: the agent
+ * does not read the file here (`not-read`), a setting in the repository turns it off
+ * (`disabled`), the agent prefers another file for the same purpose (`shadowed-by-preferred`),
+ * or the file's own settings keep it from applying (`never-active`).
+ */
+export const UNREPORTED_CODES: ReadonlySet<SkipCode> = new Set<SkipCode>([
+  'not-read',
+  'disabled',
+  'shadowed-by-preferred',
+  'never-active',
+]);
 
 /** Most related locations one instr/codex-size-budget finding lists (MAX_RELATED there). */
 export const CODEX_BUDGET_MAX_RELATED = 20;
@@ -211,6 +284,20 @@ export const ALLOWANCES = {
       rule: 'instr/import-depth',
       reason:
         'instr/import-depth does not judge a chain through a file agentcheckup did not read; the plan still stops after four hops.',
+    },
+    {
+      agent: 'gemini',
+      code: 'import-unresolved',
+      rule: 'instr/import-unresolved',
+      reason:
+        'The import rules do not judge files of a session started in a template or example folder: such files resolve imports in the projects they are copied into.',
+    },
+    {
+      agent: 'gemini',
+      code: 'import-outside-root',
+      rule: 'instr/import-outside-root',
+      reason:
+        'The import rules do not judge files of a session started in a template or example folder: such files resolve imports in the projects they are copied into.',
     },
   ] satisfies readonly {
     readonly agent: ContextAgent;
@@ -306,6 +393,11 @@ export function checkConsistency(
   return new Checker(input, options).run();
 }
 
+/** True when `severity` is `minimum` or higher; any severity when there is no minimum. */
+function atLeast(severity: Severity, minimum: Severity | undefined): boolean {
+  return minimum === undefined || SEVERITIES.indexOf(severity) >= SEVERITIES.indexOf(minimum);
+}
+
 function compareMismatches(a: Mismatch, b: Mismatch): number {
   return (
     compareStrings(a.ruleId, b.ruleId) ||
@@ -334,10 +426,17 @@ class Checker {
     for (const plan of this.#input.plans) {
       for (const skip of plan.skipped) this.#checkSkip(plan, skip);
     }
-    const agents = new Set(this.#input.plans.map((plan) => plan.agent));
+    const planned = new Set(this.#input.plans.map((plan) => plan.agent));
+    const groups = new Map<PlatformId, ContextAgent[]>();
+    for (const agent of ALL_CONTEXT_AGENTS) {
+      if (!planned.has(agent)) continue;
+      const platform = CONTEXT_PLATFORM[agent];
+      groups.set(platform, [...(groups.get(platform) ?? []), agent]);
+    }
     for (const finding of this.#findings) {
-      for (const agent of finding.platforms) {
-        if (agents.has(agent as ContextAgent)) this.#checkFinding(finding, agent as ContextAgent);
+      for (const platform of finding.platforms) {
+        const group = groups.get(platform);
+        if (group !== undefined) this.#checkFinding(finding, group);
       }
     }
     const seen = new Set<string>();
@@ -374,7 +473,7 @@ class Checker {
     const path = this.#real(skip.path);
     const at = { agent, path, cwd, code: skip.code };
     if (skip.ruleId === undefined) {
-      if (skip.code === 'not-read') return;
+      if (UNREPORTED_CODES.has(skip.code)) return;
       const allowance = ALLOWANCES.skipWithoutRule.find(
         (item) => item.agent === agent && item.code === skip.code,
       );
@@ -428,31 +527,45 @@ class Checker {
 
   // Finding -> plan ---------------------------------------------------------------------------
 
-  #checkFinding(finding: Finding, agent: ContextAgent): void {
+  /**
+   * A finding of one platform against the plans of its agents (`group`, in report order). The
+   * finding means a skip when a mapping of its rule for one of the agents covers its severity;
+   * a skip in any plan of the group then matches it.
+   */
+  #checkFinding(finding: Finding, group: readonly ContextAgent[]): void {
     const { ruleId, path } = finding;
-    const mapping = SKIP_RULES.find((item) => item.ruleId === ruleId && item.agent === agent);
-    if (mapping === undefined) {
+    const mappings = SKIP_RULES.filter(
+      (item) => item.ruleId === ruleId && group.includes(item.agent),
+    );
+    if (mappings.length === 0) {
       if (finding.category !== 'loading') return;
       const known = LOADS_ANYWAY.some(
-        (item) => item.ruleId === ruleId && item.agents.includes(agent),
+        (item) => item.ruleId === ruleId && item.agents.some((agent) => group.includes(agent)),
       );
-      if (!known) this.#mismatches.push({ kind: 'unmapped-finding', ruleId, agent, path });
+      const agent = group[0];
+      if (!known && agent !== undefined) {
+        this.#mismatches.push({ kind: 'unmapped-finding', ruleId, agent, path });
+      }
       return;
     }
-    // instr/codex-size-budget also warns near the limit, before anything is cut.
-    if (ruleId === 'instr/codex-size-budget' && finding.severity !== 'error') return;
+    const applicable = mappings.filter((item) => atLeast(finding.severity, item.minSeverity));
+    const first = applicable[0];
+    if (first === undefined) return;
+    const { agent } = first;
 
-    const plans = this.#input.plans.filter((plan) => plan.agent === agent);
+    const plans = this.#input.plans.filter((plan) => group.includes(plan.agent));
+    const mapsSkip = (plan: LoadPlan, skip: SkippedLoad): boolean =>
+      applicable.some((item) => item.agent === plan.agent && item.codes.includes(skip.code));
     const targets = new Set([
       path,
-      ...(mapping.onHidingFile === true ? finding.related.map((related) => related.path) : []),
+      ...(applicable.some((item) => item.onHidingFile === true)
+        ? finding.related.map((related) => related.path)
+        : []),
     ]);
     const skipped = plans.some((plan) =>
       plan.skipped.some(
         (skip) =>
-          skip.ruleId === ruleId &&
-          mapping.codes.includes(skip.code) &&
-          targets.has(this.#real(skip.path)),
+          skip.ruleId === ruleId && mapsSkip(plan, skip) && targets.has(this.#real(skip.path)),
       ),
     );
     if (skipped) return;
@@ -463,7 +576,7 @@ class Checker {
           SKIP_RULES.some(
             (other) =>
               other.ruleId === skip.ruleId &&
-              other.agent === agent &&
+              other.agent === plan.agent &&
               other.codes.includes(skip.code),
           ),
       ),
@@ -472,12 +585,15 @@ class Checker {
     const entries = plans.flatMap((plan) =>
       plan.entries.filter((entry) => this.#real(entry.path) === path),
     );
-    if (mapping.truncates === true && entries.some((entry) => entry.truncated !== undefined)) {
+    if (
+      applicable.some((item) => item.truncates === true) &&
+      entries.some((entry) => entry.truncated !== undefined)
+    ) {
       return;
     }
     if (
       ruleId === 'instr/empty-file' &&
-      agent === 'codex' &&
+      group.includes('codex') &&
       entries.length > 0 &&
       this.#bomOnly(path) &&
       this.#allow(ALLOWANCES.bomOnlyAgentsMd)

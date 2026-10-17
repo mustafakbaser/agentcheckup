@@ -33,7 +33,7 @@ exports[`errors > gives one line per problem 1`] = `
   "hooks.require[0].event: "PreTooluse" is not a Claude Code hook event. Did you mean "PreToolUse"?",
   "hooks.require[1].event: "beforeShellExecution" is a Cursor hook event, not a Claude Code one.",
   "hooks.require[2].event: "Whatever" is not a Claude Code hook event.",
-  "hooks.require[3].agent: expected one of "claude-code", "codex", "cursor", "gemini", got "vim".",
+  "hooks.require[3].agent: expected one of "claude-code", "codex", "cursor", "gemini", "copilot", "windsurf", got "vim".",
   "hooks.require[4]: "agent" is required.",
   "hooks.require[4].event: expected a string, got 3.",
   "hooks.require[4].matcher: expected a string, got 4.",

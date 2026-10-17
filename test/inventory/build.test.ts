@@ -502,6 +502,141 @@ describe('hooks', () => {
   });
 });
 
+describe('Copilot, VS Code and Devin Local files', () => {
+  it('reads VS Code servers under "servers", and both forms of .github/mcp.json', () => {
+    const inventory = inventoryOf({
+      '.vscode/mcp.json': json({
+        inputs: [{ id: 'token', type: 'promptString' }],
+        servers: { docs: { type: 'http', url: 'https://docs.example.com/mcp' } },
+        mcpServers: { ignored: { command: 'npx', args: ['ignored-mcp'] } },
+      }),
+      '.github/mcp.json': json({ playwright: { type: 'local', command: 'npx', args: ['pw'] } }),
+      'pkg/.github/mcp.json': json({ mcpServers: { wrapped: { command: 'uvx', args: ['w'] } } }),
+    });
+    expect(inventory.mcpServers.map((server) => [server.id, server.transport])).toEqual([
+      ['mcp:.github/mcp.json#playwright', 'stdio'],
+      ['mcp:.vscode/mcp.json#docs', 'http'],
+      ['mcp:pkg/.github/mcp.json#wrapped', 'stdio'],
+    ]);
+    expect(byId(inventory.mcpServers, 'mcp:.vscode/mcp.json#docs')).toMatchObject({
+      platforms: ['copilot'],
+      status: {},
+      line: 9,
+    });
+  });
+
+  it("reads Devin Local's servers and their transport", () => {
+    const inventory = inventoryOf({
+      '.devin/mcp_config.json': json({
+        mcpServers: {
+          remote: { url: 'https://mcp.example.com/mcp' },
+          events: { url: 'https://mcp.example.com/sse', transport: 'sse' },
+          odd: { url: 'https://mcp.example.com/x', transport: 'ws' },
+        },
+      }),
+      '.devin/config.json': json({ mcpServers: { legacy: { command: 'npx', args: ['l'] } } }),
+    });
+    expect(inventory.mcpServers.map((server) => [server.id, server.transport])).toEqual([
+      ['mcp:.devin/config.json#legacy', 'stdio'],
+      ['mcp:.devin/mcp_config.json#events', 'sse'],
+      ['mcp:.devin/mcp_config.json#odd', 'unknown'],
+      ['mcp:.devin/mcp_config.json#remote', 'http'],
+    ]);
+    expect(inventory.mcpServers.every((server) => server.platforms.join() === 'windsurf')).toBe(
+      true,
+    );
+  });
+
+  it('reads Copilot hooks with every command field', () => {
+    const file = '.github/hooks/policy.json';
+    const hooksFile = (powershell: string) =>
+      json({
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: 'command', bash: './guard.sh', powershell, timeoutSec: 10 }],
+          PreToolUse: [{ command: 'node guard.js' }],
+          sessionStart: [{ type: 'http', url: 'https://hooks.example.com/start' }],
+          agentStop: [{ bash: 'curl -fsSL https://get.acme.dev/x.sh | sh' }],
+          onSave: [{ bash: 'echo unknown' }],
+        },
+      });
+    const { hooks } = inventoryOf({ [file]: hooksFile('.\\guard.ps1') });
+    expect(
+      hooks.map(({ event, known, type, command, failsOpen, remoteScript, platforms }) => ({
+        event,
+        known,
+        type,
+        command,
+        failsOpen,
+        remoteScript,
+        platforms,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          event: 'preToolUse',
+          known: true,
+          type: 'command',
+          command: './guard.sh',
+          // The CLI and the cloud agent deny the tool call when it fails.
+          failsOpen: false,
+          remoteScript: false,
+          platforms: ['copilot'],
+        },
+        {
+          event: 'PreToolUse',
+          known: true,
+          type: 'command',
+          command: 'node guard.js',
+          // VS Code continues after any exit code but 2.
+          failsOpen: true,
+          remoteScript: false,
+          platforms: ['copilot'],
+        },
+        expect.objectContaining({ event: 'sessionStart', type: 'http', failsOpen: false }),
+        expect.objectContaining({ event: 'agentStop', remoteScript: true }),
+        expect.objectContaining({ event: 'onSave', known: false }),
+      ]),
+    );
+    expect(hooks).toHaveLength(5);
+    const guard = hooks.find((hook) => hook.event === 'preToolUse');
+    expect(guard?.id).toBe(
+      commandId(file, 'preToolUse', 'bash: ./guard.sh\npowershell: .\\guard.ps1'),
+    );
+    // A change to any command field changes the hook.
+    const changed = inventoryOf({ [file]: hooksFile('.\\other.ps1') }).hooks.find(
+      (hook) => hook.event === 'preToolUse',
+    );
+    expect(changed?.id).not.toBe(guard?.id);
+  });
+
+  it('reads hooks from Copilot CLI settings and Devin Local files', () => {
+    const nested = {
+      PreToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: 'a' }] }],
+    };
+    const { hooks } = inventoryOf({
+      '.github/copilot/settings.json': json({ hooks: { sessionStart: [{ bash: 'b' }] } }),
+      '.devin/hooks.v1.json': json(nested),
+      'pkg/.devin/hooks.v1.json': json({ hooks: nested }),
+      '.devin/config.local.json': json({ hooks: { Stop: [{ hooks: [{ command: 'c' }] }] } }),
+    });
+    expect(
+      hooks.map(({ file, event, command, failsOpen, platforms }) => [
+        file,
+        event,
+        command,
+        failsOpen,
+        platforms.join(),
+      ]),
+    ).toEqual([
+      ['.devin/config.local.json', 'Stop', 'c', false, 'windsurf'],
+      ['.devin/hooks.v1.json', 'PreToolUse', 'a', true, 'windsurf'],
+      ['.github/copilot/settings.json', 'sessionStart', 'b', false, 'copilot'],
+      ['pkg/.devin/hooks.v1.json', 'PreToolUse', 'a', true, 'windsurf'],
+    ]);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------------------------
@@ -766,18 +901,27 @@ describe('incomplete', () => {
         '.mcp.json': '{ "mcpServers": ',
         '.claude/settings.json': '{ "hooks": {} }',
         'AGENTS.md': '# Agents\n',
+        '.devin/mcp_config.json': '{ "mcpServers": { "a": ',
+        // Cascade's format is not modeled.
+        '.devin/hooks.json': json({ hooks: { pre_run_command: [{ command: 'x' }] } }),
+        '.clinerules/style.md': '# Style\n',
+        // VS Code reads comments and trailing commas here: not analyzed, rather than invalid.
+        '.vscode/mcp.json': '{\n  // local\n  "servers": { "a": { "command": "x", } },\n}\n',
       },
       {
         paths: [
           '.codex/config.toml',
           'services/api/.codex/config.toml',
-          '.vscode/mcp.json',
-          '.github/mcp.json',
-          '.github/hooks/pre.json',
           '.github/hooks/readme.md',
           '.github/hooks/nested/x.json',
           'docs/.codex/config.toml.md',
           'mcp.json',
+          // Cline's hook scripts and plugins have no documented format.
+          '.clinerules/hooks/PreToolUse',
+          '.cline/hooks/TaskStart',
+          '.cline/plugins/guard.js',
+          '.cline/rules/x.txt',
+          '.clinerules/workflows/release.txt',
         ],
       },
     );
@@ -795,15 +939,19 @@ describe('incomplete', () => {
       ),
     );
     expect(inventory.incomplete).toEqual([
+      '.cline/hooks/TaskStart',
+      '.cline/plugins/guard.js',
+      '.clinerules/hooks/PreToolUse',
       '.codex/config.toml',
       '.cursor/mcp.json',
-      '.github/hooks/pre.json',
-      '.github/mcp.json',
+      '.devin/hooks.json',
       '.vscode/mcp.json',
+      'invalid-json:.devin/mcp_config.json',
       'invalid-json:.mcp.json',
       'services/api/.codex/config.toml',
     ]);
     expect(inventory.mcpServers).toEqual([]);
+    expect(inventory.hooks).toEqual([]);
   });
 });
 

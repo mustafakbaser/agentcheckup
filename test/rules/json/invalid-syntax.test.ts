@@ -58,6 +58,40 @@ describe('json/invalid-syntax', () => {
     );
   });
 
+  it('reports a Copilot hooks file that does not parse, and notes comments there', () => {
+    const broken = '{\n  "version": 1,\n  "hooks": { "preToolUse": [ }\n}\n';
+    expect(run({ '.github/hooks/policy.json': broken })).toEqual([
+      {
+        ruleId: ID,
+        severity: 'error',
+        path: '.github/hooks/policy.json',
+        message:
+          'This file is not valid JSON (expected a value). GitHub Copilot rejects the whole file, so none of its hooks run.',
+        range: rangeOf(broken, '}'),
+      },
+    ]);
+    const commented = '{\n  // policy hooks\n  "version": 1,\n  "hooks": {}\n}\n';
+    expect(run({ '.github/hooks/policy.json': commented })).toEqual([
+      {
+        ruleId: ID,
+        severity: 'info',
+        path: '.github/hooks/policy.json',
+        message:
+          'JSON does not allow comments. GitHub Copilot does not document whether it accepts them here; a strict JSON parser rejects the whole file.',
+        range: rangeOf(commented, '// policy hooks'),
+      },
+    ]);
+    // Valid files, other agents' targets, and JSON files of new kinds no source covers.
+    expect(run({ '.github/hooks/policy.json': '{ "version": 1, "hooks": {} }\n' })).toEqual([]);
+    expect(run({ '.github/hooks/policy.json': broken }, ['claude-code'])).toEqual([]);
+    expect(
+      run({
+        '.vscode/mcp.json': '{\n  // servers\n  "servers": {}\n}\n',
+        '.devin/mcp_config.json': '{',
+      }),
+    ).toEqual([]);
+  });
+
   it('accepts comments in Gemini CLI settings but not trailing commas', () => {
     const comments = '{\n  // MCP servers\n  "mcpServers": {} /* none yet */\n}\n';
     expect(run({ '.gemini/settings.json': comments })).toEqual([]);

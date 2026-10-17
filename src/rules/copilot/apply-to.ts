@@ -7,11 +7,11 @@ import { defineRule } from '../define.js';
 import { quote } from '../shared/format.js';
 import { describeValue, issueDetail, yamlSyntaxError } from '../instructions/yaml.js';
 import { SOURCES } from '../sources.js';
+import { copilotActivation, EXCLUDE_AGENT_VALUES } from '../../platforms/copilot.js';
 import { meantForCopilot, placement } from './location.js';
 import { COPILOT_SOURCES } from './sources.js';
 
 const ID = 'copilot/apply-to';
-const EXCLUDE_AGENT_VALUES: ReadonlySet<string> = new Set(['code-review', 'cloud-agent']);
 const OPENING_DELIMITER: Span = { offset: 0, length: 3 };
 /** GitHub's documentation separates patterns with a bare comma: `"**\/*.ts,**\/*.tsx"`. */
 const PATTERN_SEPARATOR = ',';
@@ -54,10 +54,8 @@ const NOT_APPLIED =
 
 function applyToFindings(artifact: Artifact, frontmatter: ValidFrontmatter): Finding[] {
   const { data } = frontmatter;
-  const { values } = data;
-  if (!Object.hasOwn(values, 'applyTo')) {
-    const description = values['description'];
-    const described = typeof description === 'string' && description.trim() !== '';
+  const { applyTo, described } = copilotActivation(frontmatter);
+  if (applyTo.kind === 'missing') {
     // VS Code documents description-only files as loaded on demand, so that is a choice, not an
     // accident; only the GitHub.com side is worth a note.
     return [
@@ -76,46 +74,45 @@ function applyToFindings(artifact: Artifact, frontmatter: ValidFrontmatter): Fin
           },
     ];
   }
-  const value = values['applyTo'];
   const span = data.valueSpan('applyTo') ?? data.keySpan('applyTo') ?? OPENING_DELIMITER;
-  if (value === null) {
-    return [
-      {
-        span,
-        message: '"applyTo" has no value, so it matches no files.',
-        guidance: `set "applyTo" to the files these instructions are for, such as ${APPLY_TO_EXAMPLE}`,
-      },
-    ];
+  switch (applyTo.kind) {
+    case 'patterns':
+      return [];
+    case 'null':
+      return [
+        {
+          span,
+          message: '"applyTo" has no value, so it matches no files.',
+          guidance: `set "applyTo" to the files these instructions are for, such as ${APPLY_TO_EXAMPLE}`,
+        },
+      ];
+    case 'blank':
+      return [
+        {
+          span,
+          message: '"applyTo" is empty, so it matches no files.',
+          guidance: `set "applyTo" to the files these instructions are for, such as ${APPLY_TO_EXAMPLE}`,
+        },
+      ];
+    case 'list':
+      return [
+        {
+          span,
+          severity: 'info',
+          message:
+            '"applyTo" is a YAML list. GitHub documents "applyTo" only as one string of comma-separated patterns, such as "**/*.ts,**/*.tsx".',
+          ...listFix(artifact, frontmatter),
+        },
+      ];
+    case 'invalid':
+      return [
+        {
+          span,
+          message: `"applyTo" is ${describeValue(applyTo.value)}, not a string of comma-separated glob patterns.`,
+          guidance: `write "applyTo" as one quoted string of comma-separated patterns, such as ${APPLY_TO_EXAMPLE}`,
+        },
+      ];
   }
-  if (typeof value === 'string') {
-    return value.trim() === ''
-      ? [
-          {
-            span,
-            message: '"applyTo" is empty, so it matches no files.',
-            guidance: `set "applyTo" to the files these instructions are for, such as ${APPLY_TO_EXAMPLE}`,
-          },
-        ]
-      : [];
-  }
-  if (Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string')) {
-    return [
-      {
-        span,
-        severity: 'info',
-        message:
-          '"applyTo" is a YAML list. GitHub documents "applyTo" only as one string of comma-separated patterns, such as "**/*.ts,**/*.tsx".',
-        ...listFix(artifact, frontmatter),
-      },
-    ];
-  }
-  return [
-    {
-      span,
-      message: `"applyTo" is ${describeValue(value)}, not a string of comma-separated glob patterns.`,
-      guidance: `write "applyTo" as one quoted string of comma-separated patterns, such as ${APPLY_TO_EXAMPLE}`,
-    },
-  ];
 }
 
 function excludeAgentFindings(data: FrontmatterData): Finding[] {

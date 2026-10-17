@@ -193,7 +193,11 @@ const RULES: readonly AnyRule[] = [
   server,
   extension,
   claude,
-  config('NEED-VSCODE', '.vscode/mcp.json', '{"servers": {}}\n'),
+  config(
+    'NEED-VSCODE',
+    '.vscode/mcp.json',
+    '{"servers": {"docs": {"type": "http", "url": "https://docs.example.com/mcp"}}}\n',
+  ),
   config('NEED-CURSOR', '.cursor/mcp.json', '{ not json\n'),
 ];
 
@@ -380,7 +384,7 @@ describe('batch verification', () => {
       ['test/server', 'review', 'mcp', 'mcp:.mcp.json#docs'],
       ['test/server', 'review', 'mcp-unpinned', 'mcp:.mcp.json#docs'],
       ['test/config-need-cursor', 'review', 'mcp', 'invalid-json:.cursor/mcp.json'],
-      ['test/config-need-vscode', 'review', 'mcp', '.vscode/mcp.json'],
+      ['test/config-need-vscode', 'review', 'mcp', 'mcp:.vscode/mcp.json#docs'],
     ]);
   });
 });

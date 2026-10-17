@@ -9,7 +9,7 @@ import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
 import { PLATFORM_LABEL } from './platform-text.js';
 import { HOOK_SOURCES } from './sources.js';
-import { hookHandlers, hookPlatformOf } from './walk.js';
+import { hookHandlers, hookSourceOf } from './walk.js';
 
 const ID = 'hooks/timeout-units';
 
@@ -108,15 +108,16 @@ export const timeoutUnitsRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const platform = hookPlatformOf(artifact);
-      if (platform === undefined || !context.targets.has(platform)) continue;
+      const source = hookSourceOf(artifact);
+      if (source === undefined || !context.targets.has(source.platform)) continue;
+      const { platform } = source;
       const doc = context.json(artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'hook timeouts in the wrong unit');
       const canEdit = editable(artifact);
-      for (const { handler, path } of hookHandlers(doc, platform)) {
+      for (const { handler, path } of hookHandlers(doc, platform, { root: source.root })) {
         const timeout = own(handler, 'timeout');
         if (typeof timeout !== 'number') continue;
         const message = describeTimeout(platform, timeout);

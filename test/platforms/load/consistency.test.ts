@@ -25,9 +25,12 @@ import {
 import { loadPlans } from '../../../src/platforms/load/index.js';
 import { matrixPlans } from '../../../src/platforms/load/matrix.js';
 import {
+  ALL_CONTEXT_AGENTS,
   CONTEXT_AGENTS,
   CONTEXT_PLATFORM,
+  type ContextAgent,
   type LoadPlan,
+  type SkipCode,
 } from '../../../src/platforms/load/types.js';
 import { builtinRules } from '../../../src/rules/index.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
@@ -97,13 +100,34 @@ describe('the mapping tables', () => {
 
   it('name built-in rules that report for the agent', () => {
     for (const mapping of SKIP_RULES) {
-      expect(rules.get(mapping.ruleId)?.platforms, mapping.ruleId).toContain(mapping.agent);
+      expect(rules.get(mapping.ruleId)?.platforms, mapping.ruleId).toContain(
+        CONTEXT_PLATFORM[mapping.agent],
+      );
       expect(mapping.codes.length).toBeGreaterThan(0);
     }
     for (const item of LOADS_ANYWAY) {
       const meta = rules.get(item.ruleId);
       expect(meta?.category, item.ruleId).toBe('loading');
-      for (const agent of item.agents) expect(meta?.platforms, item.ruleId).toContain(agent);
+      for (const agent of item.agents) {
+        expect(meta?.platforms, item.ruleId).toContain(CONTEXT_PLATFORM[agent]);
+      }
+    }
+    for (const item of ALLOWANCES.skipWithoutRule) {
+      if ('rule' in item) {
+        expect(rules.get(item.rule)?.platforms, item.rule).toContain(CONTEXT_PLATFORM[item.agent]);
+      }
+    }
+  });
+
+  it('map each rule at most once per agent, also for agents not turned on yet', () => {
+    for (const meta of rules.values()) {
+      for (const agent of ALL_CONTEXT_AGENTS) {
+        const skips = SKIP_RULES.filter((m) => m.ruleId === meta.id && m.agent === agent);
+        const loads = LOADS_ANYWAY.filter(
+          (item) => item.ruleId === meta.id && item.agents.includes(agent),
+        );
+        expect(skips.length + loads.length, `${meta.id} ${agent}`).toBeLessThanOrEqual(1);
+      }
     }
   });
 
@@ -471,6 +495,152 @@ describe('what the check reports', () => {
     ).toEqual([
       'finding-without-skip instr/agents-md-ignored-by-claude claude-code AGENTS.md',
       'rule-not-cited instr/agents-md-ignored-by-claude claude-code AGENTS.md',
+    ]);
+  });
+});
+
+describe('agents that share a platform, severities and skips no rule reports', () => {
+  const zero = { bytes: 0, chars: 0, tokens: 0 };
+  const plan = (agent: ContextAgent, overrides: Partial<LoadPlan> = {}): LoadPlan => ({
+    agent,
+    cwd: '',
+    entries: [],
+    skipped: [],
+    outOfScope: [],
+    assumptions: [],
+    hidden: [],
+    limits: [],
+    totals: { startup: zero, onDemand: zero },
+    incomplete: [],
+    ...overrides,
+  });
+  const skipOf = (path: string, code: SkipCode, ruleId?: string) => ({
+    id: `instructions:${path}`,
+    role: 'instructions' as const,
+    path,
+    code,
+    ...(ruleId === undefined ? {} : { ruleId }),
+    certainty: 'documented' as const,
+    evidence: [],
+  });
+  const entryOf = (path: string) => ({
+    id: `instructions:${path}`,
+    role: 'instructions' as const,
+    trigger: 'startup' as const,
+    path,
+    realPath: path,
+    certainty: 'documented' as const,
+    evidence: [],
+  });
+  const view = { index: new Map() };
+
+  it('matches a Copilot finding with a skip in the plan of any Copilot surface', () => {
+    const path = '.github/prompts/copilot-instructions.md';
+    const { findings } = check({ [path]: 'Use strict mode.\n' }).result;
+    const misplaced = findings.filter((f) => f.ruleId === 'copilot/instructions-misplaced');
+    expect(misplaced.map((f) => f.platforms)).toEqual([['copilot']]);
+    const cli = plan('copilot-cli', {
+      skipped: [skipOf(path, 'wrong-location', 'copilot/instructions-misplaced')],
+    });
+    const others = [plan('copilot-vscode'), plan('copilot-cloud')];
+    expect(checkConsistency({ findings, view, plans: [cli, ...others] }).mismatches).toEqual([]);
+    // No surface skips it: the group has no plan that mentions the file.
+    expect(brief(checkConsistency({ findings, view, plans: others }).mismatches)).toEqual([
+      `finding-not-planned copilot/instructions-misplaced copilot-vscode ${path}`,
+    ]);
+    // A surface loads it and none skips it.
+    const loaded = plan('copilot-vscode', { entries: [entryOf(path)] });
+    expect(brief(checkConsistency({ findings, view, plans: [loaded] }).mismatches)).toEqual([
+      `finding-without-skip copilot/instructions-misplaced copilot-vscode ${path}`,
+    ]);
+    // Each skip still needs a finding of its rule on its file.
+    expect(brief(checkConsistency({ findings: [], view, plans: [cli] }).mismatches)).toEqual([
+      `skip-without-finding copilot/instructions-misplaced copilot-cli ${path}`,
+    ]);
+  });
+
+  it('takes only copilot/apply-to findings of warn or error as the cloud agent skipping a file', () => {
+    const path = '.github/instructions/ts.instructions.md';
+    const findingsOf = (text: string) =>
+      check({ [path]: text }).result.findings.filter((f) => f.ruleId === 'copilot/apply-to');
+    const described = findingsOf('---\ndescription: TypeScript\n---\nUse strict mode.\n');
+    const missing = findingsOf('Use strict mode.\n');
+    expect(described.map((f) => f.severity)).toEqual(['info']);
+    expect(missing.map((f) => f.severity)).toEqual(['warn']);
+    const vscode = plan('copilot-vscode', { entries: [entryOf(path)] });
+    const cloud = plan('copilot-cloud', {
+      skipped: [skipOf(path, 'no-apply-to', 'copilot/apply-to')],
+    });
+    // VS Code loads a description-only file; the info finding needs no skip, but matches one.
+    expect(checkConsistency({ findings: described, view, plans: [vscode] }).mismatches).toEqual([]);
+    expect(
+      checkConsistency({ findings: described, view, plans: [vscode, cloud] }).mismatches,
+    ).toEqual([]);
+    // A warning means the cloud agent skips the file; a cloud plan that loads it disagrees.
+    const loadedInCloud = plan('copilot-cloud', { entries: [entryOf(path)] });
+    expect(
+      checkConsistency({ findings: missing, view, plans: [vscode, cloud] }).mismatches,
+    ).toEqual([]);
+    expect(
+      brief(
+        checkConsistency({ findings: missing, view, plans: [vscode, loadedInCloud] }).mismatches,
+      ),
+    ).toEqual([`finding-without-skip copilot/apply-to copilot-cloud ${path}`]);
+  });
+
+  it('accepts skips that no rule reports: disabled, shadowed-by-preferred, never-active', () => {
+    const plans = [
+      plan('windsurf', {
+        skipped: [
+          skipOf('.cursor/rules/a.mdc', 'disabled'),
+          skipOf('.windsurf/global_rules.md', 'shadowed-by-preferred'),
+        ],
+      }),
+      plan('cline', { skipped: [skipOf('.clinerules/never.md', 'never-active')] }),
+    ];
+    const report = checkConsistency({ findings: [], view, plans });
+    expect(report).toEqual({ mismatches: [], allowed: {} });
+    // Any other code needs its rule.
+    expect(
+      brief(
+        checkConsistency({
+          findings: [],
+          view,
+          plans: [plan('cline', { skipped: [skipOf('.clinerules/blank.md', 'blank-file')] })],
+        }).mismatches,
+      ),
+    ).toEqual(['skip-without-rule - cline .clinerules/blank.md']);
+  });
+
+  it('skip-without-rule: Gemini CLI imports in a template folder, which the rules leave alone', () => {
+    const path = 'templates/app/GEMINI.md';
+    const skipped = [
+      { ...skipOf(path, 'import-unresolved'), id: 'import:templates/app/docs/x.md' },
+      { ...skipOf(path, 'import-outside-root'), id: 'import:x.md' },
+    ];
+    const gemini = plan('gemini', { cwd: 'templates/app', skipped });
+    const allowed = checkConsistency({ findings: [], view, plans: [gemini] });
+    expect(allowed.mismatches).toEqual([]);
+    expect(allowed.allowed['skip-without-rule']).toBe(2);
+    expect(
+      checkConsistency(
+        { findings: [], view, plans: [gemini] },
+        { without: ['skip-without-rule'] },
+      ).mismatches.map((m) => `${m.kind} ${m.agent} ${m.code ?? ''}`),
+    ).toEqual([
+      'skip-without-rule gemini import-outside-root',
+      'skip-without-rule gemini import-unresolved',
+    ]);
+    // Where the rule does judge the file, the skip must cite it.
+    const { findings } = check({ 'GEMINI.md': '@missing.md\n' }).result;
+    const unresolved = findings.filter((f) => f.ruleId === 'instr/import-unresolved');
+    expect(unresolved.map((f) => f.platforms)).toEqual([['gemini']]);
+    const root = plan('gemini', { skipped: [skipOf('GEMINI.md', 'import-unresolved')] });
+    expect(
+      brief(checkConsistency({ findings: unresolved, view, plans: [root] }).mismatches),
+    ).toEqual([
+      'finding-without-skip instr/import-unresolved gemini GEMINI.md',
+      'rule-not-cited instr/import-unresolved gemini GEMINI.md',
     ]);
   });
 });

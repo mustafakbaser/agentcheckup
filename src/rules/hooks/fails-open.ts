@@ -7,7 +7,7 @@ import { at, FileFindings, type JsonObject, type JsonPath, own, spanOf } from '.
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
-import { hookHandlers, hookPlatformOf } from './walk.js';
+import { hookHandlers, hookSourceOf } from './walk.js';
 
 const ID = 'hooks/fails-open';
 
@@ -50,7 +50,7 @@ function fixFor(
   };
 }
 
-function describe(platform: HookPlatform, event: string): string {
+function describe(platform: HookPlatform, event: string, type: string | undefined): string {
   switch (platform) {
     case 'claude-code':
       return `If this ${event} hook crashes, cannot start or times out, Claude Code lets the tool call proceed. If the hook enforces a policy, set "onFailure": "block" (Claude Code v2.1.295 or later).`;
@@ -60,6 +60,12 @@ function describe(platform: HookPlatform, event: string): string {
       return `If this ${event} hook fails or times out, Codex lets the tool call proceed and has no setting to block instead. If the hook enforces a policy, catch errors in the script and exit with code 2 and a reason on stderr.`;
     case 'gemini':
       return `If this ${event} hook exits with an error other than code 2, Gemini CLI shows a warning and runs the tool anyway. If the hook enforces a policy, catch errors in the script and exit with code 2.`;
+    case 'copilot':
+      return type === 'http'
+        ? `If this ${event} HTTP hook fails, times out or answers with an error status, GitHub Copilot falls back to its usual permission flow, so the tool call can proceed.`
+        : `If this ${event} hook exits with an error other than code 2, VS Code, which reads this PascalCase name, continues and runs the tool. The Copilot CLI and cloud agent deny the tool call when a preToolUse command hook fails.`;
+    case 'windsurf':
+      return `If this ${event} hook exits with an error other than code 2, Devin Local logs it and runs the tool anyway. If the hook enforces a policy, catch errors in the script and exit with code 2.`;
   }
 }
 
@@ -86,23 +92,28 @@ export const failsOpenRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const platform = hookPlatformOf(artifact);
-      if (platform === undefined || !context.targets.has(platform)) continue;
+      const source = hookSourceOf(artifact);
+      if (source === undefined || !context.targets.has(source.platform)) continue;
+      const { platform } = source;
       const doc = context.json(artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
         context.report(descriptor);
       }, 'hooks that fail open');
       const canEdit = editable(artifact);
-      for (const { event, handler, path, type } of hookHandlers(doc, platform)) {
-        if (!TOOL_GATES[platform].has(event) || !failsOpen(platform, type, handler)) continue;
+      for (const { event, handler, path, type } of hookHandlers(doc, platform, {
+        root: source.root,
+      })) {
+        if (!TOOL_GATES[platform].has(event) || !failsOpen(platform, type, handler, event)) {
+          continue;
+        }
         const field = type === 'http' ? 'url' : 'command';
         const fix = canEdit ? fixFor(artifact, platform, event, handler, path) : undefined;
         // Codex and Gemini CLI: the message already says what to change in the script.
         findings.report({
           artifact,
           ...at(spanOf(doc, [...path, field]) ?? spanOf(doc, path)),
-          message: describe(platform, event),
+          message: describe(platform, event, type),
           platforms: [platform],
           ...(fix === undefined ? {} : { fix }),
           ...(canEdit || FAIL_CLOSED[platform] === undefined

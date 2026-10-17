@@ -1,11 +1,13 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineText, positionAt } from '../../core/text.js';
+import {
+  WINDSURF_WORKSPACE_RULE_MAX_CHARS,
+  windsurfRuleLength,
+} from '../../platforms/windsurf-rules.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger } from '../shared/format.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
-
-const MAX_CHARACTERS = 12_000;
 
 export const windsurfRuleTooLongRule = defineRule({
   meta: {
@@ -31,19 +33,11 @@ export const windsurfRuleTooLongRule = defineRule({
       const start =
         frontmatter.kind === 'valid' || frontmatter.kind === 'invalid' ? frontmatter.bodyOffset : 0;
 
-      let count = 0;
-      let overflow = -1;
-      for (let i = start; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        // The second half of a surrogate pair and the CR of a CRLF pair are not counted.
-        if (code >= 0xdc00 && code <= 0xdfff && i > start) {
-          const previous = text.charCodeAt(i - 1);
-          if (previous >= 0xd800 && previous <= 0xdbff) continue;
-        }
-        if (code === 0x0d && text.charCodeAt(i + 1) === 0x0a) continue;
-        count++;
-        if (count === MAX_CHARACTERS + 1) overflow = i;
-      }
+      const { chars: count, overflow } = windsurfRuleLength(
+        text,
+        start,
+        WINDSURF_WORKSPACE_RULE_MAX_CHARS,
+      );
       if (overflow === -1) continue;
 
       const { line } = positionAt(artifact.decoded, overflow);
@@ -52,7 +46,7 @@ export const windsurfRuleTooLongRule = defineRule({
       context.report({
         artifact,
         span: { offset: overflow, length: Math.max(0, lineEnd - overflow) },
-        message: `This rule has ${formatInteger(count)} characters. Windsurf's Cascade agent limits each workspace rule file to 12,000 characters, and the text from line ${formatInteger(line)} on is past that limit.`,
+        message: `This rule has ${formatInteger(count)} characters. Windsurf's Cascade agent limits each workspace rule file to ${formatInteger(WINDSURF_WORKSPACE_RULE_MAX_CHARS)} characters, and the text from line ${formatInteger(line)} on is past that limit.`,
         guidance:
           'split the rule into several rule files with their own activation modes, or move reference material into files the rule points to',
       });

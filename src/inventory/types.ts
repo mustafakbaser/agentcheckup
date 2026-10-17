@@ -16,7 +16,9 @@ export interface Inventory {
   readonly env: readonly EnvItem[];
   /**
    * Config files that could not be analyzed, so items may be missing: `.codex/config.toml`
-   * (TOML is not parsed), `.vscode/mcp.json`, `.github/hooks/*.json`, `invalid-json:<path>`.
+   * (TOML is not parsed), files in Cline's `.clinerules/hooks/`, `.cline/hooks/` and
+   * `.cline/plugins/` (no documented format), Cascade's `.devin/hooks.json`, files the walk
+   * skipped, and `invalid-json:<path>`.
    */
   readonly incomplete: readonly string[];
 }

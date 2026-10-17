@@ -706,6 +706,7 @@ describe('hook-missing', () => {
             { agent: 'claude-code', event: 'Stop' },
             { agent: 'codex', event: 'PreToolUse', command: 'x' },
             { agent: 'gemini', event: 'BeforeTool' },
+            { agent: 'copilot', event: 'preToolUse' },
           ],
         },
       },
@@ -734,16 +735,23 @@ describe('hook-missing', () => {
       },
       {
         check: 'hook-missing',
+        entry: 'copilot preToolUse',
+        message: `The policy requires a GitHub Copilot preToolUse hook, and none is configured. ${HOOKS_NOT_ENFORCED}`,
+      },
+      {
+        check: 'hook-missing',
         entry: 'gemini BeforeTool',
         message: `The policy requires a Gemini CLI BeforeTool hook, and none is configured. ${HOOKS_NOT_ENFORCED}`,
       },
     ]);
+    // Copilot's hooks serve three agents (CLI, VS Code, cloud), so the violation names none.
     expect(report.violations.map((violation) => violation.agent)).toEqual([
       'claude-code',
       'claude-code',
       'claude-code',
       'codex',
       undefined,
+      'gemini',
     ]);
     expect(report.notes).toEqual([]);
   });
@@ -847,6 +855,7 @@ describe('unanalyzed-config', () => {
     '.vscode/mcp.json': '{}',
   };
 
+  // .vscode/mcp.json is valid and analyzed, so it must not be reported.
   it('reports every file the inventory could not analyze', () => {
     expect(brief(run({ forbid: ['broad-shell'] }, files))).toEqual([
       {
@@ -862,13 +871,6 @@ describe('unanalyzed-config', () => {
         at: '.mcp.json:-',
         message:
           'This file is not valid JSON, so what it configures cannot be checked against the policy.',
-      },
-      {
-        check: 'unanalyzed-config',
-        entry: '.vscode/mcp.json',
-        at: '.vscode/mcp.json:-',
-        message:
-          'agentcheckup cannot analyze this file, so what it configures cannot be checked against the policy.',
       },
     ]);
   });

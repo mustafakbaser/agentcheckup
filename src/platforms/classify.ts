@@ -1,4 +1,5 @@
 import type { ArtifactKind, PlatformId, SourceFile } from '../core/types.js';
+import { clinePlace } from './cline-rules.js';
 
 /**
  * Path-based classification of agent configuration files.
@@ -13,6 +14,10 @@ import type { ArtifactKind, PlatformId, SourceFile } from '../core/types.js';
  * - Cline: https://docs.cline.bot/customization/cline-rules
  * - Agent Skills: https://agentskills.io/specification
  * - Per-agent details and every source: docs/platforms.md
+ *
+ * Hook, MCP and settings files of Copilot, VS Code, Devin Local and Codex (checked 2026-10-17):
+ * SOURCES.copilotHooksReference, copilotCliMcp, vscodeMcp, devinCliHooks, devinCliMcp,
+ * devinReadConfigFrom, codexConfigLoader and clineConfig in src/platforms/sources.ts.
  */
 
 /** Platforms that read each artifact kind. */
@@ -67,6 +72,8 @@ interface Matcher {
   readonly kind: ArtifactKind;
   /** Tested against the lower-cased path. Anchored, linear-time patterns only. */
   readonly pattern: RegExp;
+  /** A further test on the path, for layouts a pattern does not express well. */
+  readonly where?: (path: string) => boolean;
   /** Canonical spelling of the case-sensitive part, used to detect case mismatches. */
   readonly canonical: (path: string) => string;
 }
@@ -129,6 +136,8 @@ const MATCHERS: readonly Matcher[] = [
     canonical: withBase('AGENTS.override.md'),
   },
   { kind: 'codex-hooks', pattern: /(?:^|\/)\.codex\/hooks\.json$/, canonical: keepPath },
+  // Classified, but the walker does not read TOML yet (isCandidateBasename).
+  { kind: 'codex-config', pattern: /(?:^|\/)\.codex\/config\.toml$/, canonical: keepPath },
 
   // Cross-agent
   { kind: 'agents-md', pattern: /(?:^|\/)agents\.md$/, canonical: withBase('AGENTS.md') },
@@ -159,6 +168,15 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)[^/]+\.instructions\.md$/,
     canonical: keepPath,
   },
+  { kind: 'copilot-hooks', pattern: /(?:^|\/)\.github\/hooks\/[^/]+\.json$/, canonical: keepPath },
+  { kind: 'copilot-mcp', pattern: /(?:^|\/)\.github\/mcp\.json$/, canonical: keepPath },
+  {
+    kind: 'copilot-settings',
+    pattern: /(?:^|\/)\.github\/copilot\/settings(?:\.local)?\.json$/,
+    canonical: keepPath,
+  },
+  // VS Code's MCP configuration, which its Copilot agent reads.
+  { kind: 'vscode-mcp', pattern: /(?:^|\/)\.vscode\/mcp\.json$/, canonical: keepPath },
 
   // Gemini CLI
   { kind: 'gemini-md', pattern: /(?:^|\/)gemini\.md$/, canonical: withBase('GEMINI.md') },
@@ -171,11 +189,31 @@ const MATCHERS: readonly Matcher[] = [
     canonical: keepPath,
   },
   { kind: 'windsurf-legacy-rules', pattern: /(?:^|\/)\.windsurfrules$/, canonical: keepPath },
+  {
+    kind: 'devin-config',
+    pattern: /(?:^|\/)\.devin\/config(?:\.local)?\.json$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'devin-mcp',
+    pattern: /(?:^|\/)\.devin\/mcp_config(?:\.local)?\.json$/,
+    canonical: keepPath,
+  },
+  // `hooks.v1.json` for Devin Local, `hooks.json` for Cascade.
+  { kind: 'devin-hooks', pattern: /(?:^|\/)\.devin\/hooks(?:\.v1)?\.json$/, canonical: keepPath },
 
-  // Cline
+  // Cline. Workflows are commands, not rules; files in the hooks and skills folders of
+  // .clinerules are not rules either (clinePlace).
+  {
+    kind: 'cline-workflow',
+    pattern: /(?:^|\/)\.(?:clinerules|cline)\/workflows\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: (path) => clinePlace(path)?.role === 'workflow',
+    canonical: keepPath,
+  },
   {
     kind: 'cline-rule',
     pattern: /(?:^|\/)\.(?:clinerules|cline\/rules)\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: (path) => clinePlace(path)?.role === 'rule',
     canonical: keepPath,
   },
 ];
@@ -188,6 +226,7 @@ export function classify(path: string): Classification | undefined {
   const lower = path.toLowerCase();
   for (const matcher of MATCHERS) {
     if (!matcher.pattern.test(lower)) continue;
+    if (matcher.where !== undefined && !matcher.where(path)) continue;
     const expected = matcher.canonical(path);
     // Only the canonical, case-sensitive file names (AGENTS.md, CLAUDE.md, SKILL.md, ...) can
     // mismatch. Directory names like `.cursor/rules` are lowercase by convention and in docs.

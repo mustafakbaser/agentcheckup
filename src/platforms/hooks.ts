@@ -1,5 +1,7 @@
 /**
- * Which hook events each platform fires, and where hook handlers sit in its configuration file.
+ * Which hook events each platform fires, where hook handlers sit in its configuration files, and
+ * whether a failing handler lets the action proceed. Shared by the hooks/* rules, the security
+ * inventory and the load plans.
  */
 import type { Artifact, ArtifactKind } from '../core/types.js';
 import {
@@ -125,16 +127,91 @@ export const GEMINI_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'notifications',
 ]);
 
-export type HookPlatform = 'claude-code' | 'codex' | 'cursor' | 'gemini';
+/**
+ * GitHub Copilot, transcribed 2026-10-17 from the hooks reference (SOURCES.copilotHooksReference,
+ * event table) and VS Code's hooks reference (SOURCES.vscodeHooksReference), which read the same
+ * `.github/hooks/*.json` files. The CLI and the cloud agent take the camelCase names; a PascalCase
+ * name selects the VS Code-compatible payload, and VS Code documents only PascalCase names.
+ * `subagentStart` and `userPromptTransformed` have no documented PascalCase name; `SubagentStart`
+ * is VS Code's.
+ */
+export const COPILOT_EVENTS = [
+  'sessionStart',
+  'sessionEnd',
+  'userPromptSubmitted',
+  'userPromptTransformed',
+  'preToolUse',
+  'postToolUse',
+  'postToolUseFailure',
+  'permissionRequest',
+  'notification',
+  'preCompact',
+  'subagentStart',
+  'subagentStop',
+  'agentStop',
+  'errorOccurred',
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'Notification',
+  'PreCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
+  'ErrorOccurred',
+] as const;
+
+/**
+ * Devin Local (Devin Desktop's default agent, shared with Devin CLI), transcribed 2026-10-17 from
+ * SOURCES.devinCliHooks and SOURCES.devinCliHookEvents. Cascade's snake_case events in the legacy
+ * `.devin/hooks.json` are not modeled.
+ */
+export const DEVIN_EVENTS = [
+  'PreToolUse',
+  'PostToolUse',
+  'PermissionRequest',
+  'UserPromptSubmit',
+  'Stop',
+  'PostCompaction',
+  'SessionStart',
+  'SessionEnd',
+] as const;
+
+/**
+ * Keys of the `hooks` table in Codex's `config.toml` that configure hooks rather than name events.
+ * Codex reads `hooks.state` only from user and session layers, so it has no effect in a project
+ * file (SOURCES.codexHookState).
+ */
+export const CODEX_TOML_CONFIG_KEYS: ReadonlySet<string> = new Set(['state']);
+
+/** Platforms that run hooks from files in the repository. Devin Local is `windsurf`. */
+export type HookPlatform = 'claude-code' | 'codex' | 'cursor' | 'gemini' | 'copilot' | 'windsurf';
 
 export const HOOK_EVENTS: Readonly<Record<HookPlatform, readonly string[]>> = {
   'claude-code': CLAUDE_EVENTS,
   codex: CODEX_EVENTS,
   cursor: CURSOR_EVENTS,
   gemini: GEMINI_EVENTS,
+  copilot: COPILOT_EVENTS,
+  windsurf: DEVIN_EVENTS,
 };
 
-export const HOOK_PLATFORMS: readonly HookPlatform[] = ['claude-code', 'codex', 'cursor', 'gemini'];
+/**
+ * Every hook platform. hooks/unknown-event names the first platform in this order that fires an
+ * event a file uses, so the four platforms modeled first keep their place.
+ */
+export const HOOK_PLATFORMS: readonly HookPlatform[] = [
+  'claude-code',
+  'codex',
+  'cursor',
+  'gemini',
+  'copilot',
+  'windsurf',
+];
 
 /**
  * Claude Code hook events Cursor runs from Claude Code settings files, and the Cursor event each
@@ -162,16 +239,51 @@ export const CURSOR_UNSUPPORTED_CLAUDE_EVENTS: ReadonlySet<string> = new Set([
 // Handlers
 // ---------------------------------------------------------------------------------------------
 
-const HOOK_PLATFORM_BY_KIND: Readonly<Partial<Record<ArtifactKind, HookPlatform>>> = {
-  'claude-settings': 'claude-code',
-  'codex-hooks': 'codex',
-  'cursor-hooks': 'cursor',
-  'gemini-settings': 'gemini',
+/**
+ * Where a file keeps its hook events:
+ * - `hooks`: in the object under the top-level `"hooks"` key.
+ * - `document`: the whole document is that object, as in Devin Local's `.devin/hooks.v1.json`
+ *   ("no wrapper key needed", SOURCES.devinCliHooks). A file that has the wrapper anyway is read
+ *   through it.
+ */
+export type HookRoot = 'hooks' | 'document';
+
+export interface HookSource {
+  readonly platform: HookPlatform;
+  readonly root: HookRoot;
+}
+
+const HOOK_SOURCE_BY_KIND: Readonly<Partial<Record<ArtifactKind, HookSource>>> = {
+  'claude-settings': { platform: 'claude-code', root: 'hooks' },
+  'codex-hooks': { platform: 'codex', root: 'hooks' },
+  'cursor-hooks': { platform: 'cursor', root: 'hooks' },
+  'gemini-settings': { platform: 'gemini', root: 'hooks' },
+  'copilot-hooks': { platform: 'copilot', root: 'hooks' },
+  'copilot-settings': { platform: 'copilot', root: 'hooks' },
+  'devin-config': { platform: 'windsurf', root: 'hooks' },
 };
 
-/** The platform that reads hooks from this kind of file. */
-export function hookPlatformOf(artifact: Artifact): HookPlatform | undefined {
-  return HOOK_PLATFORM_BY_KIND[artifact.kind];
+/** The `.devin/hooks*.json` file Devin Local reads. */
+const DEVIN_HOOKS_FILE = 'hooks.v1.json';
+
+/**
+ * The platform that reads hooks from this file and where it keeps them. Of the two
+ * `.devin/hooks*.json` files, Devin Local reads `hooks.v1.json`; `hooks.json` is Cascade's, whose
+ * format is not modeled, so it has none.
+ */
+export function hookSourceOf(artifact: Pick<Artifact, 'kind' | 'path'>): HookSource | undefined {
+  if (artifact.kind === 'devin-hooks') {
+    const name = artifact.path.slice(artifact.path.lastIndexOf('/') + 1).toLowerCase();
+    return name === DEVIN_HOOKS_FILE ? { platform: 'windsurf', root: 'document' } : undefined;
+  }
+  return HOOK_SOURCE_BY_KIND[artifact.kind];
+}
+
+/** The platform that reads hooks from this file. */
+export function hookPlatformOf(
+  artifact: Pick<Artifact, 'kind' | 'path'>,
+): HookPlatform | undefined {
+  return hookSourceOf(artifact)?.platform;
 }
 
 export interface HookEvent {
@@ -180,15 +292,24 @@ export interface HookEvent {
   readonly entries: unknown;
 }
 
-/** Keys of the top-level `hooks` object, except Gemini CLI's configuration keys. */
-export function hookEvents(doc: ParsedJson, platform: HookPlatform): HookEvent[] {
-  const root = doc.value;
-  if (!isObject(root)) return [];
-  const hooks = own(root, 'hooks');
+/**
+ * Keys of the events object, except Gemini CLI's configuration keys: the top-level `hooks`
+ * object, or with `root: 'document'` the document itself ({@link HookRoot}).
+ */
+export function hookEvents(
+  doc: ParsedJson,
+  platform: HookPlatform,
+  root: HookRoot = 'hooks',
+): HookEvent[] {
+  const value = doc.value;
+  if (!isObject(value)) return [];
+  const wrapped = own(value, 'hooks');
+  const hooks = root === 'document' && !isObject(wrapped) ? value : wrapped;
   if (!isObject(hooks)) return [];
+  const base: JsonPath = hooks === value ? [] : ['hooks'];
   return Object.keys(hooks)
     .filter((name) => !(platform === 'gemini' && GEMINI_CONFIG_KEYS.has(name)))
-    .map((name) => ({ name, path: ['hooks', name], entries: hooks[name] }));
+    .map((name) => ({ name, path: [...base, name], entries: hooks[name] }));
 }
 
 export interface HookHandler {
@@ -213,13 +334,19 @@ export interface HookHandlerOptions {
    * security inventory lists them; rules about how a hook runs leave them out. Default false.
    */
   readonly includeUnknown?: boolean;
+  /** Where the file keeps its events ({@link hookSourceOf}). Default `hooks`. */
+  readonly root?: HookRoot;
 }
+
+/** Platforms that list handlers directly under each event, without matcher groups. */
+const FLAT_HANDLERS: ReadonlySet<HookPlatform> = new Set(['cursor', 'copilot']);
 
 /**
  * Hook handlers in document order, for events the platform fires. Handlers under unknown event
  * names never run (hooks/unknown-event reports them), so rules about how a hook runs skip them.
- * Claude Code, Codex and Gemini CLI nest handlers as `hooks.<Event>[i].hooks[j]`; Cursor lists
- * them directly as `hooks.<event>[i]`.
+ * Claude Code, Codex, Gemini CLI and Devin Local nest handlers as `hooks.<Event>[i].hooks[j]`;
+ * Cursor and GitHub Copilot list them directly as `hooks.<event>[i]`, with any matcher on the
+ * handler itself.
  */
 export function hookHandlers(
   doc: ParsedJson,
@@ -228,7 +355,7 @@ export function hookHandlers(
 ): HookHandler[] {
   const fired = HOOK_EVENTS[platform];
   return eventHandlers(
-    hookEvents(doc, platform).filter(
+    hookEvents(doc, platform, options.root).filter(
       (event) => options.includeUnknown === true || fired.includes(event.name),
     ),
     platform,
@@ -247,7 +374,8 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
     if (!Array.isArray(event.entries)) continue;
     event.entries.forEach((entry: unknown, i) => {
       if (!isObject(entry)) return;
-      if (platform === 'cursor') {
+      if (FLAT_HANDLERS.has(platform)) {
+        // Cursor and Copilot both read a handler without `type` as a command hook.
         const type = own(entry, 'type');
         out.push({
           event: event.name,
@@ -305,18 +433,29 @@ export const TOOL_GATES: Readonly<Record<HookPlatform, ReadonlySet<string>>> = {
   codex: new Set(['PreToolUse']),
   cursor: new Set(['preToolUse', 'beforeShellExecution', 'beforeMCPExecution', 'beforeReadFile']),
   gemini: new Set(['BeforeTool']),
+  copilot: new Set(['preToolUse', 'PreToolUse']),
+  windsurf: new Set(['PreToolUse']),
 };
 
 /**
  * True when a crash or a failure to start (in all but Gemini CLI also a timeout) of this handler
  * lets the action proceed: Claude Code command and HTTP hooks without `"onFailure": "block"` that
- * are not async, Cursor command hooks without `"failClosed": true`, and every Codex and Gemini
- * CLI command hook. hooks/fails-open cites the sources.
+ * are not async, Cursor command hooks without `"failClosed": true`, every Codex, Gemini CLI and
+ * Devin Local command hook (SOURCES.devinCliHooks: only exit code 2 blocks), and GitHub Copilot
+ * HTTP hooks. hooks/fails-open cites the sources.
+ *
+ * Copilot `preToolUse` command hooks fail closed: a crash or any non-zero exit denies the tool
+ * call on the CLI and the cloud agent; only a timeout lets it proceed
+ * (SOURCES.copilotHooksReference). Under the PascalCase name `PreToolUse` they fail open, because
+ * VS Code, which reads the same files and documents only PascalCase names, continues after any
+ * exit code but 2 (SOURCES.vscodeHooksReference). `event` is the event the handler is registered
+ * for; only Copilot needs it.
  */
 export function failsOpen(
   platform: HookPlatform,
   type: string | undefined,
   handler: JsonObject,
+  event?: string,
 ): boolean {
   switch (platform) {
     case 'claude-code':
@@ -328,13 +467,18 @@ export function failsOpen(
       );
     case 'cursor':
       return type === 'command' && own(handler, 'failClosed') !== true;
+    case 'copilot':
+      return type === 'http' || (type === 'command' && event !== 'preToolUse');
     case 'codex':
     case 'gemini':
+    case 'windsurf':
       return type === 'command';
   }
 }
 
 /** A tool-gating hook that lets the tool call proceed when it fails, as hooks/fails-open reports. */
 export function gateFailsOpen(platform: HookPlatform, hook: HookHandler): boolean {
-  return TOOL_GATES[platform].has(hook.event) && failsOpen(platform, hook.type, hook.handler);
+  return (
+    TOOL_GATES[platform].has(hook.event) && failsOpen(platform, hook.type, hook.handler, hook.event)
+  );
 }

@@ -4,14 +4,14 @@
 
 JSON object repeats a key.
 
-|            |                                                                                                                         |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `warn`                                                                                                                  |
-| Category   | `correctness`                                                                                                           |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                 |
-| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks` |
-| Fixable    | Yes, `safe`                                                                                                             |
-| Since      | 2026.10                                                                                                                 |
+|            |                                                                                                                                                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `warn`                                                                                                                                                                                                                                |
+| Category   | `correctness`                                                                                                                                                                                                                         |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                               |
+| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks` |
+| Fixable    | Yes, `safe`                                                                                                                                                                                                                           |
+| Since      | 2026.10                                                                                                                                                                                                                               |
 
 ## Why
 

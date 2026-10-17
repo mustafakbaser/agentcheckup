@@ -1122,6 +1122,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "cline-workflow",
         "imported-file"
       ],
       "platforms": [
@@ -2273,7 +2274,14 @@
         "cursor-mcp",
         "gemini-settings",
         "mcp-json",
-        "codex-hooks"
+        "codex-hooks",
+        "copilot-hooks",
+        "copilot-mcp",
+        "copilot-settings",
+        "vscode-mcp",
+        "devin-config",
+        "devin-mcp",
+        "devin-hooks"
       ],
       "platforms": [
         "claude-code",
@@ -2315,7 +2323,7 @@
     {
       "id": "json/invalid-syntax",
       "title": "Configuration file is not valid JSON",
-      "rationale": "Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses.\n\nGemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code and Cursor do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json` and `.cursor/hooks.json`, so those are `info` findings. Other syntax errors are errors in every file.\n\nThe finding points at the first syntax error. Fix it and run agentcheckup again.",
+      "rationale": "Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.\n\nGemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in every file.\n\nThe finding points at the first syntax error. Fix it and run agentcheckup again.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -2325,13 +2333,15 @@
         "cursor-mcp",
         "cursor-hooks",
         "codex-hooks",
-        "gemini-settings"
+        "gemini-settings",
+        "copilot-hooks"
       ],
       "platforms": [
         "claude-code",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "copilot"
       ],
       "sources": [
         {
@@ -2381,6 +2391,12 @@
           "url": "https://forum.cursor.com/t/92529",
           "checked": "2026-10-14",
           "status": "unverified"
+        },
+        {
+          "title": "GitHub Copilot: Hooks reference",
+          "url": "https://docs.github.com/en/copilot/reference/hooks-reference",
+          "checked": "2026-10-17",
+          "status": "verified"
         }
       ],
       "since": "2026.10",
@@ -2516,7 +2532,14 @@
         "cursor-mcp",
         "gemini-settings",
         "mcp-json",
-        "codex-hooks"
+        "codex-hooks",
+        "copilot-hooks",
+        "copilot-mcp",
+        "copilot-settings",
+        "vscode-mcp",
+        "devin-config",
+        "devin-mcp",
+        "devin-hooks"
       ],
       "platforms": [
         "claude-code",
@@ -2728,6 +2751,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "cline-workflow",
         "imported-file"
       ],
       "platforms": [
@@ -2797,6 +2821,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "cline-workflow",
         "imported-file",
         "claude-settings",
         "claude-plugin-manifest",
@@ -2804,7 +2829,14 @@
         "cursor-mcp",
         "gemini-settings",
         "mcp-json",
-        "codex-hooks"
+        "codex-hooks",
+        "copilot-hooks",
+        "copilot-mcp",
+        "copilot-settings",
+        "vscode-mcp",
+        "devin-config",
+        "devin-mcp",
+        "devin-hooks"
       ],
       "platforms": [
         "claude-code",
@@ -2879,6 +2911,7 @@
         "windsurf-rule",
         "windsurf-legacy-rules",
         "cline-rule",
+        "cline-workflow",
         "claude-settings",
         "codex-hooks",
         "cursor-hooks",

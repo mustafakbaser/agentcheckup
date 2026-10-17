@@ -12,7 +12,7 @@ import { quote, quotePath } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import type { HookPlatform } from './events.js';
 import { HOOK_SOURCES } from './sources.js';
-import { hookHandlers, hookPlatformOf } from './walk.js';
+import { hookHandlers, hookSourceOf } from './walk.js';
 
 /** Handlers examined per file; bounds the work on hostile input. */
 const MAX_HANDLERS = 500;
@@ -121,6 +121,12 @@ function consequence(platform: HookPlatform, handler: JsonObject, event: string)
       return 'The hook fails on every run, and Codex continues without it.';
     case 'gemini':
       return 'The hook fails on every run, and Gemini CLI continues without it.';
+    case 'copilot':
+      return event === 'preToolUse'
+        ? 'The hook fails on every run, and GitHub Copilot denies the tool call every time.'
+        : 'The hook fails on every run, and GitHub Copilot continues without it.';
+    case 'windsurf':
+      return 'The hook fails on every run, and Devin Local continues without it.';
   }
 }
 
@@ -148,9 +154,15 @@ export const scriptMissingRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const platform = hookPlatformOf(artifact);
-      if (platform === undefined || platform === 'gemini' || !context.targets.has(platform))
+      const source = hookSourceOf(artifact);
+      if (
+        source === undefined ||
+        source.platform === 'gemini' ||
+        !context.targets.has(source.platform)
+      ) {
         continue;
+      }
+      const { platform } = source;
       const doc = context.json(artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
@@ -158,10 +170,9 @@ export const scriptMissingRule = defineRule({
       }, 'hooks with a missing script');
       const root = projectRootOf(artifact);
       const syntax = hookCommandSyntax(context.snapshot, platform, root);
-      for (const { event, handler, path, type } of hookHandlers(doc, platform).slice(
-        0,
-        MAX_HANDLERS,
-      )) {
+      for (const { event, handler, path, type } of hookHandlers(doc, platform, {
+        root: source.root,
+      }).slice(0, MAX_HANDLERS)) {
         if (type !== 'command') continue;
         const found = candidate(handler, path, syntax);
         if (found === undefined) continue;

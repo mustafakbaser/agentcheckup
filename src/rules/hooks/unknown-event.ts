@@ -10,7 +10,7 @@ import { SOURCES } from '../sources.js';
 import { HOOK_EVENTS, HOOK_PLATFORMS, type HookPlatform } from './events.js';
 import { PLATFORM_LABEL } from './platform-text.js';
 import { HOOK_SOURCES } from './sources.js';
-import { type HookEvent, hookEvents, hookPlatformOf } from './walk.js';
+import { type HookEvent, hookEvents, hookSourceOf } from './walk.js';
 
 const ID = 'hooks/unknown-event';
 
@@ -19,6 +19,8 @@ const CONSEQUENCE: Readonly<Record<HookPlatform, string>> = {
   codex: 'Codex ignores them without a warning, so these hooks never run.',
   cursor: 'Cursor never fires such an event, so these hooks never run.',
   gemini: 'Gemini CLI skips these hooks with an "Invalid hook event name" warning.',
+  copilot: 'GitHub Copilot never fires such an event, so these hooks never run.',
+  windsurf: 'Devin Local never fires such an event, so these hooks never run.',
 };
 
 /** Edit distance, bounded: strings longer than 40 characters are never compared. */
@@ -133,8 +135,9 @@ export const unknownEventRule = defineRule({
   defaultOptions: undefined,
   check(context) {
     for (const artifact of context.artifacts) {
-      const platform = hookPlatformOf(artifact);
-      if (platform === undefined || !context.targets.has(platform)) continue;
+      const source = hookSourceOf(artifact);
+      if (source === undefined || !context.targets.has(source.platform)) continue;
+      const { platform } = source;
       const doc = context.json(artifact);
       if (!doc.ok) continue;
       const findings = new FileFindings((descriptor) => {
@@ -142,8 +145,9 @@ export const unknownEventRule = defineRule({
       }, 'unknown hook event names');
       const known = new Set(HOOK_EVENTS[platform]);
       const canEdit = editable(artifact);
-      const declared = new Set(hookEvents(doc, platform).map((event) => event.name));
-      for (const event of hookEvents(doc, platform)) {
+      const events = hookEvents(doc, platform, source.root);
+      const declared = new Set(events.map((event) => event.name));
+      for (const event of events) {
         if (known.has(event.name)) continue;
         const { message, suggestion } = unknownEvent(platform, event.name);
         const taken = suggestion !== undefined && declared.has(suggestion);

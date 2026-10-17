@@ -10,7 +10,7 @@ Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 59 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7596 |
+| Artifacts                   | 7603 |
 | Errors                      |  698 |
 | Warnings                    | 1235 |
 | Infos                       | 1542 |
@@ -68,11 +68,11 @@ From the security inventory, which lists every item whether or not an agent load
 
 |                                            | Repositories | Items |
 | ------------------------------------------ | -----------: | ----: |
-| MCP servers                                |           26 |   113 |
-| Local MCP servers (started from a command) |           19 |    85 |
-| Unpinned local MCP servers                 |           16 |    73 |
-| Remote MCP servers (URL)                   |           17 |    28 |
-| Hooks                                      |           27 |   214 |
+| MCP servers                                |           29 |   119 |
+| Local MCP servers (started from a command) |           22 |    89 |
+| Unpinned local MCP servers                 |           19 |    77 |
+| Remote MCP servers (URL)                   |           17 |    30 |
+| Hooks                                      |           28 |   215 |
 | Hooks that fail open                       |           12 |    36 |
 | Broad permissions                          |           23 |   739 |
 | Env overrides: endpoint                    |            0 |     0 |
@@ -98,16 +98,21 @@ From the security inventory, which lists every item whether or not an agent load
 | `cursor-rule`               |        49 |           10 |
 | `claude-settings`           |        44 |           38 |
 | `copilot-instructions`      |        19 |           16 |
-| `cline-rule`                |        17 |            1 |
 | `gemini-md`                 |        15 |            8 |
+| `cline-rule`                |         9 |            1 |
+| `cline-workflow`            |         7 |            1 |
 | `cursor-mcp`                |         7 |            7 |
 | `codex-hooks`               |         6 |            6 |
 | `cursor-hooks`              |         5 |            5 |
+| `vscode-mcp`                |         5 |            5 |
 | `cursor-legacy-rules`       |         4 |            4 |
 | `gemini-settings`           |         4 |            4 |
 | `windsurf-rule`             |         2 |            2 |
 | `agents-override-md`        |         1 |            1 |
 | `claude-local-md`           |         1 |            1 |
+| `copilot-hooks`             |         1 |            1 |
+| `copilot-mcp`               |         1 |            1 |
+| `copilot-settings`          |         1 |            1 |
 | `windsurf-legacy-rules`     |         1 |            1 |
 
 ## Score distribution
@@ -155,13 +160,13 @@ Repository columns count repositories with at least one finding of that severity
 | `instr/symlink-materialized`        | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               75 |
 | `instr/vague-directive`             | info     |      0 |        0 |     2 |                 0 |                   0 |                2 |              2 |               75 |
 | `instr/windsurf-rule-too-long`      | info     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |                3 |
-| `json/duplicate-key`                | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               58 |
+| `json/duplicate-key`                | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               59 |
 | `json/invalid-syntax`               | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               58 |
 | `mcp/env-syntax-mismatch`           | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               38 |
 | `mcp/gemini-server-name`            | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                4 |
 | `mcp/gemini-trust`                  | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                4 |
 | `mcp/insecure-transport`            | warn     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |               39 |
-| `mcp/literal-secret`                | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               58 |
+| `mcp/literal-secret`                | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               59 |
 | `mcp/url-without-type`              | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               34 |
 | `risk/hidden-comment`               | info     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               79 |
 | `risk/hidden-unicode`               | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               79 |

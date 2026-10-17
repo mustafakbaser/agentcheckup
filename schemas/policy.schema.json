@@ -115,7 +115,7 @@
             "required": ["agent", "event"],
             "properties": {
               "agent": {
-                "enum": ["claude-code", "codex", "cursor", "gemini"]
+                "enum": ["claude-code", "codex", "cursor", "gemini", "copilot", "windsurf"]
               },
               "event": {
                 "description": "A hook event the agent fires.",
@@ -254,6 +254,63 @@
                       "BeforeModel",
                       "AfterModel",
                       "BeforeToolSelection"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "const": "copilot"
+                  },
+                  "event": {
+                    "enum": [
+                      "sessionStart",
+                      "sessionEnd",
+                      "userPromptSubmitted",
+                      "userPromptTransformed",
+                      "preToolUse",
+                      "postToolUse",
+                      "postToolUseFailure",
+                      "permissionRequest",
+                      "notification",
+                      "preCompact",
+                      "subagentStart",
+                      "subagentStop",
+                      "agentStop",
+                      "errorOccurred",
+                      "SessionStart",
+                      "SessionEnd",
+                      "UserPromptSubmit",
+                      "PreToolUse",
+                      "PostToolUse",
+                      "PostToolUseFailure",
+                      "PermissionRequest",
+                      "Notification",
+                      "PreCompact",
+                      "SubagentStart",
+                      "SubagentStop",
+                      "Stop",
+                      "ErrorOccurred"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "const": "windsurf"
+                  },
+                  "event": {
+                    "enum": [
+                      "PreToolUse",
+                      "PostToolUse",
+                      "PermissionRequest",
+                      "UserPromptSubmit",
+                      "Stop",
+                      "PostCompaction",
+                      "SessionStart",
+                      "SessionEnd"
                     ]
                   }
                 }

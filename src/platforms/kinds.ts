@@ -19,6 +19,7 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'windsurf-rule',
   'windsurf-legacy-rules',
   'cline-rule',
+  'cline-workflow',
 ]);
 
 /** Kinds whose content is JSON. */
@@ -30,7 +31,16 @@ export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'gemini-settings',
   'mcp-json',
   'codex-hooks',
+  'copilot-hooks',
+  'copilot-mcp',
+  'copilot-settings',
+  'vscode-mcp',
+  'devin-config',
+  'devin-mcp',
+  'devin-hooks',
 ]);
+
+export { TOML_KINDS } from '../core/types.js';
 
 /**
  * Markdown kinds plus `imported-file`: a file that an instruction file imports with `@path`

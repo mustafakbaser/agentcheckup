@@ -4,14 +4,14 @@
 
 Configuration file contains a literal credential.
 
-|            |                                                                                                                         |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `error`                                                                                                                 |
-| Category   | `risk`                                                                                                                  |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                 |
-| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks` |
-| Fixable    | Yes, `review`                                                                                                           |
-| Since      | 2026.10                                                                                                                 |
+|            |                                                                                                                                                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `error`                                                                                                                                                                                                                               |
+| Category   | `risk`                                                                                                                                                                                                                                |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf, Cline                                                                                                                                                               |
+| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks` |
+| Fixable    | Yes, `review`                                                                                                                                                                                                                         |
+| Since      | 2026.10                                                                                                                                                                                                                               |
 
 ## Why
 

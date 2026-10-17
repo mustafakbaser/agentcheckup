@@ -16,7 +16,6 @@
 import { isUnpinned } from '../core/baseline.js';
 import { compareStrings } from '../core/compare.js';
 import { formatInteger } from '../core/format.js';
-import type { Artifact } from '../core/types.js';
 import { COMMAND_SETTINGS } from '../inventory/env-class.js';
 import type {
   EnvItem,
@@ -29,7 +28,7 @@ import type {
 import { classify } from '../platforms/classify.js';
 import { type HookPlatform, hookPlatformOf } from '../platforms/hooks.js';
 import { canonicalJson } from '../platforms/inventory-ids.js';
-import { AGENT_NAMES, type ContextAgent } from '../platforms/load/types.js';
+import { AGENT_NAMES, ALL_CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { broadGrant } from '../platforms/permissions.js';
 import { joinNames, platformName, quote, quotePath } from '../rules/shared/format.js';
 import { grantsTool, isShellTool, shellProgram, toolRule } from './grants.js';
@@ -215,8 +214,7 @@ function settingsAgent(file: string): ContextAgent | undefined {
 /** The agent whose hook configuration `file` is. */
 function hookAgent(file: string): HookPlatform | undefined {
   const kind = classify(file)?.kind;
-  // hookPlatformOf reads only the kind.
-  return kind === undefined ? undefined : hookPlatformOf({ kind } as Artifact);
+  return kind === undefined ? undefined : hookPlatformOf({ kind, path: file });
 }
 
 /** The violations of one scan, each id once: a requirement the policy repeats is one violation. */
@@ -305,6 +303,11 @@ function collectAll(policy: Policy, subject: PolicySubject): Found[] {
     }
   }
   return out;
+}
+
+/** True for a hook platform that is also one agent with a load model; Copilot has several. */
+function isContextAgent(platform: HookPlatform): platform is HookPlatform & ContextAgent {
+  return (ALL_CONTEXT_AGENTS as readonly string[]).includes(platform);
 }
 
 function agentField(agent: ContextAgent | undefined): { readonly agent?: ContextAgent } {
@@ -581,7 +584,7 @@ function hookMissing(requirement: HookRequirement): Found {
     id: `hook-missing:${canonicalJson(requirement)}`,
     check: 'hook-missing',
     entry: parts.join(' '),
-    ...agentField(agent === 'gemini' ? undefined : agent),
+    ...agentField(isContextAgent(agent) ? agent : undefined),
     message: `The policy requires a ${hook}, and none is configured. ${HOOKS_NOT_ENFORCED}`,
   };
 }

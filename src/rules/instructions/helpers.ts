@@ -1,4 +1,6 @@
 import type { Artifact, PlatformId, RuleContext } from '../../core/types.js';
+import { artifactIndex } from '../../platforms/load/view.js';
+import { effectiveReaders } from '../../platforms/readers.js';
 
 export {
   basename,
@@ -11,12 +13,21 @@ export {
   selfAndAncestors,
 } from '../../platforms/paths.js';
 
-/** The artifact's readers that the user targets, in the artifact's order. */
+/**
+ * The platforms that read the artifact in this repository and that the user targets, sorted by
+ * platform id: its default readers with the repository's own settings applied, Gemini CLI's
+ * `context.fileName` and Devin Local's `read_config_from` (src/platforms/readers.ts).
+ */
 export function targetedReaders(
-  context: Pick<RuleContext<unknown>, 'targets'>,
+  context: Pick<RuleContext<unknown>, 'targets' | 'allArtifacts' | 'json'>,
   artifact: Artifact,
 ): PlatformId[] {
-  return artifact.readers.filter((platform) => context.targets.has(platform));
+  const view = {
+    artifacts: context.allArtifacts,
+    index: artifactIndex(context.allArtifacts),
+    json: (target: Artifact) => context.json(target),
+  };
+  return effectiveReaders(view, artifact).filter((platform) => context.targets.has(platform));
 }
 
 /**

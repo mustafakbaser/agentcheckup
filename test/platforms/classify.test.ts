@@ -89,6 +89,73 @@ describe('classify', () => {
   });
 });
 
+describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Local and Codex', () => {
+  it.each([
+    ['.github/hooks/policy.json', 'copilot-hooks'],
+    ['pkg/.github/hooks/policy.json', 'copilot-hooks'],
+    ['.github/mcp.json', 'copilot-mcp'],
+    ['.vscode/mcp.json', 'vscode-mcp'],
+    ['.github/copilot/settings.json', 'copilot-settings'],
+    ['.github/copilot/settings.local.json', 'copilot-settings'],
+    ['.devin/config.json', 'devin-config'],
+    ['.devin/config.local.json', 'devin-config'],
+    ['.devin/mcp_config.json', 'devin-mcp'],
+    ['.devin/mcp_config.local.json', 'devin-mcp'],
+    ['.devin/hooks.v1.json', 'devin-hooks'],
+    ['.devin/hooks.json', 'devin-hooks'],
+    ['.codex/config.toml', 'codex-config'],
+    ['services/api/.codex/config.toml', 'codex-config'],
+  ] as const)('classifies %s as %s', (path, kind) => {
+    expect(classify(path)).toEqual({ kind });
+  });
+
+  it.each([
+    '.github/hooks/nested/policy.json',
+    '.github/hooks/readme.md',
+    '.github/copilot/config.json',
+    '.vscode/settings.json',
+    '.devin/hooks.v2.json',
+    '.devin/mcp.json',
+    '.windsurf/hooks.json',
+    'mcp.json',
+    '.codex/config.toml.md',
+  ])('does not classify %s', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+
+  it('leaves TOML to the walker filter: config.toml is classified but not a candidate', () => {
+    expect(isCandidateBasename('config.toml')).toBe(false);
+    expect(isCandidateBasename('hooks.v1.json')).toBe(true);
+  });
+});
+
+describe('classify: what Cline treats as rules', () => {
+  it.each([
+    ['.clinerules/workflows/release.md', 'cline-workflow'],
+    ['.clinerules/workflows/team/release.md', 'cline-workflow'],
+    ['.cline/workflows/release.md', 'cline-workflow'],
+    ['pkg/.clinerules/workflows/release.md', 'cline-workflow'],
+    ['.clinerules/style.md', 'cline-rule'],
+    ['.clinerules/backend/api.md', 'cline-rule'],
+    ['.cline/rules/style.md', 'cline-rule'],
+    // Only the folders of .clinerules are excluded, not those of .cline/rules.
+    ['.cline/rules/hooks/notes.md', 'cline-rule'],
+    ['.clinerules/skills/deploy/SKILL.md', 'skill'],
+  ] as const)('classifies %s as %s', (path, kind) => {
+    expect(classify(path)).toEqual({ kind });
+  });
+
+  it.each([
+    '.clinerules/hooks/README.md',
+    '.clinerules/skills/deploy/reference.md',
+    '.cline/hooks/notes.md',
+    '.cline/skills/deploy/reference.md',
+    '.cline/notes.md',
+  ])('does not classify %s, which Cline does not read as a rule', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+});
+
 describe('classify: directory roles win over file names', () => {
   it.each([
     ['.claude/rules/CLAUDE.md', 'claude-rule'],
