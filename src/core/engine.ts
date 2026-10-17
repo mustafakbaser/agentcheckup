@@ -340,8 +340,8 @@ function createParseServices(
     return doc;
   });
   // Parse JSON the way the reading platform does: Gemini CLI strips comments from its
-  // settings.json before JSON.parse, VS Code reads .vscode/mcp.json as JSONC, and every other
-  // agent uses strict JSON.
+  // settings.json before JSON.parse, Devin Local documents comments in .devin/config.json, VS
+  // Code reads .vscode/mcp.json as JSONC, and every other agent uses strict JSON.
   const json = memoize<JsonDocument>((a) => {
     const { text } = a.decoded;
     const dialect = jsonDialect(a.kind);
@@ -363,7 +363,7 @@ function createParseServices(
 }
 
 function jsonDialect(kind: ArtifactKind): JsonDialect {
-  if (kind === 'gemini-settings') return 'comments';
+  if (kind === 'gemini-settings' || kind === 'devin-config') return 'comments';
   return kind === 'vscode-mcp' ? 'jsonc' : 'strict';
 }
 

@@ -640,6 +640,19 @@ describe('Copilot, VS Code and Devin Local files', () => {
     );
   });
 
+  it('reads a Devin Local config with comments, which its docs allow', () => {
+    const inventory = inventoryOf({
+      '.devin/config.json':
+        '{\n  // Servers for this project.\n  "mcpServers": { "docs": { "command": "npx", "args": ["-y", "docs-mcp"] } }\n}\n',
+      // A comment in a file Devin Local does not document comments for is still invalid.
+      '.devin/mcp_config.json': '{ // no\n "mcpServers": {} }',
+    });
+    expect(inventory.mcpServers.map((server) => server.id)).toEqual([
+      'mcp:.devin/config.json#docs',
+    ]);
+    expect(inventory.incomplete).toEqual(['invalid-json:.devin/mcp_config.json']);
+  });
+
   it('reads Copilot hooks with every command field', () => {
     const file = '.github/hooks/policy.json';
     const hooksFile = (powershell: string) =>
