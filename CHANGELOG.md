@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/mustafakbaser/agentcheckup/compare/v0.1.1...v0.1.2) (2026-10-18)
+
+
+### Documentation
+
+* add npm, OpenSSF Scorecard and Marketplace badges ([eb00419](https://github.com/mustafakbaser/agentcheckup/commit/eb00419d25b97e96e14e5e1143ef3b680e985314))
+* show a recording of context, fix and fix --write in the README ([a223f3f](https://github.com/mustafakbaser/agentcheckup/commit/a223f3ff0f6ac8a61df44b6a77b4e644e9ed416a))
+
 ## [0.1.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.1.0...v0.1.1) (2026-10-18)
 
 
