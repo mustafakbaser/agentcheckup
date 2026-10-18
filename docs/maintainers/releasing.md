@@ -35,7 +35,8 @@ not automated.
    says the name is reserved, and no install scripts. After 0.1.0 is out, deprecate it with
    `npm deprecate agentcheckup@0.0.0 "Placeholder. Install the latest version."`.
 4. **Configure trusted publishing** on npmjs.com for the package: GitHub Actions, repository
-   `mustafakbaser/agentcheckup`, workflow `release.yml`, environment `npm`.
+   `mustafakbaser/agentcheckup`, workflow `release.yml`, environment `npm`. A new configuration
+   must complete its first publish within two days, so set it up right before the first release.
 5. **Lock down publishing.** In the package settings, require two-factor authentication and
    disallow tokens.
 6. **Protect the environment.** Create `npm` with yourself as a required reviewer and restrict it
@@ -78,6 +79,13 @@ npm updates fail, switch npm updates to Renovate and keep Dependabot for GitHub 
   workflow on `main`, then run it for that tag: `gh workflow run release.yml -f tag=v0.1.0`.
   The run builds the tag's source, checks that `package.json` holds that version, and needs the
   same `npm` environment approval as any publish.
+- The publish step fails with `404 Not Found - PUT https://registry.npmjs.org/agentcheckup` after
+  the provenance statement is signed: npm did not accept the run as the trusted publisher. A new
+  configuration that has not published within two days lapses; revoke it
+  (`npm trust revoke agentcheckup --id=<id>`, the id from `npm trust list agentcheckup`) and
+  create it again (`npm trust github agentcheckup --file=release.yml
+--repository=mustafakbaser/agentcheckup --environment=npm --allow-publish`), then run the
+  workflow for the tag. Otherwise check that the file, repository and environment match exactly.
 - A bad version was published: publish a fixed patch release. Use `npm deprecate` on the bad
   version with a message pointing to the fix. Do not unpublish.
 - A credential or workflow was compromised: revoke trusted publishing on npmjs.com first, then
