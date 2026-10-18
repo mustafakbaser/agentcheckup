@@ -95,3 +95,11 @@ jobs:
       - run: pnpm build
       - name: Smoke-test the packed tarball
         run: pnpm smoke
+      - name: Rehearse the release's pack and publish commands
+        # The commands of the publish job in release.yml, as a dry run. A dry run still refuses a
+        # version npm already has, so the rehearsal uses a version npm has never seen.
+        run: |
+          npm version "0.0.0-ci.$GITHUB_RUN_ID" --no-git-tag-version
+          mkdir dist-pack
+          npm pack --pack-destination dist-pack
+          npm publish ./dist-pack/*.tgz --dry-run --access public --tag ci
