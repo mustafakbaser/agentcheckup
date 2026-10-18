@@ -225,6 +225,22 @@ describe('formatStylish with a baseline', () => {
     expect(plain(richResult)).not.toMatch(/ {2}new {2}/);
   });
 
+  it('leaves the marker column out when no shown finding is new', () => {
+    const unchanged = plain(
+      {
+        ...result,
+        findings: result.findings.map((finding) => ({
+          ...finding,
+          baseline: 'unchanged' as const,
+        })),
+      },
+      { level: 'compact' },
+    );
+    expect(unchanged.split('\n')).toContain(
+      '   1:1  info   Start with a one-paragraph project overview.       clarity/missing-overview',
+    );
+  });
+
   it('says how many findings are new and lists the changes that need review', () => {
     expect(output).toContain('\n2 new, 6 unchanged, 2 resolved since the baseline\n');
     expect(output).toContain(

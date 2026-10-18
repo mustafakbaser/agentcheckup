@@ -153,7 +153,7 @@ interface Context {
   readonly style: Style;
   readonly symbols: Symbols;
   readonly ascii: boolean;
-  /** The scan ran with `--baseline`: rows get a column that marks new findings. */
+  /** A shown finding is new since `--baseline`: rows get a column that marks new findings. */
   readonly baseline: boolean;
   /** Rules newer than the baseline's rule set: their new findings are marked "new rule". */
   readonly newRules: ReadonlySet<string>;
@@ -645,9 +645,11 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     style: options.style,
     symbols: ascii ? ASCII_SYMBOLS : UNICODE_SYMBOLS,
     ascii,
-    baseline:
-      result.baseline !== undefined ||
-      result.findings.some((finding) => finding.baseline !== undefined),
+    // The marker column only when a finding it would mark is shown: without one it is blank.
+    baseline: result.findings.some(
+      (finding) =>
+        finding.baseline === 'new' && (options.showSuppressed === true || !finding.suppressed),
+    ),
     newRules,
     markerWidth: result.findings.some(
       (finding) =>
