@@ -472,6 +472,9 @@ export type YamlScalar = string | number | boolean | null;
 /** Plain scalars every YAML 1.1 and 1.2 parser reads as this same string. */
 const PLAIN_YAML = /^[a-z_][\w./-]*(?: [\w./-]+)*$/i;
 
+/** Plain scalars a YAML 1.1 reader may take for a float with no digits before the exponent: `e0`. */
+const BARE_EXPONENT = /^e\d/i;
+
 /** Words YAML 1.1 or 1.2 reads as a boolean or null. */
 const YAML_KEYWORDS: ReadonlySet<string> = new Set([
   'y',
@@ -519,13 +522,18 @@ function canSingleQuote(value: string): boolean {
 /**
  * A YAML scalar for `value` that every YAML 1.1 and 1.2 parser reads back as the same string:
  * plain when it is a simple word or phrase, double-quoted when a parser could read it as
- * something else (`on`, `yes`, `null`, `1e3`, `2026-10-16`), when it has YAML syntax (`: `,
+ * something else (`on`, `yes`, `null`, `1e3`, `e0`, `2026-10-16`), when it has YAML syntax (`: `,
  * `#`, a leading `-`), or when it has control or invisible characters, which are escaped.
  * `style: 'double'` always quotes; `style: 'single'` single-quotes unless escapes are needed.
  */
 export function quoteYaml(value: string, style: YamlStyle = 'plain'): string {
   if (style === 'single' && canSingleQuote(value)) return `'${value.replaceAll("'", "''")}'`;
-  if (style === 'plain' && PLAIN_YAML.test(value) && !YAML_KEYWORDS.has(value.toLowerCase())) {
+  if (
+    style === 'plain' &&
+    PLAIN_YAML.test(value) &&
+    !YAML_KEYWORDS.has(value.toLowerCase()) &&
+    !BARE_EXPONENT.test(value)
+  ) {
     return value;
   }
   return yamlDoubleQuoted(value);

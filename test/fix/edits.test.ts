@@ -250,7 +250,8 @@ describe('quoteYaml', () => {
         fc.oneof(
           fc.string({ unit: 'binary' }),
           fc.string(),
-          fc.constantFrom('on', 'no', '1e3', 'a: b'),
+          // e0: the yaml library's YAML 1.1 schema reads a bare exponent as a float.
+          fc.constantFrom('on', 'no', '1e3', 'a: b', 'e0', 'E12'),
         ),
         fc.constantFrom('plain', 'single', 'double'),
         (value, style) => {
