@@ -36,16 +36,15 @@ recorded. It waits 20 seconds for that, so on a slow network run the first comma
 ## Check the GIF
 
 - The first frame is an empty `$ ` prompt: no npx prompt, npm notice or error.
-- `Width`, `Height` and `FontSize` in the tape give about 80 by 24 with VHS's default font. If
-  lines of 80 characters or less wrap, raise `Width`.
-- `context --matrix` prints the plan of every agent before the matrix, 114 lines in all, so the
-  plans scroll past. The last frame shows the end of Cline's plan, the matrix, its key and the
-  footer, all within 80 columns.
-- `fix` prints 47 lines. The last frame shows the note of the MCP server fix, the safe fix with
+- `Width`, `Height` and `FontSize` in the tape give about 130 columns by 46 rows. No line should
+  wrap; if one does, raise `Width`.
+- `context --matrix` prints the plan of every agent before the matrix, so the plans scroll past.
+  The last frame shows the end of the plans, the matrix, its key and the footer.
+- `fix` prints about 42 lines, which fit: the two fixes for review and the safe fix, each with
   its diff and effects, and `Verified on an in-memory copy: 3 findings resolved, 0 new, 0 left.`
-- `fix --write` prints 22 lines, 27 rows at 80 columns because the token summary wraps. The last
-  frame shows the diff from its hunk header on, and
-  `Applied 1 fix to 1 file. Re-scanned: 1 finding resolved, 0 new, 2 left.`
+- `fix --write` prints about 19 lines: the safe fix, and
+  `Applied 1 fix to 1 file. Re-scanned: 1 finding resolved, 0 new, 2 left.` with the token
+  changes below it. `head -3 CLAUDE.md` then shows the `@AGENTS.md` line it added.
 
 These line counts come from the build of this commit; another version may print more or fewer.
 

@@ -27,14 +27,17 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
 +++ b/CLAUDE.md
 ...
   effect: Claude Code session start ≈45 → ≈64 tokens
+  effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈64 → ≈67 tokens
   note: GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice ...
-manual  instr/import-unresolved  CLAUDE.md:5  create "docs/setup.md" or correct the path
-Verified on an in-memory copy: 1 finding resolved, 0 new, 9 left.
+
+manual  instr/import-unresolved  CLAUDE.md:5  create "docs/setup.md" or correct the path; no file named "setup.md" exists
+Verified on an in-memory copy: 1 finding resolved, 0 new, 1 left · 1 needs judgment: agentcheckup tasks
 ```
 
-- `effect:` lines say what the fix changes for the agents: session-start tokens, or an MCP
-  server, hook, permission or env override with the gate class that flags it in a pull request,
-  such as `(gate class mcp)`. Tell the user about every gate effect before asking.
+- `effect:` lines say what the fix changes for the agents: session-start tokens, one line for
+  the agents that share a change, or an MCP server, hook, permission or env override with the
+  gate class that flags it in a pull request, such as `(gate class mcp)`. Tell the user about
+  every gate effect before asking.
 - `note:` lines are what the rule knows about the change, such as a side effect nobody verified
   or a reminder to reword copied text.
 - `skipped:` lines are fixes that will not apply in this run: they overlap a fix that goes first

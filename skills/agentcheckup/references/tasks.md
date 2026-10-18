@@ -54,7 +54,7 @@ settings, permissions and every JSON configuration file). Report them; do not ed
 ```text
 ac-a85146b1  done
 ac-a385eb5f  open  skill/body-too-long  .claude/skills/guide/SKILL.md:505
-ac-0d61c2e4  open  guard skill/frontmatter-invalid (error)  .claude/skills/deploy/SKILL.md:1
+ac-bb0bd14d  open  guard skill/frontmatter-invalid (error)  .claude/skills/pdf/SKILL.md:3
 2 of 3 tasks open.
 ```
 

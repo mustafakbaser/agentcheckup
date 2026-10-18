@@ -162,7 +162,7 @@ and never affects the score. Such a finding does not stop the fix; it is listed 
 ```text
 Verified on an in-memory copy: 4 findings resolved, 2 new, 1 left · 1 needs judgment: agentcheckup tasks
   new info  .agents/skills/deploy/SKILL.md:3  skill/description-quality  The description has only 5 words, too few for agents to match requests against. Say what the skill does and when to use it.
-  new info  .mcp.json:3  mcp/insecure-transport  MCP server "docs" uses the SSE transport, which Claude Code has deprecated. Use "type": "http" if the server supports Streamable HTTP.
+  new info  .mcp.json:4  mcp/insecure-transport  MCP server "docs" uses the SSE transport, which Claude Code has deprecated. Use "type": "http" if the server supports Streamable HTTP.
 ```
 
 When findings need judgment, the line ends with how many and the command for them, here
@@ -194,23 +194,33 @@ Each fix lists what it changes for the agents, found by comparing the scans befo
 the fix:
 
 ```text
-  effect: Claude Code session start ≈16 → ≈101 tokens
   effect: Changed MCP server docs (sse, https://mcp.example.com) (gate class mcp)
+  note: Claude Code will offer to start MCP server "docs"; `claude -p` starts it without asking.
+…
+  effect: Claude Code session start ≈16 → ≈101 tokens
+  effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈99 → ≈102 tokens
   note: GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice after this change (not verified).
 ```
 
 - **Tokens:** the estimated session-start context of each targeted agent agentcheckup models,
-  in the repository root, before and after, as `context` computes it (characters ÷ 4).
+  in the repository root, before and after, as `context` computes it (characters ÷ 4). Agents
+  with the same numbers before and after share a line.
 - **Gate:** an MCP server, hook, permission, env override or hidden Unicode that the fix adds or
   changes, with the [gate class](context.md#gate-classes) that would flag it in a pull request.
   A fix with a gate effect is always `review`.
 - **Notes:** what the rule knows about the change, such as an unverified side effect, or a
   reminder to reword copied text.
 
-After `--write`, the summary adds up the token changes per agent and lists the gate effects:
+After `--write`, the summary adds up the token changes per agent, one line per change that
+agents share, and lists the gate effects:
 
 ```text
-  Claude Code ≈16 → ≈101 tokens at session start · Codex ≈82 → ≈102 tokens at session start · Cursor ≈99 → ≈125 tokens at session start
+  Claude Code session start ≈16 → ≈101 tokens
+  Codex session start ≈82 → ≈101 tokens
+  Cursor and Devin Local session start ≈99 → ≈124 tokens
+  Copilot CLI, Copilot in VS Code and Copilot cloud agent session start ≈99 → ≈109 tokens
+  Gemini CLI session start ≈0 → ≈9 tokens
+  Cline session start ≈84 → ≈90 tokens
   Changed MCP server docs (sse, https://mcp.example.com) (gate class mcp)
 ```
 
@@ -257,7 +267,8 @@ manual steps of the findings still there. A step that only a fix you did not app
 up is not listed. Here the `mcp/url-without-type` fix was declined:
 
 ```text
-Left: .mcp.json:3 mcp/url-without-type (Add "type": "sse" to MCP server "docs")
+Left: .agents/skills/deploy/SKILL.md:3 skill/description-quality (rewrite "description" to say what the skill does, then add "Use when ..." with the words a request for it would contain)
+      .mcp.json:3 mcp/url-without-type (Add "type": "sse" to MCP server "docs")
       CLAUDE.md:5 instr/import-unresolved (create "docs/setup.md" or correct the path; no file named "setup.md" exists)
 ```
 
@@ -302,8 +313,8 @@ review  skill/description-quality  Add a "Use when ..." sentence to "description
  ---
 
  Run the script.
-  effect: Claude Code session start ≈22 → ≈32 tokens
-  effect: Cursor session start ≈21 → ≈31 tokens
+  effect: Claude Code session start ≈18 → ≈28 tokens
+  effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Devin Local and Cline session start ≈19 → ≈29 tokens
 ✓ re-scanned: the finding is resolved; no new problem.
 Use this? [y]es [e]dit [n]o (Enter: yes) y
 ```

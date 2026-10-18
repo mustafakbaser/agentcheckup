@@ -649,9 +649,9 @@ see every command an agent may now run without asking. The summary marks the bro
 grant everything of their kind:
 
 ```text
-Permission widened: permissions.allow adds Bash(curl:*)
-Permission widened: permissions.allow adds Bash (broad: runs any shell command)
 Permission widened: permissions.additionalDirectories adds ~ (broad: the file system root or home directory)
+Permission widened: permissions.allow adds Bash (broad: runs any shell command)
+Permission widened: permissions.allow adds Bash(curl:*)
 ```
 
 In `.codex/config.toml` the inventory lists only settings that let Codex act without asking:
@@ -729,7 +729,14 @@ Since the baseline
     New hook: New hook SessionStart → scripts/hooks/session-start.sh
     Env override: Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net
 Findings: 0 new, 4 unchanged, 1 resolved
-Session-start context: Claude Code ≈73 → ≈250 tokens (+177) · Codex unchanged · Cursor ≈281 → ≈284 tokens (+3) · Copilot CLI ≈302 → ≈305 tokens (+3) · Copilot in VS Code ≈302 → ≈305 tokens (+3) · Copilot cloud agent ≈302 → ≈305 tokens (+3) · Gemini CLI unchanged · Devin Local ≈281 → ≈284 tokens (+3) · Cline unchanged
+Session-start context:
+  Claude Code ≈73 → ≈250 tokens (+177)
+  Cursor ≈281 → ≈284 tokens (+3)
+  Copilot CLI ≈302 → ≈305 tokens (+3)
+  Copilot in VS Code ≈302 → ≈305 tokens (+3)
+  Copilot cloud agent ≈302 → ≈305 tokens (+3)
+  Devin Local ≈281 → ≈284 tokens (+3)
+  Unchanged: Codex, Gemini CLI, Cline
 ```
 
 Here the pull request adds an unpinned MCP server, a permission, a `SessionStart` hook and an

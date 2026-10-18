@@ -173,7 +173,7 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
 
  Read @docs/setup.md before you start the service.
   effect: Claude Code session start ≈43 → ≈74 tokens
-  effect: Cursor session start ≈64 → ≈67 tokens
+  effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈64 → ≈67 tokens
 …
 input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)
 …

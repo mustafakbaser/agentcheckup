@@ -12,15 +12,17 @@ Not visible: managed settings, user settings (~/.claude, ~/.claude.json), ...
 
 At session start                          bytes  ≈tokens
   1  CLAUDE.md                               33        9
-  2  Skills listing (2 skills, metadata)    144       36
+  2  Skills listing (2 skills, metadata)    144       37
                                    Total    177     ≈ 45
-  MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github (pinned)
+  MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github@2025.4.8 (pinned)
 
 On demand
-  .claude/skills/guide/SKILL.md   body 13,431 bytes ≈ 3,358, when the model picks it
+  .claude/skills/guide/SKILL.md    body 13,431 bytes ≈ 3,358, when the model picks it
+  .claude/skills/release/SKILL.md  body 21 bytes ≈ 6, when the model picks it
 
 Skipped
-  AGENTS.md  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
+  AGENTS.md                  a CLAUDE.md on the path is read instead  instr/agents-md-ignored-by-claude  fix: safe
+  CLAUDE.md › docs/setup.md  the import does not resolve              instr/import-unresolved
 ```
 
 - **Header**: the agent and the directory the session starts in; `./` is the repository root.

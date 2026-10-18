@@ -122,7 +122,7 @@ item with its path, line and `note`. Suggest `git diff` to review the changes.
 
 ## What an agent loads
 
-When the user asks what Claude Code, Codex or Cursor loads, or why an agent ignores a file:
+When the user asks what a coding agent loads, or why an agent ignores a file:
 
 ```sh
 npx agentcheckup@0.1.0 context

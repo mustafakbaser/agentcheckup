@@ -34,10 +34,10 @@ npx agentcheckup skill install --dir agents # into .agents/skills
 
 Which agents load skills from each directory:
 
-| Directory        | Loaded by                                    |
-| ---------------- | -------------------------------------------- |
-| `.claude/skills` | Claude Code, Cursor and GitHub Copilot       |
-| `.agents/skills` | Codex, Cursor, GitHub Copilot and Gemini CLI |
+| Directory        | Loaded by                                                        |
+| ---------------- | ---------------------------------------------------------------- |
+| `.claude/skills` | Claude Code, Cursor, GitHub Copilot, Devin Local and Cline       |
+| `.agents/skills` | Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local and Cline |
 
 The installer reads the skill from the installed agentcheckup package, sets every
 `npx agentcheckup@<version>` in it to the version you are running, and then:
@@ -47,9 +47,9 @@ The installer reads the skill from the installed agentcheckup package, sets ever
   `agentcheckup` in the same directory, it lists the findings and installs nothing.
 - **Creates, never overwrites.** It refuses when `<dir>/agentcheckup` exists. To update the
   skill, remove the directory and install again.
-- **Installs once.** It refuses when the skill is already in the other directory: Cursor and
-  GitHub Copilot read both `.claude/skills` and `.agents/skills`, so a second copy gives them two
-  skills of the same name ([`skill/duplicate-name`](rules/skill/duplicate-name.md)).
+- **Installs once.** It refuses when the skill is already in the other directory: Cursor, GitHub
+  Copilot, Devin Local and Cline read both `.claude/skills` and `.agents/skills`, so a second copy
+  gives them two skills of the same name ([`skill/duplicate-name`](rules/skill/duplicate-name.md)).
 - **Writes like `fix --write`.** It writes only inside the repository, through the same writer
   as [`fix`](fix.md#what-fix-never-does): never through a symlinked directory such as a `.claude`
   that links elsewhere, never into `.git`, and all four files or none.
@@ -62,13 +62,13 @@ Install the agentcheckup skill in .claude/skills/agentcheckup:
   .claude/skills/agentcheckup/references/context.md
   .claude/skills/agentcheckup/references/fix-classes.md
   .claude/skills/agentcheckup/references/tasks.md
-Claude Code, Cursor and GitHub Copilot load skills from .claude/skills.
+Claude Code, Cursor, GitHub Copilot, Devin Local and Cline load skills from .claude/skills.
 Checked in memory with every rule: the skill adds no finding.
 While the skill runs, Claude Code may use these without asking (allowed-tools):
-  Bash(npx agentcheckup@0.5.0 tasks --format json)
-  Bash(npx agentcheckup@0.5.0 fix)
-  Bash(npx agentcheckup@0.5.0 context)
-  Bash(npx agentcheckup@0.5.0 tasks --check *)
+  Bash(npx agentcheckup@0.1.0 tasks --format json)
+  Bash(npx agentcheckup@0.1.0 fix)
+  Bash(npx agentcheckup@0.1.0 context)
+  Bash(npx agentcheckup@0.1.0 tasks --check *)
   Read
 Every command that writes asks first.
 Install the skill? [y/N] y
@@ -96,8 +96,8 @@ npx skills add mustafakbaser/agentcheckup --skill agentcheckup
 
 It copies `skills/agentcheckup` from the default branch, whose commands are pinned to the latest
 release. Choose one directory: installing for agents that read different directories, such as
-Claude Code (`.claude/skills`) and Codex (`.agents/skills`), puts a copy in each, and Cursor and
-GitHub Copilot then see two skills named `agentcheckup`. agentcheckup does not check a copy
+Claude Code (`.claude/skills`) and Codex (`.agents/skills`), puts a copy in each, and Cursor,
+GitHub Copilot, Devin Local and Cline then see two skills named `agentcheckup`. agentcheckup does not check a copy
 installed this way before it is written; run `npx agentcheckup` afterwards.
 
 ## What the skill may run without asking
@@ -106,10 +106,10 @@ The skill's `allowed-tools` pre-approves five tools:
 
 ```yaml
 allowed-tools: >-
-  Bash(npx agentcheckup@0.5.0 tasks --format json)
-  Bash(npx agentcheckup@0.5.0 fix)
-  Bash(npx agentcheckup@0.5.0 context)
-  Bash(npx agentcheckup@0.5.0 tasks --check *)
+  Bash(npx agentcheckup@0.1.0 tasks --format json)
+  Bash(npx agentcheckup@0.1.0 fix)
+  Bash(npx agentcheckup@0.1.0 context)
+  Bash(npx agentcheckup@0.1.0 tasks --check *)
   Read
 ```
 
@@ -149,10 +149,10 @@ an agent into running a command, and an approved write would run without stoppin
 
 ```text
 ✖ 5 security-relevant changes since the baseline need review
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.5.0 context)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.5.0 fix)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.5.0 tasks --check *)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.5.0 tasks --format json)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 context)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 fix)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 tasks --check *)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 tasks --format json)
     Permission widened: allowed-tools adds Read
 ```
 
