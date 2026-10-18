@@ -52,6 +52,7 @@ import type {
 } from '../fix/index.js';
 import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { findSecret } from '../rules/mcp/secrets.js';
+import { joinNames } from '../rules/shared/format.js';
 import { AGENT_NAMES } from './context-view.js';
 import { GATE_CLASS_ORDER } from './json.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
@@ -656,6 +657,38 @@ function effectText(effect: FixEffect, context: Context): string {
   }
 }
 
+/** An agent's estimated startup tokens in one directory, before and after. */
+interface TokenChange {
+  readonly agent: ContextAgent;
+  readonly cwd: string;
+  readonly before: number;
+  readonly after: number;
+}
+
+/**
+ * One line per change that agents share: `Cursor, Copilot CLI and Devin Local session start ≈27
+ * → ≈30 tokens`. Agents with the same directory and the same totals before and after are named
+ * together, in the order of `changes`; with nine agents, one change is often the same for most.
+ */
+function tokenLines(changes: readonly TokenChange[], context: Context): string[] {
+  const { approx, arrow } = context.symbols;
+  const groups = new Map<string, TokenChange[]>();
+  for (const change of changes) {
+    const key = `${change.cwd}\n${String(change.before)}\n${String(change.after)}`;
+    groups.set(key, [...(groups.get(key) ?? []), change]);
+  }
+  return [...groups.values()].flatMap((group) => {
+    const [first] = group;
+    if (first === undefined) return [];
+    const cwd = withBase(context.base, first.cwd);
+    const where = cwd === '' ? '' : ` in ${clean(cwd, context, MAX_PATH_LENGTH)}`;
+    const names = joinNames(group.map((change) => AGENT_NAMES[change.agent]));
+    return [
+      `${names}${where} session start ${approx}${formatInteger(first.before)} ${arrow} ${approx}${formatInteger(first.after)} tokens`,
+    ];
+  });
+}
+
 /** Why a selected fix was not applied, as a clause. */
 export const SKIP_REASON_TEXT: Readonly<Record<FixSkipReason, string>> = {
   conflict: 'it overlaps a fix that goes first; run agentcheckup fix again',
@@ -737,8 +770,13 @@ function fixBlock(
       if (claim.first) lines.push(...fileLines(file, context));
       else lines.push(style.dim(`  ${cleanPath(file.path, context)}: see the diff above`));
     }
-    for (const effect of sortedEffects(planned.effects)) {
-      lines.push(`  ${style.gray('effect:')} ${effectText(effect, context)}`);
+    const effects = sortedEffects(planned.effects);
+    const tokens = effects.filter((effect) => effect.kind === 'tokens');
+    for (const line of tokenLines(tokens, context))
+      lines.push(`  ${style.gray('effect:')} ${line}`);
+    for (const effect of effects) {
+      if (effect.kind === 'gate')
+        lines.push(`  ${style.gray('effect:')} ${effectText(effect, context)}`);
     }
   }
   for (const note of planned.fix.notes ?? []) {
@@ -900,7 +938,7 @@ function tokenTotals(fixes: readonly PlannedFix[]): TokenTotal[] {
  */
 export function formatFixSummary(run: FixRun, options: FixDiffOptions = {}): string {
   const context = contextOf(run, options);
-  const { style, symbols } = context;
+  const { style } = context;
   const applied = run.fixes.filter((fix) => fix.status === 'applied');
   const skipped = run.fixes.filter(
     (fix): fix is Extract<PlannedFix, { status: 'skipped' }> => fix.status === 'skipped',
@@ -916,12 +954,7 @@ export function formatFixSummary(run: FixRun, options: FixDiffOptions = {}): str
     lines.push(
       `Applied ${count(applied.length, 'fix', 'fixes')} to ${count(run.files.length, 'file')}. Re-scanned: ${verificationCounts(run.verification)}.`,
     );
-    const tokens = tokenTotals(applied).map((total) => {
-      const cwd = withBase(context.base, total.cwd);
-      const where = cwd === '' ? '' : ` in ${clean(cwd, context, MAX_PATH_LENGTH)}`;
-      return `${AGENT_NAMES[total.agent]}${where} ${symbols.approx}${formatInteger(total.before)} ${symbols.arrow} ${symbols.approx}${formatInteger(total.after)} tokens at session start`;
-    });
-    if (tokens.length > 0) lines.push(`  ${tokens.join(` ${symbols.dot} `)}`);
+    for (const line of tokenLines(tokenTotals(applied), context)) lines.push(`  ${line}`);
     const gates = sortedEffects(applied.flatMap((fix) => fix.effects)).filter(
       (effect) => effect.kind === 'gate',
     );

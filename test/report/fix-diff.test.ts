@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { DiffHunk } from '../../src/fix/index.js';
+import type { ContextAgent } from '../../src/platforms/load/types.js';
 import { findSecret } from '../../src/rules/mcp/secrets.js';
 import {
   diffHunks,
@@ -423,7 +424,9 @@ describe('formatFixSummary', () => {
     expect(text).toBe(
       [
         'Applied 5 fixes to 5 files. Re-scanned: 5 findings resolved, 1 new, 1 left.',
-        '  Claude Code ≈50 → ≈247 tokens at session start · Claude Code in packages/api ≈120 → ≈410 tokens at session start · Cursor ≈304 → ≈614 tokens at session start',
+        '  Claude Code session start ≈50 → ≈247 tokens',
+        '  Claude Code in packages/api session start ≈120 → ≈410 tokens',
+        '  Cursor session start ≈304 → ≈614 tokens',
         '  Changed MCP server docs (http, https://docs.example.com) (gate class mcp)',
         '  new info  .agents/skills/release-notes/SKILL.md:3  skill/description-quality  The description does not say when to use the skill.',
         'Not applied: 1 fix',
@@ -450,8 +453,36 @@ describe('formatFixSummary', () => {
       ),
     );
     const text = formatFixSummary({ ...writtenRun, fixes, manual: [] }, { ascii: true });
-    expect(text).toContain('  Codex ~100 -> ~180 tokens at session start\n');
+    expect(text).toContain('  Codex session start ~100 -> ~180 tokens\n');
     expect(text).toContain('Applied 2 fixes to 5 files.');
+  });
+
+  it('names agents with the same token change together, and keeps the others apart', () => {
+    const effect = (agent: ContextAgent, before: number, after: number, cwd = '') =>
+      ({ kind: 'tokens', agent, cwd, before, after }) as const;
+    const fix = planned(
+      'test/tokens',
+      { class: 'safe', title: 't', changes: [] },
+      {
+        status: 'applied',
+        effects: [
+          effect('claude-code', 15, 30),
+          effect('cursor', 27, 30),
+          effect('copilot-cli', 27, 30),
+          effect('windsurf', 27, 30),
+          // Same totals in another directory: a line of its own.
+          effect('cursor', 27, 30, 'pkg'),
+        ],
+      },
+    );
+    const text = formatFixSummary({ ...writtenRun, fixes: [fix], manual: [] }, { ascii: true });
+    expect(text).toContain(
+      [
+        '  Claude Code session start ~15 -> ~30 tokens',
+        '  Cursor, Copilot CLI and Devin Local session start ~27 -> ~30 tokens',
+        '  Cursor in pkg session start ~27 -> ~30 tokens',
+      ].join('\n'),
+    );
   });
 
   it('frames the summary with the warnings of applied fixes', () => {
