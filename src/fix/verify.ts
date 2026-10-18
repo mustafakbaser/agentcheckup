@@ -30,7 +30,8 @@
  * - a gate hit belongs to the fix whose footprint holds the item's file.
  * A group scan is used only when everything it shows can be attributed: no finding changed on a
  * path outside every footprint, no new rule failure, every changed startup entry and gate hit has
- * exactly one owner, and the plan totals are the sums of their entries. Otherwise the group is
+ * exactly one owner, the plan totals are the sums of their entries, and no plan holds a file the
+ * agent drops as a copy of another (its share depends on the other file's text). Otherwise the group is
  * halved and each half judged the same way, down to single fixes, which are scanned alone. A fix
  * that fails in a group is scanned alone to confirm it, and the rest of the group again without
  * it, so a fix is never dropped because of another one. This gives the decisions and effects of
@@ -389,6 +390,29 @@ function startupChars(plan: LoadPlan, entry: LoadEntry): number {
   return listed && entry.trigger === 'model-selected' ? entry.size.chars : 0;
 }
 
+/**
+ * True when the plan loads a file at session start that adds no characters although it has
+ * bytes, and is not a file the plan counts elsewhere: a copy the agent drops because another
+ * file has the same text (the Copilot CLI does). What such an entry adds depends on another
+ * file's content, so it cannot be credited to one fix by path. A file loaded twice, such as an
+ * AGENTS.md that CLAUDE.md also imports, depends only on the import, which is attributable.
+ */
+function holdsCopy(plan: LoadPlan): boolean {
+  const counted = new Set<string>();
+  for (const entry of plan.entries) {
+    if (entry.trigger !== 'startup' || entry.size === undefined || entry.size.chars === 0) continue;
+    counted.add(entry.realPath);
+  }
+  return plan.entries.some(
+    (entry) =>
+      entry.trigger === 'startup' &&
+      entry.size !== undefined &&
+      entry.size.bytes > 0 &&
+      entry.size.chars === 0 &&
+      !counted.has(entry.realPath),
+  );
+}
+
 /** True when the plan's startup total is the sum of its entries, as {@link startupChars} counts. */
 function decomposes(plan: LoadPlan): boolean {
   const { chars, tokens } = plan.totals.startup;
@@ -406,6 +430,7 @@ function startupShares(
   after: LoadPlan,
   owners: (paths: readonly string[]) => readonly PlannedFix[],
 ): Map<PlannedFix, number> | undefined {
+  if (holdsCopy(before) || holdsCopy(after)) return undefined;
   interface Share {
     readonly chars: number;
     readonly owners: readonly PlannedFix[];

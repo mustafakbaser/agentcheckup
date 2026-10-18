@@ -299,6 +299,18 @@ describe('batch verification', () => {
     );
   });
 
+  it('agrees with scanning each fix alone when two instruction files have the same text', () => {
+    // A counterexample the property found: equal AGENTS.md and CLAUDE.md, and an always-applied
+    // Cursor rule without a body, safe fixes only, one round.
+    const files = {
+      'AGENTS.md': 'HEAD\n',
+      'CLAUDE.md': 'HEAD\n',
+      '.cursor/rules/always.mdc': '---\nalwaysApply: true\n---\n',
+    };
+    const { batch, isolated } = both(files, RULES, SAFE_ONLY, 1);
+    expect(batch).toEqual(isolated);
+  });
+
   it('finds the fix that changes another file by halving the group', () => {
     const files: Record<string, string> = { 'AGENTS.md': '# Root\n' };
     for (let index = 0; index < 16; index++) files[`p${String(index)}/AGENTS.md`] = 'FIX-A\n';
