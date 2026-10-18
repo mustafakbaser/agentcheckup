@@ -2,7 +2,10 @@
 
 **See what each coding agent actually loads from your repository, and what a pull request changes about it.**
 
+[![npm](https://img.shields.io/npm/v/agentcheckup)](https://www.npmjs.com/package/agentcheckup)
 [![CI](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafakbaser/agentcheckup/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mustafakbaser/agentcheckup/badge)](https://scorecard.dev/viewer/?uri=github.com/mustafakbaser/agentcheckup)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-agentcheckup-blue?logo=github)](https://github.com/marketplace/actions/agentcheckup)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin and Cline read different files from
