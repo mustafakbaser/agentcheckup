@@ -215,33 +215,47 @@ function limitChanges(
 }
 
 /**
- * The change in session-start context as one line for the terminal summary (baseline-text.ts):
- * one part per plan present in both reports (at most MAX_DELTAS), with tokens before and after
- * and limits crossed, plus how many plans were left out. Undefined when no plan is in both.
- * `clean` escapes repository text for the output format. The Markdown summary shows the same
- * comparison as a table (contextTable).
+ * The change in session-start context for the terminal summary (baseline-text.ts), one plan per
+ * part (at most MAX_DELTAS plans): `changed` holds the plans whose tokens or limits changed, with
+ * tokens before and after and the limits crossed; `unchanged` names the others, so nine agents
+ * whose context did not move take one line. `hidden` counts the plans left out. Undefined when
+ * no plan is in both reports. `clean` escapes repository text for the output format. The
+ * Markdown summary shows the same comparison as a table (contextTable).
  */
 export function contextDeltas(
   result: ScanResult,
   diff: BaselineDiff,
   clean: Clean,
-): { readonly parts: readonly string[]; readonly hidden: number } | undefined {
+):
+  | {
+      readonly changed: readonly string[];
+      readonly unchanged: readonly string[];
+      readonly hidden: number;
+    }
+  | undefined {
   if (diff.context.length === 0) return undefined;
   const units = limitUnits(result);
   const base = stripTrailingSlashes(result.pathBase ?? '');
-  const parts = diff.context.slice(0, MAX_DELTAS).map((delta) => {
+  const changed: string[] = [];
+  const unchanged: string[] = [];
+  for (const delta of diff.context.slice(0, MAX_DELTAS)) {
     // After a rebase the root plan's cwd is pathBase; other plans show their rebased path.
     const root = delta.cwd === '' || delta.cwd === base;
     const where = root ? '' : ` (${clean(delta.cwd, MAX_PATH_LENGTH)})`;
     const name = `${AGENT_NAMES[delta.agent]}${where}`;
     const { before, after } = delta.startupTokens;
+    const limits = limitChanges(delta, units, clean);
+    if (before === after && limits.length === 0) {
+      unchanged.push(name);
+      continue;
+    }
     const tokens =
       before === after
         ? `${name} unchanged`
         : `${name} ≈${formatInteger(before)} → ≈${formatInteger(after)} tokens (${signed(after - before)})`;
-    return [tokens, ...limitChanges(delta, units, clean)].join(', ');
-  });
-  return { parts, hidden: Math.max(0, diff.context.length - MAX_DELTAS) };
+    changed.push([tokens, ...limits].join(', '));
+  }
+  return { changed, unchanged, hidden: Math.max(0, diff.context.length - MAX_DELTAS) };
 }
 
 // ---------------------------------------------------------------------------------------------

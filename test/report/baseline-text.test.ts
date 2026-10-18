@@ -34,9 +34,11 @@ describe('formatBaselineText', () => {
         '    Env override: ANTHROPIC_BASE_URL → https://llm-proxy.example.net',
         '    Hidden Unicode: AGENTS.md:12 has 3 invisible Unicode tag characters',
         'Findings: 2 new, 6 unchanged, 2 resolved',
-        'Session-start context: Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720) · ' +
-          'Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS.md chain ' +
-          '31,204 → 33,010 bytes, now over the 32,768-byte limit · Cursor unchanged',
+        'Session-start context:',
+        '  Claude Code (packages/api) ≈1,977 → ≈2,697 tokens (+720)',
+        '  Codex (packages/api) ≈7,801 → ≈8,253 tokens (+452), AGENTS.md chain ' +
+          '31,204 → 33,010 bytes, now over the 32,768-byte limit',
+        '  Unchanged: Cursor',
         '',
       ].join('\n'),
     );
@@ -102,7 +104,7 @@ describe('formatBaselineText', () => {
     const text = formatBaselineText(many, { ascii: true });
     expect(text).toContain('x 12 security-relevant changes need review\n');
     expect(text).toContain('    ... and 2 more\n');
-    expect(text).toContain(' - and 2 more plans\n');
+    expect(text).toContain('\n  and 2 more plans\n');
     expect(text).toContain(
       '! The baseline was written with ruleset 2026.09, so findings from rules it did not run count as new.',
     );

@@ -71,9 +71,10 @@ export function formatBaselineText(input: ScanResult, options: ContextTextOption
 
   const deltas = contextDeltas(result, diff, clean);
   if (deltas !== undefined) {
-    const separator = ascii ? ' - ' : ' · ';
-    const hidden = deltas.hidden > 0 ? `${separator}and ${plural(deltas.hidden, 'more plan')}` : '';
-    lines.push(`Session-start context: ${deltas.parts.join(separator)}${hidden}`);
+    lines.push('Session-start context:');
+    for (const part of deltas.changed) lines.push(`  ${part}`);
+    if (deltas.unchanged.length > 0) lines.push(`  Unchanged: ${deltas.unchanged.join(', ')}`);
+    if (deltas.hidden > 0) lines.push(`  and ${plural(deltas.hidden, 'more plan')}`);
   }
 
   if (!diff.against.sameRuleset) {

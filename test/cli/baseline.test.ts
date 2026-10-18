@@ -187,7 +187,8 @@ describe('--baseline round trip', () => {
       '\nSince the baseline\n✖ 1 security-relevant change needs review\n' +
         '    New unpinned MCP server: New MCP server filesystem is not pinned',
     );
-    expect(text.output()).toContain('Session-start context: Claude Code unchanged');
+    // No plan changed: every agent is named on the Unchanged line.
+    expect(text.output()).toMatch(/\nSession-start context:\n {2}Unchanged: Claude Code, Codex, /);
 
     const quiet = capture(CONTEXT_FIXTURE);
     expect(await run(['context', '--baseline', baseReport, '--gate', 'hooks'], quiet)).toBe(
