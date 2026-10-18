@@ -12,12 +12,12 @@ Require bash
 Require npx
 
 Set Shell "bash"
-# About 80 columns by 24 rows with VHS's default font.
-Set FontSize 16
-Set Width 900
-Set Height 560
-Set Padding 20
-Set TypingSpeed 45ms
+# About 130 columns by 46 rows: the whole fix preview fits, and no line wraps.
+Set FontSize 14
+Set Width 1280
+Set Height 860
+Set Padding 24
+Set TypingSpeed 40ms
 
 # Off camera: a plain prompt, no npx install prompt or npm update notice, the demo repository,
 # and a first npx run so that the download does not show in the recording.
@@ -34,7 +34,7 @@ Sleep 500ms
 Type "npx agentcheckup context --matrix"
 Sleep 400ms
 Enter
-Sleep 5s
+Sleep 6s
 
 Hide
 Type "clear"
@@ -46,7 +46,7 @@ Show
 Type "npx agentcheckup fix"
 Sleep 400ms
 Enter
-Sleep 5s
+Sleep 8s
 
 Hide
 Type "clear"
@@ -58,4 +58,10 @@ Show
 Type "npx agentcheckup fix --write"
 Sleep 400ms
 Enter
-Sleep 4500ms
+Sleep 4s
+
+# What it wrote: the import that makes Claude Code read AGENTS.md.
+Type "head -3 CLAUDE.md"
+Sleep 300ms
+Enter
+Sleep 3500ms
