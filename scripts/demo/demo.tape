@@ -12,9 +12,9 @@ Require bash
 Require npx
 
 Set Shell "bash"
-# About 130 columns by 46 rows: the whole fix preview fits, and no line wraps.
+# About 138 columns by 46 rows: the whole fix preview fits, and no line wraps.
 Set FontSize 14
-Set Width 1280
+Set Width 1360
 Set Height 860
 Set Padding 24
 Set TypingSpeed 40ms
@@ -22,7 +22,7 @@ Set TypingSpeed 40ms
 # Off camera: a plain prompt, no npx install prompt or npm update notice, the demo repository,
 # and a first npx run so that the download does not show in the recording.
 Hide
-Type `export PS1='$ ' npm_config_yes=true npm_config_update_notifier=false`
+Type `export PS1='$ ' npm_config_yes=true npm_config_update_notifier=false npm_config_prefer_online=true`
 Enter
 Type `cd "$(scripts/demo/setup.sh)" && npx agentcheckup --version >/dev/null && clear`
 Enter

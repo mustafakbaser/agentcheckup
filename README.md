@@ -21,6 +21,8 @@ npx agentcheckup tasks     # the rest, as a prompt for a coding agent
 
 No configuration, no API key, no network requests, no telemetry. Node.js 22.12 or newer.
 
+![Terminal recording: agentcheckup context --matrix shows which of nine agents load each file, Claude Code skipping AGENTS.md and an MCP server and Cursor skipping a .md rule; fix previews three fixes; fix --write applies only the safe one, an @AGENTS.md import in CLAUDE.md.](docs/assets/demo.gif)
+
 The examples below run on one small repository: an `AGENTS.md`, a `CLAUDE.md` that imports a
 missing `docs/setup.md`, a Cursor rule saved as `.md`, an MCP server with a `url` but no `type`,
 a skill without a description, and a skill whose description does not say when to use it.

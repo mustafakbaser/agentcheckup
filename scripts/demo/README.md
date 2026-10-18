@@ -28,7 +28,8 @@ vhs scripts/demo/demo.tape      # writes docs/assets/demo.gif
 ```
 
 Before it starts recording, the tape sets a `$ ` prompt, sets `npm_config_yes=true` and
-`npm_config_update_notifier=false` so that npx shows no install prompt or update notice, creates
+`npm_config_update_notifier=false` so that npx shows no install prompt or update notice, sets
+`npm_config_prefer_online=true` so that npx runs the latest release rather than a cached one, creates
 the demo repository, and runs `npx agentcheckup --version` once so that the download is not
 recorded. It waits 20 seconds for that, so on a slow network run the first command above before
 `vhs`.
@@ -36,7 +37,7 @@ recorded. It waits 20 seconds for that, so on a slow network run the first comma
 ## Check the GIF
 
 - The first frame is an empty `$ ` prompt: no npx prompt, npm notice or error.
-- `Width`, `Height` and `FontSize` in the tape give about 130 columns by 46 rows. No line should
+- `Width`, `Height` and `FontSize` in the tape give about 138 columns by 46 rows. No line should
   wrap; if one does, raise `Width`.
 - `context --matrix` prints the plan of every agent before the matrix, so the plans scroll past.
   The last frame shows the end of the plans, the matrix, its key and the footer.
