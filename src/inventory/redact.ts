@@ -206,6 +206,24 @@ export function redactPermission(value: string): string {
   return redactWords(value, 'credentials');
 }
 
+/** At most this many vendor tokens are masked in one value. */
+const MAX_MASKED = 64;
+
+/**
+ * A value with credentials of a known vendor format masked where they stand, so the words around
+ * them stay readable, then redacted as a permission value ({@link redactPermission}): a value
+ * agentcheckup shows as written, such as a permission or a model setting, never carries one.
+ */
+export function redactShown(text: string): string {
+  let out = text;
+  for (let round = 0; round < MAX_MASKED; round++) {
+    const secret = findSecret(out);
+    if (secret === undefined) break;
+    out = `${out.slice(0, secret.start)}${REDACTED}${out.slice(secret.start + secret.length)}`;
+  }
+  return redactPermission(out);
+}
+
 function redactWords(command: string, mode: UrlMode): string {
   let out = '';
   let previous = '';

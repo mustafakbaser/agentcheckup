@@ -90,11 +90,10 @@ import {
 import { placement, skillLocation } from '../platforms/skills.js';
 import { checkSubagent, type SubagentCheck } from '../platforms/subagents.js';
 import { isLoopbackHost } from '../rules/mcp/insecure-transport.js';
-import { findSecret } from '../rules/mcp/secrets.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
 import { COMMAND_SETTINGS, envClass, type EnvClass } from './env-class.js';
 import { packageSpec } from './package-spec.js';
-import { REDACTED, redactArgs, redactCommand, redactPermission, urlOrigin } from './redact.js';
+import { redactArgs, redactCommand, redactShown, urlOrigin } from './redact.js';
 import type {
   EnvItem,
   HookItem,
@@ -225,23 +224,6 @@ function headerKeysOf(artifact: Artifact, config: JsonObject): string[] {
     ...sortedKeys(own(config, 'env_http_headers')),
   ]);
   return [...names].sort(compareStrings);
-}
-
-/** At most this many vendor tokens are masked in one permission value. */
-const MAX_MASKED = 64;
-
-/**
- * A permission value with credentials of a known vendor format masked where they stand, so the
- * words around them stay readable; {@link redactPermission} then removes the rest.
- */
-function maskTokens(text: string): string {
-  let out = text;
-  for (let round = 0; round < MAX_MASKED; round++) {
-    const secret = findSecret(out);
-    if (secret === undefined) break;
-    out = `${out.slice(0, secret.start)}${REDACTED}${out.slice(secret.start + secret.length)}`;
-  }
-  return out;
 }
 
 /** A remote server's URL: origin only, whether it uses TLS, whether it stays on the machine. */
@@ -947,7 +929,7 @@ class InventoryBuilder {
   // Items ------------------------------------------------------------------------------------
 
   #pushPermission(artifact: Artifact, item: Omit<PermissionItem, 'id' | 'file' | 'digest'>): void {
-    const value = redactPermission(maskTokens(item.value));
+    const value = redactShown(item.value);
     const fields = { key: item.key, value, broad: item.broad, effective: item.effective };
     this.#permissions.push({
       id: permInventoryId(artifact.path, item.key, value),

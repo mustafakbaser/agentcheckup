@@ -10,6 +10,7 @@ const PURE_MODULES = [
   'src/parse/**',
   'src/platforms/**',
   'src/inventory/**',
+  'src/agents/**',
   'src/policy/**',
   'src/rules/**',
   'src/report/**',

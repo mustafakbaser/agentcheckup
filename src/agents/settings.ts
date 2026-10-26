@@ -1,0 +1,208 @@
+/**
+ * Repository settings that pick a model or an effort for an agent's sessions or subagents
+ * (src/agents/types.ts, ModelSetting). Only documented keys of files an agent reads from the
+ * repository. Values are shown as written, but with credentials removed: a model name is not a
+ * secret, a URL someone puts there may carry one.
+ */
+import { compareStrings } from '../core/compare.js';
+import { hash53 } from '../core/fingerprint.js';
+import { positionAt } from '../core/text.js';
+import type { Artifact, Span } from '../core/types.js';
+import { redactShown } from '../inventory/redact.js';
+import { canonicalJson } from '../platforms/inventory-ids.js';
+import {
+  isTable,
+  type JsonPath,
+  keySpanOf,
+  own,
+  type SpannedDocument,
+  spanOf,
+} from '../parse/json-access.js';
+import type { LoadView } from '../platforms/load/view.js';
+import type { ContextAgent } from '../platforms/load/types.js';
+import type { ModelSetting } from './types.js';
+
+function lineOf(artifact: Artifact, span: Span | undefined): number {
+  return span === undefined ? 1 : positionAt(artifact.decoded, span.offset).line;
+}
+
+/**
+ * A string, a number or a boolean as text (an environment value becomes a string), or a list of
+ * strings joined with `, `; undefined otherwise.
+ */
+function textOf(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+    return value.join(', ');
+  }
+  return undefined;
+}
+
+/** `1`, `true`, `yes` or `on`, in any case: how Claude Code reads an environment switch. */
+export function isTruthy(value: unknown): boolean {
+  const text = typeof value === 'number' || typeof value === 'boolean' ? String(value) : value;
+  return typeof text === 'string' && ['1', 'true', 'yes', 'on'].includes(text.trim().toLowerCase());
+}
+
+/**
+ * `inherit` or nothing: `CLAUDE_CODE_SUBAGENT_MODEL` set so is the same as unset
+ * (SOURCES.claudeSubagents).
+ */
+export function isUnsetModel(value: string): boolean {
+  const text = value.trim();
+  return text === '' || text === 'inherit';
+}
+
+interface Wanted {
+  readonly path: JsonPath;
+  readonly applies: ModelSetting['applies'];
+}
+
+/**
+ * Claude Code settings (SOURCES.claudeModelConfig, SOURCES.claudeSubagents): the session's model
+ * (`env.ANTHROPIC_MODEL`, then `model`, then the default `env.ANTHROPIC_DEFAULT_MODEL`), its
+ * effort, the subagents' model, the models allowed, and what the `opus`, `sonnet`, `haiku` and
+ * `fable` aliases resolve to. `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE` makes Claude Code ignore
+ * every subagent's own `model`.
+ */
+const CLAUDE_KEYS: readonly Wanted[] = [
+  { path: ['model'], applies: 'session' },
+  { path: ['env', 'ANTHROPIC_MODEL'], applies: 'session' },
+  { path: ['env', 'ANTHROPIC_DEFAULT_MODEL'], applies: 'session' },
+  { path: ['effortLevel'], applies: 'session' },
+  { path: ['env', 'CLAUDE_CODE_SUBAGENT_MODEL'], applies: 'subagents' },
+  { path: ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE'], applies: 'subagents' },
+  { path: ['availableModels'], applies: 'allowed' },
+  { path: ['env', 'ANTHROPIC_DEFAULT_OPUS_MODEL'], applies: 'alias' },
+  { path: ['env', 'ANTHROPIC_DEFAULT_SONNET_MODEL'], applies: 'alias' },
+  { path: ['env', 'ANTHROPIC_DEFAULT_HAIKU_MODEL'], applies: 'alias' },
+  { path: ['env', 'ANTHROPIC_DEFAULT_FABLE_MODEL'], applies: 'alias' },
+];
+
+/** Claude Code settings files at the repository root, the local one last: it wins. */
+const CLAUDE_ROOT_FILES = ['.claude/settings.json', '.claude/settings.local.json'];
+
+/**
+ * Codex `config.toml` (SOURCES.codexConfigReference, SOURCES.codexSubagents): a project file may
+ * set the session's model and effort, and the subagents' defaults in `[agents]`.
+ */
+const CODEX_KEYS: readonly Wanted[] = [
+  { path: ['model'], applies: 'session' },
+  { path: ['model_reasoning_effort'], applies: 'session' },
+  { path: ['agents', 'default_subagent_model'], applies: 'subagents' },
+  { path: ['agents', 'default_subagent_reasoning_effort'], applies: 'subagents' },
+];
+
+/** Gemini CLI's session model (`model.name`). Per-agent overrides are read on their own. */
+const GEMINI_KEYS: readonly Wanted[] = [{ path: ['model', 'name'], applies: 'session' }];
+
+/**
+ * GitHub Copilot CLI's repository settings, `.github/copilot/settings.json`, which may set the
+ * session's model and effort in a trusted folder (SOURCES.copilotCliAgents).
+ */
+const COPILOT_KEYS: readonly Wanted[] = [
+  { path: ['model'], applies: 'session' },
+  { path: ['effortLevel'], applies: 'session' },
+];
+
+/** The value at `path` in `doc`, or undefined. */
+function at(doc: SpannedDocument, path: JsonPath): unknown {
+  let value: unknown = doc.value;
+  for (const segment of path) {
+    if (!isTable(value) || typeof segment !== 'string') return undefined;
+    value = own(value, segment);
+  }
+  return value;
+}
+
+/**
+ * Whether `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on for a session at the root: in
+ * `.claude/settings.local.json` when it sets the switch, else in `.claude/settings.json`.
+ */
+function rootForce(view: LoadView): boolean {
+  let force = false;
+  for (const path of CLAUDE_ROOT_FILES) {
+    const artifact = view.index.get(path);
+    if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
+    const doc = view.json(artifact);
+    if (!doc.ok) continue;
+    const value = at(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
+    if (value !== undefined) force = isTruthy(value);
+  }
+  return force;
+}
+
+/** Every model setting the repository's settings files declare, sorted by id. */
+export function buildModelSettings(view: LoadView): ModelSetting[] {
+  const out: ModelSetting[] = [];
+  const add = (
+    artifact: Artifact,
+    doc: SpannedDocument,
+    agent: ContextAgent,
+    wanted: Wanted,
+    extra: Partial<Pick<ModelSetting, 'forced'>> = {},
+  ): void => {
+    const raw = textOf(at(doc, wanted.path));
+    if (raw === undefined) return;
+    const key = wanted.path.join('.');
+    const fields = { agent, key, value: redactShown(raw), applies: wanted.applies, ...extra };
+    out.push({
+      id: `model:${artifact.path}#${key}`,
+      file: artifact.path,
+      line: lineOf(artifact, spanOf(doc, wanted.path) ?? keySpanOf(doc, wanted.path)),
+      ...fields,
+      digest: hash53(canonicalJson(fields)),
+    });
+  };
+
+  const forcedAtRoot = rootForce(view);
+  for (const artifact of view.artifacts) {
+    const { kind } = artifact;
+    if (kind === 'claude-settings') {
+      const doc = view.json(artifact);
+      if (!doc.ok) continue;
+      // At the root, the local file's switch counts for the shared file's model too.
+      const forced = CLAUDE_ROOT_FILES.includes(artifact.path)
+        ? forcedAtRoot
+        : isTruthy(at(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']));
+      for (const wanted of CLAUDE_KEYS) {
+        const subagentModel = wanted.path[1] === 'CLAUDE_CODE_SUBAGENT_MODEL';
+        add(artifact, doc, 'claude-code', wanted, subagentModel && forced ? { forced } : {});
+      }
+    } else if (kind === 'codex-config') {
+      const doc = view.toml(artifact);
+      if (doc.ok) for (const wanted of CODEX_KEYS) add(artifact, doc, 'codex', wanted);
+    } else if (kind === 'gemini-settings') {
+      const doc = view.json(artifact);
+      if (!doc.ok) continue;
+      for (const wanted of GEMINI_KEYS) add(artifact, doc, 'gemini', wanted);
+      // `agents.overrides.<name>.modelConfig.model` picks one agent's model.
+      const overrides = at(doc, ['agents', 'overrides']);
+      if (isTable(overrides)) {
+        for (const name of Object.keys(overrides)) {
+          const path = ['agents', 'overrides', name, 'modelConfig', 'model'];
+          add(artifact, doc, 'gemini', { path, applies: 'subagents' });
+        }
+      }
+    } else if (kind === 'copilot-settings') {
+      const doc = view.json(artifact);
+      if (doc.ok) for (const wanted of COPILOT_KEYS) add(artifact, doc, 'copilot-cli', wanted);
+    }
+  }
+  return out.sort((a, b) => compareStrings(a.id, b.id));
+}
+
+/** The value at `path` in the settings file at `file` (JSON, or TOML for Codex), or undefined. */
+export function rootSetting(
+  view: LoadView,
+  file: string,
+  path: JsonPath,
+): { readonly value: unknown; readonly key: string } | undefined {
+  const artifact = view.index.get(file);
+  if (artifact?.path !== file) return undefined;
+  const doc = artifact.kind === 'codex-config' ? view.toml(artifact) : view.json(artifact);
+  if (!doc.ok) return undefined;
+  const value = at(doc, path);
+  return value === undefined ? undefined : { value, key: path.join('.') };
+}

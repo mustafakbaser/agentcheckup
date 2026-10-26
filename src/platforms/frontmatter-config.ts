@@ -210,7 +210,7 @@ function lineIndex(starts: readonly number[], offset: number): number {
  * True when a mapping anywhere in `value` has the key `<<`. Values are finite trees: aliases were
  * expanded within the parser's budget.
  */
-function hasMergeKey(value: unknown): boolean {
+export function hasMergeKey(value: unknown): boolean {
   const stack: unknown[] = [value];
   for (let node = stack.pop(); node !== undefined || stack.length > 0; node = stack.pop()) {
     if (Array.isArray(node)) {
