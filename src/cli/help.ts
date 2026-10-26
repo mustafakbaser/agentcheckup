@@ -89,8 +89,9 @@ Options
                            ${GATE_CLASSES.join(', ')},
                            or security for all but models, or none
       --policy <file>      Check the scan against an organization policy: allowed MCP
-                           servers, forbidden settings, required hooks, startup budgets.
-                           Implies --untrusted; cannot be combined with --config
+                           servers, forbidden settings, required hooks, startup budgets,
+                           allowed models. Implies --untrusted; cannot be combined with
+                           --config
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and

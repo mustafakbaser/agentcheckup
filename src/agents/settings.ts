@@ -206,3 +206,31 @@ export function rootSetting(
   const value = at(doc, path);
   return value === undefined ? undefined : { value, key: path.join('.') };
 }
+
+/** Keys whose value is a model, rather than an effort, a switch or a list of models allowed. */
+const MODEL_KEYS: ReadonlySet<string> = new Set([
+  'model',
+  'env.ANTHROPIC_MODEL',
+  'env.ANTHROPIC_DEFAULT_MODEL',
+  'env.ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'env.ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'env.ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'env.ANTHROPIC_DEFAULT_FABLE_MODEL',
+  'env.CLAUDE_CODE_SUBAGENT_MODEL',
+  'agents.default_subagent_model',
+  'model.name',
+]);
+
+/**
+ * True when `setting` picks a model: `model`, `env.CLAUDE_CODE_SUBAGENT_MODEL`, what an alias
+ * resolves to, and the like. `CLAUDE_CODE_SUBAGENT_MODEL` set to `inherit` picks none.
+ */
+export function isModelChoice(setting: ModelSetting): boolean {
+  if (setting.key === 'env.CLAUDE_CODE_SUBAGENT_MODEL' && isUnsetModel(setting.value)) {
+    return false;
+  }
+  return (
+    MODEL_KEYS.has(setting.key) ||
+    (setting.agent === 'gemini' && setting.key.endsWith('.modelConfig.model'))
+  );
+}

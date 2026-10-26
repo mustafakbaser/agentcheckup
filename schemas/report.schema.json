@@ -152,11 +152,12 @@
                   "denied-tool",
                   "hook-missing",
                   "startup-budget",
+                  "model-not-allowed",
                   "unanalyzed-config"
                 ]
               },
               "entry": {
-                "description": "What the violation is about: the server in allowlist form, the `forbid` name, the denied tools and commands, the hook requirement, the agent, or the `incomplete` entry.",
+                "description": "What the violation is about: the server in allowlist form, the `forbid` name, the denied tools and commands, the hook requirement, the agent, the model value (`unknown` when it cannot be read), or the `incomplete` entry.",
                 "type": "string"
               },
               "path": { "$ref": "#/$defs/path" },

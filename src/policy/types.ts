@@ -85,6 +85,18 @@ export interface HookRequirement {
   readonly command?: string;
 }
 
+/**
+ * One agent's `models` entry: the model values its agent definitions and the repository's model
+ * settings may name, as written. Values match exactly; `inherit` is a value like any other.
+ */
+export interface ModelRule {
+  readonly agent: ContextAgent;
+  /** Absent: no allowlist. Present, even empty: only listed values pass. */
+  readonly allow?: readonly string[];
+  /** Values that never pass, even when `allow` lists them. */
+  readonly deny: readonly string[];
+}
+
 /** A policy file after validation, with defaults applied. */
 export interface Policy {
   readonly name: string;
@@ -106,6 +118,8 @@ export interface Policy {
   readonly requireHooks: readonly HookRequirement[];
   /** Per agent, the most startup tokens any of its load plans may have. */
   readonly budgets: readonly { readonly agent: ContextAgent; readonly startupTokens: number }[];
+  /** Per agent, the models it may be set to run on; in agent report order. */
+  readonly models: readonly ModelRule[];
 }
 
 export const POLICY_CHECKS = [
@@ -115,6 +129,7 @@ export const POLICY_CHECKS = [
   'denied-tool',
   'hook-missing',
   'startup-budget',
+  'model-not-allowed',
   'unanalyzed-config',
 ] as const;
 /** The checks, in report order. */
@@ -124,9 +139,10 @@ export type PolicyCheck = (typeof POLICY_CHECKS)[number];
  * One violation.
  *
  * `id` is the identity a baseline comparison matches: the check, the subject (an inventory item
- * id, an `incomplete` entry, a hook requirement or an agent) and, for inventory items, the item's
- * digest, so changing an item that already violates the policy makes a new violation. Ids are
- * relative to the scan root, like finding fingerprints: they never carry `pathBase`.
+ * id, an agent definition or model setting id, an `incomplete` entry, a hook requirement or an
+ * agent) and, for items with a digest, the digest, so changing an item that already violates the
+ * policy makes a new violation. Ids are relative to the scan root, like finding fingerprints:
+ * they never carry `pathBase`.
  *
  * `entry` names what the violation is about:
  * - `mcp-not-allowed`, `mcp-unpinned`: the server in allowlist form (`npm:<name>`,
@@ -136,6 +152,7 @@ export type PolicyCheck = (typeof POLICY_CHECKS)[number];
  * - `denied-tool`: the `denyTools` and `denyCommands` values the grant violates, comma-separated.
  * - `hook-missing`: the requirement, such as `claude-code PreToolUse matcher "Bash"`.
  * - `startup-budget`: the agent.
+ * - `model-not-allowed`: the model value as written, or `unknown` when it cannot be read.
  * - `unanalyzed-config`: the inventory's `incomplete` entry.
  *
  * `message` keeps repository text raw (quoted and length-bounded, as finding messages do);

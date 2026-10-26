@@ -2,7 +2,8 @@
 
 `--policy <file>` checks a repository against rules your organization sets: which MCP servers
 may run, which settings are forbidden, which tools and commands no agent may use without asking,
-which hooks must be configured, and how many tokens an agent may load at session start.
+which hooks must be configured, how many tokens an agent may load at session start, and which
+models agents may be set to run on.
 
 ```sh
 npx agentcheckup --policy acme-agent-policy.json
@@ -54,15 +55,17 @@ The decision and its trade-offs are in [ADR 0011](adr/0011-organization-policy.m
       }
     ]
   },
-  "budgets": { "claude-code": { "startupTokens": 8000 }, "codex": { "startupTokens": 8000 } }
+  "budgets": { "claude-code": { "startupTokens": 8000 }, "codex": { "startupTokens": 8000 } },
+  "models": { "claude-code": { "allow": ["sonnet", "haiku", "inherit"] } }
 }
 ```
 
 This policy allows five MCP servers, each pinned to an exact version or digest; forbids four
 settings; fails any grant that lets an agent fetch web pages or run `curl`, `wget` or `ssh`
 without asking; requires a Claude Code hook that guards shell commands; and limits what Claude
-Code and Codex load at session start to about 8,000 tokens. With `"existing": "report"` and a
-baseline, only violations a change adds fail the run.
+Code and Codex load at session start to about 8,000 tokens; and lets Claude Code's subagents and
+settings name only Sonnet, Haiku or the main conversation's model. With `"existing": "report"`
+and a baseline, only violations a change adds fail the run.
 
 The file follows [schemas/policy.schema.json](../schemas/policy.schema.json); with `$schema` set,
 editors complete and check it.
@@ -84,9 +87,13 @@ editors complete and check it.
 | `permissions.denyCommands` | array of program names                           | `[]`      | Programs no shell grant may let an agent run without asking, such as `curl`. Compared without case.                                                                                                                                    |
 | `hooks.require`            | array of [hook requirements](#hook-missing)      | `[]`      | Hooks that must be configured.                                                                                                                                                                                                         |
 | `budgets.<agent>`          | `{ "startupTokens": n }`                         | none      | The most tokens the agent may load at session start, from 1 to 100,000,000. Agents with a load model: `claude-code`, `codex`, `cursor`, `copilot-cli`, `copilot-vscode`, `copilot-cloud`, `gemini`, `windsurf` (Devin Local), `cline`. |
+| `models.<agent>.allow`     | array of model values                            | none      | Absent: no allowlist. Present, even empty: the agent's definitions and the repository's model settings may name only these values. See [`model-not-allowed`](#model-not-allowed).                                                      |
+| `models.<agent>.deny`      | array of model values                            | `[]`      | Values they must not name, even when `allow` lists them. Each `models.<agent>` needs `allow`, `deny` or both.                                                                                                                          |
 
 Unknown fields are an error, so a typo cannot switch a check off. A policy file with any problem
-stops the run with exit code 2 and one line per problem; see [Errors](#errors).
+stops the run with exit code 2 and one line per problem; see [Errors](#errors). The same holds
+for fields a newer agentcheckup added, such as `models`: an older version stops on them rather
+than skipping their check.
 
 ## Checks
 
@@ -170,6 +177,29 @@ load plan of the agent: at the root, and for Codex in each directory with an `AG
 `agentcheckup context --matrix` shows them. An agent that has no load plan fails the check
 rather than passing it. Token counts are estimates (characters divided by 4), so leave headroom.
 
+### `model-not-allowed`
+
+An agent definition or a repository setting names a model the policy does not allow for the
+agent: one outside `models.<agent>.allow`, or one in `models.<agent>.deny`. Values match exactly
+as written, so `sonnet` and `claude-sonnet-5-5` are different values, and `inherit` (the main
+conversation's model) is a value like any other: leave it out of `allow` to require every
+subagent to name its model.
+
+- The definitions are those `agentcheckup agents` lists: each file once per agent
+  that reads it. Cursor and GitHub Copilot read Claude Code's `.claude/agents` too, so
+  `models.cursor` covers those files as Cursor reads them.
+- The settings are those that pick a model: Claude Code's `model`, `env.ANTHROPIC_MODEL` and
+  `env.CLAUDE_CODE_SUBAGENT_MODEL`, Codex's `model` and `agents.default_subagent_model`, Gemini
+  CLI's `model.name` and per-agent overrides, and the Copilot CLI's `model`. Effort settings are
+  not models.
+- A definition whose model a setting overrides, such as under Claude Code's
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, runs on that setting's model, so the setting is checked
+  instead. A definition the agent skips or loses to another runs on no model and is not checked.
+- A definition without a model runs on one chosen elsewhere: a repository setting, which is
+  checked, or the user's choice, which agentcheckup cannot see.
+- A definition the agent may load but whose model cannot be read fails an allowlist: the policy
+  fails closed. The violation's entry is `unknown`.
+
 ### `unanalyzed-config`
 
 A configuration file agentcheckup cannot analyze, such as a `.mcp.json` that is not valid JSON, a
@@ -209,6 +239,7 @@ Where agentcheckup cannot tell whether the repository follows the policy, it rep
 - an MCP server whose package or version cannot be told (no allowlist entry matches it);
 - a shell grant whose program cannot be told (it counts as running every denied program);
 - an agent with a budget but no load plan;
+- an agent definition the agent may load whose model cannot be read, under a `models` allowlist;
 - a policy file with an unknown field, an unknown setting name or an unknown hook event (exit 2).
 
 ## Baselines
@@ -230,9 +261,11 @@ agentcheckup --no-gitignore --policy policy.json --baseline base.json --gate sec
 - A startup budget violation is new unless the baseline exceeded the same budget with at least
   as many tokens.
 - `"existing": "report"` fails only on new violations; `"fail"` fails on all of them.
-- Budgets need load plans in the baseline: write it with `--context`. A baseline without plans or
-  without an inventory (from an older agentcheckup) makes every such violation new, and the
-  report says so.
+- Budgets need load plans in the baseline: write it with `--context`. A baseline without plans,
+  without an inventory or without agent definitions (from an older agentcheckup) makes every
+  such violation new, and the report says so.
+- A model violation keeps its id while the definition or setting is unchanged; changing the
+  model, or anything else the definition says, makes a new violation.
 - A change inside a file agentcheckup cannot analyze is not visible, so such a file counts as
   unchanged when the baseline has it too.
 - Ids are relative to the scanned directory, so a baseline written from another working

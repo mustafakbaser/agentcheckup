@@ -29,6 +29,7 @@ describe('POLICY_JSON_SCHEMA', () => {
       'permissions',
       'hooks',
       'budgets',
+      'models',
     ]);
     for (const name of ['example.json', 'strict.json']) {
       expect(validate(fixture(name))).toBe(true);
@@ -147,6 +148,23 @@ describe('POLICY_JSON_SCHEMA', () => {
     ),
     fc.integer(),
   );
+  const modelValue = fc.oneof(
+    fc.constantFrom('sonnet', 'Claude Sonnet 4.5', 'inherit', ''),
+    fc.string({ maxLength: 4 }),
+    fc.string({ unit: 'binary', minLength: 195, maxLength: 205 }),
+    fc.integer(),
+  );
+  const modelRule = fc.oneof(
+    fc.record(
+      {
+        allow: fc.oneof(fc.array(modelValue, { maxLength: 2 }), fc.string()),
+        deny: fc.array(modelValue, { maxLength: 2 }),
+        alow: fc.integer(),
+      },
+      { requiredKeys: [] },
+    ),
+    fc.integer(),
+  );
   const fields = {
     $schema: fc.oneof(fc.string(), fc.integer()),
     policyVersion: fc.constantFrom(1, 2, 0, 1.5, '1', null),
@@ -204,6 +222,9 @@ describe('POLICY_JSON_SCHEMA', () => {
       budget,
       { maxKeys: 3 },
     ),
+    models: fc.dictionary(fc.constantFrom(...CONTEXT_AGENTS, '__proto__', 'claude'), modelRule, {
+      maxKeys: 3,
+    }),
     unknown: fc.integer(),
   };
   // Valid values only, so that accepted documents are common too.
@@ -252,6 +273,17 @@ describe('POLICY_JSON_SCHEMA', () => {
     budgets: fc.dictionary(
       fc.constantFrom(...CONTEXT_AGENTS),
       fc.record({ startupTokens: fc.integer({ min: 1, max: 100_000_000 }) }),
+      { maxKeys: 3 },
+    ),
+    models: fc.dictionary(
+      fc.constantFrom(...CONTEXT_AGENTS),
+      fc.record(
+        {
+          allow: fc.array(fc.constantFrom('sonnet', 'inherit', 'gpt-6.1-sol'), { maxLength: 2 }),
+          deny: fc.array(fc.constantFrom('opus', 'Claude Opus 4.1'), { maxLength: 2 }),
+        },
+        { requiredKeys: ['deny'] },
+      ),
       { maxKeys: 3 },
     ),
   };

@@ -1147,6 +1147,223 @@ function strictPolicy(): Policy {
   return result.policy;
 }
 
+// ---------------------------------------------------------------------------------------------
+// models
+// ---------------------------------------------------------------------------------------------
+
+describe('models', () => {
+  const subagent = (name: string, model?: string): string =>
+    `---\nname: ${name}\ndescription: d\n${model === undefined ? '' : `model: ${model}\n`}---\n`;
+  const claudeOnly = { models: { 'claude-code': { allow: ['sonnet', 'haiku'], deny: ['haiku'] } } };
+
+  it('reports definitions and model settings outside the allowlist or in the denylist', () => {
+    const report = run(claudeOnly, {
+      '.claude/agents/a.md': subagent('a', 'opus'),
+      '.claude/agents/b.md': subagent('b', 'haiku'),
+      '.claude/agents/c.md': subagent('c', 'sonnet'),
+      '.claude/settings.json': json({
+        model: 'claude-opus-5-5',
+        effortLevel: 'high',
+        env: { CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' },
+      }),
+    });
+    expect(brief(report)).toEqual([
+      {
+        check: 'model-not-allowed',
+        entry: 'opus',
+        at: '.claude/agents/a.md:4',
+        message:
+          'Agent definition "a" sets model "opus", which the policy does not allow for Claude Code.',
+      },
+      {
+        check: 'model-not-allowed',
+        entry: 'haiku',
+        at: '.claude/agents/b.md:4',
+        message:
+          'Agent definition "b" sets model "haiku", which the policy denies for Claude Code.',
+      },
+      {
+        check: 'model-not-allowed',
+        entry: 'claude-opus-5-5',
+        at: '.claude/settings.json:2',
+        message:
+          'model sets model "claude-opus-5-5" for Claude Code sessions, which the policy does not allow for Claude Code.',
+      },
+    ]);
+    expect(report.violations.map((violation) => violation.agent)).toEqual([
+      'claude-code',
+      'claude-code',
+      'claude-code',
+    ]);
+    expect(activeChecks(policyOf(claudeOnly))).toEqual(['model-not-allowed']);
+  });
+
+  it('checks the setting that overrides a definition, not the definition', () => {
+    const report = run(claudeOnly, {
+      '.claude/agents/a.md': subagent('a', 'opus'),
+      '.claude/settings.json': json({
+        env: { CLAUDE_CODE_SUBAGENT_MODEL: 'opus', CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1' },
+      }),
+    });
+    expect(brief(report).map(({ entry, at }) => `${entry} ${at ?? ''}`)).toEqual([
+      'opus .claude/settings.json:3',
+    ]);
+    expect(messages(report)).toEqual([
+      'env.CLAUDE_CODE_SUBAGENT_MODEL sets model "opus" for Claude Code subagents, which the policy does not allow for Claude Code.',
+    ]);
+  });
+
+  it('checks every value of a list, and every file the agent reads', () => {
+    const report = run(
+      { models: { 'copilot-vscode': { allow: ['GPT-5 (copilot)'] } } },
+      {
+        '.github/agents/d.agent.md':
+          '---\ndescription: d\nmodel:\n  - Claude Sonnet 4.5\n  - GPT-5 (copilot)\n---\n',
+        '.claude/agents/a.md': subagent('a', 'opus'),
+      },
+    );
+    // Copilot in VS Code reads Claude Code's subagents too, so the policy covers them for it.
+    expect(brief(report)).toEqual([
+      {
+        check: 'model-not-allowed',
+        entry: 'opus',
+        at: '.claude/agents/a.md:4',
+        message:
+          'Agent definition "a" sets model "opus", which the policy does not allow for Copilot in VS Code.',
+      },
+      {
+        check: 'model-not-allowed',
+        entry: 'Claude Sonnet 4.5',
+        at: '.github/agents/d.agent.md:4',
+        message:
+          'Agent definition "d" sets model "Claude Sonnet 4.5", which the policy does not allow for Copilot in VS Code.',
+      },
+    ]);
+  });
+
+  it('fails closed on a definition whose model cannot be read, and skips what never runs', () => {
+    const files = {
+      // Valid for no reader but Claude Code's own: whether it loads is not documented.
+      '.claude/agents/odd.md': '---\nname: odd\ndescription: Use when: x\n---\n',
+      '.claude/agents/none.md': subagent('none'),
+      '.claude/agents/skipped.md': '---\ndescription: d\nmodel: opus\n---\n',
+    };
+    expect(brief(run(claudeOnly, files))).toEqual([
+      {
+        check: 'model-not-allowed',
+        entry: 'unknown',
+        at: '.claude/agents/odd.md:2',
+        message:
+          'Agent definition "odd" may load, but its model cannot be read (the frontmatter is not valid YAML, which Claude Code\'s reader may accept), so the policy\'s allowlist cannot pass it.',
+      },
+    ]);
+    // A denylist alone has nothing to fail closed on.
+    expect(run({ models: { 'claude-code': { deny: ['opus'] } } }, files).violations).toEqual([]);
+  });
+
+  it('is new when the model changes, and notes a baseline without agent definitions', () => {
+    const before = { '.claude/agents/a.md': subagent('a', 'opus') };
+    const same = run(claudeOnly, before, { baseline: before });
+    expect(same.violations.map((violation) => violation.baseline)).toEqual(['unchanged']);
+    const changed = run(
+      claudeOnly,
+      { '.claude/agents/a.md': subagent('a', 'fable') },
+      { baseline: before },
+    );
+    expect(changed.violations.map((violation) => violation.baseline)).toEqual(['new']);
+
+    const { agents: _agents, ...old } = scan(before);
+    const report = evaluate(policyOf(claudeOnly), { current: scan(before), baseline: old });
+    expect(report.violations.map((violation) => violation.baseline)).toEqual(['new']);
+    expect(report.notes.map((note) => note.id)).toContain('baseline-without-agents');
+  });
+
+  it('checks a definition that may win, and the own model a switch alone may not override', () => {
+    // Which of two files with one name Claude Code loads is not documented: either may run.
+    const duplicates = run(
+      { models: { 'claude-code': { deny: ['opus'] } } },
+      {
+        '.claude/agents/a.md': subagent('reviewer', 'sonnet'),
+        '.claude/agents/z.md': subagent('reviewer', 'opus'),
+      },
+    );
+    expect(brief(duplicates).map(({ at }) => at)).toEqual(['.claude/agents/z.md:4']);
+    // CLAUDE_CODE_SUBAGENT_MODEL_FORCE alone hands subagents a model the repository does not name.
+    const forced = run(
+      { models: { 'claude-code': { allow: ['sonnet'] } } },
+      {
+        '.claude/agents/a.md': subagent('a', 'opus'),
+        '.claude/settings.json': json({ env: { CLAUDE_CODE_SUBAGENT_MODEL_FORCE: 'on' } }),
+      },
+    );
+    expect(brief(forced).map(({ entry }) => entry)).toEqual(['opus']);
+  });
+
+  it('denies a model with its options too, and folds case for Copilot', () => {
+    const report = run(
+      { models: { 'claude-code': { deny: ['opus'] }, 'copilot-cli': { deny: ['gpt-x'] } } },
+      {
+        '.claude/agents/a.md': subagent('a', 'opus[1m]'),
+        '.github/agents/b.agent.md': '---\ndescription: d\nmodel: GPT-X\n---\n',
+      },
+    );
+    expect(brief(report).map(({ entry, message }) => [entry, message.split(', which')[1]])).toEqual(
+      [
+        ['opus[1m]', ' the policy denies for Claude Code.'],
+        ['GPT-X', ' the policy denies for Copilot CLI.'],
+      ],
+    );
+    // An allowlist matches exactly: a 1M-context variant is a model of its own.
+    expect(
+      brief(
+        run(
+          { models: { 'claude-code': { allow: ['opus'] } } },
+          { '.claude/agents/a.md': subagent('a', 'opus[1m]') },
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('checks what an alias resolves to, but not CLAUDE_CODE_SUBAGENT_MODEL set to inherit', () => {
+    const report = run(claudeOnly, {
+      '.claude/agents/a.md': subagent('a', 'sonnet'),
+      '.claude/settings.json': json({
+        env: {
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-opus-5-5',
+          CLAUDE_CODE_SUBAGENT_MODEL: 'inherit',
+        },
+      }),
+    });
+    expect(messages(report)).toEqual([
+      'env.ANTHROPIC_DEFAULT_SONNET_MODEL sets model "claude-opus-5-5" for an alias in Claude Code, which the policy does not allow for Claude Code.',
+    ]);
+  });
+
+  it('fails closed on a scan without agent definitions', () => {
+    const { agents: _agents, ...current } = scan({ 'AGENTS.md': '# A\n' });
+    expect(brief(evaluate(policyOf(claudeOnly), { current }))).toEqual([
+      {
+        check: 'model-not-allowed',
+        entry: 'unknown',
+        message:
+          "This scan lists no agent definitions or model settings, so the policy's models cannot be checked.",
+      },
+    ]);
+  });
+
+  it('matches across working directories', () => {
+    const files = { '.claude/agents/a.md': subagent('a', 'opus') };
+    const current = rebaseResult(scan(files), 'packages/app');
+    const report = evaluate(policyOf(claudeOnly), { current, baseline: scan(files) });
+    expect(report.violations.map(({ id, baseline }) => [id, baseline])).toEqual([
+      [
+        expect.stringMatching(/^model-not-allowed:agent:\.claude\/agents\/a\.md@claude-code@/),
+        'unchanged',
+      ],
+    ]);
+  });
+});
+
 describe('the strict sample policy', () => {
   it('reports the context fixture, deterministically', async () => {
     const current = await contextFixture();
@@ -1161,6 +1378,10 @@ describe('the strict sample policy', () => {
         incomplete: [...current.inventory.incomplete].reverse(),
       },
       context: { plans: [...current.context.plans].reverse() },
+      agents: {
+        definitions: [...(current.agents?.definitions ?? [])].reverse(),
+        settings: [...(current.agents?.settings ?? [])].reverse(),
+      },
     };
     expect(evaluate(policy, { current: reversed })).toEqual(report);
     expect(evaluate(policy, { current })).toEqual(report);
@@ -1197,9 +1418,10 @@ describe('the strict sample policy', () => {
           },
         }),
         'scripts/hooks/guard.sh': '#!/bin/sh\nexit 0\n',
+        '.claude/agents/reviewer.md': '---\nname: reviewer\ndescription: d\nmodel: sonnet\n---\n',
       }),
     });
     expect(report.violations).toEqual([]);
-    expect(report.checks).toBe(7);
+    expect(report.checks).toBe(8);
   });
 });

@@ -16,6 +16,7 @@ import { quote, readerName } from '../rules/shared/format.js';
 import { nearest } from './text.js';
 import {
   COMMAND_NAME,
+  MAX_MODEL_LENGTH,
   MAX_NAME_LENGTH,
   MAX_STARTUP_TOKENS,
   NPM_ENTRY,
@@ -32,6 +33,7 @@ import {
   FORBID_NAMES,
   type ForbidName,
   type HookRequirement,
+  type ModelRule,
   type Policy,
   POLICY_MODES,
   type PolicyMode,
@@ -55,12 +57,14 @@ const TOP_FIELDS = [
   'permissions',
   'hooks',
   'budgets',
+  'models',
 ] as const;
 const MCP_FIELDS = ['allow', 'allowLocal', 'requirePin'] as const;
 const PERMISSION_FIELDS = ['denyTools', 'denyCommands'] as const;
 const HOOKS_FIELDS = ['require'] as const;
 const REQUIREMENT_FIELDS = ['agent', 'event', 'matcher', 'script', 'command'] as const;
 const BUDGET_FIELDS = ['startupTokens'] as const;
+const MODEL_RULE_FIELDS = ['allow', 'deny'] as const;
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
@@ -184,6 +188,7 @@ export function parsePolicy(json: unknown): PolicyParseResult {
   const permissions = checkPermissions(v, own(json, 'permissions'));
   const requireHooks = checkHooks(v, own(json, 'hooks'));
   const budgets = checkBudgets(v, own(json, 'budgets'));
+  const models = checkModels(v, own(json, 'models'));
 
   if (v.issues.length > 0) return { errors: v.issues };
   return {
@@ -197,6 +202,7 @@ export function parsePolicy(json: unknown): PolicyParseResult {
       denyCommands: permissions.denyCommands,
       requireHooks,
       budgets,
+      models,
     },
   };
 }
@@ -621,6 +627,58 @@ function checkBudgets(v: Validator, value: unknown): Policy['budgets'] {
       continue;
     }
     out.push({ agent, startupTokens: tokens });
+  }
+  // CONTEXT_AGENTS order, so the policy's key order changes nothing.
+  return out.sort((a, b) => CONTEXT_AGENTS.indexOf(a.agent) - CONTEXT_AGENTS.indexOf(b.agent));
+}
+
+// ---------------------------------------------------------------------------------------------
+// models
+// ---------------------------------------------------------------------------------------------
+
+/** The model values of `models.<agent>.allow` or `.deny`, as written. */
+function modelValues(v: Validator, value: unknown, path: string): string[] | undefined {
+  return v.strings(value, path, (text, at) => {
+    let length = 0;
+    for (const _char of text) length++;
+    if (length === 0) v.add(at, 'must not be empty.');
+    else if (length > MAX_MODEL_LENGTH) {
+      v.add(at, `must be at most ${MAX_MODEL_LENGTH} characters, got ${length}.`);
+    } else return text;
+    return undefined;
+  });
+}
+
+function checkModels(v: Validator, value: unknown): ModelRule[] {
+  if (value === undefined) return [];
+  const models = v.record(value, 'models');
+  if (models === undefined) return [];
+  const out: ModelRule[] = [];
+  for (const agent of Object.keys(models)) {
+    const path = child('models', agent);
+    if (!isContextAgent(agent)) {
+      const guess = nearest(agent, CONTEXT_AGENTS);
+      const hint = guess === undefined ? '' : ` (did you mean ${quote(child('models', guess))}?)`;
+      v.add(
+        '',
+        `Unknown field ${quote(path)}${hint}. ${UNKNOWN_FIELD_REASON} Models apply to the agents agentcheckup lists: ${CONTEXT_AGENTS.join(', ')}.`,
+      );
+      continue;
+    }
+    const rule = v.record(models[agent], path);
+    if (rule === undefined) continue;
+    v.unknownFields(rule, MODEL_RULE_FIELDS, path);
+    if (!Object.hasOwn(rule, 'allow') && !Object.hasOwn(rule, 'deny')) {
+      v.add(path, '"allow" or "deny" is required.');
+      continue;
+    }
+    const allow = Object.hasOwn(rule, 'allow')
+      ? modelValues(v, rule['allow'], child(path, 'allow'))
+      : undefined;
+    const deny = Object.hasOwn(rule, 'deny')
+      ? modelValues(v, rule['deny'], child(path, 'deny'))
+      : undefined;
+    out.push({ agent, ...(allow === undefined ? {} : { allow }), deny: deny ?? [] });
   }
   // CONTEXT_AGENTS order, so the policy's key order changes nothing.
   return out.sort((a, b) => CONTEXT_AGENTS.indexOf(a.agent) - CONTEXT_AGENTS.indexOf(b.agent));

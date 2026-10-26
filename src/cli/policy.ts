@@ -72,6 +72,7 @@ export function withPolicy(
   const plans = budgetPlans(loaded.policy, scanned, snapshot, scanOptions);
   const current: PolicySubject = {
     inventory: scanned.inventory,
+    ...(scanned.agents === undefined ? {} : { agents: scanned.agents }),
     ...(plans === undefined ? {} : { context: { plans } }),
   };
   const report = evaluatePolicy(loaded.policy, {

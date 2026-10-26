@@ -369,6 +369,34 @@ describe('the repository cannot hide a violation', () => {
     }
   });
 
+  it('checks the models agent definitions name, whatever --targets says', async () => {
+    const work = await setup(
+      { models: { 'claude-code': { allow: ['sonnet'] } } },
+      {
+        ...REPO,
+        '.claude/agents/reviewer.md': '---\nname: reviewer\ndescription: d\nmodel: opus\n---\n',
+      },
+    );
+    for (const extra of [[], ['--targets', 'codex']]) {
+      const [code, report] = await scanReport(work, ['--policy', 'policy.json', ...extra]);
+      expect(code).toBe(EXIT.findings);
+      expect(report.policy?.violations).toMatchObject([
+        {
+          check: 'model-not-allowed',
+          entry: 'opus',
+          path: 'repo/.claude/agents/reviewer.md',
+          line: 4,
+          agent: 'claude-code',
+          fails: true,
+        },
+      ]);
+    }
+    const { out } = await scan(work, ['--policy', 'policy.json']);
+    expect(out).toContain(
+      'Agent definition "reviewer" sets model "opus", which the policy does not allow for Claude Code.',
+    );
+  });
+
   it('evaluates a required hook and says it is not enforced', async () => {
     const work = await setup({ hooks: { require: [{ agent: 'claude-code', event: 'Stop' }] } });
     const [, report] = await scanReport(work, ['--policy', 'policy.json']);

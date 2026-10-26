@@ -21,6 +21,9 @@ export const MAX_NAME_LENGTH = 120;
 /** Largest startup budget, in tokens. */
 export const MAX_STARTUP_TOKENS = 100_000_000;
 
+/** Longest model value in `models`, in code points. */
+export const MAX_MODEL_LENGTH = 200;
+
 /**
  * `npm:<name>[@<exact version>]`. Names follow npm's rules, scoped or not; legacy names with
  * capitals are accepted. The version is an exact semver version, as npm reads one: a leading `=`
@@ -89,6 +92,24 @@ const budgetSchema = {
       minimum: 1,
       maximum: MAX_STARTUP_TOKENS,
     },
+  },
+};
+
+const modelValues = (description: string) => ({
+  description,
+  type: 'array',
+  items: { type: 'string', minLength: 1, maxLength: MAX_MODEL_LENGTH },
+});
+
+const modelRuleSchema = {
+  type: 'object',
+  additionalProperties: false,
+  minProperties: 1,
+  properties: {
+    allow: modelValues(
+      'Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.',
+    ),
+    deny: modelValues('Model values the agent must not be set to, even when allow lists them.'),
   },
 };
 
@@ -179,6 +200,13 @@ export const POLICY_JSON_SCHEMA = {
       type: 'object',
       additionalProperties: false,
       properties: Object.fromEntries(CONTEXT_AGENTS.map((agent) => [agent, budgetSchema])),
+    },
+    models: {
+      description:
+        "Per agent, the models its agent definitions and the repository's model settings may name.",
+      type: 'object',
+      additionalProperties: false,
+      properties: Object.fromEntries(CONTEXT_AGENTS.map((agent) => [agent, modelRuleSchema])),
     },
   },
 } as const;

@@ -77,7 +77,52 @@ describe('parsePolicy', () => {
       denyCommands: [],
       requireHooks: [],
       budgets: [],
+      models: [],
     });
+  });
+
+  it('reads model rules per agent, in agent order, values as written', () => {
+    const policy = policyOf({
+      ...minimal,
+      models: {
+        codex: { deny: ['gpt-6.1'] },
+        'claude-code': { allow: ['sonnet', 'Claude Sonnet 4.5', 'inherit'], deny: [] },
+        cursor: { allow: [] },
+      },
+    });
+    expect(policy.models).toEqual([
+      { agent: 'claude-code', allow: ['sonnet', 'Claude Sonnet 4.5', 'inherit'], deny: [] },
+      { agent: 'codex', deny: ['gpt-6.1'] },
+      { agent: 'cursor', allow: [], deny: [] },
+    ]);
+  });
+
+  it('rejects model rules that are unknown, empty or malformed, one line each', () => {
+    expect(
+      errorsOf({
+        ...minimal,
+        models: {
+          claude: { allow: ['sonnet'] },
+          codex: {},
+          cursor: { alow: ['x'] },
+          gemini: { allow: 'gemini-3-pro', deny: ['', 3, 'x'.repeat(201)] },
+          windsurf: 5,
+        },
+      }),
+    ).toEqual([
+      `Unknown field "models.claude". ${UNKNOWN_FIELD_REASON} Models apply to the agents agentcheckup lists: claude-code, codex, cursor, copilot-cli, copilot-vscode, copilot-cloud, gemini, windsurf, cline.`,
+      'models.codex: "allow" or "deny" is required.',
+      `Unknown field "models.cursor.alow" (did you mean "models.cursor.allow"?). ${UNKNOWN_FIELD_REASON}`,
+      'models.cursor: "allow" or "deny" is required.',
+      'models.gemini.allow: expected an array, got "gemini-3-pro".',
+      'models.gemini.deny[0]: must not be empty.',
+      'models.gemini.deny[1]: expected a string, got 3.',
+      'models.gemini.deny[2]: must be at most 200 characters, got 201.',
+      'models.windsurf: expected an object, got 5.',
+    ]);
+    expect(errorsOf({ ...minimal, models: [] })).toEqual([
+      'models: expected an object, got an array.',
+    ]);
   });
 
   it('keeps an empty allowlist, which allows nothing', () => {

@@ -2,8 +2,9 @@
  * Checks a scan against an organization policy. Pure and deterministic: the same policy and scan
  * give the same report, with every list sorted.
  *
- * The checks read the security inventory and the load plans, never the files: an MCP server's
- * package and pin, permission and environment items, hook items, and each plan's startup tokens.
+ * The checks read the security inventory, the agent definitions and model settings, and the load
+ * plans, never the files: an MCP server's package and pin, permission and environment items, hook
+ * items, the model each definition and setting names, and each plan's startup tokens.
  * Broad grants come from broadGrant and environment classes from the inventory, so the policy
  * and the gate (src/core/baseline.ts) agree on what an item does.
  *
@@ -13,6 +14,8 @@
  * new violation. A startup budget violation is new unless the baseline exceeded the budget too,
  * with at least as many tokens.
  */
+import { isModelChoice } from '../agents/settings.js';
+import type { AgentDefinition, AgentsReport, ModelSetting } from '../agents/types.js';
 import { isUnpinned } from '../core/baseline.js';
 import { compareStrings } from '../core/compare.js';
 import { formatInteger } from '../core/format.js';
@@ -36,6 +39,7 @@ import { allowForm, entryAllows, serverTarget, type ServerTarget } from './mcp.j
 import {
   type ForbidName,
   type HookRequirement,
+  type ModelRule,
   type Policy,
   POLICY_CHECKS,
   type PolicyCheck,
@@ -58,6 +62,7 @@ export interface PolicyPlan {
  */
 export interface PolicySubject {
   readonly inventory?: Inventory;
+  readonly agents?: AgentsReport;
   readonly context?: { readonly plans: readonly PolicyPlan[] };
   readonly pathBase?: string;
 }
@@ -150,6 +155,7 @@ export function activeChecks(policy: Policy): PolicyCheck[] {
     'denied-tool': policy.denyTools.length > 0 || policy.denyCommands.length > 0,
     'hook-missing': policy.requireHooks.length > 0,
     'startup-budget': policy.budgets.length > 0,
+    'model-not-allowed': policy.models.length > 0,
     'unanalyzed-config': readsInventory(policy),
   };
   return POLICY_CHECKS.filter((check) => on[check]);
@@ -296,6 +302,8 @@ function collectAll(policy: Policy, subject: PolicySubject): Found[] {
     const violation = overBudget(budget, subject.context?.plans ?? []);
     if (violation !== undefined) out.push(violation);
   }
+
+  if (policy.models.length > 0) out.push(...modelViolations(policy.models, subject.agents, itemId));
 
   if (readsInventory(policy)) {
     for (const entry of inventory?.incomplete ?? []) {
@@ -663,6 +671,153 @@ function overBudget(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------------------------
+
+/** Why `value` fails `rule`, or undefined when it passes. Values match exactly. */
+/** `opus[1m]` -> `opus`, `claude-opus-5[effort=high]` -> `claude-opus-5`: the model without options. */
+function withoutOptions(value: string): string {
+  return value.endsWith(']') && value.includes('[')
+    ? value.slice(0, value.lastIndexOf('['))
+    : value;
+}
+
+/**
+ * Why `value` fails `rule`, or undefined when it passes. `allow` matches exactly; `deny` also
+ * matches the value without the options in brackets, so `deny: ["opus"]` catches `opus[1m]`.
+ * GitHub Copilot compares model ids without case (SOURCES.copilotCliAgents), so its rules do too.
+ */
+function modelProblem(
+  rule: ModelRule,
+  value: string,
+  agent: ContextAgent,
+): 'denies' | 'does not allow' | undefined {
+  const fold = agent.startsWith('copilot-')
+    ? (text: string): string => text.toLowerCase()
+    : (text: string): string => text;
+  const same = (entry: string, candidate: string): boolean => fold(entry) === fold(candidate);
+  if (rule.deny.some((entry) => same(entry, value) || same(entry, withoutOptions(value)))) {
+    return 'denies';
+  }
+  if (rule.allow !== undefined && !rule.allow.some((entry) => same(entry, value))) {
+    return 'does not allow';
+  }
+  return undefined;
+}
+
+const valuesOf = (value: string | readonly string[]): readonly string[] =>
+  typeof value === 'string' ? [value] : value;
+
+/** True when the definition may run: loaded, or not known to lose to another or to be skipped. */
+function mayRun(definition: AgentDefinition): boolean {
+  if (definition.status === 'loads' || definition.status === 'unknown') return true;
+  // Which of two definitions wins is often not documented: then either may run.
+  return definition.status === 'shadowed' && definition.certainty === 'unverified';
+}
+
+/**
+ * The models the repository makes each agent run on: a definition's own `model`, unless a setting
+ * overrides it with a model the repository names (that setting is checked instead), and every
+ * model setting. A definition the agent skips, or is documented to lose to another, runs on
+ * nothing. One whose loading is not documented and whose model cannot be read fails an
+ * allowlist: the policy fails closed, as it does for a scan without agent definitions. A
+ * definition without a model runs on one chosen elsewhere: a setting, which is checked, or the
+ * user's choice, which is not visible.
+ */
+function modelViolations(
+  rules: readonly ModelRule[],
+  agents: AgentsReport | undefined,
+  itemId: (check: string, item: { id: string; file: string; digest: string }) => string,
+): Found[] {
+  const byAgent = new Map(rules.map((rule) => [rule.agent, rule]));
+  if (agents === undefined) {
+    return [
+      {
+        id: 'model-not-allowed:no-agents',
+        check: 'model-not-allowed',
+        entry: 'unknown',
+        message:
+          "This scan lists no agent definitions or model settings, so the policy's models cannot be checked.",
+      },
+    ];
+  }
+  const out: Found[] = [];
+  for (const definition of agents.definitions) {
+    const rule = byAgent.get(definition.agent);
+    if (rule === undefined || !mayRun(definition)) continue;
+    // A switch that hands every subagent a model the repository does not name, such as
+    // CLAUDE_CODE_SUBAGENT_MODEL_FORCE alone, leaves older versions on the file's own model.
+    const { overridden, source } = definition.effective;
+    if (overridden !== undefined && source !== 'not-visible') continue;
+    const where = {
+      id: itemId('model-not-allowed', definition),
+      check: 'model-not-allowed',
+      path: definition.file,
+      agent: definition.agent,
+    } as const;
+    const { model } = definition;
+    if (model === undefined) {
+      if (definition.status === 'unknown' && rule.allow !== undefined) {
+        out.push({
+          ...where,
+          entry: 'unknown',
+          line: definition.line,
+          message: `${definitionName(definition)} may load, but its model cannot be read${definition.reason === undefined ? '' : ` (${definition.reason})`}, so the policy's allowlist cannot pass it.`,
+        });
+      }
+      continue;
+    }
+    const failing = valuesOf(model.value).filter(
+      (value) => modelProblem(rule, value, definition.agent) !== undefined,
+    );
+    const [first] = failing;
+    if (first === undefined) continue;
+    out.push({
+      ...where,
+      entry: failing.join(', '),
+      line: model.line,
+      message: `${definitionName(definition)} sets model ${failing.map((value) => quote(value)).join(', ')}, which the policy ${modelProblem(rule, first, definition.agent) ?? 'does not allow'} for ${AGENT_NAMES[definition.agent]}.`,
+    });
+  }
+  for (const setting of agents.settings) {
+    const rule = byAgent.get(setting.agent);
+    if (rule === undefined || !isModelChoice(setting)) continue;
+    const problem = modelProblem(rule, setting.value, setting.agent);
+    if (problem === undefined) continue;
+    out.push({
+      id: itemId('model-not-allowed', setting),
+      check: 'model-not-allowed',
+      entry: setting.value,
+      path: setting.file,
+      line: setting.line,
+      agent: setting.agent,
+      message: `${bounded(setting.key)} sets model ${quote(setting.value)} for ${settingTarget(setting)}, which the policy ${problem} for ${AGENT_NAMES[setting.agent]}.`,
+    });
+  }
+  return out;
+}
+
+/** `Agent definition "reviewer"`, or the file's when it has no name. */
+function definitionName(definition: AgentDefinition): string {
+  return definition.name === undefined
+    ? `The agent definition in ${quotePath(definition.file)}`
+    : `Agent definition ${quote(definition.name)}`;
+}
+
+function settingTarget(setting: ModelSetting): string {
+  const agent = AGENT_NAMES[setting.agent];
+  switch (setting.applies) {
+    case 'subagents':
+      return `${agent} subagents`;
+    case 'alias':
+      return `an alias in ${agent}`;
+    case 'session':
+    case 'allowed':
+      return `${agent} sessions`;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Unanalyzed configuration
 // ---------------------------------------------------------------------------------------------
 
@@ -709,6 +864,13 @@ function notesOf(
         id: 'baseline-without-inventory',
         message:
           'The baseline has no security inventory, so every violation of an MCP server, setting, grant or hook counts as new.',
+      });
+    }
+    if (baseline.agents === undefined && policy.models.length > 0) {
+      notes.push({
+        id: 'baseline-without-agents',
+        message:
+          'The baseline has no agent definitions, so every model violation counts as new. Write the baseline with this version of agentcheckup.',
       });
     }
     if (baseline.context === undefined && policy.budgets.length > 0) {

@@ -443,6 +443,238 @@
           }
         }
       }
+    },
+    "models": {
+      "description": "Per agent, the models its agent definitions and the repository's model settings may name.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claude-code": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "codex": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "cursor": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "copilot-cli": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "copilot-vscode": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "copilot-cloud": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "gemini": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "windsurf": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "cline": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "allow": {
+              "description": "Model values the agent may be set to, exactly as written, such as sonnet or claude-opus-5-5. When present, even empty, only listed values pass.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "deny": {
+              "description": "Model values the agent must not be set to, even when allow lists them.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

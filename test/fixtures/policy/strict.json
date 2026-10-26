@@ -44,5 +44,9 @@
     "claude-code": { "startupTokens": 8000 },
     "codex": { "startupTokens": 8000 },
     "cursor": { "startupTokens": 8000 }
+  },
+  "models": {
+    "claude-code": { "allow": ["sonnet", "haiku", "inherit"], "deny": ["opus"] },
+    "codex": { "allow": ["gpt-6.1-sol"] }
   }
 }

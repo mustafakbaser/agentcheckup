@@ -28,6 +28,7 @@ export const CHECK_TITLES: Readonly<Record<PolicyCheck, string>> = {
   'denied-tool': 'Denied tool or command',
   'hook-missing': 'Required hook missing',
   'startup-budget': 'Startup context over budget',
+  'model-not-allowed': 'Model not allowed',
   'unanalyzed-config': 'Configuration not analyzed',
 };
 
@@ -43,6 +44,8 @@ export const CHECK_DESCRIPTIONS: Readonly<Record<PolicyCheck, string>> = {
     'A hook the policy requires is not configured. Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.',
   'startup-budget':
     "An agent's largest load plan holds more startup tokens than the policy's budget for it.",
+  'model-not-allowed':
+    'An agent definition or a model setting names a model the policy does not allow for the agent, or one whose model cannot be read under an allowlist.',
   'unanalyzed-config':
     'A configuration file could not be analyzed, so it may hide a violation. The policy fails closed.',
 };
