@@ -12,6 +12,13 @@ export type JsonPath = readonly JsonPathSegment[];
 export type ParsedJson = Extract<JsonDocument, { ok: true }>;
 
 /**
+ * What the span helpers and the configuration readers use of a parsed document: its value and
+ * the spans of its keys and values. A JSON or TOML document is one, and so is frontmatter read as
+ * configuration.
+ */
+export type SpannedDocument = Pick<ParsedJson, 'value' | 'valueSpan' | 'keySpan'>;
+
+/**
  * `limit` and `unsupported` are not syntax errors: the agent may read the file fine, so callers
  * mark it incomplete instead of reporting it. `comment` and `trailing-comma` occur in JSON only.
  */
@@ -67,7 +74,7 @@ export function ownObject(object: JsonObject, key: string): JsonObject | undefin
 }
 
 /** Most specific span for a value: the value itself, else its key, else undefined (whole file). */
-export function spanOf(doc: ParsedJson, path: JsonPath): Span | undefined {
+export function spanOf(doc: SpannedDocument, path: JsonPath): Span | undefined {
   return (
     doc.valueSpan(path) ??
     (typeof path[path.length - 1] === 'string' ? doc.keySpan(path) : undefined)
@@ -75,7 +82,7 @@ export function spanOf(doc: ParsedJson, path: JsonPath): Span | undefined {
 }
 
 /** Span of the key at `path` when the last segment is a string, else the value span. */
-export function keySpanOf(doc: ParsedJson, path: JsonPath): Span | undefined {
+export function keySpanOf(doc: SpannedDocument, path: JsonPath): Span | undefined {
   const last = path[path.length - 1];
   return (typeof last === 'string' ? doc.keySpan(path) : undefined) ?? doc.valueSpan(path);
 }

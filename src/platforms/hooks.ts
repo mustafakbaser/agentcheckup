@@ -11,6 +11,7 @@ import {
   type JsonPath,
   own,
   type ParsedJson,
+  type SpannedDocument,
 } from '../parse/json-access.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -314,7 +315,7 @@ export interface HookEvent {
  * itself ({@link HookRoot}).
  */
 export function hookEvents(
-  doc: ParsedJson,
+  doc: Pick<SpannedDocument, 'value'>,
   platform: HookPlatform,
   root: HookRoot = 'hooks',
 ): HookEvent[] {
@@ -370,7 +371,7 @@ const FLAT_HANDLERS: ReadonlySet<HookPlatform> = new Set(['cursor', 'copilot']);
  * handler itself.
  */
 export function hookHandlers(
-  doc: ParsedJson,
+  doc: Pick<SpannedDocument, 'value'>,
   platform: HookPlatform,
   options: HookHandlerOptions = {},
 ): HookHandler[] {

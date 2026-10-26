@@ -33,13 +33,22 @@ export interface SyntaxErrorOptions {
   readonly tolerateCommonMistakes?: boolean;
 }
 
+/**
+ * True when the block failed at one of agentcheckup's own safety limits: an agent's parser may
+ * read it, and agentcheckup cannot tell what it declares.
+ */
+export function hitParserLimit(errors: readonly ParseIssue[]): boolean {
+  const first = errors[0];
+  return first !== undefined && PARSER_LIMIT_CODES.has(first.code);
+}
+
 /** The first issue that any YAML parser would reject, or undefined when there is none. */
 export function yamlSyntaxError(
   errors: readonly ParseIssue[],
   options: SyntaxErrorOptions = {},
 ): ParseIssue | undefined {
   const first = errors[0];
-  if (first === undefined || PARSER_LIMIT_CODES.has(first.code)) return undefined;
+  if (first === undefined || hitParserLimit(errors)) return undefined;
   if (
     options.tolerateCommonMistakes === true &&
     errors.some((error) => TOLERATED_CODES.has(error.code))

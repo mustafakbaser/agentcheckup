@@ -36,7 +36,13 @@ import { classify } from '../classify.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
-import { inPayloadFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
+import {
+  inClaudeFolder,
+  inPayloadFolder,
+  joinPath,
+  nearestGitRoot,
+  selfAndAncestors,
+} from '../paths.js';
 import { CLAUDE_LISTING_MAX_CHARS, claudeSkillListing, skillLocation } from '../skills.js';
 import type { SOURCES } from '../sources.js';
 import { checkSubagent } from '../subagents.js';
@@ -172,18 +178,6 @@ function scopeOf(directory: string, cwd: string): Scope {
  */
 function onDemandCertainty(scope: Scope): Certainty {
   return scope === 'elsewhere' ? 'unverified' : 'documented';
-}
-
-/** The directory that owns a `.claude/<folder>/` file, and the file's path inside the folder. */
-function inClaudeFolder(
-  path: string,
-  folder: string,
-): { readonly owner: string; readonly relative: string } | undefined {
-  const marker = `.claude/${folder}/`;
-  if (path.startsWith(marker)) return { owner: '', relative: path.slice(marker.length) };
-  const index = path.indexOf(`/${marker}`);
-  if (index === -1) return undefined;
-  return { owner: path.slice(0, index), relative: path.slice(index + 1 + marker.length) };
 }
 
 function size(text: string, bytes: number = utf8ByteLength(text)): Size {

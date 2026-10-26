@@ -10,6 +10,21 @@ export function basename(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
+/**
+ * The directory that owns a `.claude/<folder>/` file, and the file's path inside the folder:
+ * `a/.claude/agents/x.md` with `agents` -> `a` and `x.md`. Undefined outside such a folder.
+ */
+export function inClaudeFolder(
+  path: string,
+  folder: string,
+): { readonly owner: string; readonly relative: string } | undefined {
+  const marker = `.claude/${folder}/`;
+  if (path.startsWith(marker)) return { owner: '', relative: path.slice(marker.length) };
+  const index = path.indexOf(`/${marker}`);
+  if (index === -1) return undefined;
+  return { owner: path.slice(0, index), relative: path.slice(index + 1 + marker.length) };
+}
+
 /** Joins a root-relative directory ('' for the scan root) and a relative name. */
 export function joinPath(directory: string, name: string): string {
   return directory === '' ? name : `${directory}/${name}`;
