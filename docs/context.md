@@ -497,22 +497,22 @@ and SARIF include plans only with `--context`. See
 `agentcheckup context --format json` writes the same report as a scan, so one schema covers both:
 [schemas/report.schema.json](../schemas/report.schema.json). The parts that matter here:
 
-| Field                               | What it holds                                                                                                                                   |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `context.agents`                    | The planned agents, by id, in the order of the [agents table](#agents)                                                                          |
-| `context.plans[]`                   | One plan per agent and working directory: `agent` (`copilot-cli`, `windsurf`, …), `cwd` (`""` is the root)                                      |
-| `plans[].entries[]`                 | `id`, `role`, `trigger`, `position` (startup only), `path`, `realPath`, `size`, `deferred`, `truncated`, `certainty`, `evidence`, `inventoryId` |
-| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `size`, `fix`, `certainty`, `evidence`                  |
-| `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                             |
-| `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`       |
-| `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                  |
-| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                             |
-| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                          |
-| `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                           |
-| `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                   |
-| `inventory`                         | Every MCP server, hook, permission and env override, whether or not an agent loads it. Every report has it                                      |
-| `baseline`                          | With `--baseline`: the comparison described below                                                                                               |
-| `pathBase`                          | The prefix added to every path when the scanned directory is not the current directory                                                          |
+| Field                               | What it holds                                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `context.agents`                    | The planned agents, by id, in the order of the [agents table](#agents)                                                                                                          |
+| `context.plans[]`                   | One plan per agent and working directory: `agent` (`copilot-cli`, `windsurf`, …), `cwd` (`""` is the root)                                                                      |
+| `plans[].entries[]`                 | `id`, `role`, `trigger`, `position` (startup only), `path`, `realPath`, `size`, `deferred`, `truncated`, `certainty`, `evidence`, `inventoryId`                                 |
+| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `size`, `fix`, `certainty`, `evidence`                                                  |
+| `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                                                             |
+| `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`                                       |
+| `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                                                  |
+| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                                                             |
+| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                                                          |
+| `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                                                           |
+| `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                                                   |
+| `inventory`                         | Every MCP server, hook, permission and env override, whether or not an agent loads it. Every report has it. See [Items declared in frontmatter](#items-declared-in-frontmatter) |
+| `baseline`                          | With `--baseline`: the comparison described below                                                                                                                               |
+| `pathBase`                          | The prefix added to every path when the scanned directory is not the current directory                                                                                          |
 
 Output is deterministic: the same files give byte-identical JSON. Paths are relative and never
 absolute. JSON paths are relative to the current directory, as in a scan; text and Markdown
@@ -615,6 +615,10 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
   A baseline made before then lists the file only as not analyzed, so the first comparison shows
   every Codex MCP server, hook, permission and env override in it as added, and the gate trips
   for them. Create the baseline again to compare item by item.
+- **Frontmatter.** A baseline made by a version of agentcheckup that did not yet list the hooks,
+  MCP servers and permissions in the frontmatter of skills, commands and subagents has no such
+  items, so the first comparison shows them as added, and the gate trips for them. Create the
+  baseline again to compare item by item.
 - **Agents the baseline did not plan.** Plans are compared only for agents both reports plan,
   so the session-start line leaves out an agent the baseline has no plan for. A baseline made
   before agentcheckup read the MCP and hook files of Copilot and Devin Local, such as
@@ -627,14 +631,14 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
 `--gate` takes a comma-separated list of classes, `security` for all of them, or `none`. It
 needs `--baseline`. Only additions and changes trip it; removals never do.
 
-| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mcp`          | An MCP server is added or changed, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                                                                                                        |
-| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                              |
-| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, a skill's `allowed-tools`, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode` set or changed, or one of the Codex settings below. `deny` and `ask` entries never trip it                                                                                  |
-| `hooks`        | A hook is added or changed, on any event, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, or a file in Cline's hook and plugin folders. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it |
-| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                                                                                                                                              |
-| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp`          | An MCP server is added or changed, a subagent's inline servers among them, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, or one of the Codex settings below. `deny` and `ask` entries never trip it                                                                                                                                                         |
+| `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's hook and plugin folders, or a skill, command or subagent whose frontmatter is past agentcheckup's parser limits. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it |
+| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The env classes come from the Claude Code and Node.js documentation. Examples: `endpoint`
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers
@@ -666,7 +670,48 @@ allows, such as `Bash` replaced by `Bash(git status *)`; anything agentcheckup c
 the [permission rule syntax](https://code.claude.com/docs/en/permissions) still trips.
 
 Each gate hit has a one-line summary for the pull request. Endpoint values are shown as their
-URL origin; credential values are never shown.
+URL origin; credential values are never shown. Text output ends each line with the file and line
+that declare the change, as Markdown and GitHub annotations show them.
+
+### Items declared in frontmatter
+
+Claude Code reads hooks, MCP servers and permissions from frontmatter and from its `agent`
+setting too, so the inventory lists them next to the ones in configuration files, and the gate
+and a [policy](policy.md) check them the same way:
+
+| Where                                              | Fields                                                   | When they apply                                                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A subagent in `.claude/agents/`                    | `hooks`, `mcpServers` (inline servers), `permissionMode` | Only while the subagent runs. Items have `"scope": "subagent"`. A subagent Claude Code skips runs no hook, starts no server and applies no mode  |
+| A skill (`SKILL.md`) or a `.claude/commands/` file | `hooks`, `allowed-tools`                                 | Hooks from the turn the skill or command is invoked to the end of the session (`"scope": "skill"`); `allowed-tools` for the turn that invokes it |
+| `.claude/settings.json` and `settings.local.json`  | `agent`                                                  | Every session starts as that subagent, with its prompt, tools, model, hooks and MCP servers                                                      |
+
+- A server a subagent names, such as `- github`, is configured elsewhere and is not listed again.
+  The env ids of a subagent's servers use the server's name, so adding a server before another
+  changes nothing about the other.
+- A subagent's `permissionMode` trips `permissions` whenever it is set or changes, like
+  `defaultMode`, labeled "Permission mode set" or "Permission mode changed": it may narrow what the
+  agent does, too. `bypassPermissions` there has no effect on its own since Claude Code v2.1.267,
+  so it is listed as not effective, and so is a value Claude Code does not know. The settings
+  `agent` trips it as "Session agent set" or "Session agent changed".
+- Gate summaries say when such an item applies, as in
+  `New hook PreToolUse Bash → scripts/guard.sh (while the subagent runs, fails open)`; a
+  subagent's `Stop` hook shows as `Stop (SubagentStop)`, the event Claude Code runs it as.
+- Frontmatter is read as Claude Code may read it. Besides the block between `---` lines, its
+  reader takes the block up to the first `---`, even one inside a line; agentcheckup reads both,
+  each as it parses and, when it does not, as Claude Code's retry repairs it, with unquoted values
+  quoted. So an item behind a stray `---` or `: ` is still listed.
+- Where agentcheckup cannot read what Claude Code may, the file is listed as incomplete: YAML that
+  neither parse reads (Claude Code's reader keeps the last of repeated keys, for one), `<<` merge
+  keys, and a block past agentcheckup's parser limits, such as one over 64 KiB. A new incomplete
+  file trips `hooks`, and `mcp` for a subagent, and a policy reports it as `unanalyzed-config`.
+- Files in the repository root's own `.claude` folders load whatever their folders are called,
+  such as `.claude/commands/templates/new.md`. A subagent reached through a symlink in
+  `.claude/agents/` is read as a subagent, whatever the file it points to.
+- Hooks in another tool's format, such as `pre:` scripts, are not Claude Code hooks: Claude Code
+  runs only the events of its hook reference, in the format of its settings files.
+- A hook in a skill, command or subagent never meets a policy's `hooks.require`, because it does
+  not run for the whole session.
+- Plugin directories are not read yet: a plugin's `hooks/hooks.json`, `agents/` and `commands/`.
 
 ### Exit codes
 

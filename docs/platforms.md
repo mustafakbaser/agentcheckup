@@ -87,6 +87,11 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - `` !`command` `` (at the start of a line or after whitespace) and ` ```! ` blocks run before the model sees the skill. They never prompt: each command is checked against permission rules. Outside auto mode, a command that is not allowed, or one that fails, aborts the whole skill. [Skills][cc-skills]
 - `allowed-tools` is not gated by workspace trust. It applies even in a `-p` run in a folder that was never trusted. [Skills][cc-skills]
 - Subagents: `name` (required; at most 256 characters; no `:`; no leading `-`) and `description` (required). A file without `name` is treated as documentation and skipped without a message. A missing `description` or invalid YAML skips the file, with the reason only in the debug log. [Subagents][cc-subagents]
+- Subagent `hooks` run only while the subagent runs; a `Stop` hook becomes `SubagentStop`. Each `mcpServers` entry is either the name of a configured server, which shares the session's connection, or an inline server in the format of `.mcp.json`, which connects when the subagent starts. A project subagent's frontmatter hooks (v2.1.218+) and inline servers (v2.1.238+) need a trusted folder. Plugin subagents ignore `hooks`, `mcpServers` and `permissionMode`. agentcheckup lists these hooks and inline servers in the security inventory. [Subagents][cc-subagents]
+- `permissionMode` takes effect only when the main conversation is in `default` or `dontAsk` mode. In `bypassPermissions`, `acceptEdits` or auto mode the subagent runs in the main conversation's mode, and in `plan` mode it stays in plan mode. Since v2.1.267 a subagent set to `bypassPermissions` keeps the main conversation's mode. [Subagents][cc-subagents]
+- The `agent` setting, which any settings file may set, starts every session as the named subagent, with its prompt, tools and model; its frontmatter hooks then run in the main session. [Settings reference][cc-settings-reference], [Subagents][cc-subagents]
+- Undocumented: Claude Code 2.1.272 reads frontmatter with `/^---\s*\n([\s\S]*?)---\s*\n?/`, so the block ends at the first `---`, even inside a line, and parses it with `Bun.YAML.parse`, which keeps the last of repeated keys and applies `<<` merge keys. When that fails, it retries with unquoted values quoted. Read from the binary; agentcheckup's security inventory reads both the documented block and this one.
+- Skill and command `hooks` are registered when the skill is invoked and keep running for the rest of the session; `once: true` removes one after its first successful run. A file in `.claude/commands/` accepts a skill's frontmatter fields except `name` and `paths`, so its `allowed-tools` and `hooks` apply as a skill's do. [Hooks][cc-hooks], [Skills][cc-skills]
 - Plugins: `name` is the only required key in `plugin.json`; use kebab-case. `claude plugin validate` reports an error for names that start with `claude-`, `anthropic-`, `anthropics-` or `cc-plugin-`, but Claude Code still installs and loads such a plugin. Component paths must start with `./` and stay inside the plugin root. agentcheckup reports reserved names and invalid component paths. [Plugins reference][cc-plugins]
 
 ### Hooks
@@ -533,6 +538,7 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [cc-skills]: https://code.claude.com/docs/en/skills
 [cc-subagents]: https://code.claude.com/docs/en/sub-agents
 [cc-settings]: https://code.claude.com/docs/en/settings
+[cc-settings-reference]: https://code.claude.com/docs/en/settings-reference
 [cc-hooks]: https://code.claude.com/docs/en/hooks
 [cc-mcp]: https://code.claude.com/docs/en/mcp
 [cc-plugins]: https://code.claude.com/docs/en/plugins-reference

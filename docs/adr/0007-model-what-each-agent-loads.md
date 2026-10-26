@@ -5,8 +5,9 @@
 - Amended by: [0008](0008-write-fixes-to-the-scanned-repository.md), which brings autofix into
   scope, [0009](0009-coverage-of-copilot-gemini-devin-cline-and-codex-toml.md), which models
   Copilot, Gemini CLI, Devin Local and Cline and parses `.codex/config.toml` with a full TOML
-  parser, and [0011](0011-organization-policy.md), which lets an organization policy fail a run
-  on startup tokens
+  parser, [0011](0011-organization-policy.md), which lets an organization policy fail a run
+  on startup tokens, and [0012](0012-list-hooks-servers-and-permissions-declared-in-frontmatter.md),
+  which lists hooks, MCP servers and permissions declared in frontmatter
 
 ## Context
 

@@ -309,9 +309,11 @@ jobs:
 The gate looks at what changed since the base commit; removals never trip it. By default it
 fails the check when a pull request adds or changes an MCP server (or an MCP config file
 agentcheckup cannot analyze), a hook, a permission that lets an agent do more without asking
-(a `permissions.allow` entry, a skill's `allowed-tools`, auto-approved MCP servers,
-`defaultMode`), an env override that sets an endpoint, a credential, TLS behavior or code
-execution, or hidden Unicode. New lint findings at or above `error` fail it too; findings already
+(a `permissions.allow` entry, a skill's or command's `allowed-tools`, auto-approved MCP
+servers, `defaultMode`), an env override that sets an endpoint, a credential, TLS behavior or
+code execution, or hidden Unicode. Hooks, MCP servers and permission modes that skills,
+commands and subagents declare in their frontmatter count too, and so does the subagent that
+Claude Code's `agent` setting starts every session as. New lint findings at or above `error` fail it too; findings already
 on the base branch do not. The job summary for a pull request that adds an MCP server, widens a
 permission, adds a hook and points Claude Code at another API endpoint starts like this, followed
 by the session-start context per agent and the findings:

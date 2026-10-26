@@ -96,7 +96,8 @@ Each violation names its check. Reports link here by check id.
 
 An MCP server runs a package, an image or an origin that `mcp.allow` does not list, a repository
 script while `mcp.allowLocal` is off, or a command agentcheckup cannot read as a package. On only
-when `mcp.allow` is present.
+when `mcp.allow` is present. The servers a Claude Code subagent declares inline in its
+frontmatter `mcpServers` are checked too.
 
 ### `mcp-unpinned`
 
@@ -108,25 +109,26 @@ With `mcp.requirePin`, an MCP server runs a package without an exact version (`n
 A setting `forbid` names is configured. Grants come from the same table the
 [gate](context.md#gate-classes) uses, so the policy and `--gate` agree on what an entry does.
 
-| Name                       | Violated by                                                                                                                                                            |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bypass-permissions`       | `permissions.defaultMode` set to `bypassPermissions`. Reported even in project settings, where Claude Code ignores it since v2.1.257, because older versions honor it. |
-| `auto-approve-project-mcp` | `enableAllProjectMcpServers` set to `true`: Claude Code starts every server in `.mcp.json` without asking.                                                             |
-| `mcp-auto-approve`         | Any `enabledMcpjsonServers` entry: Claude Code starts that server without asking.                                                                                      |
-| `broad-shell`              | A grant of every shell command: `Bash`, `Bash(*)`, `PowerShell`, `PowerShell(*)` in `permissions.allow` or a skill's `allowed-tools`, or Copilot's `shell` or `bash`.  |
-| `broad-write`              | A grant to write or edit any file: a bare `Write` or `Edit`.                                                                                                           |
-| `gemini-trust`             | `trust: true` on a Gemini CLI MCP server: Gemini CLI runs its tool calls without confirmation.                                                                         |
-| `additional-directories`   | Any `permissions.additionalDirectories` entry: Claude Code gets files outside the project.                                                                             |
-| `env-endpoint`             | An env override that sends traffic elsewhere, such as `ANTHROPIC_BASE_URL` or a proxy variable.                                                                        |
-| `env-tls`                  | An env override that changes TLS certificate checks, such as `NODE_TLS_REJECT_UNAUTHORIZED` or `NODE_EXTRA_CA_CERTS`.                                                  |
-| `env-code-exec`            | An env override that can run code, such as `NODE_OPTIONS` or `LD_PRELOAD`, and Claude Code settings that run a command, such as `apiKeyHelper`.                        |
+| Name                       | Violated by                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bypass-permissions`       | `permissions.defaultMode` or a subagent's `permissionMode` set to `bypassPermissions`. Reported even where Claude Code ignores it, in project settings since v2.1.257 and in a subagent since v2.1.267, because older versions honor it. |
+| `auto-approve-project-mcp` | `enableAllProjectMcpServers` set to `true`: Claude Code starts every server in `.mcp.json` without asking.                                                                                                                               |
+| `mcp-auto-approve`         | Any `enabledMcpjsonServers` entry: Claude Code starts that server without asking.                                                                                                                                                        |
+| `broad-shell`              | A grant of every shell command: `Bash`, `Bash(*)`, `PowerShell`, `PowerShell(*)` in `permissions.allow` or the `allowed-tools` of a skill or command, or Copilot's `shell` or `bash`.                                                    |
+| `broad-write`              | A grant to write or edit any file: a bare `Write` or `Edit`.                                                                                                                                                                             |
+| `gemini-trust`             | `trust: true` on a Gemini CLI MCP server: Gemini CLI runs its tool calls without confirmation.                                                                                                                                           |
+| `additional-directories`   | Any `permissions.additionalDirectories` entry: Claude Code gets files outside the project.                                                                                                                                               |
+| `env-endpoint`             | An env override that sends traffic elsewhere, such as `ANTHROPIC_BASE_URL` or a proxy variable.                                                                                                                                          |
+| `env-tls`                  | An env override that changes TLS certificate checks, such as `NODE_TLS_REJECT_UNAUTHORIZED` or `NODE_EXTRA_CA_CERTS`.                                                                                                                    |
+| `env-code-exec`            | An env override that can run code, such as `NODE_OPTIONS` or `LD_PRELOAD`, and Claude Code settings that run a command, such as `apiKeyHelper`.                                                                                          |
 
 A setting that has no effect where it is set is still reported, and its message says so.
 
 ### `denied-tool`
 
 A grant lets an agent do without asking what `permissions` denies. Grants are the entries that
-let an agent do more without asking: `permissions.allow` entries and a skill's `allowed-tools`.
+let an agent do more without asking: `permissions.allow` entries and the `allowed-tools` of a
+skill or a Claude Code command.
 `deny` and `ask` entries never violate the policy.
 
 - A tool grant violates `denyTools` when it names the tool, without case; when it ends in `*` and
@@ -151,6 +153,10 @@ A hook in `hooks.require` is not configured. Each requirement names:
 | `script`  | no       | The repository script the hook runs, as a path from the repository root (`scripts/hooks/guard.sh`).         |
 | `command` | no       | The hook's command line, exactly.                                                                           |
 
+A hook in the frontmatter of a skill, command or subagent never meets a requirement: it runs only
+once the skill is invoked, or only while the subagent runs, so it does not guard the whole
+session.
+
 **Configured, not enforced.** The check proves only that the hook is configured. Hooks fail open
 on errors and timeouts, and user settings can turn them off, so a hook is not a control the
 repository can enforce. Every report says so next to a hook requirement. To have Claude Code
@@ -166,8 +172,11 @@ rather than passing it. Token counts are estimates (characters divided by 4), so
 
 ### `unanalyzed-config`
 
-A configuration file agentcheckup cannot analyze, such as a `.mcp.json` that is not valid JSON or
-a `.codex/config.toml` that is not valid TOML, may hide a violation. The policy fails
+A configuration file agentcheckup cannot analyze, such as a `.mcp.json` that is not valid JSON, a
+`.codex/config.toml` that is not valid TOML, or a skill, command or subagent whose frontmatter
+agentcheckup cannot read as Claude Code may (see
+[Items declared in frontmatter](context.md#items-declared-in-frontmatter)), may hide a
+violation. The policy fails
 closed: each such file is a violation of its own whenever a check of MCP servers, settings,
 grants or hooks is on.
 
@@ -228,6 +237,15 @@ agentcheckup --no-gitignore --policy policy.json --baseline base.json --gate sec
   unchanged when the baseline has it too.
 - Ids are relative to the scanned directory, so a baseline written from another working
   directory still matches.
+
+### After an upgrade
+
+A new version can read configuration an earlier one did not, such as the hooks, MCP servers and
+permissions in skill, command and subagent frontmatter. A run with a baseline and
+`"existing": "report"` compares both scans with the same version, so it fails only on what the
+change under review adds. A run without a baseline, or with `"existing": "fail"`, reports every
+violation the new version finds, including ones in files that did not change. Start such a rollout
+in `"mode": "audit"` after upgrading.
 
 ## Exit codes
 

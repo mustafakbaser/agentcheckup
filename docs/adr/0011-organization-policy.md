@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-17
 - Amends: [0007](0007-model-what-each-agent-loads.md), where token counts never fail a run
+- Amended by: [0012](0012-list-hooks-servers-and-permissions-declared-in-frontmatter.md), whose
+  frontmatter items the policy checks too
 
 ## Context
 
