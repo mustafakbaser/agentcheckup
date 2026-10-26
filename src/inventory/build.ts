@@ -736,6 +736,11 @@ class InventoryBuilder {
       }
     }
 
+    // Every session starts as this subagent, with its prompt, tools and model, and runs its
+    // frontmatter hooks and inline MCP servers (SOURCES.claudeSubagents; "Any file" may set it).
+    const agent = own(root, 'agent');
+    if (typeof agent === 'string') permission('agent', agent, ['agent'], false, true);
+
     const enableAll = own(root, 'enableAllProjectMcpServers');
     if (typeof enableAll === 'boolean') {
       permission(

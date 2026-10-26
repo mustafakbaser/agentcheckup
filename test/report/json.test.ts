@@ -462,9 +462,11 @@ describe('schemas/report.schema.json', () => {
       (value) => (at(value, 'baseline', 'findings', 'resolved', 0)['fingerprint'] = 'x'),
     ];
     expectValid(report());
-    const mode = report();
-    at(mode, 'baseline', 'gate', 'hits', 0)['kind'] = 'mode';
-    expectValid(mode);
+    for (const kind of ['mode', 'agent']) {
+      const value = report();
+      at(value, 'baseline', 'gate', 'hits', 0)['kind'] = kind;
+      expectValid(value);
+    }
     for (const mutate of cases) {
       const value = report();
       mutate(value);

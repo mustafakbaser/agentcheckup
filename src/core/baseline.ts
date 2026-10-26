@@ -524,19 +524,31 @@ function gateHits(
     if (isHookConfig(entry)) hit('hooks', entry, 'added', incompleteSummary(entry, 'hooks'));
   }
 
-  const previousModes = new Map<string, string[]>();
+  // Earlier values of each setting the gate reports whenever it changes, by file and kind.
+  const settingAt = (file: string, kind: NonNullable<GateHit['kind']>): string =>
+    `${file}\u0000${kind}`;
+  const previousSettings = new Map<string, string[]>();
   for (const permission of before.permissions.values()) {
-    if (!isDefaultMode(permission)) continue;
-    const file = stripPath(permission.file, before.base);
-    previousModes.set(file, [...(previousModes.get(file) ?? []), permission.value]);
+    const kind = settingKind(permission);
+    if (kind === undefined) continue;
+    const at = settingAt(stripPath(permission.file, before.base), kind);
+    previousSettings.set(at, [...(previousSettings.get(at) ?? []), permission.value]);
   }
   for (const [id, permission] of after.permissions) {
     const old = before.permissions.get(id);
     const change = changeOf(old, permission);
     if (change === undefined) continue;
-    if (isDefaultMode(permission)) {
-      const previous = previousModes.get(stripPath(permission.file, after.base)) ?? [];
-      hit('permissions', id, change, modeSummary(permission, change, previous), 'mode');
+    const kind = settingKind(permission);
+    if (kind !== undefined) {
+      const at = settingAt(stripPath(permission.file, after.base), kind);
+      const summary = settingSummary(permission, change, previousSettings.get(at) ?? []);
+      hit(
+        'permissions',
+        id,
+        change,
+        kind === 'agent' ? `${summary}${AGENT_EFFECT}` : summary,
+        kind,
+      );
     } else if (
       widens(permission) &&
       !(old !== undefined && alreadyAsWide(old, permission)) &&
@@ -765,13 +777,19 @@ function incompleteSummary(entry: string, what: 'MCP' | 'hooks'): string {
 const lastSegment = (key: string): string => key.slice(key.lastIndexOf('.') + 1);
 
 /**
- * A permission mode: `permissions.defaultMode` in settings, or a subagent's `permissionMode`.
- * A new or changed mode always trips the gate (modeSummary), whatever its value.
+ * The settings that trip the gate whenever they are set or changed, whatever their value
+ * (settingSummary): a permission mode, `permissions.defaultMode` in settings or a subagent's
+ * `permissionMode`, and the `agent` every Claude Code session starts as.
  */
-function isDefaultMode(permission: PermissionItem): boolean {
+function settingKind(permission: PermissionItem): GateHit['kind'] {
+  if (permission.key === 'agent') return 'agent';
   const key = lastSegment(permission.key);
-  return key === 'defaultMode' || key === 'permissionMode';
+  return key === 'defaultMode' || key === 'permissionMode' ? 'mode' : undefined;
 }
+
+/** What setting `agent` does, for its summary (SOURCES.claudeSubagents). */
+const AGENT_EFFECT =
+  ': every session starts as this subagent, with its prompt, tools, model, hooks and MCP servers';
 
 /** Kinds of auto-approval, by the last segment of the permission key. */
 function autoApproval(permission: PermissionItem): string | undefined {
@@ -795,10 +813,10 @@ function autoApproval(permission: PermissionItem): string | undefined {
  * `enabledMcpjsonServers` entry, and `enableAllProjectMcpServers` or Gemini CLI's `trust` when
  * true. A narrow entry such as `Bash(curl:*)` widens too: a reviewer must see every new command
  * the agent may run unasked, not only the broadest. `deny` and `ask` entries narrow what the
- * agent may do, however broad they are. `defaultMode` is handled on its own (modeSummary). Keys
- * not listed here widen, so a new kind of entry fails closed: Codex's `approval_policy`,
- * `sandbox_mode`, `network_access`, `writable_roots` and tool approval modes, which the inventory
- * lists only for values that let Codex act without asking, widen this way.
+ * agent may do, however broad they are. Modes and `agent` are handled on their own
+ * (settingSummary). Keys not listed here widen, so a new kind of entry fails closed: Codex's
+ * `approval_policy`, `sandbox_mode`, `network_access`, `writable_roots` and tool approval modes,
+ * which the inventory lists only for values that let Codex act without asking, widen this way.
  */
 function widens(permission: PermissionItem): boolean {
   switch (lastSegment(permission.key)) {
@@ -902,7 +920,7 @@ function permissionSummary(
   return permission.effective ? summary : `${summary} (ignored where set)`;
 }
 
-function modeSummary(
+function settingSummary(
   permission: PermissionItem,
   change: GateHit['change'],
   previous: readonly string[],

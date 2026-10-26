@@ -30,6 +30,8 @@ describe('gateRows', () => {
       summary: 'permissions.allow adds Bash',
     };
     expect(gateRows(diff([allow])).map((row) => row.label)).toEqual(['Permission widened']);
+    const agent: GateHit = { ...allow, id: 'perm:.claude/settings.json#agent=a', kind: 'agent' };
+    expect(gateRows(diff([agent])).map((row) => row.label)).toEqual(['Session agent set']);
   });
 });
 

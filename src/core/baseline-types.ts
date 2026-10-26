@@ -96,8 +96,9 @@ export interface GateHit {
   /** One line for the pull request summary. */
   readonly summary: string;
   /**
-   * `mode` for a permission mode (`permissions.defaultMode`, a subagent's `permissionMode`), which
-   * trips the gate whenever it is set or changed, whether or not it lets the agent do more.
+   * A setting that trips the gate whenever it is set or changed, whether or not it lets the agent
+   * do more: `mode` for a permission mode (`permissions.defaultMode`, a subagent's
+   * `permissionMode`), `agent` for the subagent every Claude Code session starts as.
    */
-  readonly kind?: 'mode';
+  readonly kind?: 'mode' | 'agent';
 }

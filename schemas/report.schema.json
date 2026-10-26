@@ -1397,8 +1397,8 @@
           "type": "string"
         },
         "kind": {
-          "description": "`mode` for a permission mode, which trips the gate whenever it is set or changed.",
-          "enum": ["mode"]
+          "description": "A setting that trips the gate whenever it is set or changed: `mode` for a permission mode, `agent` for the subagent every Claude Code session starts as.",
+          "enum": ["mode", "agent"]
         }
       }
     },

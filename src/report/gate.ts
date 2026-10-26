@@ -23,10 +23,12 @@ const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'
   unicode: { added: 'Hidden Unicode', changed: 'Hidden Unicode' },
 };
 
-/** A permission mode trips the gate whenever it is set or changed: it may narrow, too. */
-const MODE_LABELS: Readonly<Record<GateHit['change'], string>> = {
-  added: 'Permission mode set',
-  changed: 'Permission mode changed',
+/** Settings that trip the gate whenever they are set or changed: a mode may narrow, too. */
+const SETTING_LABELS: Readonly<
+  Record<NonNullable<GateHit['kind']>, Readonly<Record<GateHit['change'], string>>>
+> = {
+  mode: { added: 'Permission mode set', changed: 'Permission mode changed' },
+  agent: { added: 'Session agent set', changed: 'Session agent changed' },
 };
 
 export interface GateRow {
@@ -52,7 +54,9 @@ export function gateRows(diff: BaselineDiff): GateRow[] {
     const [hit] = group;
     if (hit === undefined) return [];
     const label =
-      hit.kind === 'mode' ? MODE_LABELS[hit.change] : CHANGE_LABELS[hit.class][hit.change];
+      hit.kind === undefined
+        ? CHANGE_LABELS[hit.class][hit.change]
+        : SETTING_LABELS[hit.kind][hit.change];
     const unpinned = hit.class === 'mcp' && group.some((other) => other.class === 'mcp-unpinned');
     return [{ hit, label: unpinned ? `${label}, not pinned` : label, emphasis: unpinned }];
   });

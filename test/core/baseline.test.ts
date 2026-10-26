@@ -948,6 +948,23 @@ describe('gate: frontmatter of skills, commands and subagents', () => {
     ]);
   });
 
+  it('reports the session agent whenever it is set or changes', () => {
+    const agent = (value: string, overrides: Partial<PermissionItem> = {}) =>
+      permission('agent', value, overrides);
+    const before = report({ inventory: { permissions: [agent('reviewer')] } });
+    expect(hits(before, report({ inventory: { permissions: [agent('auditor')] } }))).toEqual([
+      {
+        class: 'permissions',
+        id: 'perm:.claude/settings.json#agent=auditor',
+        change: 'added',
+        summary:
+          'agent set to auditor (was reviewer): every session starts as this subagent, with its prompt, tools, model, hooks and MCP servers',
+        kind: 'agent',
+      },
+    ]);
+    expect(hits(before, before)).toEqual([]);
+  });
+
   it('says when a hook from frontmatter runs', () => {
     const after = report({
       inventory: {

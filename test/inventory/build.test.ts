@@ -893,6 +893,33 @@ describe('permissions', () => {
     ]);
   });
 
+  it('lists the subagent every Claude Code session starts as', () => {
+    const { permissions } = inventoryOf({
+      '.claude/settings.json': json({ agent: 'reviewer', permissions: { allow: ['Read'] } }),
+      // Not a string: Claude Code reads no agent from it.
+      '.claude/settings.local.json': json({ agent: { name: 'x' } }),
+    });
+    expect(
+      permissions
+        .filter((item) => item.key === 'agent')
+        .map(({ id, line, platforms, broad, effective }) => ({
+          id,
+          line,
+          platforms,
+          broad,
+          effective,
+        })),
+    ).toEqual([
+      {
+        id: 'perm:.claude/settings.json#agent=reviewer',
+        line: 2,
+        platforms: ['claude-code', 'copilot', 'cursor', 'windsurf'],
+        broad: false,
+        effective: true,
+      },
+    ]);
+  });
+
   it('removes credentials from permission values, ids and digests', () => {
     expect(findSecret(GITHUB_TOKEN)).toBeDefined();
     const opaque = 'opaque-session-value-1234';

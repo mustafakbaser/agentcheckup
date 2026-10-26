@@ -116,7 +116,8 @@ export interface HookItem extends ItemBase {
  * One permission value, such as `permissions.allow` = `Bash(curl:*)`. Keys:
  * `permissions.allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`,
  * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, the `allowed-tools` of a skill or
- * command, a subagent's `permissionMode`, Gemini CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
+ * command, a subagent's `permissionMode`, the `agent` every Claude Code session starts as,
+ * Gemini CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
  * `sandbox_workspace_write.network_access`, `sandbox_workspace_write.writable_roots` and MCP tool
  * approval modes (`mcp_servers.<name>.default_tools_approval_mode`,
  * `mcp_servers.<name>.tools.<tool>.approval_mode`).
