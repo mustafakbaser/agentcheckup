@@ -25,6 +25,15 @@ export interface FrontmatterData {
   readonly keys: readonly string[];
   keySpan(key: string): Span | undefined;
   valueSpan(key: string): Span | undefined;
+  /**
+   * Span of the value at `path`, a JSON path into {@link values}: mapping keys and sequence
+   * indices. Undefined when the path does not exist; a key written without a value has an empty
+   * span, as {@link valueSpan} gives it. A path through an alias continues at its anchor, so the
+   * span is where the value is written.
+   */
+  valueSpanAt(path: readonly JsonPathSegment[]): Span | undefined;
+  /** Span of the mapping key at `path`; undefined when the last segment is an index. */
+  keySpanAt(path: readonly JsonPathSegment[]): Span | undefined;
 }
 
 export type FrontmatterResult =

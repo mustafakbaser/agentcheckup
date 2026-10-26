@@ -35,7 +35,7 @@ import {
 } from 'yaml';
 import type { Span } from '../core/types.js';
 import { cleanMessage, spanBetween } from './spans.js';
-import type { FrontmatterData, FrontmatterResult, ParseIssue } from './types.js';
+import type { FrontmatterData, FrontmatterResult, JsonPathSegment, ParseIssue } from './types.js';
 import { formatInteger } from '../core/format.js';
 
 /** Raw YAML blocks larger than this are not parsed (frontmatter is metadata, not content). */
@@ -452,15 +452,120 @@ interface KeySpans {
   readonly value: Span | undefined;
 }
 
+/** The spans of the key and the value at the end of a path. */
+interface PathSpans {
+  /** Undefined when the last segment is a sequence index, or for the root. */
+  readonly key: Span | undefined;
+  /** Undefined for a key without a value node (`? key`). */
+  readonly value: Span | undefined;
+}
+
+/**
+ * The JavaScript key of a mapping key node, as {@link keyString} gives it, without charging the
+ * alias budget: the block already passed it once.
+ */
+function plainKey(
+  located: Pick<BuildContext, 'yaml' | 'base'>,
+  targets: ReadonlyMap<ParsedNode, ParsedNode | undefined>,
+  key: ParsedNode,
+): string {
+  const node = isAlias(key) ? (targets.get(key) ?? key) : key;
+  if (isScalar(node)) {
+    const value = scalarValue(node);
+    return value === null ? '' : String(value);
+  }
+  const span = nodeSpan(located, node);
+  return located.yaml.slice(span.offset - located.base, span.offset - located.base + span.length);
+}
+
+/**
+ * Resolves nested paths for {@link FrontmatterData.valueSpanAt} and `keySpanAt`. The block is
+ * parsed again on the first call, so frontmatter read only at the top level, as most is, keeps
+ * no syntax tree in memory. The block parsed before, so the second parse succeeds the same way.
+ */
+function nestedSpans(
+  yaml: string,
+  base: number,
+): (path: readonly JsonPathSegment[]) => PathSpans | undefined {
+  const located = { yaml, base };
+  let parsed:
+    | {
+        readonly root: ParsedNode | null;
+        readonly targets: ReadonlyMap<ParsedNode, ParsedNode | undefined>;
+      }
+    | undefined;
+  // Pairs of each mapping by key, built on the first lookup in that mapping, so resolving many
+  // paths costs one pass over each mapping they cross rather than one per path.
+  const pairsOf = new Map<YAMLMap.Parsed, Map<string, Pair<ParsedNode, ParsedNode | null>>>();
+  const pairAt = (
+    map: YAMLMap.Parsed,
+    key: string,
+    targets: ReadonlyMap<ParsedNode, ParsedNode | undefined>,
+  ): Pair<ParsedNode, ParsedNode | null> | undefined => {
+    let pairs = pairsOf.get(map);
+    if (pairs === undefined) {
+      pairs = new Map();
+      for (const pair of map.items) {
+        const name = plainKey(located, targets, pair.key);
+        // Keys are unique: the first parse rejected repeated ones.
+        if (!pairs.has(name)) pairs.set(name, pair);
+      }
+      pairsOf.set(map, pairs);
+    }
+    return pairs.get(key);
+  };
+  return (path) => {
+    if (parsed === undefined) {
+      // The block passed the unique-key check once; yaml's check is quadratic in the keys of a
+      // mapping, so the second parse leaves it out.
+      const doc = parseDocument(yaml, { ...YAML_OPTIONS, uniqueKeys: false });
+      const root = doc.errors.length === 0 ? doc.contents : null;
+      parsed = { root, targets: root === null ? new Map() : resolveAliases(root) };
+    }
+    const { targets } = parsed;
+    let key: ParsedNode | undefined;
+    let value: ParsedNode | null = parsed.root;
+    for (const segment of path) {
+      // An anchor is never an alias itself, so one step reaches the value.
+      const node: ParsedNode | null | undefined =
+        value !== null && isAlias(value) ? targets.get(value) : value;
+      if (node === null || node === undefined) return undefined;
+      if (typeof segment === 'string') {
+        if (!isMap(node)) return undefined;
+        const pair = pairAt(node, segment, targets);
+        if (pair === undefined) return undefined;
+        key = pair.key;
+        value = pair.value;
+      } else {
+        if (!isSeq(node)) return undefined;
+        const item = node.items[segment];
+        if (item === undefined) return undefined;
+        key = undefined;
+        value = item;
+      }
+    }
+    if (value === null && key === undefined) return undefined;
+    return {
+      key: key === undefined ? undefined : nodeSpan(located, key),
+      value: value === null ? undefined : nodeSpan(located, value),
+    };
+  };
+}
+
 function frontmatterData(
   values: Readonly<Record<string, unknown>>,
   spans: ReadonlyMap<string, KeySpans>,
+  nested?: { readonly yaml: string; readonly base: number },
 ): FrontmatterData {
+  const resolve = nested === undefined ? undefined : nestedSpans(nested.yaml, nested.base);
   return {
     values,
     keys: Object.freeze([...spans.keys()]),
     keySpan: (key) => spans.get(key)?.key,
     valueSpan: (key) => spans.get(key)?.value,
+    valueSpanAt: (path) => resolve?.(path)?.value,
+    keySpanAt: (path) =>
+      typeof path[path.length - 1] === 'string' ? resolve?.(path)?.key : undefined,
   };
 }
 
@@ -574,7 +679,7 @@ function parseBlock(text: string, location: BlockLocation): FrontmatterResult {
     kind: 'valid',
     span: location.span,
     bodyOffset: location.bodyOffset,
-    data: frontmatterData(values, spans),
+    data: frontmatterData(values, spans, { yaml, base }),
     warnings: warnings.slice(0, MAX_ISSUES),
   };
 }

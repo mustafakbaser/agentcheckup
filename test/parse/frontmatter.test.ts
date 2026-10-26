@@ -163,6 +163,74 @@ describe('values and spans', () => {
   });
 });
 
+describe('nested spans', () => {
+  const text = [
+    '---',
+    'hooks:',
+    '  PreToolUse:',
+    '    - matcher: Bash',
+    '      hooks:',
+    '        - type: command',
+    '          command: ./guard.sh',
+    'mcpServers:',
+    '  - github',
+    '  - "pw":',
+    '      args: [-y, "@playwright/mcp"]',
+    'base: &base',
+    '  command: ./base.sh',
+    'copy: *base',
+    'empty:',
+    '1: number key',
+    '---',
+    '',
+  ].join('\n');
+  const { data } = valid(text);
+
+  it('finds values and keys by mapping keys and sequence indices', () => {
+    const command = ['hooks', 'PreToolUse', 0, 'hooks', 0, 'command'];
+    expect(slice(text, data.valueSpanAt(command))).toBe('./guard.sh');
+    expect(slice(text, data.keySpanAt(command))).toBe('command');
+    expect(slice(text, data.valueSpanAt(['mcpServers', 0]))).toBe('github');
+    expect(slice(text, data.keySpanAt(['mcpServers', 1, 'pw']))).toBe('"pw"');
+    expect(slice(text, data.valueSpanAt(['mcpServers', 1, 'pw', 'args', 1]))).toBe(
+      '"@playwright/mcp"',
+    );
+    expect(slice(text, data.valueSpanAt(['1']))).toBe('number key');
+  });
+
+  it('agrees with the top-level spans', () => {
+    for (const key of data.keys) {
+      expect(data.valueSpanAt([key])).toEqual(data.valueSpan(key));
+      expect(data.keySpanAt([key])).toEqual(data.keySpan(key));
+    }
+  });
+
+  it('continues through an alias at its anchor', () => {
+    expect(slice(text, data.valueSpanAt(['copy']))).toBe('*base');
+    expect(slice(text, data.valueSpanAt(['copy', 'command']))).toBe('./base.sh');
+  });
+
+  it('returns nothing for a path that does not exist', () => {
+    expect(data.valueSpanAt(['hooks', 'Stop'])).toBeUndefined();
+    expect(data.valueSpanAt(['mcpServers', 2])).toBeUndefined();
+    expect(data.valueSpanAt(['mcpServers', 'github'])).toBeUndefined();
+    expect(data.valueSpanAt(['hooks', 0])).toBeUndefined();
+    expect(data.valueSpanAt(['mcpServers', 0, 'name'])).toBeUndefined();
+    // A key without a value has an empty value span, as at the top level.
+    expect(data.valueSpanAt(['empty'])?.length).toBe(0);
+    expect(slice(text, data.keySpanAt(['empty']))).toBe('empty');
+    // The last segment of a key span must be a key.
+    expect(data.keySpanAt(['mcpServers', 0])).toBeUndefined();
+  });
+
+  it('spans the whole block for the empty path, and nothing on empty frontmatter', () => {
+    expect(slice(text, data.valueSpanAt([]))?.startsWith('hooks:')).toBe(true);
+    const empty = valid('---\n---\n').data;
+    expect(empty.valueSpanAt([])).toBeUndefined();
+    expect(empty.keySpanAt(['a'])).toBeUndefined();
+  });
+});
+
 describe('hostile YAML', () => {
   it('keeps __proto__, constructor and prototype as plain own keys', () => {
     const text =

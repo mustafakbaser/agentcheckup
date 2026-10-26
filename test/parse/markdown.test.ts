@@ -55,7 +55,14 @@ describe('frontmatter blanking', () => {
       kind: 'valid',
       span: { offset: 0, length: 100 },
       bodyOffset: 100,
-      data: { values: {}, keys: [], keySpan: () => undefined, valueSpan: () => undefined },
+      data: {
+        values: {},
+        keys: [],
+        keySpan: () => undefined,
+        valueSpan: () => undefined,
+        valueSpanAt: () => undefined,
+        keySpanAt: () => undefined,
+      },
       warnings: [],
     });
     expect(doc.root.children).toEqual([]);
