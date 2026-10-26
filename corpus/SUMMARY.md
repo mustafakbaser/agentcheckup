@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 62 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -10,7 +10,7 @@ Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 62 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7615 |
+| Artifacts                   | 7629 |
 | Errors                      |  698 |
 | Warnings                    | 1287 |
 | Infos                       | 1554 |
@@ -103,6 +103,25 @@ From the security inventory, which lists every item whether or not an agent load
 | Env overrides: code-exec                   |            3 |     5 |
 | `.codex/config.toml`, not analyzed         |            0 |     - |
 
+### Agent definitions and models
+
+Custom agents and subagents as `agentcheckup agents` lists them: each file once per agent that reads it, so a Claude Code subagent also counts for Cursor and Copilot, which read Claude Code's folder too. "With a model" counts definitions that load or may load and set one; "not documented" counts the values the agent does not document, which `agent/model-not-documented` reports in the agent's own files, not in another agent's it reads too. See [docs/agents.md](../docs/agents.md).
+
+| Agent               | Repositories | Definitions | Load | Skipped | Shadowed | May not load | With a model | Not documented |
+| ------------------- | -----------: | ----------: | ---: | ------: | -------: | -----------: | -----------: | -------------: |
+| Claude Code         |           13 |         378 |  344 |       0 |       27 |            7 |           64 |              0 |
+| Codex               |            2 |           4 |    4 |       0 |        0 |            0 |            4 |              0 |
+| Cursor              |           13 |         378 |  344 |       0 |       27 |            7 |           64 |             58 |
+| Copilot CLI         |           17 |         390 |  380 |       0 |        3 |            7 |           64 |              0 |
+| Copilot in VS Code  |           17 |         390 |  352 |       1 |       30 |            7 |           64 |              0 |
+| Copilot cloud agent |            3 |           8 |    8 |       0 |        0 |            0 |            0 |              0 |
+| Gemini CLI          |            1 |           1 |    1 |       0 |        0 |            0 |            0 |              0 |
+
+|                                       | Repositories | Items |
+| ------------------------------------- | -----------: | ----: |
+| Repository settings that pick a model |            1 |     1 |
+| `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on |            0 |     - |
+
 ## Artifacts by kind
 
 | Kind                        | Artifacts | Repositories |
@@ -110,7 +129,7 @@ From the security inventory, which lists every item whether or not an agent load
 | `skill`                     |      5112 |           72 |
 | `claude-command`            |       587 |           22 |
 | `claude-plugin-manifest`    |       403 |           21 |
-| `claude-agent`              |       378 |           13 |
+| `claude-agent`              |       375 |           12 |
 | `copilot-path-instructions` |       292 |            8 |
 | `agents-md`                 |       290 |           62 |
 | `claude-md`                 |       148 |           45 |
@@ -121,6 +140,7 @@ From the security inventory, which lists every item whether or not an agent load
 | `claude-settings`           |        44 |           38 |
 | `copilot-instructions`      |        19 |           16 |
 | `gemini-md`                 |        15 |            8 |
+| `copilot-agent`             |        12 |            6 |
 | `cline-rule`                |         9 |            1 |
 | `cline-workflow`            |         7 |            1 |
 | `cursor-mcp`                |         7 |            7 |
@@ -129,6 +149,7 @@ From the security inventory, which lists every item whether or not an agent load
 | `imported-file`             |         6 |            2 |
 | `cursor-hooks`              |         5 |            5 |
 | `vscode-mcp`                |         5 |            5 |
+| `codex-agent`               |         4 |            2 |
 | `cursor-legacy-rules`       |         4 |            4 |
 | `gemini-settings`           |         4 |            4 |
 | `windsurf-rule`             |         2 |            2 |
@@ -137,6 +158,7 @@ From the security inventory, which lists every item whether or not an agent load
 | `copilot-hooks`             |         1 |            1 |
 | `copilot-mcp`               |         1 |            1 |
 | `copilot-settings`          |         1 |            1 |
+| `gemini-agent`              |         1 |            1 |
 | `windsurf-legacy-rules`     |         1 |            1 |
 
 ## Score distribution
@@ -158,6 +180,8 @@ Repository columns count repositories with at least one finding of that severity
 
 | Rule                                | Severity | Errors | Warnings | Infos | Repos with errors | Repos with warnings | Repos with infos | Repos affected | Applicable repos |
 | ----------------------------------- | -------- | -----: | -------: | ----: | ----------------: | ------------------: | ---------------: | -------------: | ---------------: |
+| `agent/model-not-documented`        | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               20 |
+| `agent/subagent-model-ignored`      | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               18 |
 | `analysis/partial`                  | info     |      0 |        0 |     5 |                 0 |                   0 |                3 |              3 |               79 |
 | `codex/config-invalid`              | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                6 |
 | `codex/ignored-project-key`         | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |                6 |
@@ -183,7 +207,7 @@ Repository columns count repositories with at least one finding of that severity
 | `instr/import-outside-root`         | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               74 |
 | `instr/import-unresolved`           | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               74 |
 | `instr/override-shadows-agents-md`  | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                1 |
-| `instr/subagent-invalid`            | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               13 |
+| `instr/subagent-invalid`            | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               18 |
 | `instr/symlink-materialized`        | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               75 |
 | `instr/vague-directive`             | info     |      0 |        0 |     2 |                 0 |                   0 |                2 |              2 |               75 |
 | `instr/windsurf-rule-too-long`      | info     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |                3 |

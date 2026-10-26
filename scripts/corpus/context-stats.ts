@@ -1,6 +1,6 @@
 /**
- * The "What agents load" section of corpus/SUMMARY.md: aggregate statistics over the load plans
- * and the security inventory of every corpus repository.
+ * The "What agents load" section of corpus/SUMMARY.md: aggregate statistics over the load plans,
+ * the security inventory and the agent definitions of every corpus repository.
  *
  * Each repository is scanned as `agentcheckup --untrusted --context --matrix` scans a checkout:
  * the rules run first, then the inventory is built and every modeled agent is planned at the root,
@@ -11,6 +11,8 @@
  * corpus and names no repository, path or server (docs/adr/0005-scoring.md: no per-repository
  * rankings). Output is deterministic: integers, sorted keys, nearest-rank percentiles.
  */
+import { buildAgents, isModelChoice } from '../../src/agents/index.js';
+import type { AgentDefinition } from '../../src/agents/types.js';
 import { isUnpinned } from '../../src/core/baseline.js';
 import { compareStrings } from '../../src/core/compare.js';
 import { analyze, type RuleResult, runRules } from '../../src/core/engine.js';
@@ -24,6 +26,7 @@ import { skillDirectoryOf } from '../../src/platforms/location.js';
 import { inPayloadFolder } from '../../src/platforms/paths.js';
 import {
   AGENT_NAMES,
+  ALL_CONTEXT_AGENTS,
   CONTEXT_AGENTS,
   type ContextAgent,
   type LoadEntry,
@@ -94,6 +97,55 @@ export interface RepoContextFacts {
   readonly env: Readonly<Record<EnvClass, number>>;
   /** Codex config in TOML, which agentcheckup does not parse. */
   readonly codexTomlUnparsed: boolean;
+  /** Per agent, its definitions as src/agents lists them. */
+  readonly definitions: Readonly<Record<ContextAgent, DefinitionCounts>>;
+  /** Repository settings that pick a model, not an effort or a switch. */
+  readonly modelSettings: number;
+  /** `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on in a root Claude Code settings file. */
+  readonly subagentModelForced: boolean;
+}
+
+/** One agent's definitions in one repository. */
+export interface DefinitionCounts {
+  readonly total: number;
+  readonly loads: number;
+  readonly skipped: number;
+  readonly shadowed: number;
+  readonly unknown: number;
+  /** Definitions that load or may load and set a model. */
+  readonly withModel: number;
+  /** Of those, the ones whose value the agent does not document. */
+  readonly notDocumented: number;
+}
+
+const NO_DEFINITIONS: DefinitionCounts = {
+  total: 0,
+  loads: 0,
+  skipped: 0,
+  shadowed: 0,
+  unknown: 0,
+  withModel: 0,
+  notDocumented: 0,
+};
+
+function definitionCounts(definitions: readonly AgentDefinition[]): DefinitionCounts {
+  const status = (value: AgentDefinition['status']): number =>
+    definitions.filter((definition) => definition.status === value).length;
+  const running = definitions.filter(
+    (definition) =>
+      (definition.status === 'loads' || definition.status === 'unknown') &&
+      definition.model !== undefined,
+  );
+  return {
+    total: definitions.length,
+    loads: status('loads'),
+    skipped: status('skipped'),
+    shadowed: status('shadowed'),
+    unknown: status('unknown'),
+    withModel: running.length,
+    notDocumented: running.filter((definition) => definition.model?.form === 'not-documented')
+      .length,
+  };
 }
 
 /** A value for each of `agents`, the agents planned; the others have none. */
@@ -128,6 +180,9 @@ function emptyFacts(crash: string, agents: readonly ContextAgent[]): RepoContext
     broadPermissions: 0,
     env: { endpoint: 0, credential: 0, tls: 0, 'code-exec': 0 },
     codexTomlUnparsed: false,
+    definitions: perAgent(ALL_CONTEXT_AGENTS, () => NO_DEFINITIONS),
+    modelSettings: 0,
+    subagentModelForced: false,
   };
 }
 
@@ -172,6 +227,7 @@ export function scanForSummary(
   const planned = agents ?? contextAgentsOf(analysis.targetList);
   try {
     const inventory = buildInventory(analysis);
+    const agentsReport = buildAgents(analysis);
     const plans = matrixPlans(analysis, { agents: planned, config: analysis.config });
     const root = new Map(
       plans.filter((plan) => plan.cwd === '').map((plan) => [plan.agent, plan] as const),
@@ -241,6 +297,16 @@ export function scanForSummary(
       env,
       codexTomlUnparsed: inventory.incomplete.some(
         (entry) => entry === '.codex/config.toml' || entry.endsWith('/.codex/config.toml'),
+      ),
+      definitions: perAgent(ALL_CONTEXT_AGENTS, (agent) =>
+        definitionCounts(
+          agentsReport.definitions.filter((definition) => definition.agent === agent),
+        ),
+      ),
+      modelSettings: agentsReport.settings.filter(isModelChoice).length,
+      subagentModelForced: agentsReport.definitions.some(
+        (definition) =>
+          definition.effective.overridden?.key === 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
       ),
     };
     return { result, facts };
@@ -496,6 +562,60 @@ export function renderContextSection(
         [
           '`.codex/config.toml`, not analyzed',
           number(count((item) => item.codexTomlUnparsed)),
+          '-',
+        ],
+      ],
+    ),
+    '',
+    '### Agent definitions and models',
+    '',
+    'Custom agents and subagents as `agentcheckup agents` lists them: each file once per agent ' +
+      'that reads it, so a Claude Code subagent also counts for Cursor and Copilot, which read ' +
+      'Claude Code\'s folder too. "With a model" counts definitions that load or may load and set ' +
+      'one; "not documented" counts the values the agent does not document, which ' +
+      "`agent/model-not-documented` reports in the agent's own files, not in another agent's " +
+      'it reads too. See [docs/agents.md](../docs/agents.md).',
+    '',
+    table(
+      [
+        'Agent',
+        'Repositories',
+        'Definitions',
+        'Load',
+        'Skipped',
+        'Shadowed',
+        'May not load',
+        'With a model',
+        'Not documented',
+      ],
+      ['---', '---:', '---:', '---:', '---:', '---:', '---:', '---:', '---:'],
+      ALL_CONTEXT_AGENTS.filter((agent) => sum((item) => item.definitions[agent].total) > 0).map(
+        (agent) => {
+          const total = (value: (counts: DefinitionCounts) => number): string =>
+            number(sum((item) => value(item.definitions[agent])));
+          return [
+            AGENT_NAMES[agent],
+            number(count((item) => item.definitions[agent].total > 0)),
+            total((counts) => counts.total),
+            total((counts) => counts.loads),
+            total((counts) => counts.skipped),
+            total((counts) => counts.shadowed),
+            total((counts) => counts.unknown),
+            total((counts) => counts.withModel),
+            total((counts) => counts.notDocumented),
+          ];
+        },
+      ),
+    ),
+    '',
+    table(
+      ['', 'Repositories', 'Items'],
+      ['---', '---:', '---:'],
+      [
+        ['Repository settings that pick a model', ...items((item) => item.modelSettings)],
+        [
+          '`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on',
+          number(count((item) => item.subagentModelForced)),
           '-',
         ],
       ],
