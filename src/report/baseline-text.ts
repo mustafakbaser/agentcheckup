@@ -12,7 +12,7 @@ import type { ScanResult } from '../core/engine.js';
 import { stripPathBase } from '../core/rebase.js';
 import { contextDeltas } from './baseline-markdown.js';
 import type { ContextTextOptions } from './context-text.js';
-import { gateRows, newRuleFindings } from './gate.js';
+import { gateLocations, gateRows, newRuleFindings } from './gate.js';
 import { toJsonBaseline } from './json.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle } from './stylish.js';
@@ -52,8 +52,16 @@ export function formatBaselineText(input: ScanResult, options: ContextTextOption
           ),
         ),
       );
+      const locate = gateLocations(result);
       for (const row of rows.slice(0, MAX_LISTED)) {
-        lines.push(`    ${style.bold(row.label)}: ${clean(row.hit.summary, MAX_TEXT_LENGTH)}`);
+        const where = row.hit.class === 'unicode' ? undefined : locate(row.hit);
+        const at =
+          where === undefined
+            ? ''
+            : style.dim(
+                ` ${ascii ? '-' : '·'} ${clean(`${where.file}:${String(where.line)}`, MAX_TEXT_LENGTH)}`,
+              );
+        lines.push(`    ${style.bold(row.label)}: ${clean(row.hit.summary, MAX_TEXT_LENGTH)}${at}`);
       }
       if (rows.length > MAX_LISTED) {
         lines.push(`    ${more} and ${rows.length - MAX_LISTED} more`);

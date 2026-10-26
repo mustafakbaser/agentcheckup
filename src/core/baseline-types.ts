@@ -95,4 +95,9 @@ export interface GateHit {
   readonly change: 'added' | 'changed';
   /** One line for the pull request summary. */
   readonly summary: string;
+  /**
+   * `mode` for a permission mode (`permissions.defaultMode`, a subagent's `permissionMode`), which
+   * trips the gate whenever it is set or changed, whether or not it lets the agent do more.
+   */
+  readonly kind?: 'mode';
 }

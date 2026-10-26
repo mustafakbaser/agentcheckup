@@ -245,7 +245,7 @@ describe('formatStylish with a baseline', () => {
     expect(output).toContain('\n2 new, 6 unchanged, 2 resolved since the baseline\n');
     expect(output).toContain(
       '✖ 5 security-relevant changes since the baseline need review\n' +
-        '    New MCP server, not pinned: stdio, npx -y @acme/browser-mcp, not pinned\n',
+        '    New MCP server, not pinned: stdio, npx -y @acme/browser-mcp, not pinned · .cursor/mcp.json:2\n',
     );
     expect(output).toContain(
       '    Hidden Unicode: AGENTS.md:12 has 3 invisible Unicode tag characters\n\n',

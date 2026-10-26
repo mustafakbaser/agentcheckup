@@ -31,7 +31,7 @@ import {
   planIndex,
   whyText,
 } from './feedback.js';
-import { gateRows } from './gate.js';
+import { gateLocations, gateRows } from './gate.js';
 import { policyAnnotations } from './policy-github.js';
 import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
 import { truncate } from './text.js';
@@ -111,16 +111,6 @@ function annotation(finding: Finding, level: DetailLevel, plans: PlanIndex): str
   );
 }
 
-/** Where an inventory item is declared, by id, for gate annotations. */
-function itemLocations(result: ScanResult): Map<string, { file: string; line: number }> {
-  const map = new Map<string, { file: string; line: number }>();
-  const { mcpServers, hooks, permissions, env } = result.inventory;
-  for (const item of [...mcpServers, ...hooks, ...permissions, ...env]) {
-    if (!map.has(item.id)) map.set(item.id, { file: item.file, line: item.line });
-  }
-  return map;
-}
-
 /**
  * One error annotation per security-relevant change that trips `--gate`, on the file and line
  * that declare it when they are known.
@@ -128,16 +118,9 @@ function itemLocations(result: ScanResult): Map<string, { file: string; line: nu
 function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
   const rows = gateRows(diff);
   if (rows.length === 0) return [];
-  const items = itemLocations(result);
+  const locate = gateLocations(result);
   return rows.map(({ hit, label }) => {
-    const finding =
-      hit.class === 'unicode'
-        ? result.findings.find((candidate) => candidate.fingerprint === hit.id)
-        : undefined;
-    const where =
-      finding === undefined
-        ? items.get(hit.id)
-        : { file: finding.path, line: finding.range.start.line };
+    const where = locate(hit);
     const properties: (readonly [string, string])[] =
       where === undefined
         ? []

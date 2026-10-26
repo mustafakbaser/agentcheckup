@@ -577,7 +577,13 @@ function planDelta(value: PlanDelta): PlanDelta {
 }
 
 function gateHit(value: GateHit): GateHit {
-  return { class: value.class, id: value.id, change: value.change, summary: value.summary };
+  return {
+    class: value.class,
+    id: value.id,
+    change: value.change,
+    summary: value.summary,
+    ...(value.kind === undefined ? {} : { kind: value.kind }),
+  };
 }
 
 /** A canonical copy of a baseline comparison: fixed key order, sorted lists. */

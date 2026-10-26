@@ -1387,6 +1387,10 @@
         "summary": {
           "description": "One line for the pull request summary. Untrusted text.",
           "type": "string"
+        },
+        "kind": {
+          "description": "`mode` for a permission mode, which trips the gate whenever it is set or changed.",
+          "enum": ["mode"]
         }
       }
     },

@@ -760,6 +760,7 @@ describe('gate: permissions', () => {
         change: 'added',
         summary:
           'permissions.defaultMode set to bypassPermissions (was acceptEdits; ignored where set)',
+        kind: 'mode',
       },
     ]);
     expect(hits(report(), after(permission('permissions.defaultMode', 'plan')))[0]?.summary).toBe(

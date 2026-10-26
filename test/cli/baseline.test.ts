@@ -475,7 +475,9 @@ describe('a pull request that reformats JSON and adds narrow permissions', () =>
     const text = capture(repo);
     expect(await run(args, text)).toBe(EXIT.findings);
     expect(text.output()).toContain('✖ 3 security-relevant changes since the baseline need review');
-    expect(text.output()).toContain('Permission widened: permissions.allow adds Bash(curl:*)\n');
+    expect(text.output()).toContain(
+      'Permission widened: permissions.allow adds Bash(curl:*) · .claude/settings.json:2\n',
+    );
     expect(text.output()).toContain('0 new, 5 unchanged since the baseline\n');
 
     const report = await scanJson(args, EXIT.findings, repo);

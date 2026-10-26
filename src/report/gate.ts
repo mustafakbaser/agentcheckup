@@ -23,6 +23,12 @@ const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'
   unicode: { added: 'Hidden Unicode', changed: 'Hidden Unicode' },
 };
 
+/** A permission mode trips the gate whenever it is set or changed: it may narrow, too. */
+const MODE_LABELS: Readonly<Record<GateHit['change'], string>> = {
+  added: 'Permission mode set',
+  changed: 'Permission mode changed',
+};
+
 export interface GateRow {
   /** The first hit for the item in canonical order: its class, id and summary describe it. */
   readonly hit: GateHit;
@@ -45,10 +51,33 @@ export function gateRows(diff: BaselineDiff): GateRow[] {
   return [...groups.values()].flatMap((group) => {
     const [hit] = group;
     if (hit === undefined) return [];
-    const label = CHANGE_LABELS[hit.class][hit.change];
+    const label =
+      hit.kind === 'mode' ? MODE_LABELS[hit.change] : CHANGE_LABELS[hit.class][hit.change];
     const unpinned = hit.class === 'mcp' && group.some((other) => other.class === 'mcp-unpinned');
     return [{ hit, label: unpinned ? `${label}, not pinned` : label, emphasis: unpinned }];
   });
+}
+
+/** Where a gate hit is declared: the file and line of its inventory item, or of its finding. */
+export interface GateLocation {
+  readonly file: string;
+  readonly line: number;
+}
+
+/** A function that finds where each hit of `result` is declared, when the report knows. */
+export function gateLocations(result: ScanResult): (hit: GateHit) => GateLocation | undefined {
+  const items = new Map<string, GateLocation>();
+  const { mcpServers, hooks, permissions, env } = result.inventory;
+  for (const item of [...mcpServers, ...hooks, ...permissions, ...env]) {
+    if (!items.has(item.id)) items.set(item.id, { file: item.file, line: item.line });
+  }
+  return (hit) => {
+    if (hit.class !== 'unicode') return items.get(hit.id);
+    const finding = result.findings.find((candidate) => candidate.fingerprint === hit.id);
+    return finding === undefined
+      ? undefined
+      : { file: finding.path, line: finding.range.start.line };
+  };
 }
 
 /** Ids of the rules newer than the baseline's rule set; empty without a baseline. */

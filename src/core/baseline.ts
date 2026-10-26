@@ -497,9 +497,17 @@ function gateHits(
   currentBase: string,
 ): GateHit[] {
   const hits = new Map<string, GateHit>();
-  const hit = (gate: GateClass, id: string, change: GateHit['change'], summary: string): void => {
+  const hit = (
+    gate: GateClass,
+    id: string,
+    change: GateHit['change'],
+    summary: string,
+    kind?: GateHit['kind'],
+  ): void => {
     const key = `${gate}\u0000${id}\u0000${change}`;
-    if (!hits.has(key)) hits.set(key, { class: gate, id, change, summary });
+    if (!hits.has(key)) {
+      hits.set(key, { class: gate, id, change, summary, ...(kind === undefined ? {} : { kind }) });
+    }
   };
 
   for (const [id, server] of after.mcpServers) {
@@ -526,7 +534,7 @@ function gateHits(
     if (change === undefined) continue;
     if (isDefaultMode(permission)) {
       const previous = previousModes.get(stripPath(permission.file, after.base)) ?? [];
-      hit('permissions', id, change, modeSummary(permission, change, previous));
+      hit('permissions', id, change, modeSummary(permission, change, previous), 'mode');
     } else if (
       widens(permission) &&
       !(old !== undefined && alreadyAsWide(old, permission)) &&

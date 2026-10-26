@@ -36,7 +36,7 @@ import {
   tokensText,
   whyText,
 } from './feedback.js';
-import { gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
+import { gateLocations, gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
 import { renderPolicy } from './policy-stylish.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
@@ -477,8 +477,14 @@ function renderGateHits(result: ScanResult, context: Context): string[] {
       ),
     ),
   ];
+  const locate = gateLocations(result);
   for (const row of rows.slice(0, MAX_LISTED)) {
-    lines.push(`    ${style.bold(row.label)}: ${clean(row.hit.summary, context)}`);
+    const where = row.hit.class === 'unicode' ? undefined : locate(row.hit);
+    const at =
+      where === undefined
+        ? ''
+        : style.dim(` ${symbols.dot} ${clean(`${where.file}:${String(where.line)}`, context)}`);
+    lines.push(`    ${style.bold(row.label)}: ${clean(row.hit.summary, context)}${at}`);
   }
   if (rows.length > MAX_LISTED) {
     lines.push(`    ${symbols.more} and ${rows.length - MAX_LISTED} more`);
