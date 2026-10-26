@@ -892,17 +892,30 @@ describe('permissions', () => {
     ]);
   });
 
-  it('masks vendor tokens in permission values', () => {
+  it('removes credentials from permission values, ids and digests', () => {
     expect(findSecret(GITHUB_TOKEN)).toBeDefined();
+    const opaque = 'opaque-session-value-1234';
     const { permissions } = inventoryOf({
       '.claude/settings.json': json({
-        permissions: { allow: [`Bash(curl -H "Authorization: token ${GITHUB_TOKEN}" api)`] },
+        permissions: {
+          allow: [
+            `Bash(curl -H "Authorization: token ${GITHUB_TOKEN}" api)`,
+            `Bash(curl -H "Authorization: Bearer ${opaque}" https://api.example.com/v1/*)`,
+            `Bash(git push https://bot:${opaque}@github.com/acme/app.git)`,
+            'Bash(curl https://api.example.com/v1/items/*)',
+          ],
+        },
       }),
     });
     expect(permissions.map((item) => item.value)).toEqual([
-      'Bash(curl -H "Authorization: token …" api)',
+      'Bash(curl -H "… … …" api)',
+      'Bash(curl -H "… … …" https://api.example.com/v1/*)',
+      'Bash(curl https://api.example.com/v1/items/*)',
+      'Bash(git push https://…@github.com/acme/app.git)',
     ]);
-    expect(JSON.stringify(permissions)).not.toContain(GITHUB_TOKEN);
+    const text = JSON.stringify(permissions);
+    expect(text).not.toContain(GITHUB_TOKEN);
+    expect(text).not.toContain(opaque);
   });
 });
 

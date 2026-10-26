@@ -13,6 +13,10 @@
  *
  * The redacted form is what the inventory shows and what its digests are built from, so a
  * credential never reaches a report or a baseline (docs/adr/0007, decision 10).
+ *
+ * Permission values ({@link redactPermission}) are patterns that tell rules apart by their URLs,
+ * so a URL there keeps its path and loses only its user name, password and the values of
+ * credential-like query parameters.
  */
 import { findSecret } from '../rules/mcp/secrets.js';
 
@@ -94,6 +98,45 @@ export function urlOrigin(text: string): { readonly origin: string; readonly cut
   return { origin: `${scheme}://`, cut: true };
 }
 
+/** How a redaction treats URLs: cut to the origin, or with only their credentials removed. */
+type UrlMode = 'origin' | 'credentials';
+
+/**
+ * A URL inside `text` with its credentials removed: the user name and password, and the value of
+ * every query parameter whose name looks like a credential. Undefined when there is no URL or
+ * nothing to remove.
+ */
+function redactUrlCredentialsIn(text: string): string | undefined {
+  const separator = text.indexOf('://');
+  if (separator <= 0) return undefined;
+  const authorityStart = separator + 3;
+  let authorityEnd = authorityStart;
+  while (authorityEnd < text.length && !'/?#'.includes(text.charAt(authorityEnd))) authorityEnd++;
+  const at = text.lastIndexOf('@', authorityEnd - 1);
+  let out =
+    at >= authorityStart ? `${text.slice(0, authorityStart)}${REDACTED}${text.slice(at)}` : text;
+  const query = out.indexOf('?', authorityStart);
+  if (query !== -1) {
+    const fragment = out.indexOf('#', query);
+    const end = fragment === -1 ? out.length : fragment;
+    const params = out
+      .slice(query + 1, end)
+      .split('&')
+      .map((param) => {
+        const equals = param.indexOf('=');
+        if (equals <= 0 || !SECRET_NAME.test(param.slice(0, equals))) return param;
+        return `${param.slice(0, equals + 1)}${REDACTED}`;
+      });
+    out = `${out.slice(0, query + 1)}${params.join('&')}${out.slice(end)}`;
+  }
+  return out === text ? undefined : out;
+}
+
+/** A URL inside `text` redacted as `mode` says. */
+function redactUrl(text: string, mode: UrlMode): string | undefined {
+  return mode === 'origin' ? redactUrlIn(text) : redactUrlCredentialsIn(text);
+}
+
 /** A URL inside `text` cut to its origin, with the text before it kept. */
 function redactUrlIn(text: string): string | undefined {
   const separator = text.indexOf('://');
@@ -106,15 +149,15 @@ function redactUrlIn(text: string): string | undefined {
 }
 
 /** A value in `NAME=value`, `--flag=value` or `Header: value`, redacted on its own. */
-function redactValue(value: string): string {
+function redactValue(value: string, mode: UrlMode): string {
   if (value === '') return value;
-  const url = redactUrlIn(value);
-  if (url !== undefined) return url;
+  const url = redactUrl(value, mode);
+  if (url !== undefined) return findSecret(url) === undefined ? url : REDACTED;
   return findSecret(value) === undefined ? value : REDACTED;
 }
 
 /** One word of a command line, redacted. */
-function redactWord(word: string, afterSecret: boolean): string {
+function redactWord(word: string, afterSecret: boolean, mode: UrlMode): string {
   const { lead, core, trail } = parts(word);
   if (core === '') return word;
   if (afterSecret) return `${lead}${REDACTED}${trail}`;
@@ -125,7 +168,7 @@ function redactWord(word: string, afterSecret: boolean): string {
     const name = core.slice(0, equals);
     const bare = name.replace(/^-+/, '');
     const secret = bare !== '' && (SECRET_NAME.test(bare) || SECRET_SHORT_FLAGS.has(name));
-    const value = secret ? REDACTED : redactValue(core.slice(equals + 1));
+    const value = secret ? REDACTED : redactValue(core.slice(equals + 1), mode);
     return `${lead}${name}=${value}${trail}`;
   }
 
@@ -135,8 +178,10 @@ function redactWord(word: string, afterSecret: boolean): string {
     if (!name.includes('/') && SECRET_NAME.test(name)) return `${lead}${name}:${REDACTED}${trail}`;
   }
 
-  const redactedUrl = redactUrlIn(core);
-  if (redactedUrl !== undefined) return `${lead}${redactedUrl}${trail}`;
+  const redactedUrl = redactUrl(core, mode);
+  if (redactedUrl !== undefined && findSecret(redactedUrl) === undefined) {
+    return `${lead}${redactedUrl}${trail}`;
+  }
   return findSecret(core) === undefined ? word : `${lead}${REDACTED}${trail}`;
 }
 
@@ -149,6 +194,19 @@ function isSpace(char: string): boolean {
  * kept, so the result reads like the original.
  */
 export function redactCommand(command: string): string {
+  return redactWords(command, 'origin');
+}
+
+/**
+ * A permission value, such as `Bash(curl -H "Authorization: Bearer abc" *)`, with credentials
+ * removed as from a command line, except that a URL keeps its path and query and loses only its
+ * user name, password and credential-like query values: two rules for two paths stay two rules.
+ */
+export function redactPermission(value: string): string {
+  return redactWords(value, 'credentials');
+}
+
+function redactWords(command: string, mode: UrlMode): string {
   let out = '';
   let previous = '';
   let i = 0;
@@ -160,7 +218,7 @@ export function redactCommand(command: string): string {
     while (i < command.length && !isSpace(command.charAt(i))) i++;
     if (i === wordStart) break;
     const word = command.slice(wordStart, i);
-    out += redactWord(word, previous !== '' && redactsNext(previous));
+    out += redactWord(word, previous !== '' && redactsNext(previous), mode);
     previous = word;
   }
   return out;

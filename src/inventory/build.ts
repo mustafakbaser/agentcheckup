@@ -79,7 +79,7 @@ import { findSecret } from '../rules/mcp/secrets.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
 import { COMMAND_SETTINGS, envClass, type EnvClass } from './env-class.js';
 import { packageSpec } from './package-spec.js';
-import { REDACTED, redactArgs, redactCommand, urlOrigin } from './redact.js';
+import { REDACTED, redactArgs, redactCommand, redactPermission, urlOrigin } from './redact.js';
 import type {
   EnvItem,
   HookItem,
@@ -191,8 +191,8 @@ function headerKeysOf(artifact: Artifact, config: JsonObject): string[] {
 const MAX_MASKED = 64;
 
 /**
- * A permission value with credentials of a known vendor format masked. Permission values are
- * patterns, so they are not redacted like commands: cutting URLs would merge distinct rules.
+ * A permission value with credentials of a known vendor format masked where they stand, so the
+ * words around them stay readable; {@link redactPermission} then removes the rest.
  */
 function maskTokens(text: string): string {
   let out = text;
@@ -757,7 +757,7 @@ class InventoryBuilder {
   // Items ------------------------------------------------------------------------------------
 
   #pushPermission(artifact: Artifact, item: Omit<PermissionItem, 'id' | 'file' | 'digest'>): void {
-    const value = maskTokens(item.value);
+    const value = redactPermission(maskTokens(item.value));
     const fields = { key: item.key, value, broad: item.broad, effective: item.effective };
     this.#permissions.push({
       id: permInventoryId(artifact.path, item.key, value),

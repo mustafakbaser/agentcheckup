@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { envClass, looksLikeCredentialName } from '../../src/inventory/env-class.js';
-import { isSecretFlag, redactArgs, redactCommand, urlOrigin } from '../../src/inventory/redact.js';
+import {
+  isSecretFlag,
+  redactArgs,
+  redactCommand,
+  redactPermission,
+  urlOrigin,
+} from '../../src/inventory/redact.js';
 
 const TOKEN = `ghp_${'Zq8xW2mK9pL4vN7bR3tY6uJ1hG5fD0sA8cE2'.slice(0, 36)}`;
 
@@ -39,6 +45,44 @@ describe('redactCommand', () => {
     [`echo "${TOKEN}"`, 'echo "…"'],
   ])('%j -> %j', (input, expected) => {
     expect(redactCommand(input)).toBe(expected);
+  });
+});
+
+describe('redactPermission', () => {
+  it.each([
+    // Rules without credentials are kept as written.
+    ['Bash(pnpm test:*)', 'Bash(pnpm test:*)'],
+    ['Read(./secrets/**)', 'Read(./secrets/**)'],
+    ['WebFetch(domain:api.example.com)', 'WebFetch(domain:api.example.com)'],
+    ['mcp__github__get_token', 'mcp__github__get_token'],
+    [
+      'Bash(curl https://api.example.com/v1/items/*)',
+      'Bash(curl https://api.example.com/v1/items/*)',
+    ],
+    ['Bash(curl https://api.example.com/?page=2)', 'Bash(curl https://api.example.com/?page=2)'],
+    // Credentials are removed where commands lose them.
+    ['Bash(curl -H "Authorization: Bearer abc123" *)', 'Bash(curl -H "… … …" *)'],
+    ['Bash(echo Authorization: Bearer abc123)', 'Bash(echo Authorization: … …)'],
+    ['Bash(API_KEY=abc123 ./deploy.sh)', 'Bash(API_KEY=… ./deploy.sh)'],
+    ['Bash(deploy --token abc123)', 'Bash(deploy --token …)'],
+    [`Bash(echo ${TOKEN})`, 'Bash(echo …)'],
+    // A URL keeps its path, without user, password or credential-like query values.
+    [
+      'Bash(git push https://user:abc123@github.com/acme/app.git)',
+      'Bash(git push https://…@github.com/acme/app.git)',
+    ],
+    [
+      'Bash(curl https://api.example.com/v1?api_key=abc123&page=2#top)',
+      'Bash(curl https://api.example.com/v1?api_key=…&page=2#top)',
+    ],
+  ])('%j -> %j', (input, expected) => {
+    expect(redactPermission(input)).toBe(expected);
+  });
+
+  it('keeps rules for different paths apart', () => {
+    expect(redactPermission('Bash(curl https://a.example.com/x)')).not.toBe(
+      redactPermission('Bash(curl https://a.example.com/y)'),
+    );
   });
 });
 
