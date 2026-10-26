@@ -55,15 +55,17 @@ export const HELP = `Usage: ${TOOL_NAME} [path] [options]
        ${TOOL_NAME} fix [path] [options]
        ${TOOL_NAME} tasks [path] [options]
        ${TOOL_NAME} context [path] [options]
+       ${TOOL_NAME} agents [path] [options]
        ${TOOL_NAME} skill install [path] [options]
        ${TOOL_NAME} rules [--json]
        ${TOOL_NAME} explain <rule-id>
 
 Check AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules, Copilot instructions and MCP
 configs against how coding agents actually load them. "${TOOL_NAME} fix" repairs
-what it can, "${TOOL_NAME} tasks" writes the rest as tasks for a coding agent, and
-"${TOOL_NAME} context" shows what each agent loads; run any of them with --help
-for its options.
+what it can, "${TOOL_NAME} tasks" writes the rest as tasks for a coding agent,
+"${TOOL_NAME} context" shows what each agent loads, and "${TOOL_NAME} agents"
+lists the custom agents and subagents with their models; run any of them with
+--help for its options.
 
 Options
   -f, --format <name>      stylish (default), json, sarif, github, markdown, badge
@@ -235,6 +237,51 @@ Exit codes
   1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)
+
+${FOOTER}`;
+
+const AGENTS_AGENT_OPTION = optionText(
+  `Comma-separated agents: ${AGENT_IDS}.` +
+    AGENT_PLATFORMS.map(
+      (platform) => ` ${platform} stands for ${joinNames(contextAgentsOf([platform]))}.`,
+    ).join('') +
+    ` ${ALL_AGENTS} lists every agent. Default: those among the configured targets`,
+);
+
+export const AGENTS_HELP = `Usage: ${TOOL_NAME} agents [path] [options]
+
+List the custom agents and subagents the repository defines, once for each agent
+that reads the file: the name it knows it by, the model as written and where the
+model it runs with comes from, its effort, and why an agent skips it. Then the
+repository settings that pick a model. [path] is the repository root; default:
+the current directory. Text and Markdown output show paths relative to [path];
+JSON output is the scan report, with every agent's definitions and paths relative
+to the current directory.
+
+agentcheckup reads no user or managed settings and no environment variables: a
+model chosen there is shown as set outside the repository.
+
+Options
+      --agent <list>       ${AGENTS_AGENT_OPTION}
+  -f, --format <name>      text (default), json, markdown
+  -o, --output <file>      Write the list to a file instead of stdout
+      --baseline <file>    Compare with a JSON report of an earlier scan
+      --gate <classes>     Exit 1 on changes since --baseline:
+                           ${GATE_CLASSES.join(', ')},
+                           or security for all but models, or none
+  -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
+      --no-config          Ignore config files
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration
+      --no-gitignore       Also read files excluded by .gitignore
+      --color, --no-color  Force or disable color
+  -h, --help               Show this help
+
+Exit codes
+  0  The list was shown. Findings never fail this command
+  1  --gate found changes it gates since --baseline
+  2  Invalid arguments, configuration, --agent or baseline
+  3  Internal error (a rule crashed)
 
 ${FOOTER}`;
 

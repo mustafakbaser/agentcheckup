@@ -138,10 +138,79 @@ describe('parseCommand', () => {
     [['--baseline', 'b.json', '--gate', 'none,mcp'], /"none" cannot be combined/],
     [['--baseline', 'b.json', '--gate', 'mcp,,hooks'], /Empty gate class/],
     [['--context-window', '1000'], /--context-window needs --context/],
-    [['--agent', 'codex'], /--agent works only with the context command/],
+    [['--agent', 'codex'], /--agent works only with the context and agents commands/],
     [['--cwd', 'packages'], /--cwd works only with the context command/],
     [['--matrix'], /--matrix works only with the context command/],
   ])('rejects scan flags %j', (argv, message) => {
+    expect(() => parseCommand(argv)).toThrow(UsageError);
+    expect(() => parseCommand(argv)).toThrow(message);
+  });
+});
+
+describe('parseCommand: agents', () => {
+  it('defaults to the text list of the agents among the targets', () => {
+    expect(parseCommand(['agents'])).toEqual({
+      kind: 'agents',
+      options: {
+        path: '.',
+        format: 'text',
+        output: undefined,
+        config: undefined,
+        useConfig: true,
+        untrusted: false,
+        gitignore: true,
+        color: undefined,
+        baseline: undefined,
+        gate: [],
+        contextWindow: undefined,
+        agents: undefined,
+      },
+    });
+    expect(parseCommand(['agents', '--help'])).toEqual({ kind: 'help', topic: 'agents' });
+  });
+
+  it('takes a path, agents, a format, a baseline and the gate', () => {
+    expect(
+      parseCommand([
+        'agents',
+        'repo',
+        '--agent',
+        'copilot,claude-code',
+        '-f',
+        'json',
+        '--baseline',
+        'b.json',
+        '--gate',
+        'security,models',
+        '--untrusted',
+      ]),
+    ).toMatchObject({
+      kind: 'agents',
+      options: {
+        path: 'repo',
+        format: 'json',
+        agents: ['claude-code', 'copilot-cli', 'copilot-vscode', 'copilot-cloud'],
+        baseline: 'b.json',
+        gate: ['env', 'hooks', 'mcp', 'mcp-unpinned', 'models', 'permissions', 'unicode'],
+        untrusted: true,
+        useConfig: false,
+      },
+    });
+  });
+
+  it.each([
+    [['agents', 'a', 'b'], /"agents" takes at most one path, got 2/],
+    [['agents', '-f', 'sarif'], /--format must be one of: text, json, markdown/],
+    [['agents', '--agent', 'vim'], /Unknown agent "vim"/],
+    [['agents', '--targets', 'codex'], /--targets does not apply to the agents command/],
+    [['agents', '--context-window', '9'], /--context-window does not apply to the agents command/],
+    [['agents', '--fail-on', 'warn'], /--fail-on does not apply to the agents command/],
+    [['agents', '--cwd', 'x'], /--cwd works only with the context command/],
+    [['agents', '--matrix'], /--matrix works only with the context command/],
+    [['agents', '--write'], /--write works only with the fix command/],
+    [['agents', '--max', '3'], /--max works only with the tasks command/],
+    [['agents', '--gate', 'models'], /--gate needs --baseline/],
+  ])('rejects %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
     expect(() => parseCommand(argv)).toThrow(message);
   });

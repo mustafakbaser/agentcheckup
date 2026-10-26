@@ -15,19 +15,22 @@ export const FIX_FORMATS = ['diff', 'json', 'suggestions'] as const;
 export type FixFormat = (typeof FIX_FORMATS)[number];
 export const TASKS_FORMATS = ['markdown', 'json'] as const;
 export type TasksFormat = (typeof TASKS_FORMATS)[number];
+export const AGENTS_FORMATS = ['text', 'json', 'markdown'] as const;
+export type AgentsFormat = (typeof AGENTS_FORMATS)[number];
 export type FailOn = Severity | 'none';
 
 export const SKILL_DIRS = ['claude', 'agents'] as const;
 export type SkillDir = (typeof SKILL_DIRS)[number];
 
 export type Command =
-  | { readonly kind: 'help'; readonly topic?: 'context' | 'fix' | 'tasks' | 'skill' }
+  | { readonly kind: 'help'; readonly topic?: 'context' | 'agents' | 'fix' | 'tasks' | 'skill' }
   | { readonly kind: 'skill'; readonly options: SkillCommandOptions }
   | { readonly kind: 'version' }
   | { readonly kind: 'rules'; readonly format: 'text' | 'json' }
   | { readonly kind: 'explain'; readonly ruleId: string }
   | { readonly kind: 'scan'; readonly options: ScanCommandOptions }
   | { readonly kind: 'context'; readonly options: ContextCommandOptions }
+  | { readonly kind: 'agents'; readonly options: AgentsCommandOptions }
   | { readonly kind: 'fix'; readonly options: FixCommandOptions }
   | { readonly kind: 'tasks'; readonly options: TasksCommandOptions };
 
@@ -69,6 +72,16 @@ export interface ContextCommandOptions extends SharedCommandOptions {
   /** Root-relative POSIX directory, normalized; `''` is the scanned directory. */
   readonly cwd: string;
   readonly matrix: boolean;
+}
+
+/**
+ * `agentcheckup agents`: the agent definitions and model settings. `contextWindow` is always
+ * unset.
+ */
+export interface AgentsCommandOptions extends SharedCommandOptions {
+  readonly format: AgentsFormat;
+  /** `--agent`; undefined means every agent among the targets. */
+  readonly agents: readonly ContextAgent[] | undefined;
 }
 
 /**
@@ -262,7 +275,12 @@ const SCAN_ONLY = [
   'verbose',
   'policy',
 ] as const;
-const CONTEXT_ONLY = ['agent', 'cwd', 'matrix'] as const;
+const CONTEXT_ONLY = ['cwd', 'matrix'] as const;
+const CONTEXT_ONLY_MESSAGE = 'works only with the context command: agentcheckup context.';
+/** `--agent`, which the context and agents commands take. */
+const AGENT_FLAG = ['agent'] as const;
+const AGENT_FLAG_MESSAGE =
+  'works only with the context and agents commands: agentcheckup context, agentcheckup agents.';
 const FIX_ONLY = ['write', 'review', 'interactive', 'rule', 'diff'] as const;
 /** Scan and context flags `fix` does not take. */
 const NOT_FOR_FIX = ['baseline', 'gate', 'context-window', 'no-gitignore'] as const;
@@ -339,11 +357,36 @@ function contextCommand(values: Values, rest: readonly string[]): Command {
   };
 }
 
+function agentsCommand(values: Values, rest: readonly string[]): Command {
+  if (values['help'] === true) return { kind: 'help', topic: 'agents' };
+  if (values['version'] === true) return { kind: 'version' };
+  if (rest.length > 1) {
+    throw new UsageError(`"agents" takes at most one path, got ${rest.length}.`);
+  }
+  rejectFlags(
+    values,
+    [...SCAN_ONLY, 'targets', 'context-window'],
+    'does not apply to the agents command.',
+  );
+  rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
+  rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
+  rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  return {
+    kind: 'agents',
+    options: {
+      ...sharedOptions(values, rest[0]),
+      format: oneOf((values['format'] as string | undefined) ?? 'text', AGENTS_FORMATS, '--format'),
+      agents: parseAgents(values['agent'] as string | undefined),
+    },
+  };
+}
+
 function scanCommand(values: Values, positionals: readonly string[]): Command {
   if (positionals.length > 1) {
     throw new UsageError(`Expected at most one path, got ${positionals.length}.`);
   }
-  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
+  rejectFlags(values, AGENT_FLAG, AGENT_FLAG_MESSAGE);
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
   const policy = values['policy'] as string | undefined;
@@ -397,7 +440,8 @@ function fixCommand(values: Values, rest: readonly string[]): Command {
   if (values['version'] === true) return { kind: 'version' };
   if (rest.length > 1) throw new UsageError(`"fix" takes at most one path, got ${rest.length}.`);
   rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_FIX], 'does not apply to the fix command.');
-  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
+  rejectFlags(values, AGENT_FLAG, AGENT_FLAG_MESSAGE);
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
   const write = values['write'] === true;
   const review = values['review'] === true;
@@ -483,7 +527,8 @@ function tasksCommand(values: Values, rest: readonly string[]): Command {
   if (values['version'] === true) return { kind: 'version' };
   if (rest.length > 1) throw new UsageError(`"tasks" takes at most one path, got ${rest.length}.`);
   rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_TASKS], 'does not apply to the tasks command.');
-  rejectFlags(values, CONTEXT_ONLY, 'works only with the context command: agentcheckup context.');
+  rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
+  rejectFlags(values, AGENT_FLAG, AGENT_FLAG_MESSAGE);
   rejectFlags(
     values,
     ['write', 'review', 'interactive', 'diff'],
@@ -594,6 +639,7 @@ export function parseCommand(argv: readonly string[]): Command {
 
   const [first, ...rest] = positionals;
   if (first === 'context') return contextCommand(values, rest);
+  if (first === 'agents') return agentsCommand(values, rest);
   if (first === 'fix') return fixCommand(values, rest);
   if (first === 'tasks') return tasksCommand(values, rest);
   if (values.help) return { kind: 'help' };

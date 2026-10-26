@@ -1,4 +1,5 @@
 import { relative, resolve, sep } from 'node:path';
+import { selectAgents } from '../agents/index.js';
 import { compareWithBaseline } from '../core/baseline.js';
 import { type BaselineReport, validateBaseline } from '../core/baseline-input.js';
 import type { GateClass } from '../core/baseline-types.js';
@@ -20,6 +21,8 @@ import { InputFileError, readJsonInput } from '../io/read-file.js';
 import { walk, WalkError } from '../io/walk.js';
 import { contextAgentsOf } from '../platforms/load/index.js';
 import { CONTEXT_AGENTS, CONTEXT_PLATFORM } from '../platforms/load/types.js';
+import { formatAgentsMarkdown } from '../report/agents-markdown.js';
+import { formatAgentsText } from '../report/agents-text.js';
 import { badgeMarkdown } from '../report/badge.js';
 import { formatBaselineMarkdown } from '../report/baseline-markdown.js';
 import { formatBaselineText } from '../report/baseline-text.js';
@@ -30,6 +33,7 @@ import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
 import { forTerminal } from '../report/sanitize.js';
 import {
+  type AgentsCommandOptions,
   type ContextCommandOptions,
   type FailOn,
   parseCommand,
@@ -48,7 +52,7 @@ import {
   styleFor,
 } from './common.js';
 import { fix } from './fix.js';
-import { CONTEXT_HELP, FIX_HELP, HELP, SKILL_HELP, TASKS_HELP } from './help.js';
+import { AGENTS_HELP, CONTEXT_HELP, FIX_HELP, HELP, SKILL_HELP, TASKS_HELP } from './help.js';
 import { loadPolicy, policyFailure, PolicyFileError, withPolicy } from './policy.js';
 import { skill } from './skill.js';
 import { ansiStyle } from './style.js';
@@ -59,6 +63,7 @@ export { EXIT, type ExitCode, type Io, type Prompt } from './common.js';
 const HELP_TOPICS = {
   main: HELP,
   context: CONTEXT_HELP,
+  agents: AGENTS_HELP,
   fix: FIX_HELP,
   tasks: TASKS_HELP,
   skill: SKILL_HELP,
@@ -84,6 +89,8 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return await scan(command.options, io);
       case 'context':
         return await context(command.options, io);
+      case 'agents':
+        return await agents(command.options, io);
       case 'fix':
         return await fix(command.options, io);
       case 'tasks':
@@ -96,7 +103,11 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
       // The first argument that is not a flag names the command, as in parseCommand.
       const first = argv.find((arg) => !arg.startsWith('-'));
       const help =
-        first === 'context' || first === 'fix' || first === 'tasks' || first === 'skill'
+        first === 'context' ||
+        first === 'agents' ||
+        first === 'fix' ||
+        first === 'tasks' ||
+        first === 'skill'
           ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
       io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);
@@ -355,6 +366,67 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   return contextExitCode(result);
 }
 
+/**
+ * `agentcheckup agents`: the agent definitions and model settings of the agents among the
+ * targets, or of those `--agent` names. With `--baseline`, both reports are narrowed to the same
+ * agents before they are compared, so `--gate models` sees only those. The JSON report keeps
+ * every agent's definitions.
+ */
+async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> {
+  const root = resolve(io.cwd, options.path);
+  const baseline = await loadBaseline(options.baseline, io.cwd);
+  const config = await loadConfig(options, root, io.cwd);
+  const snapshot = await walk(root, {
+    respectGitignore: options.gitignore,
+    scanIgnoredAgentConfig: options.untrusted,
+  });
+  const configured = config?.targets ?? PLATFORM_IDS;
+  const selected = new Set(options.agents ?? contextAgentsOf(configured));
+  // An agent named with --agent is checked even if the configuration does not target it.
+  const targets =
+    options.agents === undefined
+      ? undefined
+      : [...new Set([...configured, ...options.agents.map((agent) => CONTEXT_PLATFORM[agent])])];
+  const scanned = scanSnapshot(snapshot, scanOptionsFor(options, config, targets));
+  const narrowed: ScanResult = {
+    ...scanned,
+    agents: selectAgents(scanned.agents ?? { definitions: [], settings: [] }, selected),
+  };
+  const before =
+    baseline?.agents === undefined
+      ? baseline
+      : { ...baseline, agents: selectAgents(baseline.agents, selected) };
+  const compared = withBaseline(narrowed, before, options.gate);
+  // The JSON report keeps every agent's definitions, so it can serve as any later baseline.
+  const result = rebaseResult(
+    options.format === 'json' && scanned.agents !== undefined
+      ? { ...compared, agents: scanned.agents }
+      : compared,
+    pathPrefix(root, io, options.format),
+  );
+
+  let report: string;
+  switch (options.format) {
+    case 'text': {
+      const style = styleFor(options, io);
+      report = joinSections(
+        formatAgentsText(result, { style }),
+        formatBaselineText(result, { style }),
+      );
+      break;
+    }
+    case 'markdown':
+      report = joinSections(formatAgentsMarkdown(result), formatBaselineMarkdown(result));
+      break;
+    case 'json':
+      report = formatJson(result);
+      break;
+  }
+  warn(result, options.format, io);
+  await emit(report, options, io);
+  return contextExitCode(result);
+}
+
 /** Sections that each end with a newline, separated by one blank line. */
 function joinSections(...sections: readonly string[]): string {
   return sections.filter((section) => section !== '').join('\n');
@@ -392,7 +464,10 @@ export function exitCodeFor(
   return EXIT.ok;
 }
 
-/** Exit code of `agentcheckup context`: findings never fail it, a tripped gate does. */
+/**
+ * Exit code of `agentcheckup context` and `agentcheckup agents`: findings never fail them, a
+ * tripped gate does.
+ */
 export function contextExitCode(result: ScanResult): ExitCode {
   if (result.ruleFailures.length > 0) return EXIT.internal;
   return gateTripped(result) ? EXIT.findings : EXIT.ok;
