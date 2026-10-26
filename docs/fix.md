@@ -498,7 +498,7 @@ section.
 
 <!-- Start of the fixable rules, generated from rule metadata by scripts/generate-docs.ts. Do not edit. -->
 
-42 of the 65 rules can attach a fix. The others give a manual step where they can name one. `input` marks a fix that [needs your words](#fixes-that-need-your-words).
+42 of the 67 rules can attach a fix. The others give a manual step where they can name one. `input` marks a fix that [needs your words](#fixes-that-need-your-words).
 
 | Rule                                                                              | Classes           | What the fix does                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

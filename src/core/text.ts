@@ -93,6 +93,14 @@ export function lineText(decoded: DecodedText, line: number): string {
   return decoded.text.slice(start, end);
 }
 
+/** The span of line `line` (1-based) without its line terminator; empty past the end. */
+export function lineSpan(decoded: DecodedText, line: number): Span {
+  const start = decoded.lineStarts[line - 1];
+  return start === undefined
+    ? { offset: decoded.text.length, length: 0 }
+    : { offset: start, length: lineText(decoded, line).length };
+}
+
 /**
  * Levenshtein distance between `a` and `b` when it is at most `max`, otherwise `max + 1`. Stops
  * as soon as a row exceeds `max`, so the cost is bounded by the shorter string's length times
