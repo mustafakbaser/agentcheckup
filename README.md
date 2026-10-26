@@ -12,11 +12,12 @@ Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin and Cline read dif
 the same repository, and they rarely say what they skipped. agentcheckup shows, for each agent,
 what is in context when a session starts, what loads later, and what is skipped and why. It
 checks every file against how the agents load it, fixes what has one correct form, writes the
-rest as tasks for your coding agent, and flags new MCP servers, hooks, permissions and
-environment overrides in pull requests.
+rest as tasks for your coding agent, lists every custom agent and subagent with the model it runs
+on, and flags new MCP servers, hooks, permissions and environment overrides in pull requests.
 
 ```sh
 npx agentcheckup context   # what each agent loads
+npx agentcheckup agents    # custom agents and subagents, and their models
 npx agentcheckup           # what is wrong, and why
 npx agentcheckup fix       # preview the fixes; changes nothing
 npx agentcheckup tasks     # the rest, as a prompt for a coding agent
@@ -100,6 +101,39 @@ In [80 public repositories](corpus/SUMMARY.md#what-agents-load) with agent confi
 nine agents load different instruction files at session start in 72 of the 73 repositories
 where any of them loads instructions. By default, Claude Code skips the root `AGENTS.md` in 11 of
 the 55 repositories that have one, because a `CLAUDE.md` is read instead.
+
+## See which model each subagent runs on
+
+Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot and Devin Local each read custom agents or
+subagents from their own folders, and Cursor and Copilot read Claude Code's too. A `model` that is
+right for one of them may mean nothing to another, and a repository setting may override it:
+
+```text
+$ npx agentcheckup agents --agent claude-code,cursor,gemini
+5 agent definitions in 3 files (4 loaded, 1 skipped)
+
+.claude/agents/helper.md
+  Claude Code  helper    no model → haiku (subagent setting, .claude/settings.json)
+  Cursor       helper    no model → set outside the repository
+.claude/agents/reviewer.md
+  Claude Code  reviewer  opus
+  Cursor       reviewer  opus (not a value Cursor documents)
+.gemini/agents/scout.md
+  Gemini CLI   scout     gemini-3-flash · skipped: no description
+
+Model settings
+  .claude/settings.json:3  env.CLAUDE_CODE_SUBAGENT_MODEL = haiku  Claude Code subagents
+…
+```
+
+Each file is listed once for every agent that reads it, with the model as written and where the
+one it runs on comes from, in each agent's documented order. A model chosen where agentcheckup
+cannot look, such as your user settings or the model a call passes, is shown as set outside the
+repository, never guessed. Two rules report a model value the agent does not document and a
+subagent model Claude Code ignores; `--gate models` asks for review when a pull request changes
+a definition, a model setting or the model a subagent runs on, and a
+[policy](docs/policy.md#model-not-allowed) can allow or deny models per agent.
+[Agent definitions and models](docs/agents.md) has the details.
 
 ## Find what is wrong
 
@@ -313,8 +347,9 @@ agentcheckup cannot analyze), a hook, a permission that lets an agent do more wi
 servers, `defaultMode`), an env override that sets an endpoint, a credential, TLS behavior or
 code execution, or hidden Unicode. Hooks, MCP servers and permission modes that skills,
 commands and subagents declare in their frontmatter count too, and so does the subagent that
-Claude Code's `agent` setting starts every session as. New lint findings at or above `error` fail it too; findings already
-on the base branch do not. The job summary for a pull request that adds an MCP server, widens a
+Claude Code's `agent` setting starts every session as. New lint findings at or above `error` fail
+it too; findings already on the base branch do not. Agent definitions and model settings are not
+a security class: add `models` to the gate classes to review those changes too. The job summary for a pull request that adds an MCP server, widens a
 permission, adds a hook and points Claude Code at another API endpoint starts like this, followed
 by the session-start context per agent and the findings:
 
@@ -382,7 +417,9 @@ Policy acme agent policy (enforce · sha256 b88dda9383ac · 6 checks)
 A violation fails the run unless the policy is in audit mode. Violations never change the score,
 and the repository cannot switch them off: `--policy` ignores its configuration and inline
 directives. Read the policy from the base branch or a central repository, never from the pull
-request. [Organization policy](docs/policy.md) covers every check, baselines and the trust model.
+request. A policy can also allow or deny, per agent, the models that agent definitions and
+model settings name. [Organization policy](docs/policy.md) covers every check, baselines and the
+trust model.
 
 ## Usage
 
@@ -391,6 +428,7 @@ agentcheckup [path] [options]                Check agent configuration
 agentcheckup fix [path] [options]            Preview fixes as a diff, or apply them with --write or -i
 agentcheckup tasks [path] [options]          Write the findings that need judgment as tasks for an agent
 agentcheckup context [path] [options]        Show what each agent loads
+agentcheckup agents [path] [options]         List custom agents and subagents, and their models
 agentcheckup skill install [path] [options]  Install the agentcheckup skill for coding agents
 agentcheckup rules [--json]                  List the rules
 agentcheckup explain <rule-id>               Explain one rule
@@ -408,12 +446,13 @@ npx agentcheckup fix -i                             # ask about each fix, and fo
 npx agentcheckup tasks --format json                # the tasks as JSON
 npx agentcheckup context --cwd packages/api         # a session started in packages/api
 npx agentcheckup context --agent codex --format markdown
+npx agentcheckup agents --agent claude-code         # Claude Code's subagents and their models
 npx agentcheckup explain instr/codex-size-budget
 ```
 
 Formats: `stylish` (default), `json`, `sarif`, `github` (annotations), `markdown` and `badge` for
 a check; `diff` (default), `json` and `suggestions` for `fix`; `markdown` (default) and `json` for
-`tasks`; `text` (default), `json` and `markdown` for `context`. `--compact` and `--verbose` set
+`tasks`; `text` (default), `json` and `markdown` for `context` and `agents`. `--compact` and `--verbose` set
 how much `stylish` shows, and `--compact` also shortens `markdown` and `github`. `--help` and
 `<command> --help` list every option. In a Git hook, `npx agentcheckup --fail-on error` works
 with any hook manager; a scan takes well under a second on most repositories.

@@ -69,7 +69,8 @@ Rules:
 - The reason after `--` is required. A directive without one is reported and has no effect.
 - A directive that no longer suppresses anything is reported, so stale suppressions do not
   accumulate.
-- JSON files cannot hold comments. Use `overrides` for them.
+- JSON files cannot hold comments, and directives in TOML comments are not read. Use `overrides`
+  for both.
 - A directive applies to findings in its own file. That includes a file an instruction file
   imports, such as a `README.md` that `CLAUDE.md` imports with `@README.md`.
 - `--untrusted` ignores all inline directives. See

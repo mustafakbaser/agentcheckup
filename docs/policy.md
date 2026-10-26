@@ -180,25 +180,35 @@ rather than passing it. Token counts are estimates (characters divided by 4), so
 ### `model-not-allowed`
 
 An agent definition or a repository setting names a model the policy does not allow for the
-agent: one outside `models.<agent>.allow`, or one in `models.<agent>.deny`. Values match exactly
-as written, so `sonnet` and `claude-sonnet-5-5` are different values, and `inherit` (the main
-conversation's model) is a value like any other: leave it out of `allow` to require every
-subagent to name its model.
+agent: one outside `models.<agent>.allow`, or one in `models.<agent>.deny`. `allow` matches
+values exactly as written, so `sonnet` and `claude-sonnet-5-5` are different values, and so are
+`opus` and `opus[1m]`. `deny` also matches a value without the options in brackets, so
+`deny: ["opus"]` catches `opus[1m]`. For GitHub Copilot, whose model ids are case-insensitive, both
+compare without case. `inherit` (the main conversation's model) is a value like any other: leave
+it out of `allow` to require every subagent to name its model. An alias stays an alias, such as
+`best` for Opus: list the values you allow rather than deny the ones you do not.
 
-- The definitions are those `agentcheckup agents` lists: each file once per agent
+- The definitions are those [`agentcheckup agents`](agents.md) lists: each file once per agent
   that reads it. Cursor and GitHub Copilot read Claude Code's `.claude/agents` too, so
   `models.cursor` covers those files as Cursor reads them.
-- The settings are those that pick a model: Claude Code's `model`, `env.ANTHROPIC_MODEL` and
-  `env.CLAUDE_CODE_SUBAGENT_MODEL`, Codex's `model` and `agents.default_subagent_model`, Gemini
-  CLI's `model.name` and per-agent overrides, and the Copilot CLI's `model`. Effort settings are
-  not models.
-- A definition whose model a setting overrides, such as under Claude Code's
-  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, runs on that setting's model, so the setting is checked
-  instead. A definition the agent skips or loses to another runs on no model and is not checked.
+- The settings are those that pick a model: Claude Code's `model`, `env.ANTHROPIC_MODEL`,
+  `env.ANTHROPIC_DEFAULT_MODEL`, `env.CLAUDE_CODE_SUBAGENT_MODEL` and the
+  `env.ANTHROPIC_DEFAULT_*_MODEL` variables that set what an alias such as `sonnet` resolves to;
+  Codex's `model` and `agents.default_subagent_model`; Gemini CLI's `model.name` and per-agent
+  overrides; and the Copilot CLI's `model`. Effort settings are not models, and
+  `CLAUDE_CODE_SUBAGENT_MODEL` set to `inherit` picks none.
+- A definition whose model a setting overrides with a model the repository names, such as
+  `CLAUDE_CODE_SUBAGENT_MODEL` under Claude Code's `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, runs on that
+  setting's model, so the setting is checked instead. With the switch alone, the definition's own
+  model is checked too: Claude Code before v2.1.257 still runs it.
+- A definition the agent skips, or is documented to lose to another, runs on no model and is not
+  checked. Where which of two definitions wins is not documented, such as two files in one
+  `.claude/agents` folder with the same name, both are checked.
 - A definition without a model runs on one chosen elsewhere: a repository setting, which is
   checked, or the user's choice, which agentcheckup cannot see.
 - A definition the agent may load but whose model cannot be read fails an allowlist: the policy
-  fails closed. The violation's entry is `unknown`.
+  fails closed. The violation's entry is `unknown`. So does a scan without agent definitions,
+  which only the programmatic API can produce.
 
 ### `unanalyzed-config`
 
@@ -239,7 +249,8 @@ Where agentcheckup cannot tell whether the repository follows the policy, it rep
 - an MCP server whose package or version cannot be told (no allowlist entry matches it);
 - a shell grant whose program cannot be told (it counts as running every denied program);
 - an agent with a budget but no load plan;
-- an agent definition the agent may load whose model cannot be read, under a `models` allowlist;
+- an agent definition the agent may load whose model cannot be read, under a `models` allowlist,
+  and a definition that may win where which one wins is not documented;
 - a policy file with an unknown field, an unknown setting name or an unknown hook event (exit 2).
 
 ## Baselines
