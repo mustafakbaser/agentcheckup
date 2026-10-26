@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyze } from '../../src/core/engine.js';
 import { buildInventory } from '../../src/inventory/build.js';
+import { MAX_FRONTMATTER_LENGTH } from '../../src/parse/frontmatter.js';
 import type { Inventory } from '../../src/inventory/types.js';
 import { type FileMap, snapshotFrom } from '../helpers/lint.js';
 
@@ -211,5 +212,100 @@ describe('values of the wrong type', () => {
     expect(inventory.permissions.map((item) => item.id)).toEqual([
       'perm:.claude/skills/y/SKILL.md#allowed-tools=Bash',
     ]);
+  });
+});
+
+describe('frontmatter of skills, commands and subagents', () => {
+  it('lists thousands of hooks and servers in time, with a line for each', () => {
+    const hooks = Array.from(
+      { length: 600 },
+      (_, i) => `        - type: command\n          command: ./hooks/h${String(i)}.sh`,
+    ).join('\n');
+    const servers = Array.from(
+      { length: 250 },
+      (_, i) =>
+        `  - s${String(i)}:\n      command: npx\n      args: ["-y", "@acme/s${String(i)}@1.0.0"]`,
+    ).join('\n');
+    const text = `---\nname: many\ndescription: Many.\nhooks:\n  PreToolUse:\n    - hooks:\n${hooks}\nmcpServers:\n${servers}\n---\n`;
+    // Under the 64 KiB frontmatter limit; past it, the file is incomplete instead.
+    expect(text.length).toBeLessThan(MAX_FRONTMATTER_LENGTH);
+    const start = performance.now();
+    const inventory = inventoryOf({ '.claude/agents/many.md': text });
+    const elapsed = performance.now() - start;
+    expect(inventory.hooks).toHaveLength(600);
+    expect(inventory.mcpServers).toHaveLength(250);
+    expect(new Set(inventory.hooks.map((hook) => hook.line)).size).toBe(600);
+    expect(new Set(inventory.mcpServers.map((server) => server.line)).size).toBe(250);
+    const doubled = text.replace('hooks:\n  PreToolUse:\n    - hooks:\n', `$&${hooks}\n`);
+    expect(doubled.length).toBeGreaterThan(MAX_FRONTMATTER_LENGTH);
+    expect(inventoryOf({ '.claude/agents/many.md': doubled }).incomplete).toEqual([
+      '.claude/agents/many.md',
+    ]);
+    expect(elapsed).toBeLessThan(15_000);
+  });
+
+  it('finds hooks behind thousands of keys in time', () => {
+    const keys = Array.from({ length: 3_000 }, (_, i) => `k${String(i)}: v`).join('\n');
+    const hooks = Array.from(
+      { length: 600 },
+      (_, i) => `        - command: ./h${String(i)}.sh`,
+    ).join('\n');
+    const text = `---\nname: a\ndescription: d\n${keys}\nhooks:\n  PreToolUse:\n    - hooks:\n${hooks}\n---\n`;
+    const files = Object.fromEntries(
+      Array.from({ length: 10 }, (_, i) => [`.claude/agents/a${String(i)}.md`, text]),
+    );
+    const start = performance.now();
+    const inventory = inventoryOf(files);
+    expect(inventory.hooks).toHaveLength(6_000);
+    expect(performance.now() - start).toBeLessThan(15_000);
+  });
+
+  it('never expands an alias bomb, and lists the file as incomplete', () => {
+    const levels = Array.from(
+      { length: 12 },
+      (_, i) =>
+        `l${String(i + 1)}: &l${String(i + 1)} [${Array<string>(10)
+          .fill(`*l${String(i)}`)
+          .join(', ')}]`,
+    );
+    const text = `---\nname: bomb\ndescription: Bomb.\nl0: &l0 [x]\n${levels.join('\n')}\nhooks: *l12\n---\n`;
+    const start = performance.now();
+    const inventory = inventoryOf({ '.claude/agents/bomb.md': text });
+    expect(performance.now() - start).toBeLessThan(5_000);
+    expect(inventory.incomplete).toEqual(['.claude/agents/bomb.md']);
+    expect(inventory.hooks).toEqual([]);
+  });
+
+  it('reads prototype names as ordinary names and ignores values of the wrong type', () => {
+    const inventory = inventoryOf({
+      '.claude/agents/proto.md': [
+        '---',
+        'name: proto',
+        'description: Proto.',
+        'permissionMode: 7',
+        'hooks:',
+        '  __proto__:',
+        '    - hooks:',
+        '        - type: command',
+        '          command: x',
+        '  constructor: "not a list"',
+        'mcpServers:',
+        '  - 7',
+        '  - null',
+        '  - __proto__:',
+        '      command: npx',
+        '  - [nested]',
+        '---',
+        '',
+      ].join('\n'),
+      '.claude/agents/scalar.md': '---\nname: s\ndescription: S.\nhooks: 5\nmcpServers: "x"\n---\n',
+    });
+    expect(Object.prototype).not.toHaveProperty('command');
+    expect(inventory.hooks.map((hook) => [hook.event, hook.known, hook.line])).toEqual([
+      ['__proto__', false, 9],
+    ]);
+    expect(inventory.mcpServers.map((server) => server.name)).toEqual(['__proto__']);
+    expect(inventory.permissions).toEqual([]);
+    expect(inventory.incomplete).toEqual([]);
   });
 });

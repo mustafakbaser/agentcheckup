@@ -67,3 +67,25 @@ export function broadGrant(rule: string): Grant | undefined {
  * https://code.claude.com/docs/en/settings
  */
 export const IGNORED_MODES: ReadonlySet<string> = new Set(['auto', 'bypassPermissions']);
+
+/**
+ * A subagent's `permissionMode` values that never take effect on their own since Claude Code
+ * v2.1.267: a subagent runs in `bypassPermissions` only when the main conversation already does.
+ * Older versions honor it. https://code.claude.com/docs/en/sub-agents (Permission modes)
+ */
+export const SUBAGENT_IGNORED_MODES: ReadonlySet<string> = new Set(['bypassPermissions']);
+
+/**
+ * The values of a subagent's `permissionMode`; `manual` is an alias for `default`
+ * (https://code.claude.com/docs/en/sub-agents). Claude Code drops any other value with a warning
+ * in its debug log (2.1.272 binary; undocumented).
+ */
+export const SUBAGENT_PERMISSION_MODES: ReadonlySet<string> = new Set([
+  'default',
+  'manual',
+  'acceptEdits',
+  'auto',
+  'dontAsk',
+  'bypassPermissions',
+  'plan',
+]);

@@ -478,6 +478,7 @@ function mcpServer(value: McpServerItem): McpServerItem {
         return status === undefined ? [] : [[platform, status]];
       }),
     ),
+    ...(value.scope === undefined ? {} : { scope: value.scope }),
   };
 }
 
@@ -496,6 +497,7 @@ function hook(value: HookItem): HookItem {
     ...(value.script === undefined ? {} : { script: value.script }),
     failsOpen: value.failsOpen,
     remoteScript: value.remoteScript,
+    ...(value.scope === undefined ? {} : { scope: value.scope }),
   };
 }
 

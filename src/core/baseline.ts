@@ -365,6 +365,7 @@ const SERVER_FIELDS = {
   envKeys: 'value',
   headerKeys: 'value',
   status: 'value',
+  scope: 'value',
 } as const satisfies FieldTable<McpServerItem>;
 
 const HOOK_FIELDS = {
@@ -377,6 +378,7 @@ const HOOK_FIELDS = {
   script: 'path',
   failsOpen: 'value',
   remoteScript: 'value',
+  scope: 'value',
 } as const satisfies FieldTable<HookItem>;
 
 const PERMISSION_FIELDS = {
@@ -610,6 +612,7 @@ function serverSummary(server: McpServerItem, change: GateHit['change']): string
   }
   if (server.package !== undefined) details.push(PIN_LABELS[server.package.pin]);
   else if (isUnpinned(server)) details.push(PIN_LABELS.unknown);
+  if (server.scope === 'subagent') details.push(SCOPE_NOTES.subagent);
   return `${change === 'added' ? 'New' : 'Changed'} MCP server ${text(server.name)} (${details.join(', ')})`;
 }
 
@@ -697,14 +700,25 @@ function incompletePath(entry: string): { readonly path: string; readonly invali
 
 /**
  * An inventory `incomplete` entry for a file that declares MCP servers: the kinds whose servers
- * src/platforms/mcp.ts reads (`.codex/config.toml` among them), and any `mcp.json`.
+ * src/platforms/mcp.ts reads (`.codex/config.toml` among them), any `mcp.json`, and a subagent,
+ * whose frontmatter can declare servers.
  */
 function isMcpConfig(entry: string): boolean {
   const { path } = incompletePath(entry);
   if (path === 'mcp.json' || path.endsWith('/mcp.json')) return true;
   const kind = classify(path)?.kind;
-  return kind !== undefined && MCP_KINDS.has(kind);
+  return kind !== undefined && (MCP_KINDS.has(kind) || kind === 'claude-agent');
 }
+
+/**
+ * Files whose frontmatter can declare hooks: skills, commands and subagents. One in `incomplete`
+ * is past a parser limit or was skipped by the walk, and the agent may still read it.
+ */
+const FRONTMATTER_HOOK_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  'skill',
+  'claude-command',
+  'claude-agent',
+]);
 
 /**
  * Hook files whose agent is documented to run none of their hooks when the file does not parse
@@ -724,13 +738,14 @@ const INERT_WHEN_INVALID: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
  * INERT_WHEN_INVALID}). That covers Copilot's and Devin Local's hook and settings files, whose
  * readers' parsers are not documented (VS Code reads its own settings as JSONC), and a
  * `.codex/config.toml`, which declares hooks next to MCP servers. Also Cascade's
- * `.devin/hooks.json` and the files in Cline's hook and plugin folders, which have no documented
- * format.
+ * `.devin/hooks.json`, the files in Cline's hook and plugin folders, which have no documented
+ * format, and a skill, command or subagent whose frontmatter could not be read.
  */
 function isHookConfig(entry: string): boolean {
   const { path, invalid } = incompletePath(entry);
   const kind = classify(path)?.kind;
   if (kind === 'codex-config' || kind === 'devin-hooks') return true;
+  if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) return true;
   if (kind !== undefined && hookSourceOf({ kind, path }) !== undefined) {
     return invalid === undefined || !INERT_WHEN_INVALID.has(kind);
   }
@@ -749,8 +764,13 @@ function incompleteSummary(entry: string, what: 'MCP' | 'hooks'): string {
 
 const lastSegment = (key: string): string => key.slice(key.lastIndexOf('.') + 1);
 
+/**
+ * A permission mode: `permissions.defaultMode` in settings, or a subagent's `permissionMode`.
+ * A new or changed mode always trips the gate (modeSummary), whatever its value.
+ */
 function isDefaultMode(permission: PermissionItem): boolean {
-  return lastSegment(permission.key) === 'defaultMode';
+  const key = lastSegment(permission.key);
+  return key === 'defaultMode' || key === 'permissionMode';
 }
 
 /** Kinds of auto-approval, by the last segment of the permission key. */
@@ -908,6 +928,12 @@ function modeSummary(
 
 // Hooks and env ----------------------------------------------------------------------------------
 
+/** When an item from frontmatter applies, for its summary. */
+const SCOPE_NOTES: Readonly<Record<NonNullable<HookItem['scope']>, string>> = {
+  subagent: 'while the subagent runs',
+  skill: 'once the skill or command is invoked',
+};
+
 function hookSummary(hook: HookItem, change: GateHit['change'], base: string): string {
   const target =
     hook.script !== undefined
@@ -918,10 +944,14 @@ function hookSummary(hook: HookItem, change: GateHit['change'], base: string): s
   const trigger =
     hook.matcher === undefined || hook.matcher === '' ? '' : ` ${text(hook.matcher, 40)}`;
   const notes: string[] = [];
+  if (hook.scope !== undefined) notes.push(SCOPE_NOTES[hook.scope]);
   if (!hook.known) notes.push('unknown event, never runs');
   if (hook.failsOpen) notes.push('fails open');
   if (hook.remoteScript) notes.push('downloads and runs a remote script');
-  const summary = `${change === 'added' ? 'New' : 'Changed'} hook ${text(hook.event)}${trigger} → ${target}`;
+  // Claude Code runs a subagent's Stop hook when the subagent finishes, as SubagentStop.
+  const event =
+    hook.scope === 'subagent' && hook.event === 'Stop' ? 'Stop (SubagentStop)' : text(hook.event);
+  const summary = `${change === 'added' ? 'New' : 'Changed'} hook ${event}${trigger} → ${target}`;
   return notes.length === 0 ? summary : `${summary} (${notes.join(', ')})`;
 }
 

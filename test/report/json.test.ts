@@ -11,6 +11,7 @@ import {
   type SkipReason,
   type SymlinkProblem,
 } from '../../src/core/types.js';
+import type { HookItem, McpServerItem } from '../../src/inventory/types.js';
 import {
   ALL_CONTEXT_AGENTS,
   type Certainty,
@@ -453,6 +454,8 @@ describe('schemas/report.schema.json', () => {
       (value) => (at(value, 'inventory', 'mcpServers', 0, 'status')['vim'] = 'loads'),
       (value) => (at(value, 'inventory', 'mcpServers', 0)['digest'] = 'XYZ'),
       (value) => (at(value, 'inventory', 'hooks', 0)['value'] = 'secret'),
+      (value) => (at(value, 'inventory', 'hooks', 0)['scope'] = 'session'),
+      (value) => (at(value, 'inventory', 'mcpServers', 0)['scope'] = 'skill'),
       (value) => (at(value, 'baseline', 'gate', 'classes')[0] = 'security'),
       (value) => (at(value, 'baseline', 'gate', 'hits', 0)['change'] = 'removed'),
       (value) => (at(value, 'baseline', 'gate', 'hits', 0)['kind'] = 'setting'),
@@ -467,6 +470,38 @@ describe('schemas/report.schema.json', () => {
       mutate(value);
       expect(validate(value), mutate.toString()).toBe(false);
     }
+  });
+
+  it('accepts the scope of items declared in frontmatter, as the TypeScript types allow', () => {
+    type Json = Record<string, unknown>;
+    const value = JSON.parse(formatJson(contextResult)) as {
+      inventory: { hooks: Json[]; mcpServers: Json[] };
+    };
+    const [hook] = value.inventory.hooks;
+    const [server] = value.inventory.mcpServers;
+    if (hook === undefined || server === undefined) throw new Error('expected inventory items');
+    server['scope'] = 'subagent';
+    for (const scope of ['subagent', 'skill']) {
+      hook['scope'] = scope;
+      expectValid(value);
+    }
+
+    const HOOK_SCOPES = ['subagent', 'skill'] as const satisfies readonly NonNullable<
+      HookItem['scope']
+    >[];
+    const SERVER_SCOPES = ['subagent'] as const satisfies readonly NonNullable<
+      McpServerItem['scope']
+    >[];
+    const exhaustive: true[] = [
+      true satisfies Exhaustive<NonNullable<HookItem['scope']>, (typeof HOOK_SCOPES)[number]>,
+      true satisfies Exhaustive<
+        NonNullable<McpServerItem['scope']>,
+        (typeof SERVER_SCOPES)[number]
+      >,
+    ];
+    expect(exhaustive).toHaveLength(2);
+    expect(schema.$defs['hookItem']?.properties?.['scope']?.enum).toEqual([...HOOK_SCOPES]);
+    expect(schema.$defs['mcpServerItem']?.properties?.['scope']?.enum).toEqual([...SERVER_SCOPES]);
   });
 
   it('context, inventory and baseline enumerations mirror the TypeScript types', () => {

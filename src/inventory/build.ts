@@ -1,8 +1,9 @@
 /**
  * Builds the security inventory from a scan's analysis: every MCP server, hook, permission and
- * environment override the repository configures, whether or not an agent loads it today. Pure:
+ * environment override the repository configures, in configuration files and in the frontmatter
+ * of Claude Code skills, commands and subagents, whether or not an agent loads it today. Pure:
  * it reads only the snapshot and the parses the rules already made (docs/adr/0007, section 4 of
- * the design).
+ * the design; docs/adr/0012 for frontmatter).
  *
  * Detection is shared with the rules, so the inventory and the findings agree: the MCP walker and
  * mcp/url-without-type's condition (src/platforms/mcp.ts), the hook walker and
@@ -36,9 +37,14 @@ import {
   ownObject,
   type ParsedJson,
   spanOf,
+  type SpannedDocument,
 } from '../parse/json-access.js';
-import { classify } from '../platforms/classify.js';
+import { classify, READERS } from '../platforms/classify.js';
 import { codexServerEnabled } from '../platforms/codex-config.js';
+import {
+  claudeFrontmatterConfig,
+  type FrontmatterReading,
+} from '../platforms/frontmatter-config.js';
 import { hookCommandSyntax, resolveScript, scriptCandidate } from '../platforms/hook-command.js';
 import {
   gateFailsOpen,
@@ -68,12 +74,20 @@ import {
   MCP_KINDS,
   type McpServer,
   mcpServers,
+  subagentMcpServers,
   transportOf,
   urlWithoutType,
 } from '../platforms/mcp.js';
-import { inPayloadFolder, joinPath, projectRootOf } from '../platforms/paths.js';
-import { broadGrant, IGNORED_MODES, splitToolRules } from '../platforms/permissions.js';
-import { placement } from '../platforms/skills.js';
+import { inClaudeFolder, inPayloadFolder, joinPath, projectRootOf } from '../platforms/paths.js';
+import {
+  broadGrant,
+  IGNORED_MODES,
+  splitToolRules,
+  SUBAGENT_IGNORED_MODES,
+  SUBAGENT_PERMISSION_MODES,
+} from '../platforms/permissions.js';
+import { placement, skillLocation } from '../platforms/skills.js';
+import { checkSubagent, type SubagentCheck } from '../platforms/subagents.js';
 import { isLoopbackHost } from '../rules/mcp/insecure-transport.js';
 import { findSecret } from '../rules/mcp/secrets.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
@@ -103,6 +117,31 @@ const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'copilot-settings',
   'devin-hooks',
 ]);
+
+/**
+ * Kinds whose frontmatter Claude Code reads hooks, MCP servers or permissions from: skills and
+ * commands (`allowed-tools`, `hooks`; a command accepts a skill's fields, SOURCES.claudeSkills)
+ * and subagents (`hooks`, `mcpServers`, `permissionMode`, SOURCES.claudeSubagents).
+ */
+const FRONTMATTER_KINDS: ReadonlySet<ArtifactKind> = new Set([
+  'skill',
+  'claude-command',
+  'claude-agent',
+]);
+
+/** Hooks in frontmatter use the format of Claude Code's settings files (SOURCES.claudeHooks). */
+const FRONTMATTER_HOOKS: HookSource = { platform: 'claude-code', root: 'hooks' };
+
+/** Where hooks apply: the agents that run them, the project root their commands name, a scope. */
+interface HookPlacement {
+  readonly platforms: readonly PlatformId[];
+  /** The directory `$CLAUDE_PROJECT_DIR` names; undefined when it cannot be told. */
+  readonly root: string | undefined;
+  readonly scope?: HookItem['scope'];
+}
+
+/** What each agent does with one MCP server ({@link McpServerItem.status}). */
+type ServerStatus = (server: McpServer) => McpServerItem['status'];
 
 /**
  * Builds the inventory. Every list is sorted by id, and every id is unique: a repeated id gets
@@ -255,10 +294,8 @@ class InventoryBuilder {
   }
 
   add(artifact: Artifact): void {
-    if (artifact.kind === 'skill') {
-      this.#addSkill(artifact);
-      return;
-    }
+    this.#addFrontmatter(artifact);
+    if (FRONTMATTER_KINDS.has(artifact.kind)) return;
     if (TOML_KINDS.has(artifact.kind)) {
       this.#addCodexConfig(artifact);
       return;
@@ -292,7 +329,7 @@ class InventoryBuilder {
       const kind = classify(entry.path)?.kind;
       if (
         kind !== undefined &&
-        (JSON_KINDS.has(kind) || TOML_KINDS.has(kind) || kind === 'skill')
+        (JSON_KINDS.has(kind) || TOML_KINDS.has(kind) || FRONTMATTER_KINDS.has(kind))
       ) {
         this.#incomplete.add(entry.path);
       }
@@ -322,17 +359,20 @@ class InventoryBuilder {
       doc,
       mcpServers(artifact, doc),
       sortedPlatforms(artifact.readers),
+      (server) => this.#statusOf(artifact, server),
     );
     const bare = bareMcpServers(artifact, doc);
-    if (bare.length > 0) this.#addServerList(artifact, doc, bare, ['copilot'], true);
+    // When the Copilot CLI starts a project's servers is not documented here.
+    if (bare.length > 0) this.#addServerList(artifact, doc, bare, ['copilot'], () => ({}));
   }
 
   #addServerList(
     artifact: Artifact,
-    doc: ParsedJson,
+    doc: SpannedDocument,
     servers: readonly McpServer[],
     platforms: readonly PlatformId[],
-    bare = false,
+    statusOf: ServerStatus,
+    scope?: McpServerItem['scope'],
   ): void {
     const ids = mcpInventoryIds(artifact.path, servers);
     servers.forEach((server, index) => {
@@ -361,8 +401,8 @@ class InventoryBuilder {
         ...(url === undefined ? {} : { url }),
         envKeys: envKeysOf(artifact, config),
         headerKeys: headerKeysOf(artifact, config),
-        // When the Copilot CLI starts a project's servers is not documented here.
-        status: bare ? {} : this.#statusOf(artifact, server),
+        status: statusOf(server),
+        ...(scope === undefined ? {} : { scope }),
       };
       this.#servers.push({
         id: ids[index] ?? '',
@@ -379,7 +419,10 @@ class InventoryBuilder {
           const cls = envClass(key, value);
           if (cls === 'other') continue;
           const path = [...server.path, 'env', key];
-          this.#pushEnv(artifact, doc, pathKey(path), cls, value, path, undefined, platforms);
+          // A subagent lists its servers by position; its env keys use the server's name, so a
+          // server added before another leaves the other's keys as they were.
+          const named = scope === 'subagent' ? ['mcpServers', name, 'env', key] : path;
+          this.#pushEnv(artifact, doc, pathKey(named), cls, value, path, undefined, platforms);
         }
       }
       // Codex runs this command to get the server's HTTP headers (SOURCES.codexMcp).
@@ -476,11 +519,18 @@ class InventoryBuilder {
 
   // Hooks ------------------------------------------------------------------------------------
 
-  #addHooks(artifact: Artifact, doc: ParsedJson, source: HookSource): void {
+  #addHooks(
+    artifact: Artifact,
+    doc: SpannedDocument,
+    source: HookSource,
+    where: HookPlacement = {
+      platforms: sortedPlatforms(artifact.readers),
+      root: projectRootOf(artifact),
+    },
+  ): void {
     const { platform } = source;
-    const platforms = sortedPlatforms(artifact.readers);
-    const root = projectRootOf(artifact);
-    const syntax = hookCommandSyntax(this.#view.snapshot, platform, root);
+    const { platforms, root, scope } = where;
+    const syntax = hookCommandSyntax(this.#view.snapshot, platform, root ?? '');
     const hooks = hookHandlers(doc, platform, { includeUnknown: true, root: source.root });
     const ids = hookInventoryIds(artifact.path, hooks, platform);
     hooks.forEach((hook, index) => {
@@ -492,7 +542,8 @@ class InventoryBuilder {
       const target = command === undefined ? hookTarget(handler) : undefined;
       const variants = platform === 'copilot' ? hookCommandLines(handler, platform) : [];
       const matcher = stringOf(own(hook.group, 'matcher'));
-      const script = scriptOf(handler, hook.path, type, platform, root, syntax);
+      const script =
+        root === undefined ? undefined : scriptOf(handler, hook.path, type, platform, root, syntax);
       const fields = {
         event: hook.event,
         known: hook.known,
@@ -504,6 +555,7 @@ class InventoryBuilder {
         remoteScript: rawCommands.some(
           (raw) => findRemoteExecution(raw, 0, raw.length) !== undefined,
         ),
+        ...(scope === undefined ? {} : { scope }),
       };
       this.#hooks.push({
         id: ids[index] ?? '',
@@ -717,24 +769,78 @@ class InventoryBuilder {
     }
   }
 
-  // Skills -----------------------------------------------------------------------------------
+  // Frontmatter ------------------------------------------------------------------------------
 
   /**
-   * A skill's `allowed-tools`, one permission per tool rule. Claude Code and GitHub Copilot apply
-   * the field (skill/broad-allowed-tools); it takes effect where one of them loads the skill.
+   * The hooks, MCP servers and permissions in the frontmatter of a skill, command or subagent:
+   * every block Claude Code may read (src/platforms/frontmatter-config.ts), each item once. A file
+   * Claude Code reaches through a symlink in an agent folder is read as what it is there. A block
+   * agentcheckup cannot read may declare any of them, so its file is incomplete.
    */
-  #addSkill(artifact: Artifact): void {
-    const frontmatter = this.#view.frontmatter(artifact);
-    if (frontmatter.kind !== 'valid') return;
-    const { values } = frontmatter.data;
-    if (!Object.hasOwn(values, 'allowed-tools')) return;
+  #addFrontmatter(artifact: Artifact): void {
+    const kinds = frontmatterKinds(artifact);
+    if (kinds.length === 0) return;
+    const config = claudeFrontmatterConfig(artifact.decoded.text, this.#view.frontmatter(artifact));
+    if (config.unreadable) this.#incomplete.add(artifact.path);
+    if (config.readings.length === 0) return;
+    const before = this.#counts();
+    for (const { kind, path } of kinds) {
+      if (kind === 'claude-agent') this.#addSubagent(artifact, path, config.readings);
+      else this.#addSkill(artifact, kind, path, config.readings);
+    }
+    this.#dropRepeats(before);
+  }
+
+  /**
+   * A skill's or command's `allowed-tools` and `hooks`. Claude Code applies both to skills and
+   * commands; GitHub Copilot applies a skill's `allowed-tools` (skill/broad-allowed-tools). Hooks
+   * are registered when the skill or command is invoked and run for the rest of the session
+   * (SOURCES.claudeHooks, "Hooks in skills and agents"). Neither takes effect for a skill bundled
+   * inside another skill, or for a file in a payload folder of another directory's agent folder,
+   * which the loaders leave out ({@link loadableFrom}).
+   */
+  #addSkill(
+    artifact: Artifact,
+    kind: 'skill' | 'claude-command',
+    path: string,
+    readings: readonly FrontmatterReading[],
+  ): void {
+    const command = kind === 'claude-command';
+    const reach: ReadonlySet<PlatformId> = command
+      ? new Set(READERS['claude-command'])
+      : placement(this.#view, artifact).reach;
+    const owner = command
+      ? inClaudeFolder(path, 'commands')?.owner
+      : skillOwner(path, artifact.caseMismatch !== undefined);
+    const loadable =
+      loadableFrom(path, owner) && (command || !isBundledSkill(this.#view.snapshot, path));
+    for (const { doc } of readings) {
+      this.#addAllowedTools(artifact, doc, reach, loadable);
+      this.#addHooks(artifact, doc, FRONTMATTER_HOOKS, {
+        platforms: loadable && reach.has('claude-code') ? ['claude-code'] : [],
+        root: owner,
+        scope: 'skill',
+      });
+    }
+  }
+
+  /**
+   * `allowed-tools`, one permission per tool rule. A rule takes effect where an agent that
+   * applies it loads the file: Claude Code or GitHub Copilot for a rule of no particular agent,
+   * the agent a broad grant names otherwise.
+   */
+  #addAllowedTools(
+    artifact: Artifact,
+    doc: SpannedDocument,
+    reach: ReadonlySet<PlatformId>,
+    loadable: boolean,
+  ): void {
+    const values = doc.value;
+    if (!isTable(values) || !Object.hasOwn(values, 'allowed-tools')) return;
     const value = values['allowed-tools'];
     const entries = typeof value === 'string' ? [value] : stringsOf(value);
     if (entries.length === 0) return;
-    const { snapshot } = this.#view;
-    const reach = placement(this.#view, artifact).reach;
-    const loadable = !isBundledSkill(snapshot, artifact.path) && !inPayloadFolder(artifact.path);
-    const line = lineOf(artifact, frontmatter.data.keySpan('allowed-tools'));
+    const line = lineOf(artifact, keySpanOf(doc, ['allowed-tools']));
     const platforms = sortedPlatforms(reach);
     for (const rule of entries.flatMap(splitToolRules)) {
       const grant = broadGrant(rule);
@@ -752,6 +858,65 @@ class InventoryBuilder {
         platforms,
       });
     }
+  }
+
+  /**
+   * A subagent's `hooks`, inline `mcpServers` and `permissionMode` (SOURCES.claudeSubagents). Its
+   * hooks run and its servers connect only while it runs. Whether Claude Code loads the file
+   * decides what takes effect ({@link subagentLoading}): a skipped file runs none of its hooks,
+   * starts none of its servers and applies no mode. Claude Code drops a mode it does not know, and
+   * `bypassPermissions` never takes effect on its own (SUBAGENT_IGNORED_MODES).
+   */
+  #addSubagent(artifact: Artifact, path: string, readings: readonly FrontmatterReading[]): void {
+    const loading = subagentLoading(artifact.decoded.text, readings);
+    const runs = loading === 'loads' || loading === 'unknown';
+    const platforms: readonly PlatformId[] = ['claude-code'];
+    for (const { doc } of readings) {
+      this.#addHooks(artifact, doc, FRONTMATTER_HOOKS, {
+        platforms: runs ? platforms : [],
+        root: inClaudeFolder(path, 'agents')?.owner,
+        scope: 'subagent',
+      });
+
+      const { servers, documented } = subagentMcpServers(doc);
+      const status: ServerStatus = (server) => {
+        if (!documented || loading === 'unknown') return {};
+        if (!runs) return { 'claude-code': 'skipped' };
+        // Inline servers use the format of `.mcp.json` (mcp/url-without-type).
+        return { 'claude-code': urlWithoutType(server.config) ? 'skipped' : 'loads' };
+      };
+      this.#addServerList(artifact, doc, servers, platforms, status, 'subagent');
+
+      const values = doc.value;
+      const mode = isTable(values) ? own(values, 'permissionMode') : undefined;
+      if (typeof mode === 'string') {
+        this.#pushPermission(artifact, {
+          key: 'permissionMode',
+          value: mode,
+          broad: mode === 'bypassPermissions',
+          effective:
+            runs && SUBAGENT_PERMISSION_MODES.has(mode) && !SUBAGENT_IGNORED_MODES.has(mode),
+          line: lineOf(artifact, spanOf(doc, ['permissionMode'])),
+          platforms,
+        });
+      }
+    }
+  }
+
+  /** How many items each list holds, to tell the items one file adds from the ones before. */
+  #counts(): readonly number[] {
+    return [this.#servers, this.#hooks, this.#permissions, this.#env].map((list) => list.length);
+  }
+
+  /**
+   * Leaves one of each item that two readings of the same file both list: the same id and the
+   * same digest fields. Items that differ between the readings stay, numbered as repeats.
+   */
+  #dropRepeats(before: readonly number[]): void {
+    dropRepeats(this.#servers, before[0] ?? 0);
+    dropRepeats(this.#hooks, before[1] ?? 0);
+    dropRepeats(this.#permissions, before[2] ?? 0);
+    dropRepeats(this.#env, before[3] ?? 0);
   }
 
   // Items ------------------------------------------------------------------------------------
@@ -779,7 +944,7 @@ class InventoryBuilder {
    */
   #pushEnv(
     artifact: Artifact,
-    doc: ParsedJson,
+    doc: SpannedDocument,
     key: string,
     cls: EnvClass,
     value: string | undefined,
@@ -836,6 +1001,92 @@ function rawCommandsOf(handler: JsonObject, platform: HookPlatform): string[] {
     const value = own(handler, field);
     return typeof value === 'string' ? [value] : [];
   });
+}
+
+/** Removes, from `start` on, each item whose id and digest fields an earlier one has. */
+function dropRepeats(list: Identified[], start: number): void {
+  const seen = new Set<string>();
+  const kept = list.slice(start).filter((item) => {
+    const key = `${item.id}\u0000${canonicalJson(item.digestFields)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  list.splice(start, list.length - start, ...kept);
+}
+
+/** A kind whose frontmatter Claude Code reads hooks, MCP servers or permissions from. */
+type FrontmatterKind = 'skill' | 'claude-command' | 'claude-agent';
+
+function isFrontmatterKind(kind: ArtifactKind | undefined): kind is FrontmatterKind {
+  return kind !== undefined && FRONTMATTER_KINDS.has(kind);
+}
+
+/**
+ * What `artifact` is to Claude Code, each kind with the path that makes it one: its own kind, and
+ * the kind of each symlink that points at it. A symlink in `.claude/agents/` to an `AGENTS.md` is
+ * folded into the `AGENTS.md` artifact (src/core/engine.ts), but Claude Code follows it and reads
+ * a subagent.
+ */
+function frontmatterKinds(
+  artifact: Artifact,
+): { readonly kind: FrontmatterKind; readonly path: string }[] {
+  const out: { readonly kind: FrontmatterKind; readonly path: string }[] = [];
+  const candidates: readonly (readonly [ArtifactKind | undefined, string])[] = [
+    [artifact.kind, artifact.path],
+    ...artifact.aliases.map((alias) => [classify(alias)?.kind, alias] as const),
+  ];
+  for (const [kind, path] of candidates) {
+    if (!isFrontmatterKind(kind) || out.some((entry) => entry.kind === kind)) continue;
+    out.push({ kind, path });
+  }
+  return out;
+}
+
+/**
+ * The directory that owns the skills folder `path` is in: `a/.claude/skills/x/SKILL.md` -> `a`.
+ * Undefined outside a known skills folder, such as in a plugin.
+ */
+function skillOwner(path: string, caseMismatch: boolean): string | undefined {
+  const root = skillLocation(path, caseMismatch)?.root;
+  return root === undefined ? undefined : dirnamePosix(dirnamePosix(root));
+}
+
+/**
+ * False for a file the loaders leave out when they plan from the repository root: one in a
+ * template, example or fixture folder that does not belong to the root's own agent folders
+ * (`scope !== 'path' && inPayloadFolder(path)` in src/platforms/load/claude-code.ts). Files of
+ * the root's agent folders load whatever their folders are called, such as
+ * `.claude/commands/templates/new.md`.
+ */
+function loadableFrom(path: string, owner: string | undefined): boolean {
+  return owner === '' || !inPayloadFolder(path);
+}
+
+const LOADING_RANK: Readonly<Record<SubagentCheck['status'], number>> = {
+  documentation: 0,
+  skipped: 1,
+  unknown: 2,
+  loads: 3,
+};
+
+/**
+ * Whether Claude Code loads a subagent, from the readings of its frontmatter: `loads` when the
+ * documented reading loads, `unknown` when only a reading the documentation does not describe
+ * does (Claude Code's retry, or the block its own reader finds), else what the documented check
+ * says.
+ */
+function subagentLoading(
+  text: string,
+  readings: readonly FrontmatterReading[],
+): SubagentCheck['status'] {
+  let loading: SubagentCheck['status'] = 'documentation';
+  for (const reading of readings) {
+    const status = checkSubagent(text, reading.parse).status;
+    const seen = status === 'loads' && !reading.documented ? 'unknown' : status;
+    if (LOADING_RANK[seen] > LOADING_RANK[loading]) loading = seen;
+  }
+  return loading;
 }
 
 /** `/`, `~` and `~/`: a working directory that reaches every file of the machine or the user. */

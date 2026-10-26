@@ -1146,6 +1146,10 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/platformId" },
           "additionalProperties": { "enum": ["loads", "needs-approval", "skipped"] }
+        },
+        "scope": {
+          "description": "`subagent`: declared in a subagent's frontmatter, connected only while that subagent runs. Absent for a server in a configuration file.",
+          "enum": ["subagent"]
         }
       }
     },
@@ -1204,6 +1208,10 @@
         "remoteScript": {
           "description": "True when the command downloads and runs a script.",
           "type": "boolean"
+        },
+        "scope": {
+          "description": "Where a hook declared in frontmatter applies. `subagent`: only while that subagent runs. `skill`: from the turn a skill or command is invoked to the end of the session. Absent for a hook in a configuration file, which applies to every session.",
+          "enum": ["subagent", "skill"]
         }
       }
     },
@@ -1279,7 +1287,7 @@
       }
     },
     "inventory": {
-      "description": "Security inventory: every MCP server, hook, permission and environment override in the repository, whether or not an agent loads it. Never holds credential values.",
+      "description": "Security inventory: every MCP server, hook, permission and environment override in the repository, in configuration files and in the frontmatter of Claude Code skills, commands and subagents, whether or not an agent loads it. Never holds credential values.",
       "type": "object",
       "additionalProperties": false,
       "required": ["mcpServers", "hooks", "permissions", "env", "incomplete"],

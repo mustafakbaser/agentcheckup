@@ -207,9 +207,15 @@ const INVALID_PREFIXES = ['invalid-json:', 'invalid-toml:'] as const;
 // Collection
 // ---------------------------------------------------------------------------------------------
 
-/** Which agent's settings `file` is, for the agents that have a load model. */
+/**
+ * The one agent that reads `file`, for the agents that have a load model: Claude Code for its
+ * settings, subagents and commands. A skill may reach several agents, so it has none.
+ */
 function settingsAgent(file: string): ContextAgent | undefined {
-  return classify(file)?.kind === 'claude-settings' ? 'claude-code' : undefined;
+  const kind = classify(file)?.kind;
+  return kind === 'claude-settings' || kind === 'claude-agent' || kind === 'claude-command'
+    ? 'claude-code'
+    : undefined;
 }
 
 /** The agent whose hook configuration `file` is. */
@@ -259,7 +265,9 @@ function collectAll(policy: Policy, subject: PolicySubject): Found[] {
         entry: denied.entries.join(', '),
         path: item.file,
         line: item.line,
-        ...agentField(item.key === 'allowed-tools' ? undefined : 'claude-code'),
+        ...agentField(
+          item.key === 'allowed-tools' ? settingsAgent(stripPath(item.file, base)) : 'claude-code',
+        ),
         message: denied.message,
       });
     }
@@ -432,6 +440,7 @@ const lastSegment = (key: string): string => key.slice(key.lastIndexOf('.') + 1)
 function forbiddenPermission(item: PermissionItem): ForbidName | undefined {
   switch (lastSegment(item.key)) {
     case 'defaultMode':
+    case 'permissionMode':
       return item.value === 'bypassPermissions' ? 'bypass-permissions' : undefined;
     case 'enableAllProjectMcpServers':
       return item.value === 'true' ? 'auto-approve-project-mcp' : undefined;
@@ -469,6 +478,12 @@ function permissionMessage(item: PermissionItem, name: ForbidName): string {
   const setting = `${bounded(item.key)} ${quote(item.value)}`;
   switch (name) {
     case 'bypass-permissions': {
+      if (lastSegment(item.key) === 'permissionMode') {
+        const note = item.effective
+          ? ''
+          : ' Since Claude Code v2.1.267 a subagent runs in this mode only when the main conversation does; older versions honor it.';
+        return `${setting} asks Claude Code to run every tool of this subagent without asking; ${forbids}${note}`;
+      }
       const note = item.effective
         ? ''
         : ' Ignored here since Claude Code v2.1.257; older versions honor it.';
@@ -487,7 +502,7 @@ function permissionMessage(item: PermissionItem, name: ForbidName): string {
       const grant = broadGrant(item.value);
       const who = grant === undefined ? 'the agent' : readerName(grant.platform);
       const capability = grant?.capability ?? 'does more';
-      return `${setting}: ${who} ${capability} without asking; ${forbids}${ineffective(item)}`;
+      return `${setting}: ${who} ${capability} without asking${whenGranted(item)}; ${forbids}${ineffective(item)}`;
     }
     case 'env-endpoint':
     case 'env-tls':
@@ -546,16 +561,30 @@ function deniedTool(
   const who = item.key === 'allowed-tools' ? 'the agent' : 'Claude Code';
   return {
     entries,
-    message: `${item.key} ${quote(item.value)} lets ${who} ${what} without asking; the policy denies ${joinNames(entries)}.${ineffective(item)}`,
+    message: `${item.key} ${quote(item.value)} lets ${who} ${what} without asking${whenGranted(item)}; the policy denies ${joinNames(entries)}.${ineffective(item)}`,
   };
+}
+
+/**
+ * When a grant applies, for a grant that does not last the session: a skill's or command's
+ * `allowed-tools` applies when it is invoked (SOURCES.claudeSkills: for the turn that invokes it).
+ */
+function whenGranted(item: PermissionItem): string {
+  return item.key === 'allowed-tools' ? ' when the skill or command is invoked' : '';
 }
 
 // ---------------------------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * True when `hook` meets the requirement. A hook from a subagent's or a skill's frontmatter runs
+ * only while that subagent runs or once the skill is invoked, so it never stands in for a hook
+ * the whole session needs.
+ */
 function satisfies(hook: HookItem, requirement: HookRequirement, rootFile: string): boolean {
   return (
+    hook.scope === undefined &&
     hook.known &&
     hook.event === requirement.event &&
     hookAgent(rootFile) === requirement.agent &&

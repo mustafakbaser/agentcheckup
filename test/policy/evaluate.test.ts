@@ -493,7 +493,7 @@ describe('forbidden-setting', () => {
         entry: 'broad-shell',
         at: '.claude/skills/ship/SKILL.md:4',
         message:
-          'allowed-tools "Bash(*)": Claude Code runs any shell command without asking; the policy forbids broad-shell.',
+          'allowed-tools "Bash(*)": Claude Code runs any shell command without asking when the skill or command is invoked; the policy forbids broad-shell.',
       },
       {
         check: 'forbidden-setting',
@@ -537,7 +537,7 @@ describe('forbidden-setting', () => {
       },
     );
     expect(messages(report)).toEqual([
-      'allowed-tools "Bash": Claude Code runs any shell command without asking; the policy forbids broad-shell. It has no effect where it is set today.',
+      'allowed-tools "Bash": Claude Code runs any shell command without asking when the skill or command is invoked; the policy forbids broad-shell. It has no effect where it is set today.',
     ]);
   });
 });
@@ -649,14 +649,14 @@ describe('denied-tool', () => {
         entry: 'curl',
         at: '.claude/skills/fetch/SKILL.md:4',
         message:
-          'allowed-tools "Bash(curl:*)" lets the agent run curl without asking; the policy denies curl.',
+          'allowed-tools "Bash(curl:*)" lets the agent run curl without asking when the skill or command is invoked; the policy denies curl.',
       },
       {
         check: 'denied-tool',
         entry: 'curl',
         at: '.github/skills/sh/SKILL.md:4',
         message:
-          'allowed-tools "shell" lets the agent run any command without asking; the policy denies curl.',
+          'allowed-tools "shell" lets the agent run any command without asking when the skill or command is invoked; the policy denies curl.',
       },
     ]);
     expect(report.violations[0]?.agent).toBeUndefined();
@@ -787,6 +787,92 @@ describe('hook-missing', () => {
     expect(report.violations.map((violation) => violation.entry)).toEqual([
       'claude-code PreToolUse',
     ]);
+  });
+});
+
+describe('frontmatter of skills, commands and subagents', () => {
+  const reviewer = [
+    '---',
+    'name: reviewer',
+    'description: Reviews code. Use when asked to review a change.',
+    'permissionMode: bypassPermissions',
+    'hooks:',
+    '  PreToolUse:',
+    '    - matcher: Bash',
+    '      hooks:',
+    '        - type: command',
+    '          command: ./scripts/guard.sh',
+    'mcpServers:',
+    '  - browser:',
+    '      command: npx',
+    '      args: ["-y", "@playwright/mcp"]',
+    '---',
+    '',
+  ].join('\n');
+
+  it("forbids a subagent's bypassPermissions, noting that it no longer bypasses on its own", () => {
+    const report = run(
+      { forbid: ['bypass-permissions'] },
+      { '.claude/agents/reviewer.md': reviewer },
+    );
+    expect(brief(report)).toEqual([
+      {
+        check: 'forbidden-setting',
+        entry: 'bypass-permissions',
+        at: '.claude/agents/reviewer.md:4',
+        message:
+          'permissionMode "bypassPermissions" asks Claude Code to run every tool of this subagent without asking; the policy forbids bypass-permissions. Since Claude Code v2.1.267 a subagent runs in this mode only when the main conversation does; older versions honor it.',
+      },
+    ]);
+    expect(report.violations[0]?.agent).toBe('claude-code');
+  });
+
+  it("checks a subagent's inline servers against the allowlist and the pin requirement", () => {
+    const report = run(
+      { mcp: { allow: ['npm:@modelcontextprotocol/server-github'], requirePin: true } },
+      { '.claude/agents/reviewer.md': reviewer },
+    );
+    expect(brief(report).map(({ check, entry, at }) => ({ check, entry, at }))).toEqual([
+      {
+        check: 'mcp-not-allowed',
+        entry: 'npm:@playwright/mcp',
+        at: '.claude/agents/reviewer.md:12',
+      },
+      { check: 'mcp-unpinned', entry: 'npm:@playwright/mcp', at: '.claude/agents/reviewer.md:12' },
+    ]);
+  });
+
+  it('never counts a hook of a subagent or a skill as a hook the whole session has', () => {
+    const skill = reviewer.replace('name: reviewer', 'name: deploy');
+    const report = run(
+      { hooks: { require: [{ agent: 'claude-code', event: 'PreToolUse', matcher: 'Bash' }] } },
+      { '.claude/agents/reviewer.md': reviewer, '.claude/skills/deploy/SKILL.md': skill },
+    );
+    expect(report.violations.map((violation) => violation.check)).toEqual(['hook-missing']);
+  });
+
+  it("applies denied commands to a command's allowed-tools", () => {
+    const report = run(
+      { permissions: { denyCommands: ['curl'] } },
+      {
+        '.claude/commands/fetch.md':
+          '---\ndescription: Fetches.\nallowed-tools: Bash(curl:*), Read\n---\n',
+        // Allowed, and not a command that the policy denies.
+        '.claude/commands/test.md':
+          '---\ndescription: Tests.\nallowed-tools: Bash(pnpm test:*)\n---\n',
+      },
+    );
+    expect(brief(report)).toEqual([
+      {
+        check: 'denied-tool',
+        entry: 'curl',
+        at: '.claude/commands/fetch.md:3',
+        message:
+          'allowed-tools "Bash(curl:*)" lets the agent run curl without asking when the skill or command is invoked; the policy denies curl.',
+      },
+    ]);
+    // Only Claude Code reads a command, as forbidden-setting says too.
+    expect(report.violations.map((violation) => violation.agent)).toEqual(['claude-code']);
   });
 });
 

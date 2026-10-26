@@ -338,6 +338,26 @@ const STATUSES: Readonly<Record<ServerStatus, true>> = {
   skipped: true,
 };
 
+const SERVER_SCOPES: Readonly<Record<NonNullable<McpServerItem['scope']>, true>> = {
+  subagent: true,
+};
+
+const HOOK_SCOPES: Readonly<Record<NonNullable<HookItem['scope']>, true>> = {
+  subagent: true,
+  skill: true,
+};
+
+/**
+ * A scope this version knows, or undefined. A scope only words a summary, and the digest already
+ * covers it, so a baseline from a newer version with a scope this one does not know still reads.
+ */
+function knownScope<T extends string>(
+  value: string | undefined,
+  known: Readonly<Record<T, true>>,
+): T | undefined {
+  return value !== undefined && Object.hasOwn(known, value) ? (value as T) : undefined;
+}
+
 const ENV_CLASSES: Readonly<Record<EnvItem['class'], true>> = {
   endpoint: true,
   credential: true,
@@ -384,6 +404,7 @@ function readServer(value: unknown, at: string): McpServerItem {
   const args = optional(source, 'args', at, strings);
   const spec = optional(source, 'package', at, readPackage);
   const url = optional(source, 'url', at, readUrl);
+  const scope = knownScope(optional(source, 'scope', at, string), SERVER_SCOPES);
   return {
     ...readItemBase(source, at),
     name: string(own(source, 'name'), field(at, 'name')),
@@ -396,6 +417,7 @@ function readServer(value: unknown, at: string): McpServerItem {
     envKeys: strings(own(source, 'envKeys'), field(at, 'envKeys')),
     headerKeys: strings(own(source, 'headerKeys'), field(at, 'headerKeys')),
     status: readStatus(own(source, 'status'), field(at, 'status')),
+    ...(scope === undefined ? {} : { scope }),
   };
 }
 
@@ -441,6 +463,7 @@ function readHook(value: unknown, at: string): HookItem {
   const type = optional(source, 'type', at, string);
   const command = optional(source, 'command', at, string);
   const script = optional(source, 'script', at, string);
+  const scope = knownScope(optional(source, 'scope', at, string), HOOK_SCOPES);
   return {
     ...readItemBase(source, at),
     event: string(own(source, 'event'), field(at, 'event')),
@@ -451,6 +474,7 @@ function readHook(value: unknown, at: string): HookItem {
     ...(script === undefined ? {} : { script }),
     failsOpen: boolean(own(source, 'failsOpen'), field(at, 'failsOpen')),
     remoteScript: boolean(own(source, 'remoteScript'), field(at, 'remoteScript')),
+    ...(scope === undefined ? {} : { scope }),
   };
 }
 

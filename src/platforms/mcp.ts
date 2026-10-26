@@ -6,6 +6,7 @@ import {
   type JsonPath,
   own,
   type ParsedJson,
+  type SpannedDocument,
 } from '../parse/json-access.js';
 import { pluginRootOf } from './location.js';
 
@@ -98,6 +99,29 @@ export function mcpServers(artifact: Artifact, doc: ParsedJson): McpServer[] {
     return servers.flatMap((entry: unknown, index) => serversIn(entry, ['mcpServers', index]));
   }
   return serversIn(servers, ['mcpServers']);
+}
+
+/**
+ * The inline servers in a Claude Code subagent's frontmatter `mcpServers` (SOURCES.claudeSubagents):
+ * a list whose entries are either the name of a server configured elsewhere, which shares the
+ * session's connection and starts nothing new, or a map from a server name to its configuration
+ * in the format of `.mcp.json`. Inline servers connect when the subagent starts. A map in place
+ * of the list is not documented; its servers are returned with `documented: false`, because
+ * Claude Code may start them.
+ */
+export function subagentMcpServers(doc: Pick<SpannedDocument, 'value'>): {
+  readonly servers: McpServer[];
+  readonly documented: boolean;
+} {
+  const root = doc.value;
+  const entries = isTable(root) ? own(root, 'mcpServers') : undefined;
+  if (!Array.isArray(entries)) {
+    return { servers: serversIn(entries, ['mcpServers']), documented: false };
+  }
+  return {
+    servers: entries.flatMap((entry: unknown, index) => serversIn(entry, ['mcpServers', index])),
+    documented: true,
+  };
 }
 
 /** Kinds whose servers {@link mcpServers} reads. */

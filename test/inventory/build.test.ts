@@ -850,7 +850,8 @@ describe('permissions', () => {
       '.github/skills/ops/SKILL.md': skill('shell'),
       'examples/skills/demo/SKILL.md': skill('Bash'),
       '.claude/skills/none/SKILL.md': '---\nname: none\ndescription: No tools. Use never.\n---\n',
-      '.claude/skills/broken/SKILL.md': '---\nallowed-tools: [Bash\n---\n',
+      // Not valid YAML, and Claude Code's retry cannot repair it: Claude Code reads no fields.
+      '.claude/skills/broken/SKILL.md': '---\nallowed-tools:\n  - Bash\n - Read\n---\n',
     });
     expect(
       permissions.map(({ id, broad, effective, line, platforms }) => ({
@@ -1072,6 +1073,555 @@ describe('incomplete', () => {
     ]);
     expect(inventory.mcpServers).toEqual([]);
     expect(inventory.hooks).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Frontmatter of skills, commands and subagents
+// ---------------------------------------------------------------------------------------------
+
+describe('frontmatter', () => {
+  const subagent = [
+    '---',
+    'name: reviewer',
+    'description: Reviews code. Use when asked to review a change.',
+    'permissionMode: acceptEdits',
+    'hooks:',
+    '  PreToolUse:',
+    '    - matcher: Bash',
+    '      hooks:',
+    '        - type: command',
+    '          command: $CLAUDE_PROJECT_DIR/scripts/guard.sh',
+    '  Stop:',
+    '    - hooks:',
+    '        - type: command',
+    '          command: echo done',
+    '  NotAnEvent:',
+    '    - hooks:',
+    '        - type: command',
+    '          command: echo never',
+    'mcpServers:',
+    '  - github',
+    '  - playwright:',
+    '      type: stdio',
+    '      command: npx',
+    '      args: ["-y", "@playwright/mcp@latest"]',
+    '      env:',
+    `        GITHUB_TOKEN: ${GITHUB_TOKEN}`,
+    '  - docs:',
+    '      url: https://docs.example.com/mcp/secret-path',
+    '---',
+    '',
+    'Review the diff.',
+    '',
+  ].join('\n');
+  const file = '.claude/agents/reviewer.md';
+
+  it("lists a subagent's hooks with the line of each command and the subagent scope", () => {
+    const { hooks } = inventoryOf({ [file]: subagent });
+    expect(
+      hooks.map(({ id, line, platforms, event, known, script, failsOpen, scope }) => ({
+        id,
+        line,
+        platforms,
+        event,
+        known,
+        script,
+        failsOpen,
+        scope,
+      })),
+    ).toEqual([
+      {
+        id: commandId(file, 'NotAnEvent', 'echo never'),
+        line: 18,
+        platforms: ['claude-code'],
+        event: 'NotAnEvent',
+        known: false,
+        script: undefined,
+        failsOpen: false,
+        scope: 'subagent',
+      },
+      {
+        id: commandId(file, 'PreToolUse', '$CLAUDE_PROJECT_DIR/scripts/guard.sh'),
+        line: 10,
+        platforms: ['claude-code'],
+        event: 'PreToolUse',
+        known: true,
+        script: 'scripts/guard.sh',
+        failsOpen: true,
+        scope: 'subagent',
+      },
+      {
+        id: commandId(file, 'Stop', 'echo done'),
+        line: 14,
+        platforms: ['claude-code'],
+        event: 'Stop',
+        known: true,
+        script: undefined,
+        failsOpen: false,
+        scope: 'subagent',
+      },
+    ]);
+  });
+
+  it("resolves a nested subagent's scripts against the directory that owns its .claude folder", () => {
+    const { hooks } = inventoryOf({ 'packages/api/.claude/agents/reviewer.md': subagent });
+    expect(hooks.find((hook) => hook.event === 'PreToolUse')?.script).toBe(
+      'packages/api/scripts/guard.sh',
+    );
+  });
+
+  it("lists a subagent's inline MCP servers, not the servers it names", () => {
+    const { mcpServers, env } = inventoryOf({ [file]: subagent });
+    expect(
+      mcpServers.map(({ id, line, platforms, transport, package: spec, status, scope }) => ({
+        id,
+        line,
+        platforms,
+        transport,
+        pin: spec?.pin,
+        status,
+        scope,
+      })),
+    ).toEqual([
+      {
+        id: `mcp:${file}#docs`,
+        line: 27,
+        platforms: ['claude-code'],
+        transport: 'unknown',
+        pin: undefined,
+        // Inline servers use the format of .mcp.json, where a url without a type is skipped.
+        status: { 'claude-code': 'skipped' },
+        scope: 'subagent',
+      },
+      {
+        id: `mcp:${file}#playwright`,
+        line: 21,
+        platforms: ['claude-code'],
+        transport: 'stdio',
+        pin: 'tag',
+        status: { 'claude-code': 'loads' },
+        scope: 'subagent',
+      },
+    ]);
+    expect(env.map(({ id, class: cls, line }) => ({ id, cls, line }))).toEqual([
+      {
+        id: `env:${file}#mcpServers.playwright.env.GITHUB_TOKEN`,
+        cls: 'credential',
+        line: 26,
+      },
+    ]);
+    const text = JSON.stringify({ mcpServers, env });
+    expect(text).not.toContain(GITHUB_TOKEN);
+    expect(text).not.toContain('secret-path');
+  });
+
+  it('lists the servers of an undocumented map without claiming what Claude Code does', () => {
+    const { mcpServers } = inventoryOf({
+      [file]: '---\nname: a\ndescription: Does a.\nmcpServers:\n  db:\n    command: ./db.sh\n---\n',
+    });
+    expect(mcpServers.map(({ id, status, scope }) => ({ id, status, scope }))).toEqual([
+      { id: `mcp:${file}#db`, status: {}, scope: 'subagent' },
+    ]);
+  });
+
+  it("lists a subagent's permissionMode, never effective as bypassPermissions", () => {
+    const mode = (value: string) =>
+      `---\nname: a\ndescription: Does a.\npermissionMode: ${value}\n---\n`;
+    const { permissions } = inventoryOf({
+      '.claude/agents/edits.md': mode('acceptEdits'),
+      '.claude/agents/bypass.md': mode('bypassPermissions'),
+      // No description: Claude Code skips the file, so nothing in it takes effect.
+      '.claude/agents/skipped.md': '---\nname: skipped\npermissionMode: acceptEdits\n---\n',
+    });
+    expect(
+      permissions.map(({ id, line, platforms, broad, effective }) => ({
+        id,
+        line,
+        platforms,
+        broad,
+        effective,
+      })),
+    ).toEqual([
+      {
+        id: 'perm:.claude/agents/bypass.md#permissionMode=bypassPermissions',
+        line: 4,
+        platforms: ['claude-code'],
+        broad: true,
+        effective: false,
+      },
+      {
+        id: 'perm:.claude/agents/edits.md#permissionMode=acceptEdits',
+        line: 4,
+        platforms: ['claude-code'],
+        broad: false,
+        effective: true,
+      },
+      {
+        id: 'perm:.claude/agents/skipped.md#permissionMode=acceptEdits',
+        line: 3,
+        platforms: ['claude-code'],
+        broad: false,
+        effective: false,
+      },
+    ]);
+  });
+
+  it('marks the servers of a subagent Claude Code skips as skipped', () => {
+    const { mcpServers } = inventoryOf({
+      [file]: '---\nname: a\nmcpServers:\n  - db:\n      command: ./db.sh\n---\n',
+    });
+    expect(mcpServers.map((server) => server.status)).toEqual([{ 'claude-code': 'skipped' }]);
+  });
+
+  it('lists the hooks and allowed-tools of skills and commands with the skill scope', () => {
+    const fields = [
+      '---',
+      'description: Deploys. Use when asked to deploy.',
+      'allowed-tools: Bash',
+      'hooks:',
+      '  PostToolUse:',
+      '    - matcher: Edit',
+      '      hooks:',
+      '        - type: command',
+      '          command: pnpm lint',
+      '---',
+      '',
+    ].join('\n');
+    const { hooks, permissions } = inventoryOf({
+      '.claude/skills/deploy/SKILL.md': `---\nname: deploy\n${fields.slice(4)}`,
+      '.claude/commands/release.md': fields,
+      // A payload folder: no agent loads the file where it sits.
+      'templates/.claude/commands/release.md': fields,
+    });
+    expect(hooks.map(({ id, line, platforms, scope }) => ({ id, line, platforms, scope }))).toEqual(
+      [
+        {
+          id: commandId('.claude/commands/release.md', 'PostToolUse', 'pnpm lint'),
+          line: 9,
+          platforms: ['claude-code'],
+          scope: 'skill',
+        },
+        {
+          id: commandId('.claude/skills/deploy/SKILL.md', 'PostToolUse', 'pnpm lint'),
+          line: 10,
+          platforms: ['claude-code'],
+          scope: 'skill',
+        },
+        {
+          id: commandId('templates/.claude/commands/release.md', 'PostToolUse', 'pnpm lint'),
+          line: 9,
+          platforms: [],
+          scope: 'skill',
+        },
+      ],
+    );
+    expect(
+      permissions.map(({ id, line, platforms, broad, effective }) => ({
+        id,
+        line,
+        platforms,
+        broad,
+        effective,
+      })),
+    ).toEqual([
+      {
+        id: 'perm:.claude/commands/release.md#allowed-tools=Bash',
+        line: 3,
+        platforms: ['claude-code'],
+        broad: true,
+        effective: true,
+      },
+      {
+        id: 'perm:.claude/skills/deploy/SKILL.md#allowed-tools=Bash',
+        line: 4,
+        platforms: ['claude-code', 'cline', 'copilot', 'cursor', 'windsurf'],
+        broad: true,
+        effective: true,
+      },
+      {
+        id: 'perm:templates/.claude/commands/release.md#allowed-tools=Bash',
+        line: 3,
+        platforms: ['claude-code'],
+        broad: true,
+        effective: false,
+      },
+    ]);
+  });
+
+  it("reads frontmatter that only Claude Code's retry parses, at the lines of the file", () => {
+    const text = [
+      '---',
+      'name: deploy',
+      // Not valid YAML: Claude Code quotes the value and parses again.
+      'description: Deploys. Use when: deploying',
+      'allowed-tools: Bash',
+      'hooks:',
+      '  PreToolUse:',
+      '    - hooks:',
+      '        - type: command',
+      '          command: ./check.sh',
+      '---',
+      '',
+    ].join('\n');
+    const { hooks, permissions } = inventoryOf({ '.claude/skills/deploy/SKILL.md': text });
+    expect(hooks.map(({ event, line }) => ({ event, line }))).toEqual([
+      { event: 'PreToolUse', line: 9 },
+    ]);
+    expect(permissions.map(({ value, line }) => ({ value, line }))).toEqual([
+      { value: 'Bash', line: 4 },
+    ]);
+  });
+
+  it('marks frontmatter past the parser limits incomplete', () => {
+    const large = `---\nname: big\ndescription: "${'x'.repeat(70 * 1024)}"\nhooks: {}\n---\n`;
+    const inventory = inventoryOf({
+      '.claude/agents/big.md': large,
+      '.claude/commands/big.md': large,
+      '.claude/skills/big/SKILL.md': large,
+    });
+    expect(inventory.incomplete).toEqual([
+      '.claude/agents/big.md',
+      '.claude/commands/big.md',
+      '.claude/skills/big/SKILL.md',
+    ]);
+    expect(inventory.hooks).toEqual([]);
+  });
+
+  it('reads nothing outside frontmatter or from other kinds, and fails closed on unread YAML', () => {
+    const hooksBlock =
+      'hooks:\n  PreToolUse:\n    - hooks:\n        - type: command\n          command: x\n';
+    const inventory = inventoryOf({
+      // In the body, not the frontmatter.
+      '.claude/agents/body.md': `---\nname: body\ndescription: Body.\n---\n\n${hooksBlock}`,
+      // Frontmatter of files that are not skills, commands or subagents.
+      '.claude/rules/style.md': `---\n${hooksBlock}---\n`,
+      'docs/agents/reviewer.md': `---\n${hooksBlock}permissionMode: bypassPermissions\n---\n`,
+      // Repeated keys: Claude Code's YAML reader keeps the last, agentcheckup reads nothing.
+      '.claude/agents/duplicate.md': `---\nname: a\nname: b\n${hooksBlock}---\n`,
+      // A subagent without frontmatter is documentation.
+      '.claude/agents/README.md': '# Agents\n',
+    });
+    expect(inventory).toEqual({
+      mcpServers: [],
+      hooks: [],
+      permissions: [],
+      env: [],
+      incomplete: ['.claude/agents/duplicate.md'],
+    });
+  });
+
+  it("reads the block Claude Code's reader ends at the first ---, even without a closing line", () => {
+    const text = [
+      '---',
+      'allowed-tools: Bash',
+      'hooks:',
+      '  Stop:',
+      '    - hooks:',
+      '        - type: command',
+      '          command: ./x.sh',
+      'description: Deploy ---',
+      '# Deploy',
+      '',
+    ].join('\n');
+    const { hooks, permissions, incomplete } = inventoryOf({ '.claude/commands/deploy.md': text });
+    expect(hooks.map(({ event, line }) => ({ event, line }))).toEqual([{ event: 'Stop', line: 7 }]);
+    expect(permissions.map(({ value, line }) => ({ value, line }))).toEqual([
+      { value: 'Bash', line: 2 },
+    ]);
+    expect(incomplete).toEqual([]);
+  });
+
+  it("lists both blocks when Claude Code's reader stops inside a value", () => {
+    const text = [
+      '---',
+      'name: shadow',
+      'description: Reviews.',
+      'permissionMode: acceptEdits',
+      'notes: see --- below',
+      'mcpServers:',
+      '  - db:',
+      '      command: npx',
+      '      args: ["-y", "evil-mcp"]',
+      'name: other',
+      '---',
+      '',
+    ].join('\n');
+    const inventory = inventoryOf({ '.claude/agents/shadow.md': text });
+    // The documented block repeats `name`, which no parse here reads; Claude Code's own block,
+    // which ends at "see ", parses and sets the mode.
+    expect(inventory.permissions.map((item) => [item.value, item.effective])).toEqual([
+      ['acceptEdits', true],
+    ]);
+    expect(inventory.mcpServers).toEqual([]);
+    expect(inventory.incomplete).toEqual([]);
+  });
+
+  it("takes a subagent's status from the reading its items come from", () => {
+    const text = [
+      '---',
+      'name: retried',
+      // Not valid YAML; Claude Code's retry quotes it and loads the subagent.
+      'description: @mention the reviewer',
+      'permissionMode: acceptEdits',
+      'mcpServers:',
+      '  - db:',
+      '      command: ./db.sh',
+      '---',
+      '',
+    ].join('\n');
+    const { mcpServers, permissions } = inventoryOf({ '.claude/agents/retried.md': text });
+    expect(mcpServers.map((server) => server.status)).toEqual([{}]);
+    expect(permissions.map((item) => item.effective)).toEqual([true]);
+  });
+
+  it('runs nothing of a subagent Claude Code skips, and no mode it does not know', () => {
+    const hooks = 'hooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: x\n';
+    const inventory = inventoryOf({
+      '.claude/agents/nameless.md': `---\ndescription: d\npermissionMode: plan\n${hooks}---\n`,
+      '.claude/agents/odd.md': '---\nname: odd\ndescription: d\npermissionMode: yolo\n---\n',
+      '.claude/agents/alias.md': '---\nname: alias\ndescription: d\npermissionMode: manual\n---\n',
+    });
+    expect(inventory.hooks.map((hook) => hook.platforms)).toEqual([[]]);
+    expect(inventory.permissions.map((item) => [item.value, item.effective])).toEqual([
+      ['manual', true],
+      ['plan', false],
+      ['yolo', false],
+    ]);
+  });
+
+  it("loads files in the root's agent folders whatever their folders are called", () => {
+    const fields = '---\ndescription: X.\nallowed-tools: Bash\n---\n';
+    const { permissions } = inventoryOf({
+      '.claude/commands/templates/new.md': fields,
+      '.claude/skills/template-generator/SKILL.md': `---\nname: template-generator\n${fields.slice(4)}`,
+      'examples/app/.claude/commands/new.md': fields,
+    });
+    expect(permissions.map((item) => [item.file, item.effective])).toEqual([
+      ['.claude/commands/templates/new.md', true],
+      ['.claude/skills/template-generator/SKILL.md', true],
+      ['examples/app/.claude/commands/new.md', false],
+    ]);
+  });
+
+  it("keeps the env ids of a subagent's server when a server is added before it", () => {
+    const agent = (servers: string) =>
+      `---\nname: a\ndescription: d\nmcpServers:\n${servers}  - db:\n      command: ./db.sh\n      env:\n        DB_TOKEN: x\n---\n`;
+    const ids = (text: string) =>
+      inventoryOf({ '.claude/agents/a.md': text }).env.map((item) => item.id);
+    expect(ids(agent('  - github\n'))).toEqual(ids(agent('')));
+  });
+
+  it('reads a subagent that Claude Code reaches through a symlink to another kind of file', () => {
+    const text = `---\nname: rev\ndescription: Reviews.\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: ./x.sh\n---\n`;
+    const inventory = inventoryOf(
+      { 'AGENTS.md': text, '.claude/agents/rev.md': text },
+      { symlinks: { '.claude/agents/rev.md': 'AGENTS.md' } },
+    );
+    expect(inventory.hooks.map(({ file, scope }) => ({ file, scope }))).toEqual([
+      { file: 'AGENTS.md', scope: 'subagent' },
+    ]);
+  });
+
+  it('fails closed on merge keys, and lists what it reads', () => {
+    const text =
+      '---\nname: m\ndescription: d\nbase: &b {command: ./x.sh, type: command}\nhooks:\n  Stop:\n    - hooks:\n        - <<: *b\n---\n';
+    const inventory = inventoryOf({ '.claude/agents/m.md': text });
+    expect(inventory.incomplete).toEqual(['.claude/agents/m.md']);
+  });
+
+  it('reads every handler type and form, with credentials removed', () => {
+    const text = [
+      '---',
+      'name: deploy',
+      'description: Deploys.',
+      'hooks:',
+      '  PreToolUse:',
+      '    - matcher: Bash',
+      '      hooks:',
+      '        - type: command',
+      '          command: node',
+      '          args: ["${CLAUDE_PROJECT_DIR}/hooks/check.js", "--strict"]',
+      '          once: true',
+      '        - type: http',
+      '          url: https://hooks.example.com/T0/B0/secret-path',
+      '        - type: prompt',
+      '          prompt: Is this command safe?',
+      '---',
+      '',
+    ].join('\n');
+    const { hooks } = inventoryOf({ '.claude/skills/deploy/SKILL.md': text });
+    expect(
+      hooks.map(({ type, command, script, line }) => ({ type, command, script, line })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'command',
+          command: 'node ${CLAUDE_PROJECT_DIR}/hooks/check.js --strict',
+          script: 'hooks/check.js',
+          line: 9,
+        },
+        { type: 'http', command: undefined, script: undefined, line: 12 },
+        { type: 'prompt', command: undefined, script: undefined, line: 14 },
+      ]),
+    );
+    expect(JSON.stringify(hooks)).not.toContain('secret-path');
+  });
+
+  it('trips the gate end to end, and not for an edit that changes no item', () => {
+    const agent = (description: string) =>
+      [
+        '---',
+        'name: reviewer',
+        `description: ${description}`,
+        'permissionMode: acceptEdits',
+        'hooks:',
+        '  Stop:',
+        '    - hooks:',
+        '        - type: command',
+        '          command: ./notify.sh',
+        'mcpServers:',
+        '  - browser:',
+        '      command: npx',
+        '      args: ["-y", "@acme/browser-mcp"]',
+        '---',
+        '',
+      ].join('\n');
+    const baselineOf = (files: FileMap) => {
+      const report = validateBaseline(
+        JSON.parse(JSON.stringify(scanSnapshot(snapshotFrom(files), { rules: [] }))),
+      );
+      if (!report.ok) throw new Error(report.message);
+      return report.baseline;
+    };
+    const head = scanSnapshot(
+      snapshotFrom({ '.claude/agents/reviewer.md': agent('Reviews code.') }),
+      { rules: [] },
+    );
+    const gate = (files: FileMap) =>
+      compareWithBaseline(head, baselineOf(files), { gate: GATE_CLASSES }).diff.gate.hits.map(
+        (hit) => [hit.class, hit.summary],
+      );
+    expect(gate({ 'AGENTS.md': '# Agents\n' })).toEqual([
+      ['hooks', 'New hook Stop (SubagentStop) → ./notify.sh (while the subagent runs)'],
+      [
+        'mcp',
+        'New MCP server browser (stdio, npx -y @acme/browser-mcp, not pinned, while the subagent runs)',
+      ],
+      ['mcp-unpinned', 'New MCP server browser is not pinned (npx @acme/browser-mcp, no version)'],
+      ['permissions', 'permissionMode set to acceptEdits (was not set)'],
+    ]);
+    expect(gate({ '.claude/agents/reviewer.md': agent('Reviews code changes.') })).toEqual([]);
+  });
+
+  it('leaves the scope off items from configuration files, so their digests do not change', () => {
+    const { hooks, mcpServers } = inventoryOf({
+      '.claude/settings.json': json({
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] },
+      }),
+      '.mcp.json': json({ mcpServers: { db: { command: './db.sh' } } }),
+    });
+    expect([...hooks, ...mcpServers].some((item) => Object.hasOwn(item, 'scope'))).toBe(false);
   });
 });
 

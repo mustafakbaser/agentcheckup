@@ -924,6 +924,95 @@ describe('gate: hooks', () => {
   });
 });
 
+describe('gate: frontmatter of skills, commands and subagents', () => {
+  const agent = '.claude/agents/reviewer.md';
+
+  it("reports a subagent's permissionMode like a defaultMode, whatever its value", () => {
+    const mode = (value: string, overrides: Partial<PermissionItem> = {}) =>
+      permission('permissionMode', value, { file: agent, ...overrides });
+    expect(
+      hits(report(), report({ inventory: { permissions: [mode('plan')] } })).map(
+        (hit) => hit.summary,
+      ),
+    ).toEqual(['permissionMode set to plan (was not set)']);
+    const before = report({ inventory: { permissions: [mode('acceptEdits')] } });
+    const bypass = mode('bypassPermissions', { broad: true, effective: false });
+    expect(hits(before, report({ inventory: { permissions: [bypass] } }))).toEqual([
+      {
+        class: 'permissions',
+        id: `perm:${agent}#permissionMode=bypassPermissions`,
+        change: 'added',
+        summary: 'permissionMode set to bypassPermissions (was acceptEdits; ignored where set)',
+        kind: 'mode',
+      },
+    ]);
+  });
+
+  it('says when a hook from frontmatter runs', () => {
+    const after = report({
+      inventory: {
+        hooks: [
+          hook('PreToolUse', { file: agent, scope: 'subagent', failsOpen: true }),
+          hook('PostToolUse', { file: '.claude/skills/deploy/SKILL.md', scope: 'skill' }),
+        ],
+      },
+    });
+    expect(hits(report(), after).map((hit) => hit.summary)).toEqual([
+      'New hook PreToolUse Bash → scripts/hooks/guard.sh (while the subagent runs, fails open)',
+      'New hook PostToolUse Bash → scripts/hooks/guard.sh (once the skill or command is invoked)',
+    ]);
+  });
+
+  it("says that a subagent's server connects only while it runs", () => {
+    const server = mcp('playwright', { file: agent, scope: 'subagent' });
+    expect(hits(report(), report({ inventory: { mcpServers: [server] } }))).toEqual([
+      {
+        class: 'mcp',
+        id: `mcp:${agent}#playwright`,
+        change: 'added',
+        summary:
+          'New MCP server playwright (stdio, npx -y @acme/playwright-mcp, not pinned, while the subagent runs)',
+      },
+      {
+        class: 'mcp-unpinned',
+        id: `mcp:${agent}#playwright`,
+        change: 'added',
+        summary: 'New MCP server playwright is not pinned (npx @acme/playwright-mcp, no version)',
+      },
+    ]);
+  });
+
+  it('fails closed on frontmatter the inventory could not read', () => {
+    const after = report({
+      inventory: {
+        incomplete: [
+          '.claude/agents/big.md',
+          '.claude/commands/big.md',
+          '.claude/skills/big/SKILL.md',
+          // An instruction file declares neither hooks nor servers.
+          'AGENTS.md',
+        ],
+      },
+    });
+    expect(hits(report(), after).map((hit) => [hit.class, hit.id])).toEqual([
+      ['hooks', '.claude/agents/big.md'],
+      ['hooks', '.claude/commands/big.md'],
+      ['hooks', '.claude/skills/big/SKILL.md'],
+      ['mcp', '.claude/agents/big.md'],
+    ]);
+  });
+
+  it('lists a changed scope as a changed field', () => {
+    const before = report({ inventory: { hooks: [hook('Stop', { file: agent })] } });
+    const after = report({
+      inventory: { hooks: [hook('Stop', { file: agent, scope: 'subagent', digest: 'Stop-2' })] },
+    });
+    expect(compare(before, after).diff.inventory.changed).toEqual([
+      { id: `hook:${agent}#Stop:00c0ffee`, fields: ['scope'] },
+    ]);
+  });
+});
+
 describe('gate: env', () => {
   it('reports overrides of every class except other', () => {
     const after = report({
@@ -1417,8 +1506,12 @@ describe('validateBaseline', () => {
           url: { origin: 'https://x.example', tls: true, loopback: false },
           status: { 'claude-code': 'needs-approval', cursor: 'loads' },
         }),
+        mcp('y', { file: '.claude/agents/y.md', scope: 'subagent' }),
       ],
-      hooks: [hook('Stop', { type: 'command' })],
+      hooks: [
+        hook('Stop', { type: 'command' }),
+        hook('Stop', { file: '.claude/skills/x/SKILL.md', scope: 'skill' }),
+      ],
       permissions: [permission('permissions.allow', 'Bash')],
       env: [env('ANTHROPIC_BASE_URL', 'endpoint', { shown: 'https://x.example' })],
       incomplete: ['.codex/config.toml'],
@@ -1464,6 +1557,14 @@ describe('validateBaseline', () => {
       'claude-code': 'needs-approval',
       cursor: 'loads',
     });
+    expect(result.baseline.inventory?.mcpServers.map((server) => server.scope)).toEqual([
+      undefined,
+      'subagent',
+    ]);
+    expect(result.baseline.inventory?.hooks.map((item) => item.scope)).toEqual([
+      undefined,
+      'skill',
+    ]);
     expect(Object.keys(result.baseline)).toEqual([
       'schemaVersion',
       'tool',
@@ -1474,6 +1575,22 @@ describe('validateBaseline', () => {
       'inventory',
       'context',
     ]);
+  });
+
+  it('reads a scope it does not know as none, so a newer baseline still reads', () => {
+    const report = json(full) as { inventory: { hooks: Record<string, unknown>[] } };
+    const [first] = report.inventory.hooks;
+    if (first === undefined) throw new Error('expected a hook');
+    first['scope'] = 'session';
+    const result = validateBaseline(report);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.baseline.inventory?.hooks.map((hook) => hook.scope)).toEqual([
+      undefined,
+      'skill',
+    ]);
+    first['scope'] = 7;
+    expect(invalid(report).reason).toBe('invalid');
   });
 
   it('accepts a report without pathBase, inventory or context', () => {

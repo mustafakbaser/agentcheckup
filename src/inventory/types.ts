@@ -1,6 +1,7 @@
 /**
  * Security inventory: every MCP server, hook, permission and environment override that the
- * repository configures, whether or not an agent loads it today. Unlike a load plan it does not
+ * repository configures, in configuration files and in the frontmatter of Claude Code skills,
+ * commands and subagents, whether or not an agent loads it today. Unlike a load plan it does not
  * depend on the working directory. Load entries point to items through `LoadEntry.inventoryId`.
  * Pure data. See docs/adr/0007-model-what-each-agent-loads.md.
  *
@@ -17,8 +18,9 @@ export interface Inventory {
   /**
    * Config files that could not be analyzed, so items may be missing: files in Cline's
    * `.clinerules/hooks/`, `.cline/hooks/` and `.cline/plugins/` (no documented format),
-   * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, files
-   * the walk skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
+   * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, a
+   * skill, command or subagent whose frontmatter is past a parser limit, files the walk skipped,
+   * `invalid-json:<path>` and `invalid-toml:<path>`.
    */
   readonly incomplete: readonly string[];
 }
@@ -81,6 +83,11 @@ export interface McpServerItem extends ItemBase {
   readonly headerKeys: readonly string[];
   /** What each agent that reads `file` does with the server today. */
   readonly status: Readonly<Partial<Record<PlatformId, 'loads' | 'needs-approval' | 'skipped'>>>;
+  /**
+   * `subagent` for a server declared in a subagent's frontmatter, which connects only while that
+   * subagent runs. Absent for a server in a configuration file.
+   */
+  readonly scope?: 'subagent';
 }
 
 /** One hook command. */
@@ -97,13 +104,19 @@ export interface HookItem extends ItemBase {
   readonly failsOpen: boolean;
   /** True when the command downloads and runs a script. */
   readonly remoteScript: boolean;
+  /**
+   * Where a hook declared in frontmatter applies. `subagent`: only while that subagent runs.
+   * `skill`: from the turn a skill or command is invoked to the end of the session. Absent for a
+   * hook in a configuration file, which applies to every session.
+   */
+  readonly scope?: 'subagent' | 'skill';
 }
 
 /**
  * One permission value, such as `permissions.allow` = `Bash(curl:*)`. Keys:
  * `permissions.allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`,
- * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, a skill's `allowed-tools`, Gemini
- * CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
+ * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, the `allowed-tools` of a skill or
+ * command, a subagent's `permissionMode`, Gemini CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
  * `sandbox_workspace_write.network_access`, `sandbox_workspace_write.writable_roots` and MCP tool
  * approval modes (`mcp_servers.<name>.default_tools_approval_mode`,
  * `mcp_servers.<name>.tools.<tool>.approval_mode`).
