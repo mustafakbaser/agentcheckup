@@ -82,11 +82,21 @@ export const ARTIFACT_KINDS = [
   'devin-hooks',
   'cline-rule',
   'cline-workflow',
+  'codex-agent',
+  'cursor-agent',
+  'gemini-agent',
+  'copilot-agent',
+  'devin-agent',
   'imported-file',
 ] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
-/** Kinds whose content is TOML. src/platforms/kinds.ts lists the Markdown and JSON kinds. */
+/**
+ * Configuration kinds whose content is TOML. src/platforms/kinds.ts lists the Markdown and JSON
+ * kinds. Codex's agent files (`codex-agent`) are TOML too, but Codex ignores the configuration
+ * keys they set (MCP servers, sandbox, approvals), so they are not read as configuration;
+ * src/agents parses them.
+ */
 export const TOML_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>(['codex-config']);
 
 export interface Position {

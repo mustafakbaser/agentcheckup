@@ -123,13 +123,59 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     expect(classify(path)).toBeUndefined();
   });
 
-  it('lets the walker read config.toml, which only .codex/config.toml classifies', () => {
+  it('lets the walker read TOML files, which only Codex locations classify', () => {
     expect(isCandidateBasename('config.toml')).toBe(true);
     expect(isCandidateBasename('Config.TOML')).toBe(true);
-    expect(isCandidateBasename('pyproject.toml')).toBe(false);
+    expect(isCandidateBasename('reviewer.toml')).toBe(true);
     expect(isCandidateBasename('hooks.v1.json')).toBe(true);
-    expect(classify('config.toml')).toBeUndefined();
-    expect(classify('.cargo/config.toml')).toBeUndefined();
+    expect(isCandidateBasename('notes.txt')).toBe(false);
+    for (const path of ['config.toml', '.cargo/config.toml', 'pyproject.toml', 'agents/x.toml']) {
+      expect(classify(path), path).toBeUndefined();
+    }
+  });
+});
+
+describe('classify: custom agents and subagents', () => {
+  it.each([
+    ['.codex/agents/reviewer.toml', 'codex-agent'],
+    ['pkg/.codex/agents/team/reviewer.toml', 'codex-agent'],
+    // Cursor reads Markdown from .codex/agents; Codex reads only TOML there.
+    ['.codex/agents/reviewer.md', 'cursor-agent'],
+    ['.cursor/agents/reviewer.md', 'cursor-agent'],
+    ['.cursor/agents/team/reviewer.md', 'cursor-agent'],
+    ['.gemini/agents/reviewer.md', 'gemini-agent'],
+    ['.github/agents/reviewer.agent.md', 'copilot-agent'],
+    ['.github/agents/reviewer.md', 'copilot-agent'],
+    ['.github/agents/team/reviewer.agent.md', 'copilot-agent'],
+    // Not a path-specific instructions file, even with that suffix.
+    ['.github/agents/style.instructions.md', 'copilot-agent'],
+    ['.devin/agents/reviewer.md', 'devin-agent'],
+    ['.devin/agents/reviewer/AGENT.md', 'devin-agent'],
+    ['.devin/agents/reviewer/agents.md', 'devin-agent'],
+    ['.devin/agents/reviewer/AGENTS.md', 'devin-agent'],
+    ['.agents/agents/reviewer.md', 'devin-agent'],
+    // An AGENTS.md or GEMINI.md directly in an agent folder documents it.
+    ['.github/agents/AGENTS.md', 'agents-md'],
+    ['.cursor/agents/AGENTS.md', 'agents-md'],
+    ['.codex/agents/AGENTS.md', 'agents-md'],
+    ['.devin/agents/AGENTS.md', 'agents-md'],
+    ['.gemini/agents/GEMINI.md', 'gemini-md'],
+    // Claude Code's own folder keeps its kind.
+    ['.claude/agents/reviewer.md', 'claude-agent'],
+    // A SKILL.md is a skill wherever it is.
+    ['.github/agents/SKILL.md', 'skill'],
+  ])('%s is %s', (path, kind) => {
+    expect(classify(path)?.kind).toBe(kind);
+  });
+
+  it.each([
+    '.gemini/agents/team/reviewer.md',
+    '.devin/agents/reviewer/notes.md',
+    '.codex/agents/reviewer.json',
+    'agents/reviewer.md',
+    '.github/agent/reviewer.md',
+  ])('%s is not an agent file', (path) => {
+    expect(classify(path)?.kind).toBeUndefined();
   });
 });
 

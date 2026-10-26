@@ -40,6 +40,7 @@ import {
   type SpannedDocument,
 } from '../parse/json-access.js';
 import { classify, READERS } from '../platforms/classify.js';
+import { pathAs, readingsOf } from '../platforms/readings.js';
 import { codexServerEnabled } from '../platforms/codex-config.js';
 import {
   claudeFrontmatterConfig,
@@ -783,17 +784,36 @@ class InventoryBuilder {
    * agentcheckup cannot read may declare any of them, so its file is incomplete.
    */
   #addFrontmatter(artifact: Artifact): void {
+    this.#addCopilotAgent(artifact);
     const kinds = frontmatterKinds(artifact);
-    if (kinds.length === 0) return;
+    const [first] = kinds;
+    if (first === undefined) return;
     const config = claudeFrontmatterConfig(artifact.decoded.text, this.#view.frontmatter(artifact));
-    if (config.unreadable) this.#incomplete.add(artifact.path);
+    // At the path that makes it a skill, command or subagent, so the gate knows what it is.
+    if (config.unreadable) this.#incomplete.add(first.path);
     if (config.readings.length === 0) return;
     const before = this.#counts();
     for (const { kind, path } of kinds) {
-      if (kind === 'claude-agent') this.#addSubagent(artifact, path, config.readings);
-      else this.#addSkill(artifact, kind, path, config.readings);
+      // Items carry the path the agent reads the file at, a symlink's when one leads there.
+      const at = path === artifact.path ? artifact : { ...artifact, path };
+      if (kind === 'claude-agent') this.#addSubagent(at, path, config.readings);
+      else this.#addSkill(at, kind, path, config.readings);
     }
     this.#dropRepeats(before);
+  }
+
+  /**
+   * A GitHub Copilot custom agent may declare MCP servers in `mcp-servers`
+   * (SOURCES.copilotCustomAgents, SOURCES.copilotCliAgents), which the inventory does not list
+   * yet: its file is incomplete, so the gate and a policy fail closed.
+   */
+  #addCopilotAgent(artifact: Artifact): void {
+    const path = pathAs(artifact, 'copilot-agent');
+    if (path === undefined) return;
+    const frontmatter = this.#view.frontmatter(artifact);
+    if (frontmatter.kind === 'valid' && Object.hasOwn(frontmatter.data.values, 'mcp-servers')) {
+      this.#incomplete.add(path);
+    }
   }
 
   /**
@@ -1036,16 +1056,9 @@ function isFrontmatterKind(kind: ArtifactKind | undefined): kind is FrontmatterK
 function frontmatterKinds(
   artifact: Artifact,
 ): { readonly kind: FrontmatterKind; readonly path: string }[] {
-  const out: { readonly kind: FrontmatterKind; readonly path: string }[] = [];
-  const candidates: readonly (readonly [ArtifactKind | undefined, string])[] = [
-    [artifact.kind, artifact.path],
-    ...artifact.aliases.map((alias) => [classify(alias)?.kind, alias] as const),
-  ];
-  for (const [kind, path] of candidates) {
-    if (!isFrontmatterKind(kind) || out.some((entry) => entry.kind === kind)) continue;
-    out.push({ kind, path });
-  }
-  return out;
+  return readingsOf(artifact).flatMap(({ kind, path }) =>
+    isFrontmatterKind(kind) ? [{ kind, path }] : [],
+  );
 }
 
 /**

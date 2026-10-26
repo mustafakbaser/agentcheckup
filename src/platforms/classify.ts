@@ -57,6 +57,13 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'devin-hooks': ['windsurf'],
   'cline-rule': ['cline'],
   'cline-workflow': ['cline'],
+  // Custom agents and subagents (src/agents). Cursor also reads `.claude/agents` and Copilot
+  // reads it too; src/agents models those reads, so `claude-agent` keeps its one reader here.
+  'codex-agent': ['codex'],
+  'cursor-agent': ['cursor'],
+  'gemini-agent': ['gemini'],
+  'copilot-agent': ['copilot'],
+  'devin-agent': ['windsurf'],
   // Not a location the classifier matches: a file an instruction file imports (`@README.md`),
   // which the agents that expand imports load: Claude Code, Gemini CLI and the Copilot CLI
   // (src/io/imports.ts). See SourceFile.imported.
@@ -81,6 +88,24 @@ interface Matcher {
 
 const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 const keepPath = (path: string): string => path;
+
+/**
+ * Instruction file names that keep their own kind directly in an agent folder, where an
+ * `AGENTS.md` or `GEMINI.md` documents the folder: the matchers below them read them so.
+ */
+const FOLDER_INSTRUCTIONS: ReadonlySet<string> = new Set(['agents.md', 'gemini.md']);
+const notFolderInstructions = (path: string): boolean =>
+  !FOLDER_INSTRUCTIONS.has(basename(path).toLowerCase());
+
+/**
+ * Devin Local's agent files: `agents/<name>.md`, or `agents/<name>/` with `AGENT.md`, `agent.md`,
+ * `AGENTS.md` or `agents.md` (SOURCES.devinSubagents). Directly in the folder, an `AGENTS.md`
+ * documents it.
+ */
+const isDevinAgentFile = (path: string): boolean => {
+  const parent = basename(path.slice(0, path.lastIndexOf('/')));
+  return parent.toLowerCase() !== 'agents' || notFolderInstructions(path);
+};
 const withBase =
   (canonicalBase: string) =>
   (path: string): string =>
@@ -138,6 +163,41 @@ const MATCHERS: readonly Matcher[] = [
   },
   { kind: 'codex-hooks', pattern: /(?:^|\/)\.codex\/hooks\.json$/, canonical: keepPath },
   { kind: 'codex-config', pattern: /(?:^|\/)\.codex\/config\.toml$/, canonical: keepPath },
+  // Custom agents: one TOML file per agent, subfolders included (SOURCES.codexSubagents).
+  {
+    kind: 'codex-agent',
+    pattern: /(?:^|\/)\.codex\/agents\/(?:[^/]+\/)*[^/]+\.toml$/,
+    canonical: keepPath,
+  },
+  // Cursor's subagents, and the Markdown files it reads from `.codex/agents` ("Codex
+  // compatibility"), where Codex itself reads only TOML (SOURCES.cursorSubagents).
+  {
+    kind: 'cursor-agent',
+    pattern: /(?:^|\/)\.(?:cursor|codex)\/agents\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: notFolderInstructions,
+    canonical: keepPath,
+  },
+  // Gemini CLI reads `.gemini/agents/*.md`, not subfolders (SOURCES.geminiSubagents).
+  {
+    kind: 'gemini-agent',
+    pattern: /(?:^|\/)\.gemini\/agents\/[^/]+\.md$/,
+    where: notFolderInstructions,
+    canonical: keepPath,
+  },
+  // Copilot's custom agents; the VS Code agent reads only the folder itself, the CLI subfolders
+  // too (SOURCES.vscodeCustomAgents, SOURCES.copilotCliAgents).
+  {
+    kind: 'copilot-agent',
+    pattern: /(?:^|\/)\.github\/agents\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: notFolderInstructions,
+    canonical: keepPath,
+  },
+  {
+    kind: 'devin-agent',
+    pattern: /(?:^|\/)\.(?:devin|agents)\/agents\/(?:[^/]+\/agents?|[^/]+)\.md$/,
+    where: isDevinAgentFile,
+    canonical: keepPath,
+  },
 
   // Cross-agent
   { kind: 'agents-md', pattern: /(?:^|\/)agents\.md$/, canonical: withBase('AGENTS.md') },
@@ -272,7 +332,8 @@ export function isCandidateBasename(name: string): boolean {
     lower.endsWith('.md') ||
     lower.endsWith('.mdc') ||
     lower.endsWith('.json') ||
-    lower === 'config.toml' ||
+    // `config.toml` and the agent files in `.codex/agents`; the classifier decides.
+    lower.endsWith('.toml') ||
     lower === '.cursorrules' ||
     lower === '.windsurfrules'
   );

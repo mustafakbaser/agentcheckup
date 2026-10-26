@@ -14,6 +14,9 @@ const CHECKED = '2026-10-14';
  */
 const COVERAGE_CHECKED = '2026-10-17';
 
+/** Sources for custom agents, subagents and models (src/agents, docs/adr/0013). */
+const AGENTS_CHECKED = '2026-10-26';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -434,5 +437,45 @@ export const SOURCES = {
   unicodeTagSmuggling: verified(
     'Unicode Technical Standard #39: Security mechanisms',
     'https://www.unicode.org/reports/tr39/',
+  ),
+  claudeModelConfig: verified(
+    'Claude Code: Model configuration',
+    'https://code.claude.com/docs/en/model-config',
+    AGENTS_CHECKED,
+  ),
+  codexSubagents: verified(
+    'Codex: Subagents and custom agents',
+    'https://learn.chatgpt.com/docs/agent-configuration/subagents',
+    AGENTS_CHECKED,
+  ),
+  cursorSubagents: verified(
+    'Cursor: Subagents',
+    'https://cursor.com/docs/subagents',
+    AGENTS_CHECKED,
+  ),
+  geminiSubagents: verified(
+    'Gemini CLI: Subagents',
+    'https://geminicli.com/docs/core/subagents/',
+    AGENTS_CHECKED,
+  ),
+  vscodeCustomAgents: verified(
+    'VS Code: Custom agents',
+    'https://code.visualstudio.com/docs/agent-customization/custom-agents',
+    AGENTS_CHECKED,
+  ),
+  copilotCliAgents: verified(
+    'GitHub Copilot CLI: Custom agents reference',
+    'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',
+    AGENTS_CHECKED,
+  ),
+  copilotCustomAgents: verified(
+    'GitHub Copilot: Custom agents configuration',
+    'https://docs.github.com/en/copilot/reference/custom-agents-configuration',
+    AGENTS_CHECKED,
+  ),
+  devinSubagents: verified(
+    'Devin CLI: Subagents',
+    'https://docs.devin.ai/cli/subagents',
+    AGENTS_CHECKED,
   ),
 } as const satisfies Record<string, RuleSource>;

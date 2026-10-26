@@ -615,6 +615,13 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
   A baseline made before then lists the file only as not analyzed, so the first comparison shows
   every Codex MCP server, hook, permission and env override in it as added, and the gate trips
   for them. Create the baseline again to compare item by item.
+- **Agent folders.** agentcheckup reads the custom agent files in `.codex/agents`,
+  `.cursor/agents`, `.gemini/agents`, `.github/agents`, `.devin/agents` and `.agents/agents`
+  since it lists agent definitions. A baseline made before then has no findings in them, so the
+  first comparison shows hidden Unicode there as new, and the `unicode` class trips. A file that
+  `.claude/agents` reaches through a symlink to one of these folders is now reported at its real
+  path, so its findings show as new and resolved once. Create the baseline again to compare
+  finding by finding.
 - **Frontmatter.** A baseline made by a version of agentcheckup that did not yet list the hooks,
   MCP servers and permissions in the frontmatter of skills, commands and subagents has no such
   items, so the first comparison shows them as added, and the gate trips for them. Create the
@@ -685,6 +692,11 @@ and a [policy](policy.md) check them the same way:
 | A skill (`SKILL.md`) or a `.claude/commands/` file | `hooks`, `allowed-tools`                                 | Hooks from the turn the skill or command is invoked to the end of the session (`"scope": "skill"`); `allowed-tools` for the turn that invokes it |
 | `.claude/settings.json` and `settings.local.json`  | `agent`                                                  | Every session starts as that subagent, with its prompt, tools, model, hooks and MCP servers                                                      |
 
+- A GitHub Copilot custom agent in `.github/agents` may declare MCP servers in `mcp-servers`.
+  agentcheckup does not list them yet, so such a file is incomplete: a new one trips `mcp`, and a
+  policy reports `unanalyzed-config`.
+- A file that `.claude/agents` reaches through a symlink, such as one in `.github/agents`, is a
+  subagent too: its items carry the path Claude Code reads it at.
 - A server a subagent names, such as `- github`, is configured elsewhere and is not listed again.
   The env ids of a subagent's servers use the server's name, so adding a server before another
   changes nothing about the other.

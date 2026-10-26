@@ -33,6 +33,7 @@ import type {
   ParseIssue,
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
+import { pathAs } from '../readings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
@@ -905,21 +906,24 @@ class ClaudeLoader {
 
   #subagents(): void {
     for (const artifact of this.#view.artifacts) {
-      if (artifact.kind !== 'claude-agent') continue;
-      const folder = inClaudeFolder(artifact.path, 'agents');
+      // A file in another agent's folder that `.claude/agents` reaches through a symlink is a
+      // subagent at the symlink's path.
+      const path = pathAs(artifact, 'claude-agent');
+      if (path === undefined) continue;
+      const folder = inClaudeFolder(path, 'agents');
       if (folder === undefined) continue;
       const certainty = scopeOf(folder.owner, this.#cwd) === 'path' ? 'documented' : 'unverified';
       const check = checkSubagent(artifact.decoded.text, this.#view.frontmatter(artifact));
-      const base = { role: 'subagent', path: artifact.path, evidence: SUBAGENTS } as const;
+      const base = { role: 'subagent', path, evidence: SUBAGENTS } as const;
       const loaded = {
         ...base,
-        id: `subagent:${artifact.path}`,
+        id: `subagent:${path}`,
         trigger: 'model-selected',
         realPath: artifact.realPath,
       } as const;
       switch (check.status) {
         case 'documentation':
-          this.#out(artifact.path, 'documentation');
+          this.#out(path, 'documentation');
           break;
         case 'skipped':
           this.#skip({

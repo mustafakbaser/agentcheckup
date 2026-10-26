@@ -21,6 +21,10 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'windsurf-legacy-rules',
   'cline-rule',
   'cline-workflow',
+  'cursor-agent',
+  'gemini-agent',
+  'copilot-agent',
+  'devin-agent',
 ]);
 
 /**

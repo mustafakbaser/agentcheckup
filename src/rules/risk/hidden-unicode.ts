@@ -164,6 +164,8 @@ export const hiddenUnicodeRule = defineRule({
       ...MARKDOWN_OR_IMPORTED_KINDS,
       ...JSON_KINDS,
       ...TOML_KINDS,
+      // A Codex agent file's developer_instructions is a prompt.
+      'codex-agent',
     ] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [

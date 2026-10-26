@@ -709,6 +709,53 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
   });
 });
 
+describe('loadClaudeCode: subagents through a symlink', () => {
+  // `.claude/agents -> ../.github/agents`: Claude Code follows the link and reads each Copilot
+  // agent file as a subagent, though the engine folds it into the Copilot artifact.
+  const symlinks = {
+    '.claude/agents/fix.agent.md': '.github/agents/fix.agent.md',
+    '.claude/agents/broken.agent.md': '.github/agents/broken.agent.md',
+  };
+  const fix = '---\nname: fix\ndescription: Fixes issues.\n---\nFix it.\n';
+  const broken = '---\ndescription: No name.\n---\n';
+  const files = {
+    '.github/agents/fix.agent.md': fix,
+    '.github/agents/broken.agent.md': broken,
+    '.github/agents/plain.agent.md': '---\nname: plain\ndescription: Copilot only.\n---\n',
+    // A symlink reads its target's bytes.
+    '.claude/agents/fix.agent.md': fix,
+    '.claude/agents/broken.agent.md': broken,
+  };
+
+  it('lists the subagent at the path Claude Code reads it from', () => {
+    const analysis = analyze(snapshotFrom(files, { paths: ['.git/HEAD'], symlinks }));
+    const result = runRules(analysis, { rules: builtinRules, trustDirectives: false });
+    const planned = loadClaudeCode(analysis, { cwd: '', config: analysis.config });
+    expect(entry(planned, 'subagent:.claude/agents/fix.agent.md')).toMatchObject({
+      path: '.claude/agents/fix.agent.md',
+      realPath: '.github/agents/fix.agent.md',
+      name: 'fix',
+      certainty: 'documented',
+    });
+    expect(skips(planned)).toEqual([
+      'subagent:.claude/agents/broken.agent.md invalid-subagent instr/subagent-invalid',
+    ]);
+    // The rule reports on the file it reads, the real one, and names the path Claude Code reads.
+    expect(
+      result.findings
+        .filter((finding) => finding.ruleId === 'instr/subagent-invalid')
+        .map((finding) => [finding.path, finding.message]),
+    ).toEqual([
+      [
+        '.github/agents/broken.agent.md',
+        'The frontmatter has no "name", so Claude Code treats this file as documentation and does not load the subagent. Claude Code reads this file as ".claude/agents/broken.agent.md".',
+      ],
+    ]);
+    // A Copilot agent file no symlink reaches is not a subagent.
+    expect(planned.entries.some((item) => item.path.includes('plain'))).toBe(false);
+  });
+});
+
 describe('loadClaudeCode: MCP servers and hooks', () => {
   const mcp = JSON.stringify({
     mcpServers: {

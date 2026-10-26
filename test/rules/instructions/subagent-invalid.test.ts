@@ -180,6 +180,23 @@ describe('instr/subagent-invalid', () => {
       run('---\nname: -x\ndescription: d\n---\n', 'packages/api/.claude/agents/review/x.md'),
     ).toHaveLength(1);
   });
+
+  it("checks another agent's file that .claude/agents reaches through a symlink, and only that", () => {
+    const text = '---\ndescription: Copilot agent\n---\n';
+    const real = '.github/agents/fix.agent.md';
+    const linked = lint(
+      { [real]: text, '.claude/agents/fix.agent.md': text },
+      { rules, symlinks: { '.claude/agents/fix.agent.md': real } },
+    );
+    expect(findings(linked, RULE).map((finding) => [finding.path, finding.message])).toEqual([
+      [
+        real,
+        'The frontmatter has no "name", so Claude Code treats this file as documentation and does not load the subagent. Claude Code reads this file as ".claude/agents/fix.agent.md".',
+      ],
+    ]);
+    // Without the symlink, Claude Code never reads it: Copilot needs no name.
+    expect(findings(lint({ [real]: text }, { rules }), RULE)).toEqual([]);
+  });
 });
 
 describe('instr/subagent-invalid fix', () => {

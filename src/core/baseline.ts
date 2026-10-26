@@ -712,14 +712,17 @@ function incompletePath(entry: string): { readonly path: string; readonly invali
 
 /**
  * An inventory `incomplete` entry for a file that declares MCP servers: the kinds whose servers
- * src/platforms/mcp.ts reads (`.codex/config.toml` among them), any `mcp.json`, and a subagent,
- * whose frontmatter can declare servers.
+ * src/platforms/mcp.ts reads (`.codex/config.toml` among them), any `mcp.json`, and a Claude Code
+ * subagent or Copilot custom agent, whose frontmatter can declare servers.
  */
 function isMcpConfig(entry: string): boolean {
   const { path } = incompletePath(entry);
   if (path === 'mcp.json' || path.endsWith('/mcp.json')) return true;
   const kind = classify(path)?.kind;
-  return kind !== undefined && (MCP_KINDS.has(kind) || kind === 'claude-agent');
+  return (
+    kind !== undefined &&
+    (MCP_KINDS.has(kind) || kind === 'claude-agent' || kind === 'copilot-agent')
+  );
 }
 
 /**

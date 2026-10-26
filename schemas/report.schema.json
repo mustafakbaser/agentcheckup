@@ -235,6 +235,11 @@
         "devin-hooks",
         "cline-rule",
         "cline-workflow",
+        "codex-agent",
+        "cursor-agent",
+        "gemini-agent",
+        "copilot-agent",
+        "devin-agent",
         "imported-file"
       ]
     },

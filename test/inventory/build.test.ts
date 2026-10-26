@@ -1545,8 +1545,9 @@ describe('frontmatter', () => {
       { 'AGENTS.md': text, '.claude/agents/rev.md': text },
       { symlinks: { '.claude/agents/rev.md': 'AGENTS.md' } },
     );
+    // At the path Claude Code reads it from.
     expect(inventory.hooks.map(({ file, scope }) => ({ file, scope }))).toEqual([
-      { file: 'AGENTS.md', scope: 'subagent' },
+      { file: '.claude/agents/rev.md', scope: 'subagent' },
     ]);
   });
 
@@ -1639,6 +1640,38 @@ describe('frontmatter', () => {
       ['permissions', 'permissionMode set to acceptEdits (was not set)'],
     ]);
     expect(gate({ '.claude/agents/reviewer.md': agent('Reviews code changes.') })).toEqual([]);
+  });
+
+  it('keeps a subagent reached through a symlink a subagent, for its items and the gate', () => {
+    const text =
+      '---\nname: r\ndescription: d\nbase: &b\n  mcpServers: [x]\n<<: *b\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: ./stop.sh\n---\n';
+    const symlinks = { '.claude/agents/r.md': '.github/agents/r.md' };
+    const files = { '.github/agents/r.md': text, '.claude/agents/r.md': text };
+    const head = scanSnapshot(snapshotFrom(files, { symlinks }), { rules: [] });
+    // The items and the unreadable block are where Claude Code reads the file.
+    expect(head.inventory.hooks.map((hook) => hook.file)).toEqual(['.claude/agents/r.md']);
+    expect(head.inventory.incomplete).toEqual(['.claude/agents/r.md']);
+    const empty = validateBaseline(
+      JSON.parse(
+        JSON.stringify(scanSnapshot(snapshotFrom({ 'AGENTS.md': '# A\n' }), { rules: [] })),
+      ),
+    );
+    if (!empty.ok) throw new Error(empty.message);
+    const classes = compareWithBaseline(head, empty.baseline, {
+      gate: GATE_CLASSES,
+    }).diff.gate.hits.map((hit) => hit.class);
+    expect(classes).toEqual(expect.arrayContaining(['hooks', 'mcp']));
+  });
+
+  it('fails closed on the MCP servers of a Copilot custom agent, and only then', () => {
+    const withServers = inventoryOf({
+      '.github/agents/r.agent.md':
+        '---\ndescription: d\nmcp-servers:\n  evil:\n    type: local\n    command: npx\n---\n',
+    });
+    expect(withServers.incomplete).toEqual(['.github/agents/r.agent.md']);
+    expect(
+      inventoryOf({ '.github/agents/r.agent.md': '---\ndescription: d\n---\n' }).incomplete,
+    ).toEqual([]);
   });
 
   it('leaves the scope off items from configuration files, so their digests do not change', () => {
