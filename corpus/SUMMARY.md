@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.0.0 (rule set 2026.10, 62 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 62 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -86,7 +86,7 @@ Repositories where a modeled agent skips a file or item for this reason, in a pl
 
 ### MCP servers, hooks, permissions and env overrides
 
-From the security inventory, which lists every item whether or not an agent loads it today. A local server is unpinned when its package has no exact version or digest, or when its command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. Broad permissions allow any shell command or any file write or edit, including skill `allowed-tools`, and Codex `.codex/config.toml` items.
+From the security inventory, which lists every item whether or not an agent loads it today, in configuration files and in the frontmatter of Claude Code skills, commands and subagents. A local server is unpinned when its package has no exact version or digest, or when its command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. Broad permissions allow any shell command, any file write or edit, or every tool without asking (`bypassPermissions`); they include the `allowed-tools` of skills and commands and Codex `.codex/config.toml` items.
 
 |                                            | Repositories | Items |
 | ------------------------------------------ | -----------: | ----: |
@@ -94,9 +94,9 @@ From the security inventory, which lists every item whether or not an agent load
 | Local MCP servers (started from a command) |           23 |    97 |
 | Unpinned local MCP servers                 |           20 |    85 |
 | Remote MCP servers (URL)                   |           17 |    35 |
-| Hooks                                      |           28 |   215 |
-| Hooks that fail open                       |           12 |    36 |
-| Broad permissions                          |           23 |   741 |
+| Hooks                                      |           28 |   228 |
+| Hooks that fail open                       |           12 |    37 |
+| Broad permissions                          |           25 |   763 |
 | Env overrides: endpoint                    |            0 |     0 |
 | Env overrides: credential                  |            2 |    21 |
 | Env overrides: tls                         |            0 |     0 |

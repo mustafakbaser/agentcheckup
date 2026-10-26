@@ -470,11 +470,13 @@ export function renderContextSection(
     '',
     '### MCP servers, hooks, permissions and env overrides',
     '',
-    'From the security inventory, which lists every item whether or not an agent loads it today. ' +
-      'A local server is unpinned when its package has no exact version or digest, or when its ' +
-      'command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. Broad ' +
-      'permissions allow any shell command or any file write or edit, including skill ' +
-      '`allowed-tools`, and Codex `.codex/config.toml` items.',
+    'From the security inventory, which lists every item whether or not an agent loads it today, ' +
+      'in configuration files and in the frontmatter of Claude Code skills, commands and ' +
+      'subagents. A local server is unpinned when its package has no exact version or digest, or ' +
+      'when its command cannot be shown to be pinned: what the `mcp-unpinned` gate class checks. ' +
+      'Broad permissions allow any shell command, any file write or edit, or every tool without ' +
+      'asking (`bypassPermissions`); they include the `allowed-tools` of skills and commands and ' +
+      'Codex `.codex/config.toml` items.',
     '',
     table(
       ['', 'Repositories', 'Items'],
