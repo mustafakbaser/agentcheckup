@@ -37,7 +37,16 @@ import type {
   BaselineReport,
   BaselineSkippedLoad,
 } from './baseline-input.js';
-import type { BaselineDiff, GateClass, GateHit, ItemDiff, PlanDelta } from './baseline-types.js';
+import type { AgentDefinition, AgentsReport, ModelSetting } from '../agents/types.js';
+import { AGENT_NAMES } from '../platforms/load/types.js';
+import type {
+  BaselineDiff,
+  GateClass,
+  GateHit,
+  ItemDiff,
+  PlanDelta,
+  SecurityGateClass,
+} from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import type { ScanResult } from './engine.js';
 import type { ArtifactKind, Finding, RuleMeta } from './types.js';
@@ -46,17 +55,28 @@ import type { ArtifactKind, Finding, RuleMeta } from './types.js';
 // Gate classes
 // ---------------------------------------------------------------------------------------------
 
-const GATE_TABLE: Readonly<Record<GateClass, true>> = {
-  mcp: true,
-  'mcp-unpinned': true,
-  permissions: true,
-  hooks: true,
-  env: true,
-  unicode: true,
+/** Each gate class, and whether `--gate security` selects it. */
+const GATE_TABLE: Readonly<Record<GateClass, { readonly security: boolean }>> = {
+  mcp: { security: true },
+  'mcp-unpinned': { security: true },
+  permissions: { security: true },
+  hooks: { security: true },
+  env: { security: true },
+  unicode: { security: true },
+  models: { security: false },
 };
 
-/** Every gate class, in documentation order. `--gate security` selects all of them. */
+/** Every gate class, in documentation order. */
 export const GATE_CLASSES: readonly GateClass[] = Object.keys(GATE_TABLE) as GateClass[];
+
+/** Whether `--gate security` selects `gate`. */
+export function isSecurityGateClass(gate: GateClass): gate is SecurityGateClass {
+  return GATE_TABLE[gate].security;
+}
+
+/** The classes `--gate security` selects: every class but `models`. */
+export const SECURITY_GATE_CLASSES: readonly SecurityGateClass[] =
+  GATE_CLASSES.filter(isSecurityGateClass);
 
 export type GateParseResult =
   | { readonly ok: true; readonly classes: readonly GateClass[] }
@@ -67,17 +87,17 @@ function isGateClass(name: string): name is GateClass {
 }
 
 /**
- * Parses a `--gate` value: a comma-separated list of gate classes, `security` for all of them,
- * or `none` alone. The classes come back sorted, without duplicates.
+ * Parses a `--gate` value: a comma-separated list of gate classes, `security` for every class
+ * but `models`, or `none` alone. The classes come back sorted, without duplicates.
  */
 export function parseGateClasses(text: string): GateParseResult {
-  const expected = `Use a comma-separated list of ${GATE_CLASSES.join(', ')}, or "security" for all of them, or "none".`;
+  const expected = `Use a comma-separated list of ${GATE_CLASSES.join(', ')}, or "security" for all but models, or "none".`;
   const classes = new Set<GateClass>();
   let none = false;
   for (const raw of text.split(',')) {
     const name = raw.trim();
     if (name === 'none') none = true;
-    else if (name === 'security') for (const gate of GATE_CLASSES) classes.add(gate);
+    else if (name === 'security') for (const gate of SECURITY_GATE_CLASSES) classes.add(gate);
     else if (isGateClass(name)) classes.add(name);
     else if (name === '') return { ok: false, message: `Empty gate class. ${expected}` };
     else {
@@ -106,6 +126,7 @@ export type CurrentScan = Pick<
   'ruleset' | 'rules' | 'findings' | 'pathBase' | 'context'
 > & {
   readonly inventory?: Inventory;
+  readonly agents?: AgentsReport;
 };
 
 export interface BaselineOptions {
@@ -137,11 +158,17 @@ export function compareWithBaseline(
   const before = indexInventory(baseline.inventory, baselineBase);
   const after = indexInventory(current.inventory, currentBase);
 
+  const agentsBefore = indexAgents(baseline.agents, baselineBase);
+  const agentsAfter = indexAgents(current.agents, currentBase);
+
   const classes = [...new Set(options.gate ?? [])].sort(compareStrings);
   const selected: ReadonlySet<GateClass> = new Set(classes);
-  const hits = gateHits(before, after, findings, currentBase).filter((hit) =>
-    selected.has(hit.class),
-  );
+  const hits = [
+    ...gateHits(before, after, findings, currentBase),
+    ...modelHits(agentsBefore, agentsAfter),
+  ]
+    .filter((hit) => selected.has(hit.class))
+    .sort(compareHits);
 
   const versions = {
     version: baseline.tool.version,
@@ -155,6 +182,7 @@ export function compareWithBaseline(
       against: { ...versions, newRules },
       findings: { new: fresh, unchanged: findings.length - fresh, resolved },
       inventory: diffInventory(before, after),
+      agents: diffAgents(agentsBefore, agentsAfter),
       context: diffPlans(
         baseline.context?.plans ?? [],
         baselineBase,
@@ -228,9 +256,10 @@ function stripPath(path: string, base: string): string {
 }
 
 /**
- * The root-relative form of an id `<prefix>:<path>`, `<prefix>:<path>#...`, where `path` is the
- * item's own path field. Strips `base` only when the id embeds the prefixed path, so ids that a
- * rebase left untouched stay as they are.
+ * The root-relative form of an id `<prefix>:<path>`, `<prefix>:<path>#...` or
+ * `<prefix>:<path>@<agent>` (an agent definition), where `path` is the item's own path field.
+ * Strips `base` only when the id embeds the prefixed path, so ids that a rebase left untouched
+ * stay as they are.
  */
 function rootId(id: string, path: string, base: string): string {
   const root = stripPath(path, base);
@@ -238,7 +267,7 @@ function rootId(id: string, path: string, base: string): string {
   const start = id.indexOf(':') + 1;
   if (start === 0 || !id.startsWith(path, start)) return id;
   const end = start + path.length;
-  if (end !== id.length && id.charAt(end) !== '#') return id;
+  if (end !== id.length && id.charAt(end) !== '#' && id.charAt(end) !== '@') return id;
   return id.slice(0, start) + root + id.slice(end);
 }
 
@@ -581,12 +610,180 @@ function gateHits(
     );
   }
 
-  return [...hits.values()].sort(
-    (a, b) =>
-      compareStrings(a.class, b.class) ||
-      compareStrings(a.id, b.id) ||
-      compareStrings(a.change, b.change),
+  return [...hits.values()].sort(compareHits);
+}
+
+function compareHits(a: GateHit, b: GateHit): number {
+  return (
+    compareStrings(a.class, b.class) ||
+    compareStrings(a.id, b.id) ||
+    compareStrings(a.change, b.change)
   );
+}
+
+// Agent definitions and model settings ---------------------------------------------------------
+
+interface IndexedAgents {
+  readonly base: string;
+  readonly definitions: ReadonlyMap<string, AgentDefinition>;
+  readonly settings: ReadonlyMap<string, ModelSetting>;
+}
+
+/**
+ * A report without agent definitions, made before agentcheckup listed them, is read as an empty
+ * one: every current definition counts as added, so the `models` class fails closed.
+ */
+function indexAgents(report: AgentsReport | undefined, base: string): IndexedAgents {
+  return {
+    base,
+    definitions: indexItems(report?.definitions ?? [], base),
+    settings: indexItems(report?.settings ?? [], base),
+  };
+}
+
+const DEFINITION_FIELDS = {
+  id: 'skip',
+  file: 'path',
+  line: 'skip',
+  agent: 'value',
+  name: 'value',
+  status: 'value',
+  reason: 'value',
+  shadowedBy: 'path',
+  model: 'value',
+  // Settings decide it, and each setting is an item of its own; the digest leaves it out too.
+  effective: 'skip',
+  effort: 'value',
+  tools: 'value',
+  permissionMode: 'value',
+  certainty: 'value',
+  evidence: 'value',
+  digest: 'skip',
+} as const satisfies FieldTable<AgentDefinition>;
+
+const SETTING_FIELDS = {
+  id: 'skip',
+  agent: 'value',
+  file: 'path',
+  line: 'skip',
+  key: 'value',
+  value: 'value',
+  applies: 'value',
+  forced: 'value',
+  digest: 'skip',
+} as const satisfies FieldTable<ModelSetting>;
+
+function diffAgents(before: IndexedAgents, after: IndexedAgents): ItemDiff {
+  const out: MutableItemDiff = { added: [], removed: [], changed: [] };
+  // Lines move with every edit above them: compare values without them.
+  const withoutLines = (definition: AgentDefinition): AgentDefinition => ({
+    ...definition,
+    ...(definition.model === undefined ? {} : { model: { ...definition.model, line: 0 } }),
+    ...(definition.effort === undefined ? {} : { effort: { ...definition.effort, line: 0 } }),
+  });
+  diffItems(
+    new Map([...before.definitions].map(([id, item]) => [id, withoutLines(item)])),
+    before.base,
+    new Map([...after.definitions].map(([id, item]) => [id, withoutLines(item)])),
+    after.base,
+    DEFINITION_FIELDS,
+    out,
+  );
+  diffItems(before.settings, before.base, after.settings, after.base, SETTING_FIELDS, out);
+  return sortedDiff(out);
+}
+
+/**
+ * Hits of the `models` class: a definition added, changed in what the file says or what the
+ * agent does with it, or running on another model because a setting changed; a model setting
+ * set, changed or removed. Removing a setting changes what runs, such as every subagent going
+ * back to its own model, so unlike other classes it trips. Removing a definition does not.
+ */
+function modelHits(before: IndexedAgents, after: IndexedAgents): GateHit[] {
+  const hits: GateHit[] = [];
+  for (const [id, definition] of after.definitions) {
+    const old = before.definitions.get(id);
+    const change = changeOf(old, definition);
+    if (change !== undefined) {
+      hits.push({ class: 'models', id, change, summary: definitionSummary(definition, old) });
+    } else if (old !== undefined && effectiveText(old) !== effectiveText(definition)) {
+      const name = `${text(definition.name ?? definition.file)} for ${AGENT_NAMES[definition.agent]}`;
+      hits.push({
+        class: 'models',
+        id,
+        change: 'changed',
+        summary: `${name} (runs on ${effectiveText(definition)}, was ${effectiveText(old)})`,
+      });
+    }
+  }
+  const settingHit = (id: string, setting: ModelSetting, what: string, was: string): GateHit => ({
+    class: 'models',
+    id,
+    change: before.settings.has(id) ? 'changed' : 'added',
+    summary: `${text(setting.key)} ${what} for ${AGENT_NAMES[setting.agent]} (${was})`,
+    kind: 'model-setting',
+  });
+  for (const [id, setting] of after.settings) {
+    const old = before.settings.get(id);
+    if (changeOf(old, setting) === undefined) continue;
+    const was = old === undefined ? 'was not set' : `was ${text(old.value)}`;
+    hits.push(settingHit(id, setting, `set to ${text(setting.value)}`, was));
+  }
+  for (const [id, old] of before.settings) {
+    if (!after.settings.has(id)) {
+      hits.push(settingHit(id, old, 'removed', `was ${text(old.value)}`));
+    }
+  }
+  return hits;
+}
+
+/** The model a definition runs on, as one line: its value, or where it is chosen. */
+function effectiveText(definition: AgentDefinition): string {
+  const { value, overridden } = definition.effective;
+  const model =
+    value === undefined
+      ? 'a model set outside the repository'
+      : text(typeof value === 'string' ? value : value.join(', '));
+  return overridden === undefined ? model : `${model}, its own ignored`;
+}
+
+/** A model value as one line, a list joined with `, `, or `not set`. */
+function modelText(model: AgentDefinition['model']): string {
+  if (model === undefined) return 'not set';
+  return text(typeof model.value === 'string' ? model.value : model.value.join(', '));
+}
+
+/**
+ * `reviewer for Claude Code (model sonnet)` for a new definition; for a changed one, what changed,
+ * as in `reviewer for Claude Code (model haiku → opus, effort not set → high)`. The gate label
+ * says whether it is new or changed.
+ */
+function definitionSummary(definition: AgentDefinition, old: AgentDefinition | undefined): string {
+  const name = `${text(definition.name ?? definition.file)} for ${AGENT_NAMES[definition.agent]}`;
+  if (old === undefined) {
+    const status = definition.status === 'loads' ? '' : `, ${definition.status}`;
+    const model =
+      definition.model === undefined ? 'no model' : `model ${modelText(definition.model)}`;
+    return `${name} (${model}${status})`;
+  }
+  const changes: string[] = [];
+  const change = (what: string, before: string, after: string): void => {
+    if (before !== after) changes.push(`${what} ${before} → ${after}`);
+  };
+  change('model', modelText(old.model), modelText(definition.model));
+  change(
+    'effort',
+    text(old.effort?.value ?? 'not set'),
+    text(definition.effort?.value ?? 'not set'),
+  );
+  if (old.status !== definition.status) changes.push(`${old.status} → ${definition.status}`);
+  change('tools', old.tools, definition.tools);
+  change(
+    'permissionMode',
+    text(old.permissionMode ?? 'not set'),
+    text(definition.permissionMode ?? 'not set'),
+  );
+  return changes.length === 0 ? name : `${name} (${changes.join(', ')})`;
 }
 
 // MCP ------------------------------------------------------------------------------------------

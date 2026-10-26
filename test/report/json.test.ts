@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
+import type { AgentDefinition, ModelSetting } from '../../src/agents/types.js';
+import { validateBaseline } from '../../src/core/baseline-input.js';
 import type { GateClass } from '../../src/core/baseline-types.js';
 import type { ScanResult } from '../../src/core/engine.js';
 import {
@@ -474,6 +476,130 @@ describe('schemas/report.schema.json', () => {
     }
   });
 
+  it('writes every field of a definition and a setting, and a baseline reads them back', () => {
+    const definition: AgentDefinition = {
+      id: 'agent:.claude/agents/a.md@claude-code',
+      file: '.claude/agents/a.md',
+      line: 2,
+      agent: 'claude-code',
+      name: 'a',
+      status: 'shadowed',
+      reason: 'another definition has the same name',
+      shadowedBy: '.claude/agents/team/a.md',
+      model: { value: 'opus', form: 'alias', line: 4 },
+      effective: {
+        value: 'haiku',
+        source: 'setting',
+        file: '.claude/settings.json',
+        overridden: { key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE', file: '.claude/settings.json' },
+      },
+      effort: { value: 'high', line: 5 },
+      tools: 'listed',
+      permissionMode: 'plan',
+      certainty: 'unverified',
+      evidence: ['claudeSubagents'],
+      digest: '0a1b2c',
+    };
+    const setting: ModelSetting = {
+      id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+      agent: 'claude-code',
+      file: '.claude/settings.json',
+      line: 3,
+      key: 'env.CLAUDE_CODE_SUBAGENT_MODEL',
+      value: 'haiku',
+      applies: 'subagents',
+      forced: true,
+      digest: '1d',
+    };
+    const agents = { definitions: [definition], settings: [setting] };
+    const written = JSON.parse(formatJson({ ...contextResult, agents })) as Record<string, unknown>;
+    expectValid(written);
+    expect(written['agents']).toEqual(agents);
+    const read = validateBaseline(written);
+    expect(read.ok && read.baseline.agents).toEqual(agents);
+  });
+
+  it('describes the agent definitions and model settings a scan writes', () => {
+    type Json = Record<string, unknown>;
+    const value = JSON.parse(formatJson(contextResult)) as Json;
+    value['agents'] = {
+      definitions: [
+        {
+          id: 'agent:.claude/agents/a.md@claude-code',
+          file: '.claude/agents/a.md',
+          line: 2,
+          agent: 'claude-code',
+          name: 'a',
+          status: 'loads',
+          model: { value: 'opus', form: 'alias', line: 4 },
+          effective: {
+            value: 'haiku',
+            source: 'setting',
+            file: '.claude/settings.json',
+            overridden: {
+              key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
+              file: '.claude/settings.json',
+            },
+          },
+          effort: { value: 'high', line: 5 },
+          tools: 'listed',
+          permissionMode: 'plan',
+          certainty: 'documented',
+          evidence: ['claudeSubagents'],
+          digest: '0a1b2c',
+        },
+        {
+          id: 'agent:.github/agents/d.agent.md@copilot-vscode',
+          file: '.github/agents/d.agent.md',
+          line: 1,
+          agent: 'copilot-vscode',
+          status: 'shadowed',
+          reason: 'another definition has the same name',
+          shadowedBy: '.github/agents/d.md',
+          model: { value: ['Claude Sonnet 4.5', 'GPT-5 (copilot)'], form: 'name', line: 3 },
+          effective: { source: 'not-visible' },
+          tools: 'inherited',
+          certainty: 'unverified',
+          evidence: [],
+          digest: '0f',
+        },
+      ],
+      settings: [
+        {
+          id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+          agent: 'claude-code',
+          file: '.claude/settings.json',
+          line: 3,
+          key: 'env.CLAUDE_CODE_SUBAGENT_MODEL',
+          value: 'haiku',
+          applies: 'subagents',
+          forced: true,
+          digest: '1d',
+        },
+      ],
+    };
+    expectValid(value);
+    const mutations: ((definition: Json, setting: Json) => void)[] = [
+      (definition) => (definition['status'] = 'maybe'),
+      (definition) => (definition['agent'] = 'vim'),
+      (definition) => ((definition['model'] as Json)['form'] = 'guess'),
+      (definition) => ((definition['effective'] as Json)['source'] = 'guess'),
+      (definition) => ((definition['effective'] as Json)['overridden'] = 'a sentence'),
+      (definition) => (definition['shadowedBy'] = 3),
+      (definition) => (definition['secret'] = 'x'),
+      (_, setting) => (setting['applies'] = 'everything'),
+    ];
+    for (const mutate of mutations) {
+      const copy = structuredClone(value);
+      const agents = copy['agents'] as { definitions: Json[]; settings: Json[] };
+      const [definition] = agents.definitions;
+      const [setting] = agents.settings;
+      if (definition === undefined || setting === undefined) throw new Error('expected items');
+      mutate(definition, setting);
+      expect(validate(copy), mutate.toString()).toBe(false);
+    }
+  });
+
   it('accepts the scope of items declared in frontmatter, as the TypeScript types allow', () => {
     type Json = Record<string, unknown>;
     const value = JSON.parse(formatJson(contextResult)) as {
@@ -578,6 +704,7 @@ describe('schemas/report.schema.json', () => {
       'hooks',
       'env',
       'unicode',
+      'models',
     ] as const satisfies readonly GateClass[];
     const LIMIT_UNITS = [
       'bytes',

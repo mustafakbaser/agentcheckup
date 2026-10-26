@@ -6,8 +6,10 @@ import {
   GATE_CLASSES,
   newRuleIds,
   parseGateClasses,
+  SECURITY_GATE_CLASSES,
 } from '../../src/core/baseline.js';
 import { type BaselineReport, validateBaseline } from '../../src/core/baseline-input.js';
+import type { AgentDefinition, AgentsReport, ModelSetting } from '../../src/agents/types.js';
 import type { GateClass } from '../../src/core/baseline-types.js';
 import { FINGERPRINT_VERSION } from '../../src/core/meta.js';
 import type { Finding, RuleMeta } from '../../src/core/types.js';
@@ -198,6 +200,7 @@ interface ReportInput {
   readonly findings?: readonly Finding[];
   /** `null` leaves the inventory out, as in reports made before it existed. */
   readonly inventory?: Partial<Inventory> | null;
+  readonly agents?: AgentsReport;
   readonly plans?: readonly LoadPlan[];
   readonly pathBase?: string;
   readonly ruleset?: string;
@@ -214,6 +217,7 @@ function report(input: ReportInput = {}): Report {
     findings: input.findings ?? [],
     ...(input.pathBase === undefined ? {} : { pathBase: input.pathBase }),
     ...(input.inventory === null ? {} : { inventory: inventory(input.inventory) }),
+    ...(input.agents === undefined ? {} : { agents: input.agents }),
     ...(input.plans === undefined
       ? {}
       : {
@@ -323,12 +327,16 @@ describe('parseGateClasses', () => {
     });
   });
 
-  it('expands security to every class and reads none as no class', () => {
-    const all = ['env', 'hooks', 'mcp', 'mcp-unpinned', 'permissions', 'unicode'];
-    expect(parseGateClasses('security')).toEqual({ ok: true, classes: all });
-    expect(parseGateClasses('security,mcp')).toEqual({ ok: true, classes: all });
+  it('expands security to every class but models, and reads none as no class', () => {
+    const security = ['env', 'hooks', 'mcp', 'mcp-unpinned', 'permissions', 'unicode'];
+    expect(parseGateClasses('security')).toEqual({ ok: true, classes: security });
+    expect(parseGateClasses('security,mcp')).toEqual({ ok: true, classes: security });
+    expect(parseGateClasses('security,models')).toEqual({
+      ok: true,
+      classes: [...security, 'models'].sort(),
+    });
     expect(parseGateClasses('none')).toEqual({ ok: true, classes: [] });
-    expect([...GATE_CLASSES].sort()).toEqual(all);
+    expect([...GATE_CLASSES].sort()).toEqual([...security, 'models'].sort());
   });
 
   it.each([
@@ -1026,6 +1034,235 @@ describe('gate: frontmatter of skills, commands and subagents', () => {
     });
     expect(compare(before, after).diff.inventory.changed).toEqual([
       { id: `hook:${agent}#Stop:00c0ffee`, fields: ['scope'] },
+    ]);
+  });
+});
+
+describe('gate: models', () => {
+  function definition(
+    model: string | undefined,
+    overrides: Partial<AgentDefinition> = {},
+  ): AgentDefinition {
+    return {
+      id: 'agent:.claude/agents/reviewer.md@claude-code',
+      file: '.claude/agents/reviewer.md',
+      line: 2,
+      agent: 'claude-code',
+      name: 'reviewer',
+      status: 'loads',
+      ...(model === undefined ? {} : { model: { value: model, form: 'alias', line: 4 } }),
+      effective:
+        model === undefined ? { source: 'not-visible' } : { value: model, source: 'definition' },
+      tools: 'inherited',
+      certainty: 'documented',
+      evidence: ['claudeSubagents'],
+      digest: `d-${model ?? 'none'}`,
+      ...overrides,
+    };
+  }
+  function setting(value: string, overrides: Partial<ModelSetting> = {}): ModelSetting {
+    return {
+      id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+      agent: 'claude-code',
+      file: '.claude/settings.json',
+      line: 3,
+      key: 'env.CLAUDE_CODE_SUBAGENT_MODEL',
+      value,
+      applies: 'subagents',
+      digest: `s-${value}`,
+      ...overrides,
+    };
+  }
+  const agents = (definitions: AgentDefinition[], settings: ModelSetting[] = []): AgentsReport => ({
+    definitions,
+    settings,
+  });
+
+  it('reports a new definition, a changed model and a model setting', () => {
+    const before = report({ agents: agents([definition('haiku')], [setting('haiku')]) });
+    const after = report({
+      agents: agents(
+        [
+          definition('opus', { effort: { value: 'high', line: 5 } }),
+          definition('sonnet', {
+            id: 'agent:.claude/agents/new.md@claude-code',
+            file: '.claude/agents/new.md',
+            name: 'new',
+          }),
+        ],
+        [setting('sonnet')],
+      ),
+    });
+    expect(hits(before, after)).toEqual([
+      {
+        class: 'models',
+        id: 'agent:.claude/agents/new.md@claude-code',
+        change: 'added',
+        summary: 'new for Claude Code (model sonnet)',
+      },
+      {
+        class: 'models',
+        id: 'agent:.claude/agents/reviewer.md@claude-code',
+        change: 'changed',
+        summary: 'reviewer for Claude Code (model haiku → opus, effort not set → high)',
+      },
+      {
+        class: 'models',
+        id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+        change: 'changed',
+        summary: 'env.CLAUDE_CODE_SUBAGENT_MODEL set to sonnet for Claude Code (was haiku)',
+        kind: 'model-setting',
+      },
+    ]);
+    // Not a security class.
+    expect(
+      compareWithBaseline(after, before, { gate: SECURITY_GATE_CLASSES }).diff.gate.hits,
+    ).toEqual([]);
+  });
+
+  it('trips for a removed setting, not for a removed definition or a line that moved', () => {
+    const before = report({ agents: agents([definition('opus')], [setting('haiku')]) });
+    const moved = report({
+      agents: agents([
+        definition('opus', { line: 9, model: { value: 'opus', form: 'alias', line: 11 } }),
+      ]),
+    });
+    // Removing a setting changes what runs: the subagents go back to their own models.
+    expect(hits(before, moved)).toEqual([
+      {
+        class: 'models',
+        id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+        change: 'changed',
+        summary: 'env.CLAUDE_CODE_SUBAGENT_MODEL removed for Claude Code (was haiku)',
+        kind: 'model-setting',
+      },
+    ]);
+    expect(
+      hits(report({ agents: agents([definition('opus')]) }), report({ agents: agents([]) })),
+    ).toEqual([]);
+    expect(compare(before, moved).diff.agents).toEqual({
+      added: [],
+      removed: ['model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL'],
+      changed: [],
+    });
+    const skipped = report({
+      agents: agents([definition('opus', { status: 'skipped', reason: 'no name', digest: 'x' })]),
+    });
+    expect(compare(before, skipped).diff.agents?.changed).toEqual([
+      { id: 'agent:.claude/agents/reviewer.md@claude-code', fields: ['reason', 'status'] },
+    ]);
+  });
+
+  it('matches definitions and settings across working directories', () => {
+    const shadowed = definition('opus', {
+      status: 'shadowed',
+      reason: 'another definition has the same name',
+      shadowedBy: '.cursor/agents/reviewer.md',
+      effective: {
+        value: 'haiku',
+        source: 'setting',
+        file: '.claude/settings.json',
+        overridden: { key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE', file: '.claude/settings.json' },
+      },
+    });
+    const root = report({ agents: agents([shadowed], [setting('haiku')]) });
+    const prefixed = (path: string) => `packages/api/${path}`;
+    const elsewhere = report({
+      pathBase: 'packages/api',
+      agents: agents(
+        [
+          {
+            ...shadowed,
+            id: 'agent:packages/api/.claude/agents/reviewer.md@claude-code',
+            file: prefixed(shadowed.file),
+            shadowedBy: prefixed('.cursor/agents/reviewer.md'),
+            effective: {
+              ...shadowed.effective,
+              file: prefixed('.claude/settings.json'),
+              overridden: {
+                key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
+                file: prefixed('.claude/settings.json'),
+              },
+            },
+          },
+        ],
+        [
+          setting('haiku', {
+            id: 'model:packages/api/.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+            file: prefixed('.claude/settings.json'),
+          }),
+        ],
+      ),
+    });
+    for (const [before, after] of [
+      [elsewhere, root],
+      [root, elsewhere],
+    ] as const) {
+      const { diff } = compare(before, after);
+      expect(diff.gate.hits).toEqual([]);
+      expect(diff.agents).toEqual({ added: [], removed: [], changed: [] });
+    }
+    // A changed digest lists the fields that differ, never a path that only moved with the base.
+    const changed = report({
+      pathBase: 'packages/api',
+      agents: agents([{ ...elsewhere.agents!.definitions[0]!, reason: 'x', digest: 'other' }]),
+    });
+    expect(compare(root, changed).diff.agents?.changed).toEqual([
+      { id: 'agent:.claude/agents/reviewer.md@claude-code', fields: ['reason'] },
+    ]);
+  });
+
+  it('fails closed against a baseline made before agent definitions were listed', () => {
+    const after = report({ agents: agents([definition('opus')]) });
+    expect(hits(report(), after).map((hit) => [hit.class, hit.change])).toEqual([
+      ['models', 'added'],
+    ]);
+  });
+
+  it('reads agents from a JSON baseline, and leaves out agents it does not model', () => {
+    const full = report({
+      agents: agents([definition('opus')], [setting('haiku', { forced: true })]),
+    });
+    const json = parse(JSON.stringify(full)) as Record<string, unknown>;
+    const result = validateBaseline(json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.baseline.agents).toEqual(full.agents);
+    const value = parse(JSON.stringify(full)) as {
+      agents: { definitions: Record<string, unknown>[] };
+    };
+    const [first] = value.agents.definitions;
+    if (first === undefined) throw new Error('expected a definition');
+    first['agent'] = 'a-future-agent';
+    const later = validateBaseline(value);
+    expect(later.ok && later.baseline.agents?.definitions).toEqual([]);
+    // A status a later version writes leaves the definition out; a malformed one is an error.
+    first['agent'] = 'claude-code';
+    first['status'] = 'maybe';
+    const future = validateBaseline(value);
+    expect(future.ok && future.baseline.agents?.definitions).toEqual([]);
+    first['status'] = 3;
+    expect(validateBaseline(value).ok).toBe(false);
+  });
+
+  it('trips when a definition runs on another model because a setting changed', () => {
+    const forced = definition('opus', {
+      effective: {
+        value: 'haiku',
+        source: 'setting',
+        file: '.claude/settings.json',
+        overridden: { key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE', file: '.claude/settings.json' },
+      },
+    });
+    const before = report({ agents: agents([forced]) });
+    const after = report({ agents: agents([definition('opus')]) });
+    expect(hits(before, after)).toEqual([
+      {
+        class: 'models',
+        id: 'agent:.claude/agents/reviewer.md@claude-code',
+        change: 'changed',
+        summary: 'reviewer for Claude Code (runs on opus, was haiku, its own ignored)',
+      },
     ]);
   });
 });

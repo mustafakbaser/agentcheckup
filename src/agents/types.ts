@@ -86,7 +86,10 @@ export interface AgentDefinition {
   readonly permissionMode?: string;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
-  /** Hash of the fields above but `line`; the same id with another digest: the item changed. */
+  /**
+   * Hash of the fields above but the lines and `effective`, which settings decide; the same id
+   * with another digest: the item changed.
+   */
   readonly digest: string;
 }
 

@@ -16,6 +16,7 @@ import {
   scanSnapshot,
   scanWithContext,
 } from '../../src/core/engine.js';
+import { buildAgents } from '../../src/agents/index.js';
 import { buildInventory } from '../../src/inventory/build.js';
 import { type AnyRule, PLATFORM_IDS, type Snapshot } from '../../src/core/types.js';
 import { walk } from '../../src/io/walk.js';
@@ -25,17 +26,19 @@ import { builtinRules } from '../../src/rules/index.js';
 import { type FileMap, type LintOptions, scanOptionsFrom, snapshotFrom } from '../helpers/lint.js';
 
 /**
- * `runRules(analyze())` gives what `scanSnapshot` gives without the inventory, and
- * `scanWithContext`, which runs the loaders after the rules, gives what `scanSnapshot` gives plus
- * the context: planning never changes a finding or the inventory.
+ * `runRules(analyze())` gives what `scanSnapshot` gives without the inventory and the agent
+ * definitions, and `scanWithContext`, which runs the loaders after the rules, gives what
+ * `scanSnapshot` gives plus the context: planning never changes a finding, the inventory or a
+ * definition.
  */
 function expectSameScan(snapshot: Snapshot, options: ScanOptions): void {
   const split = runRules(analyze(snapshot, options), options);
   expect(split.ruleFailures).toEqual([]);
   const scanned = scanSnapshot(snapshot, options);
-  const { inventory, ...rules } = scanned;
+  const { inventory, agents, ...rules } = scanned;
   expect(split).toStrictEqual(rules);
   expect(inventory).toStrictEqual(buildInventory(analyze(snapshot, options)));
+  expect(agents).toStrictEqual(buildAgents(analyze(snapshot, options)));
   for (const matrix of [false, true]) {
     const { context, ...rest } = scanWithContext(snapshot, { ...options, matrix });
     expect(rest).toStrictEqual(scanned);

@@ -37,6 +37,11 @@ export interface BaselineDiff {
   };
   /** Inventory items by id. An item changed when its digest differs. */
   readonly inventory: ItemDiff;
+  /**
+   * Agent definitions and model settings by id (src/agents). Absent in comparisons made before
+   * agentcheckup listed them.
+   */
+  readonly agents?: ItemDiff;
   /** Only for (agent, cwd) pairs present in both reports. */
   readonly context: readonly PlanDelta[];
   readonly gate: { readonly classes: readonly GateClass[]; readonly hits: readonly GateHit[] };
@@ -73,7 +78,7 @@ export interface PlanDelta {
 }
 
 /**
- * Kinds of security-relevant change that `--gate` turns into exit code 1.
+ * Kinds of change that `--gate` turns into exit code 1.
  * - `mcp`: an MCP server added or changed, or a new MCP config file that could not be parsed.
  * - `mcp-unpinned`: an added or changed MCP server whose pin is not `exact`, `digest` or
  *   `local`.
@@ -84,8 +89,14 @@ export interface PlanDelta {
  * - `hooks`: a hook added or changed.
  * - `env`: an environment override of a class other than `other` added or changed.
  * - `unicode`: a new risk/hidden-unicode finding.
+ * - `models`: an agent definition added or changed, or a model setting set or changed. Not a
+ *   security class: `--gate security` leaves it out.
  */
-export type GateClass = 'mcp' | 'mcp-unpinned' | 'permissions' | 'hooks' | 'env' | 'unicode';
+export type GateClass =
+  'mcp' | 'mcp-unpinned' | 'permissions' | 'hooks' | 'env' | 'unicode' | 'models';
+
+/** The classes `--gate security` selects, and the ones that demote a fix to `review`. */
+export type SecurityGateClass = Exclude<GateClass, 'models'>;
 
 /** One change that trips the gate. */
 export interface GateHit {
@@ -98,7 +109,8 @@ export interface GateHit {
   /**
    * A setting that trips the gate whenever it is set or changed, whether or not it lets the agent
    * do more: `mode` for a permission mode (`permissions.defaultMode`, a subagent's
-   * `permissionMode`), `agent` for the subagent every Claude Code session starts as.
+   * `permissionMode`), `agent` for the subagent every Claude Code session starts as, and
+   * `model-setting` for a repository setting that picks a model (class `models`).
    */
-  readonly kind?: 'mode' | 'agent';
+  readonly kind?: 'mode' | 'agent' | 'model-setting';
 }

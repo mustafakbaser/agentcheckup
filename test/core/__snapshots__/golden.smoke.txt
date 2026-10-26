@@ -3101,5 +3101,9 @@
     "permissions": [],
     "env": [],
     "incomplete": []
+  },
+  "agents": {
+    "definitions": [],
+    "settings": []
   }
 }

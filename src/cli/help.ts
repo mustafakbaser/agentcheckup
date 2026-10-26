@@ -82,10 +82,10 @@ Options
       --context-window <n> With --context: the model's context window in tokens
       --baseline <file>    Compare with a JSON report of an earlier scan: mark findings
                            new or unchanged, and list changed MCP servers, hooks,
-                           permissions and env overrides
-      --gate <classes>     Exit 1 on security-relevant changes since --baseline:
+                           permissions, env overrides and agent definitions
+      --gate <classes>     Exit 1 on changes since --baseline:
                            ${GATE_CLASSES.join(', ')},
-                           or security for all of them, or none
+                           or security for all but models, or none
       --policy <file>      Check the scan against an organization policy: allowed MCP
                            servers, forbidden settings, required hooks, startup budgets.
                            Implies --untrusted; cannot be combined with --config
@@ -106,7 +106,7 @@ the workspace when the scanned directory is inside it.
 Exit codes
   0  No findings at or above --fail-on, the score meets --min-score, and no gate tripped
   1  Findings at or above --fail-on (new ones only, with --baseline), the score is
-     below --min-score, --gate found security-relevant changes, or a --policy
+     below --min-score, --gate found changes it gates, or a --policy
      violation fails the run
   2  Invalid arguments, configuration, baseline or policy file
   3  Internal error (a rule or the scanner crashed)
@@ -219,9 +219,9 @@ Options
   -f, --format <name>      text (default), json, markdown
   -o, --output <file>      Write the report to a file instead of stdout
       --baseline <file>    Compare with a JSON report of an earlier scan with --context
-      --gate <classes>     Exit 1 on security-relevant changes since --baseline:
+      --gate <classes>     Exit 1 on changes since --baseline:
                            ${GATE_CLASSES.join(', ')},
-                           or security for all of them, or none
+                           or security for all but models, or none
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
@@ -232,7 +232,7 @@ Options
 
 Exit codes
   0  The plans were shown. Findings never fail this command
-  1  --gate found security-relevant changes since --baseline
+  1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)
 

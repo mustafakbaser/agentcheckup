@@ -52,6 +52,7 @@ export {
   type GateParseResult,
   newRuleIds,
   parseGateClasses,
+  SECURITY_GATE_CLASSES,
 } from './core/baseline.js';
 export {
   type BaselineFinding,
@@ -112,6 +113,7 @@ export {
   MAX_WRITTEN_FILE_BYTES,
   type PlannedFix,
 } from './fix/index.js';
+export type * from './agents/types.js';
 export type * from './inventory/types.js';
 export { WalkError, type WalkOptions } from './io/walk.js';
 export type * from './platforms/load/types.js';

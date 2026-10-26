@@ -1,8 +1,9 @@
 /**
- * The pull request summary of a scan with `--baseline`: security-relevant changes that need
- * review (gate hits), new and resolved findings, and a table of session-start context per
- * agent before and after the change. Part of the Markdown report (markdown.ts), which gives it a
- * character budget so the whole comment stays under GitHub's limit. What the change makes each
+ * The pull request summary of a scan with `--baseline`: changes that need review (gate hits:
+ * security-relevant changes and, with `--gate models`, model changes), new and resolved
+ * findings, and a table of session-start context per agent before and after the change. Part of
+ * the Markdown report (markdown.ts), which gives it a character budget so the whole comment stays
+ * under GitHub's limit. What the change makes each
  * agent miss is the Markdown report's impact table (markdown.ts), which lists only the skips the
  * change adds when the comparison has plan deltas.
  *
@@ -16,7 +17,7 @@ import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
 import type { LimitUsage, LoadEntry, LoadPlan } from '../platforms/load/types.js';
 import { AGENT_NAMES } from './context-view.js';
-import { gateRows, newRuleFindings } from './gate.js';
+import { gateChangeCount, gateRows, newRuleFindings, noGateChanges } from './gate.js';
 import { toJsonBaseline, toJsonContext, toJsonInventory } from './json.js';
 import { cappedRows, escaped, omittedNote } from './markdown-common.js';
 import { plural } from './text.js';
@@ -74,6 +75,11 @@ function locations(result: ScanResult): Map<string, Location> {
   for (const item of [...inventory.permissions, ...inventory.env]) {
     map.set(item.id, { file: item.file });
   }
+  for (const item of result.agents?.definitions ?? []) {
+    map.set(item.id, { file: item.file, ...(item.name === undefined ? {} : { name: item.name }) });
+  }
+  for (const item of result.agents?.settings ?? [])
+    map.set(item.id, { file: item.file, name: item.key });
   return map;
 }
 
@@ -104,7 +110,7 @@ function whereCell(hit: GateHit, result: ScanResult, known: Map<string, Location
 function changesTable(result: ScanResult, diff: BaselineDiff, maxCharacters: number): string[] {
   if (diff.gate.classes.length === 0) return [];
   const changes = gateRows(diff);
-  if (changes.length === 0) return ['**No security-relevant changes need review.**'];
+  if (changes.length === 0) return [`**${noGateChanges(diff.gate.classes)}.**`];
   const known = locations(result);
   const { rows } = cappedRows(
     changes,
@@ -117,7 +123,7 @@ function changesTable(result: ScanResult, diff: BaselineDiff, maxCharacters: num
     maxCharacters,
   );
   const lines = [
-    `**Needs review: ${plural(changes.length, 'security-relevant change')}**`,
+    `**Needs review: ${gateChangeCount(changes)}**`,
     '',
     '| Change | Where | Detail |',
     '| :----- | :---- | :----- |',

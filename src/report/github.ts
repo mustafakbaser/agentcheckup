@@ -112,8 +112,8 @@ function annotation(finding: Finding, level: DetailLevel, plans: PlanIndex): str
 }
 
 /**
- * One error annotation per security-relevant change that trips `--gate`, on the file and line
- * that declare it when they are known.
+ * One error annotation per change that trips `--gate`, on the file and line that declare it when
+ * they are known.
  */
 function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
   const rows = gateRows(diff);
@@ -139,9 +139,9 @@ function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
  * incomplete, and in CI this output may be the only thing anyone reads.
  *
  * With `--baseline`, only new findings are annotated (unchanged ones were there before the
- * change under review), each security-relevant change that trips `--gate` gets an error
- * annotation, and a baseline from another ruleset gets a warning. With `--policy`, violations
- * get annotations of their own (policy-github.ts).
+ * change under review), each change that trips `--gate` gets an error annotation, and a baseline
+ * from another ruleset gets a warning. With `--policy`, violations get annotations of their own
+ * (policy-github.ts).
  */
 export function formatGithub(result: ScanResult, options: GithubOptions = {}): string {
   const level = options.level ?? 'default';

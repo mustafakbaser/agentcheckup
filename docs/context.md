@@ -563,7 +563,7 @@ the server `sentry`, the server `legacy` with `enabled = false` and a `PreToolUs
 
 A baseline is the JSON report of an earlier scan, usually of the base branch of a pull request.
 Comparing with it shows what a change adds, and `--gate` fails the run on security-relevant
-changes.
+changes and, when asked, on model changes.
 
 ```sh
 # The base commit
@@ -626,6 +626,12 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
   MCP servers and permissions in the frontmatter of skills, commands and subagents has no such
   items, so the first comparison shows them as added, and the gate trips for them. Create the
   baseline again to compare item by item.
+- **Agent definitions and model settings** match by id: `agent:<file>@<agent>` (one per agent
+  that reads the file) and `model:<file>#<key>`. A definition is changed when what its file says
+  or what the agent does with it changes: its name, model, effort, tools, `permissionMode`, or
+  whether the agent loads it. The model it ends up with is left out, because a setting decides
+  it, and the setting is an item of its own. A baseline made before agentcheckup listed them has
+  none, so the first comparison shows every one as added, and `--gate models` trips for them.
 - **Agents the baseline did not plan.** Plans are compared only for agents both reports plan,
   so the session-start line leaves out an agent the baseline has no plan for. A baseline made
   before agentcheckup read the MCP and hook files of Copilot and Devin Local, such as
@@ -635,8 +641,10 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
 
 ### Gate classes
 
-`--gate` takes a comma-separated list of classes, `security` for all of them, or `none`. It
-needs `--baseline`. Only additions and changes trip it; removals never do.
+`--gate` takes a comma-separated list of classes, `security` for every class but `models`, or
+`none`. It needs `--baseline`. Only additions and changes trip it; removals never do. Model
+changes are not security-relevant, so `security` leaves them out: use `--gate security,models`
+to have them reviewed too.
 
 | Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -646,6 +654,7 @@ needs `--baseline`. Only additions and changes trip it; removals never do.
 | `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's hook and plugin folders, or a skill, command or subagent whose frontmatter is past agentcheckup's parser limits. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it |
 | `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `models`       | An agent definition is added or changed, in any agent's format, or a repository setting that picks a model or an effort is set or changed, such as Claude Code's `model` and `env.CLAUDE_CODE_SUBAGENT_MODEL` or Codex's `agents.default_subagent_model`. Labeled "New agent definition", "Agent definition changed", "Model setting set" or "Model setting changed"                                                                                                                                                                                                                                                                           |
 
 The env classes come from the Claude Code and Node.js documentation. Examples: `endpoint`
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers

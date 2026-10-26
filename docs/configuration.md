@@ -171,9 +171,10 @@ agentcheckup --baseline base.json --gate security                         # on t
 - Findings match by fingerprint and are marked `new` or `unchanged`. `--fail-on` counts new
   findings only; the score still covers every finding. Fingerprints survive lines inserted
   above, re-indentation, trailing commas and reordered JSON keys.
-- `--gate` names the security-relevant changes that fail the run: `mcp`, `mcp-unpinned`,
-  `permissions`, `hooks`, `env`, `unicode`, `security` for all of them, or `none`. Removals
-  never trip it. `--gate` without `--baseline` is a usage error.
+- `--gate` names the changes that fail the run: the security-relevant classes `mcp`,
+  `mcp-unpinned`, `permissions`, `hooks`, `env` and `unicode`, `models` for agent definitions
+  and model settings, `security` for every class but `models`, or `none`. Removals never trip
+  it. `--gate` without `--baseline` is a usage error.
 - `permissions` trips on every entry that lets an agent do more without asking: any
   `permissions.allow` entry, narrow ones such as `Bash(curl:*)` included, extra directories, a
   skill's `allowed-tools`, MCP auto-approval, Gemini CLI `trust`, a new `defaultMode`, and
@@ -201,6 +202,6 @@ root. Running the CLI from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore ann
 | Code | Meaning                                                                                                                                               |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.   |
-| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, or security-relevant changes caught by `--gate`      |
+| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, or changes caught by `--gate`                        |
 | 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline that cannot be read or used; an unusable `--output` |
 | 3    | Internal error: a rule, a loader or the scanner crashed                                                                                               |

@@ -36,7 +36,14 @@ import {
   tokensText,
   whyText,
 } from './feedback.js';
-import { gateLocations, gateRows, isNewRuleFinding, newRuleFindings, newRuleSet } from './gate.js';
+import {
+  gateChangeCount,
+  gateLocations,
+  gateRows,
+  isNewRuleFinding,
+  newRuleFindings,
+  newRuleSet,
+} from './gate.js';
 import { renderPolicy } from './policy-stylish.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import {
@@ -464,7 +471,7 @@ function renderRuleFailures(result: ScanResult, context: Context): string[] {
   return lines;
 }
 
-/** Security-relevant changes since the baseline that trip the gate: the reason for exit 1. */
+/** Changes since the baseline that trip the gate: the reason for exit 1. */
 function renderGateHits(result: ScanResult, context: Context): string[] {
   if (result.baseline === undefined) return [];
   const rows = gateRows(result.baseline);
@@ -473,7 +480,7 @@ function renderGateHits(result: ScanResult, context: Context): string[] {
   const lines = [
     style.red(
       style.bold(
-        `${symbols.fail} ${plural(rows.length, 'security-relevant change')} since the baseline ${rows.length === 1 ? 'needs' : 'need'} review`,
+        `${symbols.fail} ${gateChangeCount(rows)} since the baseline ${rows.length === 1 ? 'needs' : 'need'} review`,
       ),
     ),
   ];

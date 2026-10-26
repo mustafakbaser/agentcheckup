@@ -1,6 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { compareWithBaseline, GATE_CLASSES } from '../../src/core/baseline.js';
+import {
+  compareWithBaseline,
+  GATE_CLASSES,
+  SECURITY_GATE_CLASSES,
+} from '../../src/core/baseline.js';
 import { validateBaseline } from '../../src/core/baseline-input.js';
 import { analyze, scanSnapshot } from '../../src/core/engine.js';
 import { hash53 } from '../../src/core/fingerprint.js';
@@ -1627,9 +1631,9 @@ describe('frontmatter', () => {
       { rules: [] },
     );
     const gate = (files: FileMap) =>
-      compareWithBaseline(head, baselineOf(files), { gate: GATE_CLASSES }).diff.gate.hits.map(
-        (hit) => [hit.class, hit.summary],
-      );
+      compareWithBaseline(head, baselineOf(files), {
+        gate: SECURITY_GATE_CLASSES,
+      }).diff.gate.hits.map((hit) => [hit.class, hit.summary]);
     expect(gate({ 'AGENTS.md': '# Agents\n' })).toEqual([
       ['hooks', 'New hook Stop (SubagentStop) → ./notify.sh (while the subagent runs)'],
       [

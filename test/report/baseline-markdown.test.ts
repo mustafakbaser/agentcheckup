@@ -7,7 +7,7 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { GATE_CLASSES, compareWithBaseline } from '../../src/core/baseline.js';
+import { SECURITY_GATE_CLASSES, compareWithBaseline } from '../../src/core/baseline.js';
 import { validateBaseline } from '../../src/core/baseline-input.js';
 import type { PlanDelta } from '../../src/core/baseline-types.js';
 import { type ContextScanResult, scanWithContext, type ScanResult } from '../../src/core/engine.js';
@@ -49,7 +49,7 @@ async function tree(name: 'base' | 'head'): Promise<Snapshot> {
 function compared(base: ContextScanResult, head: ContextScanResult): ScanResult {
   const parsed = validateBaseline(JSON.parse(formatJson(base)));
   if (!parsed.ok) throw new Error(parsed.message);
-  const comparison = compareWithBaseline(head, parsed.baseline, { gate: GATE_CLASSES });
+  const comparison = compareWithBaseline(head, parsed.baseline, { gate: SECURITY_GATE_CLASSES });
   return { ...head, findings: comparison.findings, baseline: comparison.diff };
 }
 

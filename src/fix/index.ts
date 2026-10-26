@@ -8,7 +8,7 @@
  *
  * Paths are POSIX and relative to the scan root, never absolute (see src/core/types.ts).
  */
-import type { GateClass, GateHit } from '../core/baseline-types.js';
+import type { GateHit, SecurityGateClass } from '../core/baseline-types.js';
 import type { DecodedText, Finding, Fix, FixClass, FixInput, Severity } from '../core/types.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 
@@ -48,8 +48,9 @@ export interface FixSelection {
  * What applying a fix changes for the agents, measured by planning the fixed copy again and
  * comparing it with the scan.
  * - `tokens`: an agent's startup context changes size (estimated tokens, as in load plans).
- * - `gate`: the fix adds or changes an inventory item a gate class flags, such as an MCP server
- *   it activates. A fix with a gate effect is never `safe`: verification demotes it to `review`.
+ * - `gate`: the fix adds or changes an inventory item a security gate class flags, such as an MCP
+ *   server it activates. A fix with a gate effect is never `safe`: verification demotes it to
+ *   `review`. A changed agent definition or model setting (class `models`) is not an effect.
  */
 export type FixEffect =
   | {
@@ -62,7 +63,7 @@ export type FixEffect =
     }
   | {
       readonly kind: 'gate';
-      readonly class: GateClass;
+      readonly class: SecurityGateClass;
       /** The inventory item id; for `unicode`, the finding's fingerprint. */
       readonly id: string;
       readonly change: GateHit['change'];

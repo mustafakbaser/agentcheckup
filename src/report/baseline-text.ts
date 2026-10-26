@@ -1,6 +1,6 @@
 /**
  * Terminal text for a comparison with `--baseline`, printed after the load plans of
- * `agentcheckup context`: the security-relevant changes that trip the gate, the finding counts,
+ * `agentcheckup context`: the changes that trip the gate, the finding counts,
  * and the change in session-start context. The scan's stylish output has its own baseline lines
  * (stylish.ts); the content matches the Markdown summary (baseline-markdown.ts).
  *
@@ -12,7 +12,13 @@ import type { ScanResult } from '../core/engine.js';
 import { stripPathBase } from '../core/rebase.js';
 import { contextDeltas } from './baseline-markdown.js';
 import type { ContextTextOptions } from './context-text.js';
-import { gateLocations, gateRows, newRuleFindings } from './gate.js';
+import {
+  gateChangeCount,
+  gateLocations,
+  gateRows,
+  newRuleFindings,
+  noGateChanges,
+} from './gate.js';
 import { toJsonBaseline } from './json.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle } from './stylish.js';
@@ -42,15 +48,11 @@ export function formatBaselineText(input: ScanResult, options: ContextTextOption
   if (diff.gate.classes.length > 0) {
     const rows = gateRows(diff);
     if (rows.length === 0) {
-      lines.push(`${ascii ? '' : '✔ '}No security-relevant changes need review`);
+      lines.push(`${ascii ? '' : '✔ '}${noGateChanges(diff.gate.classes)}`);
     } else {
       const verb = rows.length === 1 ? 'needs' : 'need';
       lines.push(
-        style.red(
-          style.bold(
-            `${ascii ? 'x' : '✖'} ${plural(rows.length, 'security-relevant change')} ${verb} review`,
-          ),
-        ),
+        style.red(style.bold(`${ascii ? 'x' : '✖'} ${gateChangeCount(rows)} ${verb} review`)),
       );
       const locate = gateLocations(result);
       for (const row of rows.slice(0, MAX_LISTED)) {

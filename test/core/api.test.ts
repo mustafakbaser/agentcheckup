@@ -7,6 +7,7 @@ import {
   scan,
   scanSnapshot,
   scanWithContext,
+  SECURITY_GATE_CLASSES,
   stripPathBase,
   SUPPORTED_SCHEMA_VERSIONS,
   validateBaseline,
@@ -33,7 +34,8 @@ describe('the programmatic baseline API', () => {
     );
     const gate = parseGateClasses('security');
     if (!gate.ok) throw new Error(gate.message);
-    expect(gate.classes).toEqual([...GATE_CLASSES].sort());
+    expect(gate.classes).toEqual([...SECURITY_GATE_CLASSES].sort());
+    expect(GATE_CLASSES.filter((name) => !gate.classes.includes(name))).toEqual(['models']);
 
     const { diff, findings } = compareWithBaseline(head, checked.baseline, { gate: gate.classes });
     expect(diff.inventory.added).toEqual(['mcp:.mcp.json#browser']);

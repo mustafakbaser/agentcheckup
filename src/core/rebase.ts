@@ -1,6 +1,7 @@
 import type { BaselineDiff, ItemDiff } from './baseline-types.js';
 import type { ScanResult } from './engine.js';
 import type { FileChange, Fix } from './types.js';
+import type { AgentDefinition, AgentsReport } from '../agents/types.js';
 import type { Inventory } from '../inventory/types.js';
 import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
 import type { PolicyReport } from '../policy/types.js';
@@ -16,10 +17,12 @@ import type { PolicyReport } from '../policy/types.js';
  *
  * Rebased: finding, artifact, skipped and symlink paths; the paths a finding's fix changes
  * (`path`, `from` and `to`, in alternatives too); load-plan working directories, entry, skip
- * and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files;
- * baseline paths; policy violation and note paths. Ids that embed a path (`<kind>:<path>…`: plan
- * entries, skips, inventory items, `inventoryId`, baseline id lists and gate hits other than
- * `unicode`) get the prefix after their kind, so they keep matching `<kind>:${path}`. Policy
+ * and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files; the
+ * files of agent definitions and model settings, of the definition that shadows one, and of the
+ * settings that pick or override its model; baseline paths; policy violation and note paths. Ids
+ * that embed a path (`<kind>:<path>…`: plan entries, skips, inventory items, agent definitions,
+ * model settings, `inventoryId`, baseline id lists and gate hits other than `unicode`) get the
+ * prefix after their kind, so they keep matching `<kind>:${path}`. Policy
  * violation ids are not rebased: like fingerprints, they stay relative to the scanned
  * directory, so they match across working directories. Not rebased, because they are text
  * as written rather than repository paths: `patterns` (globs), hook `script` and `command`, MCP
@@ -144,6 +147,34 @@ function mapInventory(inventory: Inventory, map: PathMap): Inventory {
   };
 }
 
+function mapDefinition(definition: AgentDefinition, map: PathMap): AgentDefinition {
+  const { effective } = definition;
+  return {
+    ...definition,
+    id: mapId(definition.id, map),
+    file: map(definition.file),
+    ...(definition.shadowedBy === undefined ? {} : { shadowedBy: map(definition.shadowedBy) }),
+    effective: {
+      ...effective,
+      ...(effective.file === undefined ? {} : { file: map(effective.file) }),
+      ...(effective.overridden === undefined
+        ? {}
+        : { overridden: { ...effective.overridden, file: map(effective.overridden.file) } }),
+    },
+  };
+}
+
+function mapAgents(agents: AgentsReport, map: PathMap): AgentsReport {
+  return {
+    definitions: agents.definitions.map((definition) => mapDefinition(definition, map)),
+    settings: agents.settings.map((setting) => ({
+      ...setting,
+      id: mapId(setting.id, map),
+      file: map(setting.file),
+    })),
+  };
+}
+
 function mapItemDiff(diff: ItemDiff, map: PathMap): ItemDiff {
   return {
     added: diff.added.map((id) => mapId(id, map)),
@@ -160,6 +191,7 @@ function mapBaseline(diff: BaselineDiff, map: PathMap): BaselineDiff {
       resolved: diff.findings.resolved.map((entry) => ({ ...entry, path: map(entry.path) })),
     },
     inventory: mapItemDiff(diff.inventory, map),
+    ...(diff.agents === undefined ? {} : { agents: mapItemDiff(diff.agents, map) }),
     context: diff.context.map((delta) => ({
       ...delta,
       cwd: map(delta.cwd),
@@ -200,6 +232,7 @@ function mapPaths(result: ScanResult, map: PathMap): ScanResult {
       path: map(entry.path),
     })),
     inventory: mapInventory(result.inventory, map),
+    ...(result.agents === undefined ? {} : { agents: mapAgents(result.agents, map) }),
     ...(result.context === undefined ? {} : { context: mapContext(result.context, map) }),
     ...(result.baseline === undefined ? {} : { baseline: mapBaseline(result.baseline, map) }),
     ...(result.policy === undefined ? {} : { policy: mapPolicy(result.policy, map) }),

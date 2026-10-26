@@ -435,12 +435,12 @@ The API is not stable before 1.0. The JSON report follows
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                     |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.                                         |
-| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, security-relevant changes caught by `--gate`, or a `--policy` violation that fails the run |
-| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline or policy file that cannot be read or used; an unusable `--output`                        |
-| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                                     |
+| Code | Meaning                                                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.                       |
+| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, changes caught by `--gate`, or a `--policy` violation that fails the run |
+| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline or policy file that cannot be read or used; an unusable `--output`      |
+| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                   |
 
 `fix` exits 0 when a dry run has nothing to change or every selected fix was applied and
 verified, 1 when a dry run would change a file or a selected fix was not applied, 2 on invalid

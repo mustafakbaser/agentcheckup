@@ -102,6 +102,7 @@
       "type": "string"
     },
     "inventory": { "$ref": "#/$defs/inventory" },
+    "agents": { "$ref": "#/$defs/agents" },
     "context": { "$ref": "#/$defs/contextReport" },
     "baseline": { "$ref": "#/$defs/baselineDiff" },
     "policy": {
@@ -1324,7 +1325,146 @@
         }
       }
     },
-    "gateClass": { "enum": ["mcp", "mcp-unpinned", "permissions", "hooks", "env", "unicode"] },
+    "agents": {
+      "description": "Agent definitions: the custom agents and subagents of the repository, once for each agent that reads the file from the repository root, and the repository settings that pick models.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["definitions", "settings"],
+      "properties": {
+        "definitions": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentDefinition" }
+        },
+        "settings": {
+          "description": "Sorted by id.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/modelSetting" }
+        }
+      }
+    },
+    "modelValue": {
+      "description": "A model as written: one string, or a list of strings for an agent that takes several.",
+      "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "agentDefinition": {
+      "description": "One agent definition as one agent reads it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "file",
+        "line",
+        "agent",
+        "status",
+        "effective",
+        "tools",
+        "certainty",
+        "evidence",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "description": "`agent:<file>@<agent>`, or `agent:<file>#<role>@codex` for a role a `.codex/config.toml` declares without an agent file.",
+          "type": "string",
+          "minLength": 1
+        },
+        "file": { "$ref": "#/$defs/path" },
+        "line": { "type": "integer", "minimum": 1 },
+        "agent": { "$ref": "#/$defs/contextAgent" },
+        "name": { "type": "string" },
+        "status": {
+          "description": "What the agent does with the file.",
+          "enum": ["loads", "skipped", "shadowed", "unknown"]
+        },
+        "reason": {
+          "description": "Why the agent skips it, may not load it, or shadows it.",
+          "type": "string"
+        },
+        "shadowedBy": {
+          "description": "For shadowed: the file of the definition that wins.",
+          "$ref": "#/$defs/path"
+        },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "form", "line"],
+          "properties": {
+            "value": { "$ref": "#/$defs/modelValue" },
+            "form": {
+              "description": "How the value is written, as the reading agent documents its values.",
+              "enum": ["inherit", "alias", "id", "name", "not-documented"]
+            },
+            "line": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "effective": {
+          "description": "The model the definition runs with, as far as the repository says.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source"],
+          "properties": {
+            "value": { "$ref": "#/$defs/modelValue" },
+            "source": { "enum": ["definition", "setting", "session", "not-visible"] },
+            "file": { "$ref": "#/$defs/path" },
+            "overridden": {
+              "description": "The setting that makes the agent ignore the definition's own model.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "file"],
+              "properties": {
+                "key": { "type": "string" },
+                "file": { "$ref": "#/$defs/path" }
+              }
+            }
+          }
+        },
+        "effort": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "line"],
+          "properties": {
+            "value": { "type": "string" },
+            "line": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "tools": { "enum": ["inherited", "listed", "read-only"] },
+        "permissionMode": { "type": "string" },
+        "certainty": { "$ref": "#/$defs/certainty" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "digest": {
+          "description": "Hash of the definition without its lines and its effective model.",
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        }
+      }
+    },
+    "modelSetting": {
+      "description": "A repository setting that picks a model or an effort for an agent's sessions or subagents, or the models allowed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "agent", "file", "line", "key", "value", "applies", "digest"],
+      "properties": {
+        "id": { "description": "`model:<file>#<key>`.", "type": "string", "minLength": 1 },
+        "agent": { "$ref": "#/$defs/contextAgent" },
+        "file": { "$ref": "#/$defs/path" },
+        "line": { "type": "integer", "minimum": 1 },
+        "key": { "type": "string" },
+        "value": { "description": "As written; a list joined with `, `.", "type": "string" },
+        "applies": {
+          "description": "What it sets: the session's model or effort, the subagents', the models allowed, or what an alias resolves to.",
+          "enum": ["session", "subagents", "allowed", "alias"]
+        },
+        "forced": {
+          "description": "For `env.CLAUDE_CODE_SUBAGENT_MODEL`: `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on.",
+          "type": "boolean"
+        },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]+$" }
+      }
+    },
+    "gateClass": {
+      "enum": ["mcp", "mcp-unpinned", "permissions", "hooks", "env", "unicode", "models"]
+    },
     "itemDiff": {
       "description": "Ids added, removed and changed between the baseline and this scan, sorted.",
       "type": "object",
@@ -1402,8 +1542,8 @@
           "type": "string"
         },
         "kind": {
-          "description": "A setting that trips the gate whenever it is set or changed: `mode` for a permission mode, `agent` for the subagent every Claude Code session starts as.",
-          "enum": ["mode", "agent"]
+          "description": "A setting that trips the gate whenever it is set or changed: `mode` for a permission mode, `agent` for the subagent every Claude Code session starts as, `model-setting` for a repository setting that picks a model.",
+          "enum": ["mode", "agent", "model-setting"]
         }
       }
     },
@@ -1454,6 +1594,10 @@
           }
         },
         "inventory": { "$ref": "#/$defs/itemDiff" },
+        "agents": {
+          "description": "Agent definitions and model settings by id. Absent in comparisons made before they were listed.",
+          "$ref": "#/$defs/itemDiff"
+        },
         "context": {
           "description": "Only for (agent, cwd) pairs present in both reports.",
           "type": "array",

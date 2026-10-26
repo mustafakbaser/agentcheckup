@@ -4631,5 +4631,9 @@
       }
     ],
     "incomplete": []
+  },
+  "agents": {
+    "definitions": [],
+    "settings": []
   }
 }

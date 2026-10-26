@@ -1,3 +1,5 @@
+import { buildAgents } from '../agents/build.js';
+import type { AgentsReport } from '../agents/types.js';
 import { buildInventory } from '../inventory/build.js';
 import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
@@ -205,6 +207,11 @@ export interface ScanResult {
   readonly pathBase?: string;
   /** Security inventory: every MCP server, hook, permission and env override. Every scan has it. */
   readonly inventory: Inventory;
+  /**
+   * Agent definitions and model settings (src/agents). Every scan has them; optional so that a
+   * result built before they existed still formats.
+   */
+  readonly agents?: AgentsReport;
   /** Load plans, from `agentcheckup context` or a scan with `--context`. */
   readonly context?: ContextReport;
   /** Comparison with the `--baseline` report, when one was given. */
@@ -653,7 +660,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
 export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResult {
   const analysis = analyze(snapshot, options);
   const result = runRules(analysis, options);
-  return { ...result, inventory: buildInventory(analysis) };
+  return { ...result, inventory: buildInventory(analysis), agents: buildAgents(analysis) };
 }
 
 /**
@@ -681,6 +688,7 @@ export function scanWithContext(
   const analysis = analyze(snapshot, options);
   const result = runRules(analysis, options);
   const inventory = buildInventory(analysis);
+  const definitions = buildAgents(analysis);
   const agents = options.agents ?? contextAgentsOf(analysis.targetList);
   const shared = {
     agents,
@@ -703,7 +711,7 @@ export function scanWithContext(
           plans: loadPlans(analysis, { ...shared, cwd }),
           findings: result.findings,
         });
-  return { ...result, inventory, context };
+  return { ...result, inventory, agents: definitions, context };
 }
 
 /**

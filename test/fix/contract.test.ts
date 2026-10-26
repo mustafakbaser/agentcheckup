@@ -21,7 +21,7 @@ import type {
   PlannedFix,
 } from '../../src/fix/index.js';
 import {
-  GATE_CLASSES,
+  SECURITY_GATE_CLASSES,
   SEVERITIES,
   type DecodedText,
   type FileChange,
@@ -29,7 +29,7 @@ import {
   type Fix,
   type FixClass,
   type FixInput,
-  type GateClass,
+  type SecurityGateClass,
   type ReportDescriptor,
   type RuleMeta,
   type SkippedLoad,
@@ -328,7 +328,9 @@ describe('the planner types', () => {
 
   it('describe effects as a token delta per agent or a gate hit', () => {
     expectTypeOf<FixEffect['kind']>().toEqualTypeOf<'tokens' | 'gate'>();
-    expectTypeOf<Extract<FixEffect, { kind: 'gate' }>['class']>().toEqualTypeOf<GateClass>();
+    expectTypeOf<
+      Extract<FixEffect, { kind: 'gate' }>['class']
+    >().toEqualTypeOf<SecurityGateClass>();
     expect(dryRun.fixes.flatMap((item) => item.effects.map((effect) => effect.kind))).toEqual([
       'tokens',
       'gate',
@@ -482,7 +484,7 @@ describe('schemas/fix.schema.json', () => {
     expect(defs['fileState']?.properties?.['lineEnding']?.enum).toEqual([...LINE_ENDINGS]);
     const [tokens, gate] = defs['effect']?.oneOf ?? [];
     expect(tokens?.properties['agent']?.enum).toEqual([...ALL_CONTEXT_AGENTS]);
-    expect(gate?.properties['class']?.enum).toEqual([...GATE_CLASSES]);
+    expect(gate?.properties['class']?.enum).toEqual([...SECURITY_GATE_CLASSES]);
     expect(
       (reportSchema.$defs['fileChange']?.oneOf ?? []).map(
         (entry) => entry.properties['kind']?.const,

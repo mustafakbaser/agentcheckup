@@ -528,6 +528,14 @@ describe('the report', () => {
     expect(moved.definitions.map((d) => d.digest)).toEqual(
       forward.definitions.map((d) => d.digest),
     );
+    // A setting a definition inherits from is a change of the setting, not of the definition.
+    const inheriting = (model: string) =>
+      agentsOf({
+        '.claude/agents/b.md': subagent(),
+        '.claude/settings.json': json({ model }),
+      }).definitions.find((d) => d.agent === 'claude-code');
+    expect(inheriting('opus')?.effective.value).not.toBe(inheriting('haiku')?.effective.value);
+    expect(inheriting('opus')?.digest).toBe(inheriting('haiku')?.digest);
     const changed = agentsOf({ ...files, '.claude/agents/a.md': subagent('haiku') });
     expect(of(changed, '.claude/agents/a.md')['claude-code']?.digest).not.toBe(
       of(forward, '.claude/agents/a.md')['claude-code']?.digest,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentDefinition, ModelSetting } from '../../src/agents/types.js';
 import type { GateHit } from '../../src/core/baseline-types.js';
-import { gateLocations, gateRows } from '../../src/report/gate.js';
+import { gateChangeCount, gateLocations, gateRows, noGateChanges } from '../../src/report/gate.js';
 import { sampleBaseline, withContext } from '../helpers/context.js';
 import { richResult } from './fixtures.js';
 
@@ -32,6 +33,75 @@ describe('gateRows', () => {
     expect(gateRows(diff([allow])).map((row) => row.label)).toEqual(['Permission widened']);
     const agent: GateHit = { ...allow, id: 'perm:.claude/settings.json#agent=a', kind: 'agent' };
     expect(gateRows(diff([agent])).map((row) => row.label)).toEqual(['Session agent set']);
+  });
+});
+
+const definitionHit = (change: GateHit['change'], name: string): GateHit => ({
+  class: 'models',
+  id: `agent:.claude/agents/${name}.md@claude-code`,
+  change,
+  summary: `New agent definition ${name} for Claude Code (model opus)`,
+});
+const settingHit: GateHit = {
+  class: 'models',
+  id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+  change: 'changed',
+  summary: 'env.CLAUDE_CODE_SUBAGENT_MODEL set to opus for Claude Code (was haiku)',
+  kind: 'model-setting',
+};
+const hookHit: GateHit = {
+  class: 'hooks',
+  id: 'hook:.claude/settings.json#Stop:00000000',
+  change: 'added',
+  summary: 'New hook Stop → ./notify.sh',
+};
+
+describe('model changes', () => {
+  it('labels agent definitions and model settings', () => {
+    expect(
+      gateRows(diff([definitionHit('added', 'a'), definitionHit('changed', 'b'), settingHit])).map(
+        (row) => row.label,
+      ),
+    ).toEqual(['New agent definition', 'Agent definition changed', 'Model setting changed']);
+  });
+
+  it('counts model changes apart from security-relevant ones', () => {
+    const rows = (hits: GateHit[]) => gateRows(diff(hits));
+    expect(gateChangeCount(rows([hookHit]))).toBe('1 security-relevant change');
+    expect(gateChangeCount(rows([definitionHit('added', 'a'), settingHit]))).toBe(
+      '2 model changes',
+    );
+    expect(gateChangeCount(rows([hookHit, definitionHit('added', 'a')]))).toBe(
+      '1 security-relevant change and 1 model change',
+    );
+  });
+
+  it('says which classes found nothing', () => {
+    expect(noGateChanges(['hooks', 'mcp'])).toBe('No security-relevant changes need review');
+    expect(noGateChanges(['models'])).toBe('No model changes need review');
+    expect(noGateChanges(['hooks', 'models'])).toBe(
+      'No security-relevant or model changes need review',
+    );
+  });
+
+  it('locates a definition and a setting where the report lists them', () => {
+    const definition = {
+      id: 'agent:.claude/agents/a.md@claude-code',
+      file: '.claude/agents/a.md',
+      line: 2,
+    } as AgentDefinition;
+    const setting = {
+      id: settingHit.id,
+      file: '.claude/settings.json',
+      line: 4,
+    } as ModelSetting;
+    const locate = gateLocations({
+      ...withContext(richResult),
+      agents: { definitions: [definition], settings: [setting] },
+    });
+    expect(locate(definitionHit('added', 'a'))).toEqual({ file: '.claude/agents/a.md', line: 2 });
+    expect(locate(settingHit)).toEqual({ file: '.claude/settings.json', line: 4 });
+    expect(locate(definitionHit('added', 'gone'))).toBeUndefined();
   });
 });
 

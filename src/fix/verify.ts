@@ -11,8 +11,8 @@
  *    that moves or rewrites text must never hide a payload, not even behind a suppression.
  *    Findings match by rule and path, mapped through renames, as a multiset: fingerprints change
  *    with the edits. Comparing the two scans with compareWithBaseline gives the fix's effects:
- *    startup token deltas per agent, and gate hits. A `safe` fix with a gate hit is demoted to
- *    `review`, and skipped when review fixes are not selected.
+ *    startup token deltas per agent, and the hits of the security gate classes. A `safe` fix
+ *    with a gate hit is demoted to `review`, and skipped when review fixes are not selected.
  * 3. Drops the fixes that failed and plans again, so a fix that lost a conflict to a failed one
  *    gets its turn.
  * 4. Applies the passing fixes together and verifies the combination. When fixes that pass
@@ -50,7 +50,11 @@
  * share a path) and one for the combination, more only when something cannot be attributed or a
  * fix fails.
  */
-import { compareWithBaseline, GATE_CLASSES } from '../core/baseline.js';
+import {
+  compareWithBaseline,
+  isSecurityGateClass,
+  SECURITY_GATE_CLASSES,
+} from '../core/baseline.js';
 import { compareStrings } from '../core/compare.js';
 import {
   analyze,
@@ -278,20 +282,20 @@ const gateKey = (effect: Extract<FixEffect, { kind: 'gate' }>): string =>
 
 type GateEffect = Extract<FixEffect, { kind: 'gate' }>;
 
-/** compareWithBaseline of `after` against `before`, with every gate class. */
+/**
+ * compareWithBaseline of `after` against `before`, with every security gate class. A fix that
+ * changes an agent definition or a model setting (class `models`) changes no capability, so it
+ * stays as `safe` as its rule declares it.
+ */
 function planDiff(before: Scan, after: Scan) {
-  return compareWithBaseline(after, before, { gate: GATE_CLASSES }).diff;
+  return compareWithBaseline(after, before, { gate: SECURITY_GATE_CLASSES }).diff;
 }
 
 /** The gate hits of a comparison, as effects. */
 function gateEffects(diff: ReturnType<typeof planDiff>): GateEffect[] {
-  return diff.gate.hits.map((hit) => ({
-    kind: 'gate',
-    class: hit.class,
-    id: hit.id,
-    change: hit.change,
-    summary: hit.summary,
-  }));
+  return diff.gate.hits.flatMap(({ class: gate, id, change, summary }) =>
+    isSecurityGateClass(gate) ? [{ kind: 'gate', class: gate, id, change, summary }] : [],
+  );
 }
 
 /** Token deltas and gate hits of `after` against `before`. */

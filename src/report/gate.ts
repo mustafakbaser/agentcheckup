@@ -13,6 +13,7 @@ import type { BaselineDiff, GateClass, GateHit } from '../core/baseline-types.js
 import type { ScanResult } from '../core/engine.js';
 import type { Finding } from '../core/types.js';
 import { toJsonBaseline } from './json.js';
+import { plural } from './text.js';
 
 const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'], string>>>> = {
   mcp: { added: 'New MCP server', changed: 'MCP server changed' },
@@ -21,6 +22,7 @@ const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'
   hooks: { added: 'New hook', changed: 'Hook changed' },
   env: { added: 'Env override', changed: 'Env override changed' },
   unicode: { added: 'Hidden Unicode', changed: 'Hidden Unicode' },
+  models: { added: 'New agent definition', changed: 'Agent definition changed' },
 };
 
 /** Settings that trip the gate whenever they are set or changed: a mode may narrow, too. */
@@ -29,6 +31,7 @@ const SETTING_LABELS: Readonly<
 > = {
   mode: { added: 'Permission mode set', changed: 'Permission mode changed' },
   agent: { added: 'Session agent set', changed: 'Session agent changed' },
+  'model-setting': { added: 'Model setting set', changed: 'Model setting changed' },
 };
 
 export interface GateRow {
@@ -62,6 +65,32 @@ export function gateRows(diff: BaselineDiff): GateRow[] {
   });
 }
 
+/**
+ * How a summary counts the rows: `2 security-relevant changes`, `1 model change`, or both, as in
+ * `2 security-relevant changes and 1 model change`. `models` is not a security class.
+ */
+export function gateChangeCount(rows: readonly GateRow[]): string {
+  const models = rows.filter((row) => row.hit.class === 'models').length;
+  const security = rows.length - models;
+  return [
+    ...(security > 0 ? [plural(security, 'security-relevant change')] : []),
+    ...(models > 0 ? [plural(models, 'model change')] : []),
+  ].join(' and ');
+}
+
+/** What a summary says when no change trips the selected classes. */
+export function noGateChanges(classes: readonly GateClass[]): string {
+  const models = classes.includes('models');
+  const security = classes.some((gate) => gate !== 'models');
+  const what =
+    models && security
+      ? 'security-relevant or model changes'
+      : models
+        ? 'model changes'
+        : 'security-relevant changes';
+  return `No ${what} need review`;
+}
+
 /** Where a gate hit is declared: the file and line of its inventory item, or of its finding. */
 export interface GateLocation {
   readonly file: string;
@@ -72,7 +101,16 @@ export interface GateLocation {
 export function gateLocations(result: ScanResult): (hit: GateHit) => GateLocation | undefined {
   const items = new Map<string, GateLocation>();
   const { mcpServers, hooks, permissions, env } = result.inventory;
-  for (const item of [...mcpServers, ...hooks, ...permissions, ...env]) {
+  const definitions = result.agents?.definitions ?? [];
+  const settings = result.agents?.settings ?? [];
+  for (const item of [
+    ...mcpServers,
+    ...hooks,
+    ...permissions,
+    ...env,
+    ...definitions,
+    ...settings,
+  ]) {
     if (!items.has(item.id)) items.set(item.id, { file: item.file, line: item.line });
   }
   return (hit) => {

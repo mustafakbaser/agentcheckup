@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rebaseResult, stripPathBase } from '../../src/core/rebase.js';
+import type { AgentDefinition, ModelSetting } from '../../src/agents/types.js';
 import type { ScanResult } from '../../src/core/engine.js';
 import type { FileChange, Fix } from '../../src/core/types.js';
 import { withContext } from '../helpers/context.js';
@@ -150,6 +151,95 @@ describe('rebaseResult', () => {
     expect(rebased.baseline?.gate.hits.map((hit) => hit.summary)).toEqual(
       full.baseline?.gate.hits.map((hit) => hit.summary),
     );
+  });
+});
+
+describe('agent definitions and model settings', () => {
+  const definition: AgentDefinition = {
+    id: 'agent:.claude/agents/reviewer.md@claude-code',
+    file: '.claude/agents/reviewer.md',
+    line: 2,
+    agent: 'claude-code',
+    name: 'reviewer',
+    status: 'shadowed',
+    reason: 'another definition has the same name',
+    shadowedBy: '.cursor/agents/reviewer.md',
+    model: { value: 'opus', form: 'alias', line: 4 },
+    effective: {
+      value: 'haiku',
+      source: 'setting',
+      file: '.claude/settings.json',
+      overridden: {
+        key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
+        file: '.claude/settings.local.json',
+      },
+    },
+    tools: 'inherited',
+    certainty: 'documented',
+    evidence: ['claudeSubagents'],
+    digest: 'd',
+  };
+  const setting: ModelSetting = {
+    id: 'model:.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+    agent: 'claude-code',
+    file: '.claude/settings.json',
+    line: 3,
+    key: 'env.CLAUDE_CODE_SUBAGENT_MODEL',
+    value: 'haiku',
+    applies: 'subagents',
+    digest: 's',
+  };
+  const withAgents: ScanResult = {
+    ...full,
+    agents: { definitions: [definition], settings: [setting] },
+    baseline: {
+      ...full.baseline!,
+      agents: {
+        added: [definition.id],
+        removed: [],
+        changed: [{ id: setting.id, fields: ['value'] }],
+      },
+    },
+  };
+
+  it('rebases their files, ids and the files they name, and leaves text alone', () => {
+    const rebased = rebaseResult(withAgents, 'repo');
+    expect(rebased.agents).toEqual({
+      definitions: [
+        {
+          ...definition,
+          id: 'agent:repo/.claude/agents/reviewer.md@claude-code',
+          file: 'repo/.claude/agents/reviewer.md',
+          shadowedBy: 'repo/.cursor/agents/reviewer.md',
+          effective: {
+            ...definition.effective,
+            file: 'repo/.claude/settings.json',
+            overridden: {
+              key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
+              file: 'repo/.claude/settings.local.json',
+            },
+          },
+        },
+      ],
+      settings: [
+        {
+          ...setting,
+          id: 'model:repo/.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+          file: 'repo/.claude/settings.json',
+        },
+      ],
+    });
+    expect(rebased.baseline?.agents).toEqual({
+      added: ['agent:repo/.claude/agents/reviewer.md@claude-code'],
+      removed: [],
+      changed: [
+        {
+          id: 'model:repo/.claude/settings.json#env.CLAUDE_CODE_SUBAGENT_MODEL',
+          fields: ['value'],
+        },
+      ],
+    });
+    expect(stripPathBase(rebased)).toEqual(withAgents);
   });
 });
 

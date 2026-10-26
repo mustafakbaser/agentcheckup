@@ -22,7 +22,15 @@ import type {
   PackageSpec,
   PermissionItem,
 } from '../inventory/types.js';
-import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
+import type {
+  AgentDefinition,
+  AgentsReport,
+  DefinitionStatus,
+  EffectiveModel,
+  ModelForm,
+  ModelSetting,
+} from '../agents/types.js';
+import { type Certainty, CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { FINGERPRINT_VERSION, REPORT_SCHEMA_VERSION } from './meta.js';
 import { type Finding, PLATFORM_IDS, type PlatformId } from './types.js';
 
@@ -87,6 +95,8 @@ export interface BaselineReport {
   readonly findings: readonly BaselineFinding[];
   /** Absent in reports made before the inventory existed. */
   readonly inventory?: Inventory;
+  /** Absent in reports made before agentcheckup listed agent definitions. */
+  readonly agents?: AgentsReport;
   /** Plans for agents this version does not model are left out. */
   readonly context?: { readonly plans: readonly BaselinePlan[] };
 }
@@ -262,6 +272,7 @@ function readReport(value: unknown): BaselineReport {
   const tool = object(own(value, 'tool'), 'tool');
   const pathBase = optional(value, 'pathBase', '', string);
   const inventory = optional(value, 'inventory', '', readInventory);
+  const agents = optional(value, 'agents', '', readAgents);
   const context = optional(value, 'context', '', readContext);
   return {
     schemaVersion,
@@ -274,6 +285,7 @@ function readReport(value: unknown): BaselineReport {
     ...(pathBase === undefined ? {} : { pathBase }),
     findings: list(own(value, 'findings'), 'findings', readFinding),
     ...(inventory === undefined ? {} : { inventory }),
+    ...(agents === undefined ? {} : { agents }),
     ...(context === undefined ? {} : { context }),
   };
 }
@@ -497,6 +509,190 @@ function readEnv(value: unknown, at: string): EnvItem {
     key: string(own(source, 'key'), field(at, 'key')),
     class: oneOf(own(source, 'class'), field(at, 'class'), ENV_CLASSES),
     ...(shown === undefined ? {} : { shown }),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------------------------
+
+const STATUSES_OF_DEFINITIONS: Readonly<Record<DefinitionStatus, true>> = {
+  loads: true,
+  skipped: true,
+  shadowed: true,
+  unknown: true,
+};
+
+const MODEL_FORMS: Readonly<Record<ModelForm, true>> = {
+  inherit: true,
+  alias: true,
+  id: true,
+  name: true,
+  'not-documented': true,
+};
+
+const EFFECTIVE_SOURCES: Readonly<Record<EffectiveModel['source'], true>> = {
+  definition: true,
+  setting: true,
+  session: true,
+  'not-visible': true,
+};
+
+const TOOLS: Readonly<Record<AgentDefinition['tools'], true>> = {
+  inherited: true,
+  listed: true,
+  'read-only': true,
+};
+
+const CERTAINTIES: Readonly<Record<Certainty, true>> = {
+  documented: true,
+  'source-code': true,
+  unverified: true,
+};
+
+const APPLIES: Readonly<Record<ModelSetting['applies'], true>> = {
+  session: true,
+  subagents: true,
+  allowed: true,
+  alias: true,
+};
+
+/** A model value: a string, or a list of strings. */
+function modelValueOf(value: unknown, at: string): string | string[] {
+  return typeof value === 'string' ? value : strings(value, at);
+}
+
+function readAgents(value: unknown, at: string): AgentsReport {
+  const source = object(value, at);
+  const definitions: AgentDefinition[] = [];
+  const items = array(own(source, 'definitions'), field(at, 'definitions'));
+  for (let i = 0; i < items.length; i++) {
+    const definition = readDefinition(items[i], `${field(at, 'definitions')}[${i}]`);
+    if (definition !== undefined) definitions.push(definition);
+  }
+  const settings: ModelSetting[] = [];
+  const entries = array(own(source, 'settings'), field(at, 'settings'));
+  for (let i = 0; i < entries.length; i++) {
+    const setting = readModelSetting(entries[i], `${field(at, 'settings')}[${i}]`);
+    if (setting !== undefined) settings.push(setting);
+  }
+  return { definitions, settings };
+}
+
+/**
+ * A value of `allowed`, or undefined for any other string, such as one a later version writes;
+ * anything but a string is malformed.
+ */
+function known<T extends string>(
+  value: unknown,
+  at: string,
+  allowed: Readonly<Record<T, true>>,
+): T | undefined {
+  if (typeof value !== 'string')
+    return fail(at, `one of ${Object.keys(allowed).join(', ')}`, value);
+  return Object.hasOwn(allowed, value) ? (value as T) : undefined;
+}
+
+/**
+ * A definition, or undefined for an agent or a value this version does not know: a later
+ * version may add an agent, a status or a form. Leaving it out counts the current one as added,
+ * so the `models` gate fails closed.
+ */
+function readDefinition(value: unknown, at: string): AgentDefinition | undefined {
+  const source = object(value, at);
+  const agent = string(own(source, 'agent'), field(at, 'agent'));
+  if (!isContextAgent(agent)) return undefined;
+  const status = known(own(source, 'status'), field(at, 'status'), STATUSES_OF_DEFINITIONS);
+  const tools = known(own(source, 'tools'), field(at, 'tools'), TOOLS);
+  const certainty = known(own(source, 'certainty'), field(at, 'certainty'), CERTAINTIES);
+  const name = optional(source, 'name', at, string);
+  const reason = optional(source, 'reason', at, string);
+  const shadowedBy = optional(source, 'shadowedBy', at, string);
+  const permissionMode = optional(source, 'permissionMode', at, string);
+  const model = optional(source, 'model', at, (item, path) => {
+    const model = object(item, path);
+    return {
+      value: modelValueOf(own(model, 'value'), field(path, 'value')),
+      form: known(own(model, 'form'), field(path, 'form'), MODEL_FORMS),
+      line: count(own(model, 'line'), field(path, 'line')),
+    };
+  });
+  const effort = optional(source, 'effort', at, (item, path) => {
+    const effort = object(item, path);
+    return {
+      value: string(own(effort, 'value'), field(path, 'value')),
+      line: count(own(effort, 'line'), field(path, 'line')),
+    };
+  });
+  const effectiveSource = object(own(source, 'effective'), field(at, 'effective'));
+  const effectiveAt = field(at, 'effective');
+  const effectiveValue = optional(effectiveSource, 'value', effectiveAt, modelValueOf);
+  const effectiveFile = optional(effectiveSource, 'file', effectiveAt, string);
+  const overridden = optional(effectiveSource, 'overridden', effectiveAt, (item, path) => {
+    const setting = object(item, path);
+    return {
+      key: string(own(setting, 'key'), field(path, 'key')),
+      file: string(own(setting, 'file'), field(path, 'file')),
+    };
+  });
+  const effectiveKind = known(
+    own(effectiveSource, 'source'),
+    field(effectiveAt, 'source'),
+    EFFECTIVE_SOURCES,
+  );
+  const form = model?.form;
+  if (
+    status === undefined ||
+    tools === undefined ||
+    certainty === undefined ||
+    effectiveKind === undefined ||
+    (model !== undefined && form === undefined)
+  ) {
+    return undefined;
+  }
+  return {
+    id: string(own(source, 'id'), field(at, 'id')),
+    file: string(own(source, 'file'), field(at, 'file')),
+    line: count(own(source, 'line'), field(at, 'line')),
+    agent,
+    ...(name === undefined ? {} : { name }),
+    status,
+    ...(reason === undefined ? {} : { reason }),
+    ...(shadowedBy === undefined ? {} : { shadowedBy }),
+    ...(model === undefined || form === undefined ? {} : { model: { ...model, form } }),
+    effective: {
+      ...(effectiveValue === undefined ? {} : { value: effectiveValue }),
+      source: effectiveKind,
+      ...(effectiveFile === undefined ? {} : { file: effectiveFile }),
+      ...(overridden === undefined ? {} : { overridden }),
+    },
+    ...(effort === undefined ? {} : { effort }),
+    tools,
+    ...(permissionMode === undefined ? {} : { permissionMode }),
+    certainty,
+    evidence: strings(own(source, 'evidence'), field(at, 'evidence')),
+    digest: string(own(source, 'digest'), field(at, 'digest')),
+  };
+}
+
+/** A model setting, or undefined for an agent or a kind this version does not know. */
+function readModelSetting(value: unknown, at: string): ModelSetting | undefined {
+  const source = object(value, at);
+  const agent = string(own(source, 'agent'), field(at, 'agent'));
+  if (!isContextAgent(agent)) return undefined;
+  const applies = known(own(source, 'applies'), field(at, 'applies'), APPLIES);
+  if (applies === undefined) return undefined;
+  const forced = optional(source, 'forced', at, boolean);
+  return {
+    id: string(own(source, 'id'), field(at, 'id')),
+    agent,
+    file: string(own(source, 'file'), field(at, 'file')),
+    line: count(own(source, 'line'), field(at, 'line')),
+    key: string(own(source, 'key'), field(at, 'key')),
+    value: string(own(source, 'value'), field(at, 'value')),
+    applies,
+    ...(forced === undefined ? {} : { forced }),
+    digest: string(own(source, 'digest'), field(at, 'digest')),
   };
 }
 

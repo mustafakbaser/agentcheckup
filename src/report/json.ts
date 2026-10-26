@@ -35,6 +35,7 @@ import {
   type RuleMeta,
   type RuleSource,
 } from '../core/types.js';
+import type { AgentDefinition, AgentsReport, ModelSetting, ModelValue } from '../agents/types.js';
 import type {
   EnvItem,
   HookItem,
@@ -270,6 +271,7 @@ export const GATE_CLASS_ORDER: Readonly<Record<GateClass, number>> = {
   hooks: 3,
   env: 4,
   unicode: 5,
+  models: 6,
 };
 const gateRank = ranks(GATE_CLASS_ORDER);
 
@@ -542,6 +544,73 @@ export function toJsonInventory(inventory: Inventory): Inventory {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------------------------
+
+function modelValue(value: ModelValue): ModelValue {
+  return {
+    value: typeof value.value === 'string' ? value.value : [...value.value],
+    form: value.form,
+    line: value.line,
+  };
+}
+
+function agentDefinition(value: AgentDefinition): AgentDefinition {
+  const { effective } = value;
+  return {
+    id: value.id,
+    file: value.file,
+    line: value.line,
+    agent: value.agent,
+    ...(value.name === undefined ? {} : { name: value.name }),
+    status: value.status,
+    ...(value.reason === undefined ? {} : { reason: value.reason }),
+    ...(value.shadowedBy === undefined ? {} : { shadowedBy: value.shadowedBy }),
+    ...(value.model === undefined ? {} : { model: modelValue(value.model) }),
+    effective: {
+      ...(effective.value === undefined
+        ? {}
+        : { value: typeof effective.value === 'string' ? effective.value : [...effective.value] }),
+      source: effective.source,
+      ...(effective.file === undefined ? {} : { file: effective.file }),
+      ...(effective.overridden === undefined
+        ? {}
+        : { overridden: { key: effective.overridden.key, file: effective.overridden.file } }),
+    },
+    ...(value.effort === undefined
+      ? {}
+      : { effort: { value: value.effort.value, line: value.effort.line } }),
+    tools: value.tools,
+    ...(value.permissionMode === undefined ? {} : { permissionMode: value.permissionMode }),
+    certainty: value.certainty,
+    evidence: [...value.evidence],
+    digest: value.digest,
+  };
+}
+
+function modelSetting(value: ModelSetting): ModelSetting {
+  return {
+    id: value.id,
+    agent: value.agent,
+    file: value.file,
+    line: value.line,
+    key: value.key,
+    value: value.value,
+    applies: value.applies,
+    ...(value.forced === undefined ? {} : { forced: value.forced }),
+    digest: value.digest,
+  };
+}
+
+/** A canonical copy of the agent definitions and model settings, sorted by id. */
+export function toJsonAgents(agents: AgentsReport): AgentsReport {
+  return {
+    definitions: sortedBy(agents.definitions, byId).map(agentDefinition),
+    settings: sortedBy(agents.settings, byId).map(modelSetting),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Baseline
 // ---------------------------------------------------------------------------------------------
 
@@ -612,6 +681,7 @@ export function toJsonBaseline(diff: BaselineDiff): BaselineDiff {
       })),
     },
     inventory: itemDiff(diff.inventory),
+    ...(diff.agents === undefined ? {} : { agents: itemDiff(diff.agents) }),
     context: sortedBy(
       diff.context,
       (delta) => agentRank(delta.agent),
@@ -673,6 +743,7 @@ export function toJsonReport(result: ScanResult): ScanResult {
     configWarnings: [...result.configWarnings],
     ...(result.pathBase === undefined ? {} : { pathBase: result.pathBase }),
     inventory: toJsonInventory(result.inventory),
+    ...(result.agents === undefined ? {} : { agents: toJsonAgents(result.agents) }),
     ...(result.context === undefined ? {} : { context: toJsonContext(result.context) }),
     ...(result.baseline === undefined ? {} : { baseline: toJsonBaseline(result.baseline) }),
     ...(result.policy === undefined ? {} : { policy: toJsonPolicy(result.policy) }),
