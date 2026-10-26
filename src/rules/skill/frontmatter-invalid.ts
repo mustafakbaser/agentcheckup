@@ -12,7 +12,7 @@ import { geminiSkipReasons, type GeminiSkipReason } from '../../platforms/gemini
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { joinClauses, platformList, platformsDo, quote, sentence } from '../shared/format.js';
-import { claudeCodeRepair, parsesAsFrontmatter } from './repair.js';
+import { claudeCodeAccepts, claudeCodeRepair, parsesAsFrontmatter } from './repair.js';
 import {
   type Impact,
   impactsOn,
@@ -135,7 +135,7 @@ function syntaxProblem(scope: SkillScope, artifact: Artifact, issue: ParseIssue)
   const yaml = frontmatterYaml(artifact.decoded.text);
   // Claude Code's recovery is undocumented: it only decides whether to claim the documented
   // outcome (no fields), never what the message says.
-  const claudeRecovers = parsesAsFrontmatter(claudeCodeRepair(yaml));
+  const claudeRecovers = claudeCodeAccepts([issue]) || parsesAsFrontmatter(claudeCodeRepair(yaml));
   const codexRecovers = codexRepairedYaml(yaml) !== undefined;
 
   const clauses: string[] = [];

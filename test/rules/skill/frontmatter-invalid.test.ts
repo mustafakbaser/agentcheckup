@@ -102,6 +102,15 @@ describe('skill/frontmatter-invalid', () => {
     ]);
   });
 
+  it('does not claim Claude Code loads no fields where its YAML reader accepts the block', () => {
+    const [finding] = check(
+      `---\nname: deploy\ndescription: Deploys. Use when deploying.\n${'k'.repeat(1100)}: v\n---\n`,
+    );
+    expect(finding?.message).toBe(
+      `The frontmatter is not valid YAML (The : indicator must be at most 1024 chars after the start of an implicit block mapping key). Codex and Cline skip the skill, and ${VALIDATORS}`,
+    );
+  });
+
   it('reports frontmatter that is not a mapping', () => {
     expect(check('---\n- name\n- description\n---\n')).toEqual([
       {

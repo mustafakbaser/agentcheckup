@@ -12,6 +12,7 @@ import { codePointLength } from '../core/measure.js';
 import type { Span } from '../core/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import type { FrontmatterData, FrontmatterResult, ParseIssue } from '../parse/types.js';
+import { claudeCodeBlock, claudeCodeMayRead } from './skill-repair.js';
 import { yamlSyntaxError } from './yaml.js';
 
 /** Supported subagent fields other than `name` (code.claude.com/docs/en/sub-agents). */
@@ -144,10 +145,16 @@ function asText(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-/** What Claude Code does with the subagent file `text`, whose frontmatter is `frontmatter`. */
+/**
+ * What Claude Code does with the subagent file `text`, whose frontmatter is `frontmatter`. Where
+ * Claude Code's reader may read a block the documented form rejects (src/platforms/skill-repair.ts:
+ * a block that ends at a `---` inside a line, YAML its reader accepts or its retry repairs, merge
+ * keys), whether it loads the subagent is `unknown`.
+ */
 export function checkSubagent(text: string, frontmatter: FrontmatterResult): SubagentCheck {
   switch (frontmatter.kind) {
     case 'absent': {
+      if (claudeCodeBlock(text) !== undefined) return { status: 'unknown' };
       const offset = misplacedFrontmatter(text);
       if (offset === undefined) return { status: 'documentation' };
       return {
@@ -156,6 +163,7 @@ export function checkSubagent(text: string, frontmatter: FrontmatterResult): Sub
       };
     }
     case 'unclosed':
+      if (claudeCodeBlock(text) !== undefined) return { status: 'unknown' };
       return {
         status: 'skipped',
         issues: [{ code: 'unclosed-frontmatter', span: frontmatter.openSpan }],
@@ -166,14 +174,17 @@ export function checkSubagent(text: string, frontmatter: FrontmatterResult): Sub
         issues: [{ code: 'unsupported-frontmatter', span: frontmatter.span }],
       };
     case 'invalid': {
+      if (claudeCodeMayRead(text, frontmatter.errors)) return { status: 'unknown' };
       const error = yamlSyntaxError(frontmatter.errors, { tolerateCommonMistakes: true });
       if (error === undefined) return { status: 'unknown' };
       return { status: 'skipped', issues: [{ code: 'invalid-yaml', span: error.span, error }] };
     }
     case 'valid': {
       const issues = fieldIssues(frontmatter.data);
-      if (issues === undefined) return { status: 'documentation' };
-      if (issues.length > 0) return { status: 'skipped', issues };
+      // Claude Code applies `<<` merge keys, which may supply the fields read as missing here.
+      const merged = Object.hasOwn(frontmatter.data.values, '<<');
+      if (issues === undefined) return merged ? { status: 'unknown' } : { status: 'documentation' };
+      if (issues.length > 0) return merged ? { status: 'unknown' } : { status: 'skipped', issues };
       const { values } = frontmatter.data;
       return {
         status: 'loads',

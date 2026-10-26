@@ -695,6 +695,18 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
     });
     expect(result.skipped).toEqual([]);
   });
+
+  it("lists a subagent only Claude Code's own reader reads as unverified, not as skipped", () => {
+    const result = plan({
+      '.claude/agents/repeated.md': '---\nname: a\nname: repeated\ndescription: d\n---\n',
+      '.claude/agents/retried.md': '---\nname: retried\ndescription: @mention a reviewer\n---\n',
+      '.claude/agents/inline.md': '---\nname: inline\ndescription: Reviews --- and more\n',
+    });
+    for (const name of ['inline', 'repeated', 'retried']) {
+      expect(entry(result, `subagent:.claude/agents/${name}.md`).certainty).toBe('unverified');
+    }
+    expect(result.skipped).toEqual([]);
+  });
 });
 
 describe('loadClaudeCode: MCP servers and hooks', () => {

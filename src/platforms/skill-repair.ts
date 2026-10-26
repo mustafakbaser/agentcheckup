@@ -17,7 +17,8 @@
  * Both repairs are replayed and the result is parsed with the same hardened parser that
  * produced the original error. A repair that parses means that agent loads the skill normally.
  */
-import { parseFrontmatter } from '../parse/frontmatter.js';
+import { locateFrontmatter, parseFrontmatter } from '../parse/frontmatter.js';
+import type { ParseIssue } from '../parse/types.js';
 
 /** True when `yaml`, placed between frontmatter delimiters, is a valid mapping. */
 export function parsesAsFrontmatter(yaml: string): boolean {
@@ -65,6 +66,54 @@ export function claudeCodeRepair(yaml: string): string {
     .map(claudeCodeRepairLine)
     .join('\n')
     .replace(LEADING_TABS, (tabs) => '  '.repeat(tabs.length));
+}
+
+/** JavaScript's `\s`, which Claude Code's pattern allows after the opening `---`. */
+const JS_SPACE = /\s/;
+
+/**
+ * The block Claude Code's frontmatter reader takes, as `[start, end)` of its YAML: `---` at the
+ * start of the text, whitespace through its last line break, then everything up to the first
+ * `---`, wherever it is. This is its pattern `/^---\s*\n([\s\S]*?)---\s*\n?/` (2.1.272 binary,
+ * undocumented), found in one pass. Unlike the documented form, the block may end inside a line
+ * and the opening `---` may be followed by any whitespace.
+ */
+export function claudeCodeBlock(
+  text: string,
+): { readonly start: number; readonly end: number } | undefined {
+  if (!text.startsWith('---')) return undefined;
+  let start = -1;
+  for (let index = 3; index < text.length && JS_SPACE.test(text.charAt(index)); index++) {
+    if (text.charAt(index) === '\n') start = index + 1;
+  }
+  if (start === -1) return undefined;
+  const end = text.indexOf('---', start);
+  return end === -1 ? undefined : { start, end };
+}
+
+/**
+ * Errors of a strict parse that Claude Code's YAML reader does not raise: it parses with
+ * `Bun.YAML.parse`, which keeps the last of repeated keys and accepts implicit keys longer than
+ * 1,024 characters (2.1.272 binary, replayed under its Bun version; undocumented).
+ */
+const CLAUDE_CODE_ACCEPTS: ReadonlySet<string> = new Set(['duplicate-key', 'key-over-1024-chars']);
+
+/** True when Claude Code's YAML reader raises none of `errors`. */
+export function claudeCodeAccepts(errors: readonly ParseIssue[]): boolean {
+  return errors.length > 0 && errors.every((error) => CLAUDE_CODE_ACCEPTS.has(error.code));
+}
+
+/**
+ * True when Claude Code's reader may read fields from frontmatter that a strict parse rejects
+ * with `errors`: its YAML reader raises none of them, or its retry repairs the block.
+ */
+export function claudeCodeMayRead(text: string, errors: readonly ParseIssue[]): boolean {
+  if (claudeCodeAccepts(errors)) return true;
+  const location = locateFrontmatter(text);
+  return (
+    location.kind === 'block' &&
+    parsesAsFrontmatter(claudeCodeRepair(text.slice(location.yamlStart, location.yamlEnd)))
+  );
 }
 
 // ---------------------------------------------------------------------------------------------

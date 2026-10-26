@@ -108,6 +108,29 @@ describe('instr/subagent-invalid', () => {
     ).toEqual([]);
   });
 
+  it.each([
+    [
+      'repeated keys, of which its YAML reader keeps the last',
+      '---\nname: a\nname: reviewer\ndescription: d\n---\n',
+    ],
+    [
+      'a key longer than 1,024 characters',
+      `---\nname: reviewer\ndescription: d\n${'k'.repeat(1100)}: v\n---\n`,
+    ],
+    ['a value its retry quotes', '---\nname: reviewer\ndescription: @mention the reviewer\n---\n'],
+    ['fields from a merge key', '---\nbase: &b {name: reviewer, description: d}\n<<: *b\n---\n'],
+    [
+      'a block that ends at a "---" inside a line',
+      '---\nname: reviewer\ndescription: Reviews --- and more\n',
+    ],
+    [
+      'other whitespace after the opening "---"',
+      '---\u00a0\nname: reviewer\ndescription: d\n---\n',
+    ],
+  ])('does not claim Claude Code skips a subagent its reader may load: %s', (_, text) => {
+    expect(run(text)).toEqual([]);
+  });
+
   it('reports frontmatter that is not a mapping', () => {
     expect(run('---\n- name: reviewer\n---\n').map((finding) => finding.message)).toEqual([
       'The frontmatter is not a YAML mapping of "key: value" fields, so Claude Code finds no name and does not load this subagent.',
