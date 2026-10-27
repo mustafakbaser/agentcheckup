@@ -28,6 +28,8 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'claude-local-md': ['claude-code'],
   'claude-rule': ['claude-code'],
   'claude-agent': ['claude-code'],
+  // A subagent's memory, which Claude Code adds to its prompt (SOURCES.claudeSubagents).
+  'claude-agent-memory': ['claude-code'],
   'claude-command': ['claude-code'],
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
@@ -130,6 +132,11 @@ const MATCHERS: readonly Matcher[] = [
   {
     kind: 'claude-agent',
     pattern: /(?:^|\/)\.claude\/agents\/(?:[^/]+\/)*[^/]+\.md$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'claude-agent-memory',
+    pattern: /(?:^|\/)\.claude\/agent-memory(?:-local)?\/[^/]+\/memory\.md$/,
     canonical: keepPath,
   },
   {

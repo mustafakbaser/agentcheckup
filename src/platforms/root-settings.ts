@@ -6,6 +6,22 @@
 import { isTable, type JsonPath, own, type SpannedDocument } from '../parse/json-access.js';
 import type { LoadView } from './load/view.js';
 
+/** The text of a switch's value, lowercase, for a string, number or boolean. */
+function switchText(value: unknown): string | undefined {
+  const text = typeof value === 'number' || typeof value === 'boolean' ? String(value) : value;
+  return typeof text === 'string' ? text.trim().toLowerCase() : undefined;
+}
+
+/** `1`, `true`, `yes` or `on`, in any case: how Claude Code reads an environment switch. */
+export function isTruthy(value: unknown): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(switchText(value) ?? '');
+}
+
+/** `0`, `false`, `no` or `off`, in any case: a switch set the other way. */
+export function isFalsy(value: unknown): boolean {
+  return ['0', 'false', 'no', 'off'].includes(switchText(value) ?? '');
+}
+
 /** The value at `path` in `doc`, or undefined. */
 export function settingAt(doc: SpannedDocument, path: JsonPath): unknown {
   let value: unknown = doc.value;

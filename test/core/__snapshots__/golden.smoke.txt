@@ -1887,7 +1887,8 @@
         "devin-mcp",
         "devin-hooks",
         "codex-config",
-        "codex-agent"
+        "codex-agent",
+        "claude-agent-memory"
       ],
       "platforms": [
         "claude-code",

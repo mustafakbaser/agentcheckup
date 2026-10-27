@@ -320,6 +320,48 @@ const claudeEntries: LoadEntry[] = [
   skill('docs', 300, 1200, 6),
   skill('lint', 300, 1500, 7),
   skill('release', 310, 2000, 8),
+  // Listed by name and description from the start; what it starts with when it runs goes to a
+  // window of its own.
+  entry('subagent', '.claude/agents/reviewer.md', {
+    trigger: 'startup',
+    name: 'reviewer',
+    size: size(120),
+    ownContext: {
+      size: size(1500 + 8496 + 1200),
+      parts: [
+        {
+          kind: 'prompt',
+          size: size(1500),
+          certainty: 'documented',
+          evidence: ['claudeSubagents'],
+        },
+        {
+          kind: 'instructions',
+          size: size(8496),
+          certainty: 'documented',
+          evidence: ['claudeMemory', 'claudeSubagents'],
+        },
+        {
+          kind: 'skill',
+          path: '.claude/skills/docs/SKILL.md',
+          name: 'docs',
+          size: size(1200),
+          certainty: 'documented',
+          evidence: ['claudeSkills', 'claudeSubagents'],
+        },
+      ],
+      notLoaded: [{ name: 'personal', reason: 'not-found' }],
+      memory: { scope: 'project', path: '.claude/agent-memory/reviewer/MEMORY.md', exists: true },
+      notVisible: [
+        'environment',
+        'task',
+        'tools',
+        'git-status',
+        'user-instructions',
+        'managed-instructions',
+      ],
+    },
+  }),
   entry('hook', '.claude/settings.json', {
     id: 'hook:.claude/settings.json#PreToolUse',
     name: 'PreToolUse',
@@ -330,11 +372,6 @@ const claudeEntries: LoadEntry[] = [
     trigger: 'on-path',
     patterns: ['src/api/**'],
     size: size(900),
-  }),
-  entry('subagent', '.claude/agents/reviewer.md', {
-    trigger: 'model-selected',
-    name: 'reviewer',
-    size: size(1500),
   }),
   entry('command', '.claude/commands/release.md', {
     trigger: 'manual',

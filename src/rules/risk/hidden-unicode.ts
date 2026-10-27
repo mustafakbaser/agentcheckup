@@ -164,8 +164,9 @@ export const hiddenUnicodeRule = defineRule({
       ...MARKDOWN_OR_IMPORTED_KINDS,
       ...JSON_KINDS,
       ...TOML_KINDS,
-      // A Codex agent file's developer_instructions is a prompt.
+      // A Codex agent file's developer_instructions is a prompt, and so is a subagent's memory.
       'codex-agent',
+      'claude-agent-memory',
     ] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [

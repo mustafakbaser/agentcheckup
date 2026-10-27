@@ -210,6 +210,7 @@
         "claude-local-md",
         "claude-rule",
         "claude-agent",
+        "claude-agent-memory",
         "claude-command",
         "claude-settings",
         "claude-plugin-manifest",
@@ -793,8 +794,94 @@
           "type": "string",
           "minLength": 1
         },
+        "ownContext": { "$ref": "#/$defs/ownContext" },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "$ref": "#/$defs/sourceKeys" }
+      }
+    },
+    "ownContext": {
+      "description": "For a subagent the agent loads: what its own context window starts with when it runs, as far as the repository shows. Not part of the plan's totals.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "parts", "notVisible"],
+      "properties": {
+        "size": {
+          "description": "The sum of `parts`.",
+          "$ref": "#/$defs/size"
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "size", "certainty", "evidence"],
+            "properties": {
+              "kind": {
+                "description": "`prompt`: the subagent's own prompt. `instructions`: the instruction files the session loads at startup. `skill`: the body of a skill the `skills` field preloads. `listing`: the session's skills listing, as Codex's skills instructions block. `memory`: the part of its MEMORY.md the agent memory adds.",
+                "enum": ["prompt", "instructions", "skill", "listing", "memory"]
+              },
+              "path": {
+                "description": "For a skill: its SKILL.md. For memory: its MEMORY.md.",
+                "$ref": "#/$defs/path"
+              },
+              "name": { "type": "string" },
+              "size": { "$ref": "#/$defs/size" },
+              "certainty": { "$ref": "#/$defs/certainty" },
+              "evidence": { "$ref": "#/$defs/sourceKeys" }
+            }
+          }
+        },
+        "notLoaded": {
+          "description": "Skills of the first 32 the `skills` field names that the subagent does not get.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "reason"],
+            "properties": {
+              "name": { "type": "string" },
+              "reason": { "enum": ["not-found", "not-model-invocable", "off"] }
+            }
+          }
+        },
+        "overLimit": {
+          "description": "How many more distinct skills the `skills` field names past the first 32, none of which loads.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "unmeasured": {
+          "description": "Files the call starts with that the scan did not read, such as a preloaded skill larger than it reads: `size` leaves them out.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/path" },
+          "minItems": 1
+        },
+        "memory": {
+          "description": "The agent memory `memory` adds to the prompt (the first 200 lines or 25 KB of MEMORY.md), measured as a `memory` part when the scan read the file.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["scope"],
+          "properties": {
+            "scope": { "enum": ["project", "local", "user"] },
+            "path": { "$ref": "#/$defs/path" },
+            "exists": { "type": "boolean" }
+          }
+        },
+        "notVisible": {
+          "description": "What the subagent also starts with that no file in the repository shows.",
+          "type": "array",
+          "items": {
+            "enum": [
+              "prompt",
+              "environment",
+              "task",
+              "tools",
+              "git-status",
+              "user-instructions",
+              "managed-instructions",
+              "instructions"
+            ]
+          }
+        }
       }
     },
     "skipCode": {
@@ -851,6 +938,10 @@
         "fix": {
           "description": "How the fix on the finding of `ruleId` on `path` is applied, when it has one: its class (`safe`, `review`), or `input` when it needs your words, which only `agentcheckup fix -i` asks for.",
           "enum": ["safe", "review", "input"]
+        },
+        "ownContext": {
+          "description": "For a subagent another definition of its name may win over, where the agent does not document which one: what its call starts with if it is the one that loads.",
+          "$ref": "#/$defs/ownContext"
         },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "$ref": "#/$defs/sourceKeys" }

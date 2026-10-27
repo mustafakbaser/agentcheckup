@@ -9,6 +9,7 @@ import {
   type ContextAgent,
   type LoadEntry,
   type LoadPlan,
+  type OwnContext,
 } from '../../../src/platforms/load/types.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
 
@@ -19,8 +20,14 @@ interface Options {
 
 function plansOf(files: FileMap, options: Options = {}): LoadPlan[] {
   const extras = options.extras ?? {};
+  // The walker reads a file an instruction file imports; the snapshot helper needs telling.
+  const imported = Object.keys(files).filter((path) => path.startsWith('docs/'));
   const analysis = analyze(
-    snapshotFrom(files, { ...extras, paths: ['.git/HEAD', ...(extras.paths ?? [])] }),
+    snapshotFrom(files, {
+      ...extras,
+      imported: [...imported, ...(extras.imported ?? [])],
+      paths: ['.git/HEAD', ...(extras.paths ?? [])],
+    }),
     { targets: PLATFORM_IDS },
   );
   return loadPlans(analysis, {
@@ -101,6 +108,20 @@ describe('subagents in every plan', () => {
       realPath: '.codex/agents/tester.toml',
       name: 'tester',
       size: { bytes: 'testerRuns tests.'.length, chars: 'testerRuns tests.'.length, tokens: 5 },
+      // What the subagent starts with: `developer_instructions` is its prompt; whether
+      // AGENTS.md reaches it is not documented.
+      ownContext: {
+        size: { bytes: 14, chars: 14, tokens: 4 },
+        parts: [
+          {
+            kind: 'prompt',
+            size: { bytes: 14, chars: 14, tokens: 4 },
+            certainty: 'documented',
+            evidence: ['codexSubagents'],
+          },
+        ],
+        notVisible: ['environment', 'task', 'tools', 'instructions'],
+      },
       certainty: 'unverified',
       evidence: ['codexSubagents'],
     });
@@ -364,5 +385,409 @@ describe("Claude Code's subagents listing limit", () => {
     expect(plan.limits.some((item) => item.key === 'claude-code.agent_descriptions_tokens')).toBe(
       false,
     );
+  });
+});
+
+describe('what a subagent starts with when it runs', () => {
+  const skill = (name: string, extra = ''): string =>
+    `---\nname: ${name}\ndescription: ${name} skill.\n${extra}---\n${name} body.\n`;
+
+  it("gives a Claude Code subagent its prompt, the session's startup instructions and its preloaded skills", () => {
+    const plan = planOf(
+      plansOf({
+        'CLAUDE.md': 'Rules.\n@docs/style.md\n',
+        'docs/style.md': 'Style.\n',
+        '.claude/rules/always.md': 'Always.\n',
+        // Loads when Claude opens a matching file: not at startup, so not for the subagent.
+        '.claude/rules/tests.md': '---\npaths: "**/*.test.ts"\n---\nTests.\n',
+        '.claude/skills/api/SKILL.md': skill('api'),
+        '.claude/skills/deploy/SKILL.md': skill('deploy', 'disable-model-invocation: true\n'),
+        '.claude/skills/old/SKILL.md': skill('old'),
+        '.claude/settings.json': JSON.stringify({ skillOverrides: { old: 'off' } }),
+        '.claude/agents/builder.md':
+          '---\nname: builder\ndescription: Builds.\nskills:\n  - api\n  - api\n  - deploy\n  - old\n  - personal\nmemory: project\n---\nBuild it.\n',
+        '.claude/agent-memory/builder/MEMORY.md': 'Learned.\n',
+      }),
+      'claude-code',
+    );
+    const context = subagent(plan, 'subagent:.claude/agents/builder.md').ownContext;
+    const instructions = 'Rules.\n@docs/style.md\n'.length + 'Style.\n'.length + 'Always.\n'.length;
+    expect(context?.parts).toEqual([
+      {
+        kind: 'prompt',
+        size: { bytes: 10, chars: 10, tokens: 3 },
+        certainty: 'documented',
+        evidence: ['claudeSubagents'],
+      },
+      {
+        kind: 'instructions',
+        size: { bytes: instructions, chars: instructions, tokens: Math.ceil(instructions / 4) },
+        certainty: 'documented',
+        evidence: ['claudeSubagents', 'claudeMemory'],
+      },
+      {
+        kind: 'skill',
+        path: '.claude/skills/api/SKILL.md',
+        name: 'api',
+        size: { bytes: 10, chars: 10, tokens: 3 },
+        certainty: 'documented',
+        evidence: ['claudeSubagents', 'claudeSkills'],
+      },
+      // The memory the `memory` field adds, from the file in the repository.
+      {
+        kind: 'memory',
+        path: '.claude/agent-memory/builder/MEMORY.md',
+        size: { bytes: 9, chars: 9, tokens: 3 },
+        certainty: 'documented',
+        evidence: ['claudeSubagents'],
+      },
+    ]);
+    expect(context?.size.chars).toBe(10 + instructions + 10 + 'Learned.\n'.length);
+    // A name twice is preloaded once.
+    expect(context?.notLoaded).toEqual([
+      { name: 'deploy', reason: 'not-model-invocable' },
+      { name: 'old', reason: 'off' },
+      { name: 'personal', reason: 'not-found' },
+    ]);
+    expect(context?.memory).toEqual({
+      scope: 'project',
+      path: '.claude/agent-memory/builder/MEMORY.md',
+      exists: true,
+    });
+    expect(context?.notVisible).toEqual([
+      'environment',
+      'task',
+      'tools',
+      'git-status',
+      'user-instructions',
+      'managed-instructions',
+    ]);
+    // A separate window: the session's startup total is its startup entries, without it.
+    const startup = plan.entries
+      .filter((item) => item.trigger === 'startup')
+      .reduce((sum, item) => sum + (item.size?.chars ?? 0), 0);
+    expect(plan.totals.startup.chars).toBe(startup);
+  });
+
+  it('leaves out the instruction files with omitClaudeMd, and preloads only the first 32 names', () => {
+    const files: Record<string, string> = { 'CLAUDE.md': 'Rules.\n' };
+    const names = Array.from({ length: 35 }, (_, i) => `s${String(i).padStart(2, '0')}`);
+    for (const name of names.slice(0, 33)) files[`.claude/skills/${name}/SKILL.md`] = skill(name);
+    files['.claude/agents/lean.md'] =
+      `---\nname: lean\ndescription: Lean.\nomitClaudeMd: true\nskills: [${names.join(', ')}]\n---\nLean.\n`;
+    const context = subagent(
+      planOf(plansOf(files), 'claude-code'),
+      'subagent:.claude/agents/lean.md',
+    ).ownContext;
+    expect(context?.parts.map((part) => part.kind)).toEqual([
+      'prompt',
+      ...Array.from({ length: 32 }, () => 'skill'),
+    ]);
+    // Past the first 32, a count: the names do not load, found or not.
+    expect(context?.notLoaded).toBeUndefined();
+    expect(context?.overLimit).toBe(3);
+    // The user's CLAUDE.md is not loaded either; the organization's still is.
+    expect(context?.notVisible).not.toContain('user-instructions');
+    expect(context?.notVisible).toContain('managed-instructions');
+  });
+
+  it("counts the instruction files as unverified when omitClaudeMd is a skill's boolean form", () => {
+    const parts = (value: string): unknown =>
+      subagent(
+        planOf(
+          plansOf({
+            'CLAUDE.md': 'Rules.\n',
+            '.claude/agents/a.md': `---\nname: a\ndescription: A.\nomitClaudeMd: ${value}\n---\nA.\n`,
+          }),
+          'claude-code',
+        ),
+        'subagent:.claude/agents/a.md',
+      ).ownContext?.parts.map((part) => `${part.kind} ${part.certainty}`);
+    expect(parts('true')).toEqual(['prompt documented']);
+    // Claude Code reads yes as true in a skill; for omitClaudeMd that is not documented.
+    expect(parts('yes')).toEqual(['prompt documented', 'instructions unverified']);
+    expect(parts('"TRUE"')).toEqual(['prompt documented', 'instructions unverified']);
+    expect(parts('false')).toEqual(['prompt documented', 'instructions documented']);
+    expect(parts('no')).toEqual(['prompt documented', 'instructions documented']);
+  });
+
+  it("preloads a skill by its directory's name, as unverified", () => {
+    const context = subagent(
+      planOf(
+        plansOf({
+          '.claude/skills/deploy-staging/SKILL.md': skill('deploy'),
+          '.claude/agents/a.md':
+            '---\nname: a\ndescription: A.\nskills: [deploy-staging, deploy]\n---\nA.\n',
+        }),
+        'claude-code',
+      ),
+      'subagent:.claude/agents/a.md',
+    ).ownContext;
+    expect(
+      context?.parts
+        .filter((part) => part.kind === 'skill')
+        .map((part) => `${part.name ?? ''} ${part.path ?? ''} ${part.certainty}`),
+    ).toEqual([
+      'deploy-staging .claude/skills/deploy-staging/SKILL.md unverified',
+      'deploy .claude/skills/deploy-staging/SKILL.md documented',
+    ]);
+    expect(context?.notLoaded).toBeUndefined();
+  });
+
+  it('measures each definition once for every plan of a scan', () => {
+    const analysis = analyze(
+      snapshotFrom(
+        {
+          '.codex/agents/a.toml':
+            'name = "a"\ndescription = "A."\ndeveloper_instructions = "Do it."\n',
+          'pkg/AGENTS.md': 'Package.\n',
+        },
+        { paths: ['.git/HEAD'] },
+      ),
+      { targets: PLATFORM_IDS },
+    );
+    const [root, pkg] = ['', 'pkg'].map((cwd) =>
+      planOf(loadPlans(analysis, { agents: ['codex'], cwd, config: analysis.config }), 'codex'),
+    );
+    const id = 'subagent:.codex/agents/a.toml';
+    // The prompt, the part that grows with the file, is the same object in every plan.
+    const prompt = (plan: LoadPlan | undefined) =>
+      subagent(plan!, id).ownContext?.parts.find((part) => part.kind === 'prompt');
+    expect(prompt(pkg)).toBeDefined();
+    expect(prompt(pkg)).toBe(prompt(root));
+  });
+
+  it('reads a comma-separated skills value as unverified, and ignores one of another type', () => {
+    const files = {
+      '.claude/skills/api/SKILL.md': skill('api'),
+      '.claude/agents/listed.md':
+        '---\nname: listed\ndescription: L.\nskills: api, other\n---\nL.\n',
+      '.claude/agents/odd.md': '---\nname: odd\ndescription: O.\nskills: 3\n---\nO.\n',
+    };
+    const plan = planOf(plansOf(files), 'claude-code');
+    const listed = subagent(plan, 'subagent:.claude/agents/listed.md').ownContext;
+    expect(listed?.parts.find((part) => part.kind === 'skill')).toMatchObject({
+      name: 'api',
+      certainty: 'unverified',
+    });
+    expect(listed?.notLoaded).toEqual([{ name: 'other', reason: 'not-found' }]);
+    const odd = subagent(plan, 'subagent:.claude/agents/odd.md').ownContext;
+    expect(odd?.parts.map((part) => part.kind)).toEqual(['prompt']);
+    expect(odd?.notLoaded).toBeUndefined();
+  });
+
+  it('names the memory file without reading it, and none when auto memory is off', () => {
+    const agent = (memory: string): string =>
+      `---\nname: keeper\ndescription: Keeps.\nmemory: ${memory}\n---\nKeep.\n`;
+    const memoryOf = (files: Record<string, string>): unknown =>
+      subagent(planOf(plansOf(files), 'claude-code'), 'subagent:.claude/agents/keeper.md')
+        .ownContext?.memory;
+    expect(memoryOf({ '.claude/agents/keeper.md': agent('local') })).toEqual({
+      scope: 'local',
+      path: '.claude/agent-memory-local/keeper/MEMORY.md',
+      exists: false,
+    });
+    // The user's scope is never read.
+    expect(memoryOf({ '.claude/agents/keeper.md': agent('user') })).toEqual({ scope: 'user' });
+    expect(
+      memoryOf({
+        '.claude/agents/keeper.md': agent('project'),
+        '.claude/settings.json': JSON.stringify({ autoMemoryEnabled: false }),
+      }),
+    ).toBeUndefined();
+    expect(
+      memoryOf({
+        '.claude/agents/keeper.md': agent('project'),
+        '.claude/settings.local.json': JSON.stringify({
+          env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
+        }),
+      }),
+    ).toBeUndefined();
+    // The variable wins over autoMemoryEnabled in either direction, whichever file sets them.
+    expect(
+      memoryOf({
+        '.claude/agents/keeper.md': agent('project'),
+        '.claude/settings.json': JSON.stringify({ env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } }),
+        '.claude/settings.local.json': JSON.stringify({ autoMemoryEnabled: true }),
+      }),
+    ).toBeUndefined();
+    expect(
+      memoryOf({
+        '.claude/agents/keeper.md': agent('project'),
+        '.claude/settings.json': JSON.stringify({
+          autoMemoryEnabled: false,
+          env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0' },
+        }),
+      }),
+    ).toMatchObject({ scope: 'project' });
+    // Not a documented scope: no memory.
+    expect(memoryOf({ '.claude/agents/keeper.md': agent('team') })).toBeUndefined();
+  });
+
+  it('measures the first 200 lines or 25 KB of the memory file, and none it did not read', () => {
+    const keeper = '---\nname: keeper\ndescription: Keeps.\nmemory: project\n---\nKeep.\n';
+    const call = (memory: string): OwnContext | undefined =>
+      subagent(
+        planOf(
+          plansOf({
+            '.claude/agents/keeper.md': keeper,
+            '.claude/agent-memory/keeper/MEMORY.md': memory,
+          }),
+          'claude-code',
+        ),
+        'subagent:.claude/agents/keeper.md',
+      ).ownContext;
+    const part = (memory: string) => call(memory)?.parts.find((item) => item.kind === 'memory');
+    expect(part('line\n'.repeat(300))?.size.chars).toBe('line\n'.length * 200);
+    expect(part(`${'x'.repeat(40_000)}\n`)?.size.bytes).toBe(25 * 1024);
+    // Past what the scan reads, the file is named as unmeasured.
+    const analysis = analyze(
+      {
+        ...snapshotFrom({ '.claude/agents/keeper.md': keeper }, { paths: ['.git/HEAD'] }),
+        skipped: [
+          { path: '.claude/agent-memory/keeper/MEMORY.md', reason: 'too-large', size: 2_000_000 },
+        ],
+      },
+      { targets: PLATFORM_IDS },
+    );
+    const unread = subagent(
+      planOf(
+        loadPlans(analysis, { agents: ['claude-code'], cwd: '', config: analysis.config }),
+        'claude-code',
+      ),
+      'subagent:.claude/agents/keeper.md',
+    ).ownContext;
+    expect(unread?.parts.map((item) => item.kind)).toEqual(['prompt']);
+    expect(unread?.unmeasured).toEqual(['.claude/agent-memory/keeper/MEMORY.md']);
+  });
+
+  it('names a preloaded skill the scan did not read as unmeasured, not as missing', () => {
+    const analysis = analyze(
+      {
+        ...snapshotFrom(
+          {
+            '.claude/agents/a.md': '---\nname: a\ndescription: A.\nskills: [huge, gone]\n---\nA.\n',
+          },
+          { paths: ['.git/HEAD'] },
+        ),
+        skipped: [{ path: '.claude/skills/huge/SKILL.md', reason: 'too-large', size: 2_000_000 }],
+      },
+      { targets: PLATFORM_IDS },
+    );
+    const context = subagent(
+      planOf(
+        loadPlans(analysis, { agents: ['claude-code'], cwd: '', config: analysis.config }),
+        'claude-code',
+      ),
+      'subagent:.claude/agents/a.md',
+    ).ownContext;
+    expect(context?.unmeasured).toEqual(['.claude/skills/huge/SKILL.md']);
+    expect(context?.notLoaded).toEqual([{ name: 'gone', reason: 'not-found' }]);
+  });
+
+  it('measures the call of a definition that may load instead of the preferred one', () => {
+    const plan = planOf(
+      plansOf({
+        '.claude/agents/a.md': '---\nname: reviewer\ndescription: Small.\n---\nSmall.\n',
+        '.claude/agents/b.md': `---\nname: reviewer\ndescription: Big.\n---\n${'big '.repeat(500)}\n`,
+      }),
+      'claude-code',
+    );
+    const skip = plan.skipped.find((item) => item.path === '.claude/agents/b.md');
+    // Which of two files in one folder loads is not documented: either may run.
+    expect(skip).toMatchObject({ code: 'shadowed-by-preferred', certainty: 'unverified' });
+    expect(skip?.ownContext?.size.chars).toBeGreaterThan(2000);
+  });
+
+  it("gives a Copilot CLI agent the repository's instructions only with include-custom-instructions", () => {
+    const files = {
+      'AGENTS.md': 'Use pnpm.\n',
+      '.github/agents/with.agent.md':
+        '---\ndescription: With.\ninclude-custom-instructions: true\n---\nWith.\n',
+      '.github/agents/without.agent.md': '---\ndescription: Without.\n---\nWithout.\n',
+    };
+    const plans = plansOf(files);
+    const cli = planOf(plans, 'copilot-cli');
+    const parts = (id: string) =>
+      subagent(cli, id).ownContext?.parts.map((part) => `${part.kind} ${part.certainty}`);
+    expect(parts('subagent:.github/agents/with.agent.md')).toEqual([
+      'prompt documented',
+      'instructions documented',
+    ]);
+    expect(parts('subagent:.github/agents/without.agent.md')).toEqual(['prompt documented']);
+    // Documented either way on the CLI; VS Code does not say.
+    expect(
+      subagent(cli, 'subagent:.github/agents/without.agent.md').ownContext?.notVisible,
+    ).not.toContain('instructions');
+    expect(
+      subagent(planOf(plans, 'copilot-vscode'), 'subagent:.github/agents/without.agent.md')
+        .ownContext?.notVisible,
+    ).toContain('instructions');
+  });
+
+  it('gives a Codex agent its skills instructions block unless the file turns it off', () => {
+    const agent = (name: string, extra = ''): string =>
+      `name = "${name}"\ndescription = "d"\ndeveloper_instructions = "Do it."\n${extra}`;
+    const plan = planOf(
+      plansOf({
+        '.agents/skills/api/SKILL.md': '---\nname: api\ndescription: API rules.\n---\nBody.\n',
+        '.codex/agents/plain.toml': agent('plain'),
+        '.codex/agents/off.toml': agent('off', '[skills]\ninclude_instructions = false\n'),
+        '.codex/agents/some.toml': agent(
+          'some',
+          '[[skills.config]]\npath = "x"\nenabled = false\n',
+        ),
+      }),
+      'codex',
+    );
+    const parts = (name: string) =>
+      subagent(plan, `subagent:.codex/agents/${name}.toml`).ownContext?.parts.map(
+        (part) => `${part.kind} ${part.certainty}`,
+      );
+    expect(parts('plain')).toEqual(['prompt documented', 'listing documented']);
+    expect(parts('off')).toEqual(['prompt documented']);
+    expect(parts('some')).toEqual(['prompt documented', 'listing unverified']);
+  });
+
+  it('names no memory path for a name that is not one folder name', () => {
+    for (const name of ['../../../tmp/x', 'a/b', '..']) {
+      const plan = planOf(
+        plansOf({
+          '.claude/agents/keeper.md': `---\nname: "${name}"\ndescription: Keeps.\nmemory: project\n---\nKeep.\n`,
+        }),
+        'claude-code',
+      );
+      expect(subagent(plan, 'subagent:.claude/agents/keeper.md').ownContext?.memory, name).toEqual({
+        scope: 'project',
+      });
+    }
+  });
+
+  it("gives another agent's subagent its prompt only, and none for a Codex role without a file", () => {
+    const plans = plansOf({
+      '.cursor/agents/planner.md': '---\nname: planner\ndescription: Plans.\n---\nPlan.\n',
+      '.codex/config.toml': '[agents.reviewer]\ndescription = "Reviews."\n',
+    });
+    expect(
+      subagent(planOf(plans, 'cursor'), 'subagent:.cursor/agents/planner.md').ownContext,
+    ).toEqual({
+      size: { bytes: 6, chars: 6, tokens: 2 },
+      parts: [
+        {
+          kind: 'prompt',
+          size: { bytes: 6, chars: 6, tokens: 2 },
+          certainty: 'documented',
+          evidence: ['cursorSubagents'],
+        },
+      ],
+      notVisible: ['environment', 'task', 'tools', 'instructions'],
+    });
+    expect(
+      subagent(planOf(plans, 'codex'), 'subagent:.codex/config.toml#reviewer').ownContext,
+    ).toEqual({
+      size: { bytes: 0, chars: 0, tokens: 0 },
+      parts: [],
+      notVisible: ['prompt', 'environment', 'task', 'tools', 'instructions'],
+    });
   });
 });

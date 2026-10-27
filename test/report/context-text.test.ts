@@ -85,13 +85,21 @@ describe('formatContextText content', () => {
   });
 
   it('lists startup files in assembly order with the import tree and the total', () => {
-    expect(section(claude, 'At session start                            bytes  ≈tokens')).toEqual([
-      '   1  CLAUDE.md                             1,204      301',
-      '   2    └ @AGENTS.md                        6,880    1,720',
-      '   3  packages/api/CLAUDE.md                  412      103',
-      '  4?  .claude/rules/testing.md                980      245',
-      '   5  Skills listing (4 skills, metadata)   1,310      328',
-      '                                    Total  10,786  ≈ 2,697',
+    expect(
+      section(
+        claude,
+        'At session start                                               bytes  ≈tokens',
+      ),
+    ).toEqual([
+      '   1  CLAUDE.md                                                1,204      301',
+      '   2    └ @AGENTS.md                                           6,880    1,720',
+      '   3  packages/api/CLAUDE.md                                     412      103',
+      '  4?  .claude/rules/testing.md                                   980      245',
+      '   5  Skills listing (4 skills, metadata)                      1,310      328',
+      // The names and descriptions the model picks a subagent by: no position, as no agent
+      // documents where the listing sits.
+      '      Subagents listing (1 subagent, names and descriptions)     120       30',
+      '                                                       Total  10,906  ≈ 2,727',
       '  MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github@1.4.0 (pinned)',
       '  Hooks:            PreToolUse Bash → scripts/hooks/guard.sh (fails open)',
     ]);

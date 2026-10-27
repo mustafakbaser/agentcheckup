@@ -17,7 +17,8 @@
 | 3 | packages/api/CLAUDE\.md | 412 | 103 |  |
 | 4? | \.claude/rules/testing\.md | 980 | 245 |  |
 | 5 | Skills listing (4 skills, metadata) | 1,310 | 328 |  |
-|  | **Total** | **10,786** | **≈ 2,697** |  |
+|  | Subagents listing (1 subagent, names and descriptions) | 120 | 30 |  |
+|  | **Total** | **10,906** | **≈ 2,727** |  |
 
 | Service | Detail |
 | :------ | :----- |
@@ -33,7 +34,6 @@
 | \.claude/skills/lint/SKILL\.md | body 1,500 bytes ≈ 375 | when the model picks it |
 | \.claude/skills/release/SKILL\.md | body 2,000 bytes ≈ 500 | when the model picks it |
 | \.claude/rules/api\.md | 900 bytes ≈ 225 | when Claude opens src/api/\*\* |
-| \.claude/agents/reviewer\.md | 1,500 bytes ≈ 375 | when the model picks it |
 | \.claude/commands/release\.md | 600 bytes ≈ 150 | when you run /release |
 
 ### Skipped

@@ -3,13 +3,14 @@ Assumes instructions mode claude-md-or-agents-md (default), Claude Code 2.1.277 
   interactive session, trusted workspace
 Not visible: managed settings, user settings (~/.claude, ~/.claude.json), claude.ai connectors
 
-At session start                            bytes  ~tokens
-   1  CLAUDE.md                             1,204      301
-   2    `- @AGENTS.md                       6,880    1,720
-   3  packages/api/CLAUDE.md                  412      103
-  4?  .claude/rules/testing.md                980      245
-   5  Skills listing (4 skills, metadata)   1,310      328
-                                    Total  10,786  ~ 2,697
+At session start                                               bytes  ~tokens
+   1  CLAUDE.md                                                1,204      301
+   2    `- @AGENTS.md                                          6,880    1,720
+   3  packages/api/CLAUDE.md                                     412      103
+  4?  .claude/rules/testing.md                                   980      245
+   5  Skills listing (4 skills, metadata)                      1,310      328
+      Subagents listing (1 subagent, names and descriptions)     120       30
+                                                       Total  10,906  ~ 2,727
   MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github@1.4.0 (pinned)
   Hooks:            PreToolUse Bash -> scripts/hooks/guard.sh (fails open)
 
@@ -19,7 +20,6 @@ On demand
   .claude/skills/lint/SKILL.md     body 1,500 bytes ~ 375, when the model picks it
   .claude/skills/release/SKILL.md  body 2,000 bytes ~ 500, when the model picks it
   .claude/rules/api.md             900 bytes ~ 225, when Claude opens src/api/**
-  .claude/agents/reviewer.md       1,500 bytes ~ 375, when the model picks it
   .claude/commands/release.md      600 bytes ~ 150, when you run /release
 
 Skipped

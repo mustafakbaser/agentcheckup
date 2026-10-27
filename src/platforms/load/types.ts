@@ -176,9 +176,110 @@ export interface LoadEntry {
   readonly truncated?: { readonly atByte: number; readonly line: number };
   /** For MCP servers and hooks: the matching item's id in the security inventory. */
   readonly inventoryId?: string;
+  /**
+   * For a subagent the agent loads: what its own context window starts with when it runs. Not
+   * part of the plan's totals: the subagent works in a window of its own.
+   */
+  readonly ownContext?: OwnContext;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
 }
+
+/**
+ * What a subagent starts with when it runs, as far as the repository shows. Claude Code
+ * documents it (SOURCES.claudeSubagents, "What loads at startup"): its prompt, the instruction
+ * files the session loads at startup unless `omitClaudeMd: true`, the full content of the skills
+ * its `skills` field preloads, the memory its `memory` field adds, and what no file shows. The
+ * Copilot CLI adds the repository's instruction files with `include-custom-instructions: true`
+ * (SOURCES.copilotCliAgents), and Codex its skills instructions block unless
+ * `skills.include_instructions = false` (SOURCES.codexSubagents). The other agents document only
+ * that the prompt is the subagent's system prompt.
+ */
+export interface OwnContext {
+  /** The sum of `parts`: what the repository shows, ≈tokens as `Size.tokens`. */
+  readonly size: Size;
+  readonly parts: readonly OwnContextPart[];
+  /** Skills of the first 32 the definition preloads that the subagent does not get, and why. */
+  readonly notLoaded?: readonly PreloadNotLoaded[];
+  /** How many more distinct skills `skills` names past the first 32, none of which loads. */
+  readonly overLimit?: number;
+  /**
+   * Files the call starts with that the scan did not read, such as a preloaded skill or a memory
+   * file larger than the scan reads: `size` leaves them out, so it is a lower bound.
+   */
+  readonly unmeasured?: readonly string[];
+  /**
+   * The agent memory `memory` adds to the prompt: the first 200 lines or 25 KB of `MEMORY.md`,
+   * measured as a `memory` part when the file is in the repository and read. `path` is absent for
+   * the user's scope, which agentcheckup never reads; `exists` says whether the file is in the
+   * repository.
+   */
+  readonly memory?: {
+    readonly scope: 'project' | 'local' | 'user';
+    readonly path?: string;
+    readonly exists?: boolean;
+  };
+  /** What it also starts with that no file in the repository shows. */
+  readonly notVisible: readonly OwnContextHidden[];
+}
+
+/**
+ * One part of a subagent's own context:
+ * - `prompt`: its own prompt, the body of its file or Codex's `developer_instructions`;
+ * - `instructions`: the instruction files the session loads at startup (CLAUDE.md and its
+ *   imports, rules without `paths`, AGENTS.md read in their place);
+ * - `skill`: the body of a skill its `skills` field preloads;
+ * - `listing`: the session's skills listing, which Codex adds as its skills instructions block;
+ * - `memory`: the part of its `MEMORY.md` the agent memory adds.
+ */
+export interface OwnContextPart {
+  readonly kind: 'prompt' | 'instructions' | 'skill' | 'listing' | 'memory';
+  // For `instructions`, `certainty` is that of the claim that the subagent gets the session's
+  // startup files; how sure the plan is of each of them is in its entries.
+  /** For a skill: its SKILL.md, as the session reaches it. */
+  readonly path?: string;
+  /** For a skill: its name. */
+  readonly name?: string;
+  readonly size: Size;
+  readonly certainty: Certainty;
+  readonly evidence: readonly SourceKey[];
+}
+
+/**
+ * A skill the `skills` field names that the subagent does not get:
+ * - `not-found`: no skill of that name or in a directory of that name among this session's
+ *   skills; it may be a user or plugin skill, which agentcheckup does not see, or one below the
+ *   working directory;
+ * - `not-model-invocable`: the skill has `disable-model-invocation: true` or is
+ *   `user-invocable-only` in `skillOverrides`, so it cannot be preloaded;
+ * - `off`: `skillOverrides` turns it off.
+ */
+export interface PreloadNotLoaded {
+  readonly name: string;
+  readonly reason: 'not-found' | 'not-model-invocable' | 'off';
+}
+
+/**
+ * What a subagent starts with that no file in the repository shows:
+ * - `prompt`: its prompt comes from outside the repository, as for a Codex role without a file;
+ * - `environment`: details the agent appends to the prompt, such as the working directory;
+ * - `task`: the message the session writes when it hands the work over;
+ * - `tools`: the definitions of its tools, MCP tools included;
+ * - `git-status`: Claude Code's snapshot of the repository's git status;
+ * - `user-instructions`, `managed-instructions`: CLAUDE.md files of the user and the
+ *   organization;
+ * - `instructions`: whether the repository's instruction files reach the subagent, which the
+ *   agent does not document.
+ */
+export type OwnContextHidden =
+  | 'prompt'
+  | 'environment'
+  | 'task'
+  | 'tools'
+  | 'git-status'
+  | 'user-instructions'
+  | 'managed-instructions'
+  | 'instructions';
 
 /**
  * Why the agent does not load a file or item.
@@ -277,6 +378,12 @@ export interface SkippedLoad {
    * assembled. Absent when no unsuppressed finding of that rule carries a fix.
    */
   readonly fix?: SkipFix;
+  /**
+   * For a subagent another definition of its name may win over, where the agent does not
+   * document which one (`certainty` unverified): what its call starts with if it is the one that
+   * loads.
+   */
+  readonly ownContext?: OwnContext;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
 }

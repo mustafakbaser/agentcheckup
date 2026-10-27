@@ -18,7 +18,7 @@ import {
   spanOf,
 } from '../parse/json-access.js';
 import type { LoadView } from '../platforms/load/view.js';
-import { settingAt } from '../platforms/root-settings.js';
+import { isTruthy, settingAt } from '../platforms/root-settings.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 import type { ModelSetting } from './types.js';
 
@@ -39,11 +39,7 @@ function textOf(value: unknown): string | undefined {
   return undefined;
 }
 
-/** `1`, `true`, `yes` or `on`, in any case: how Claude Code reads an environment switch. */
-export function isTruthy(value: unknown): boolean {
-  const text = typeof value === 'number' || typeof value === 'boolean' ? String(value) : value;
-  return typeof text === 'string' && ['1', 'true', 'yes', 'on'].includes(text.trim().toLowerCase());
-}
+export { isTruthy } from '../platforms/root-settings.js';
 
 /**
  * `inherit` or nothing: `CLAUDE_CODE_SUBAGENT_MODEL` set so is the same as unset

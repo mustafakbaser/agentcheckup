@@ -78,7 +78,10 @@ describe('formatContextMarkdown', () => {
     expect(output.split('\n')[0]).toBe('## Claude Code context · packages/api');
     expect(output).toContain('| # | File | Bytes | ≈Tokens | Via |');
     expect(output).toContain('| 2 | ↳ @&#8203;AGENTS\\.md | 6,880 | 1,720 | CLAUDE\\.md |');
-    expect(output).toContain('|  | **Total** | **10,786** | **≈ 2,697** |  |');
+    expect(output).toContain(
+      '|  | Subagents listing (1 subagent, names and descriptions) | 120 | 30 |  |',
+    );
+    expect(output).toContain('|  | **Total** | **10,906** | **≈ 2,727** |  |');
     expect(output).toContain(
       '| MCP, asks first | github · stdio · npx \\-y @&#8203;modelcontextprotocol/server\\-github@&#8203;1\\.4\\.0 \\(pinned\\) |',
     );

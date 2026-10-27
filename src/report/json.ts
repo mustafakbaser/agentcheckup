@@ -56,6 +56,7 @@ import type {
   LoadTrigger,
   MatrixCell,
   OutOfScope,
+  OwnContext,
   Size,
   SkippedLoad,
 } from '../platforms/load/types.js';
@@ -304,8 +305,40 @@ function loadEntry(value: LoadEntry): LoadEntry {
       ? {}
       : { truncated: { atByte: value.truncated.atByte, line: value.truncated.line } }),
     ...(value.inventoryId === undefined ? {} : { inventoryId: value.inventoryId }),
+    ...(value.ownContext === undefined ? {} : { ownContext: ownContext(value.ownContext) }),
     certainty: value.certainty,
     evidence: sortedStrings(value.evidence),
+  };
+}
+
+/** Parts in the order they were measured: the prompt, the instructions, then each skill. */
+function ownContext(value: OwnContext): OwnContext {
+  const { memory } = value;
+  return {
+    size: size(value.size),
+    parts: value.parts.map((part) => ({
+      kind: part.kind,
+      ...(part.path === undefined ? {} : { path: part.path }),
+      ...(part.name === undefined ? {} : { name: part.name }),
+      size: size(part.size),
+      certainty: part.certainty,
+      evidence: sortedStrings(part.evidence),
+    })),
+    ...(value.notLoaded === undefined
+      ? {}
+      : { notLoaded: value.notLoaded.map((item) => ({ name: item.name, reason: item.reason })) }),
+    ...(value.overLimit === undefined ? {} : { overLimit: value.overLimit }),
+    ...(value.unmeasured === undefined ? {} : { unmeasured: sortedStrings(value.unmeasured) }),
+    ...(memory === undefined
+      ? {}
+      : {
+          memory: {
+            scope: memory.scope,
+            ...(memory.path === undefined ? {} : { path: memory.path }),
+            ...(memory.exists === undefined ? {} : { exists: memory.exists }),
+          },
+        }),
+    notVisible: [...value.notVisible],
   };
 }
 
@@ -319,6 +352,7 @@ function skippedLoad(value: SkippedLoad): SkippedLoad {
     ...(value.ruleId === undefined ? {} : { ruleId: value.ruleId }),
     ...(value.size === undefined ? {} : { size: size(value.size) }),
     ...(value.fix === undefined ? {} : { fix: value.fix }),
+    ...(value.ownContext === undefined ? {} : { ownContext: ownContext(value.ownContext) }),
     certainty: value.certainty,
     evidence: sortedStrings(value.evidence),
   };

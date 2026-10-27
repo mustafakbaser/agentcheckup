@@ -994,6 +994,91 @@
             ]
           },
           {
+            "id": "subagent:.claude/agents/reviewer.md#reviewer",
+            "role": "subagent",
+            "trigger": "startup",
+            "path": ".claude/agents/reviewer.md",
+            "realPath": ".claude/agents/reviewer.md",
+            "name": "reviewer",
+            "size": {
+              "bytes": 120,
+              "chars": 120,
+              "tokens": 30
+            },
+            "ownContext": {
+              "size": {
+                "bytes": 11196,
+                "chars": 11196,
+                "tokens": 2799
+              },
+              "parts": [
+                {
+                  "kind": "prompt",
+                  "size": {
+                    "bytes": 1500,
+                    "chars": 1500,
+                    "tokens": 375
+                  },
+                  "certainty": "documented",
+                  "evidence": [
+                    "claudeSubagents"
+                  ]
+                },
+                {
+                  "kind": "instructions",
+                  "size": {
+                    "bytes": 8496,
+                    "chars": 8496,
+                    "tokens": 2124
+                  },
+                  "certainty": "documented",
+                  "evidence": [
+                    "claudeMemory",
+                    "claudeSubagents"
+                  ]
+                },
+                {
+                  "kind": "skill",
+                  "path": ".claude/skills/docs/SKILL.md",
+                  "name": "docs",
+                  "size": {
+                    "bytes": 1200,
+                    "chars": 1200,
+                    "tokens": 300
+                  },
+                  "certainty": "documented",
+                  "evidence": [
+                    "claudeSkills",
+                    "claudeSubagents"
+                  ]
+                }
+              ],
+              "notLoaded": [
+                {
+                  "name": "personal",
+                  "reason": "not-found"
+                }
+              ],
+              "memory": {
+                "scope": "project",
+                "path": ".claude/agent-memory/reviewer/MEMORY.md",
+                "exists": true
+              },
+              "notVisible": [
+                "environment",
+                "task",
+                "tools",
+                "git-status",
+                "user-instructions",
+                "managed-instructions"
+              ]
+            },
+            "certainty": "documented",
+            "evidence": [
+              "claudeMemory"
+            ]
+          },
+          {
             "id": "hook:.claude/settings.json#PreToolUse",
             "role": "hook",
             "trigger": "startup",
@@ -1019,23 +1104,6 @@
               "bytes": 900,
               "chars": 900,
               "tokens": 225
-            },
-            "certainty": "documented",
-            "evidence": [
-              "claudeMemory"
-            ]
-          },
-          {
-            "id": "subagent:.claude/agents/reviewer.md#reviewer",
-            "role": "subagent",
-            "trigger": "model-selected",
-            "path": ".claude/agents/reviewer.md",
-            "realPath": ".claude/agents/reviewer.md",
-            "name": "reviewer",
-            "size": {
-              "bytes": 1500,
-              "chars": 1500,
-              "tokens": 375
             },
             "certainty": "documented",
             "evidence": [
@@ -1203,14 +1271,14 @@
         ],
         "totals": {
           "startup": {
-            "bytes": 10786,
-            "chars": 10786,
-            "tokens": 2697
+            "bytes": 10906,
+            "chars": 10906,
+            "tokens": 2727
           },
           "onDemand": {
-            "bytes": 17102,
-            "chars": 17102,
-            "tokens": 4276
+            "bytes": 15602,
+            "chars": 15602,
+            "tokens": 3901
           }
         },
         "incomplete": []

@@ -65,6 +65,14 @@ describe('rebaseResult', () => {
       via: ['repo/CLAUDE.md'],
     });
     expect(claude.skipped[1]?.id).toBe('mcp-server:repo/.mcp.json#docs');
+    // A subagent's preloaded skill and memory file are paths too.
+    const reviewer = claude.entries.find((item) => item.role === 'subagent')?.ownContext;
+    expect(reviewer?.parts.map((part) => part.path)).toEqual([
+      undefined,
+      undefined,
+      'repo/.claude/skills/docs/SKILL.md',
+    ]);
+    expect(reviewer?.memory?.path).toBe('repo/.claude/agent-memory/reviewer/MEMORY.md');
     expect(claude.outOfScope[0]?.path).toBe('repo/.claude/skills/deploy/scripts/run.md');
     expect(claude.limits.map((limit) => [limit.subject, limit.label])).toEqual([
       ['repo/packages/api', 'skills listing'],

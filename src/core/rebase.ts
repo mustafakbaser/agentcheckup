@@ -3,7 +3,7 @@ import type { ScanResult } from './engine.js';
 import type { FileChange, Fix } from './types.js';
 import type { AgentDefinition, AgentsReport } from '../agents/types.js';
 import type { Inventory } from '../inventory/types.js';
-import type { ContextReport, LoadPlan } from '../platforms/load/types.js';
+import type { ContextReport, LoadPlan, OwnContext } from '../platforms/load/types.js';
 import type { PolicyReport } from '../policy/types.js';
 
 /**
@@ -106,15 +106,33 @@ function mapPlan(plan: LoadPlan, map: PathMap): LoadPlan {
       realPath: map(entry.realPath),
       ...(entry.via === undefined ? {} : { via: entry.via.map(map) }),
       ...(entry.inventoryId === undefined ? {} : { inventoryId: mapId(entry.inventoryId, map) }),
+      ...(entry.ownContext === undefined
+        ? {}
+        : { ownContext: mapOwnContext(entry.ownContext, map) }),
     })),
     skipped: plan.skipped.map((entry) => ({
       ...entry,
       id: mapId(entry.id, map),
       path: map(entry.path),
+      ...(entry.ownContext === undefined
+        ? {}
+        : { ownContext: mapOwnContext(entry.ownContext, map) }),
     })),
     outOfScope: plan.outOfScope.map((entry) => ({ ...entry, path: map(entry.path) })),
     limits: plan.limits.map((limit) => ({ ...limit, subject: map(limit.subject) })),
     incomplete: plan.incomplete.map((entry) => mapIncomplete(entry, map)),
+  };
+}
+
+function mapOwnContext(context: OwnContext, map: PathMap): OwnContext {
+  const { memory } = context;
+  return {
+    ...context,
+    parts: context.parts.map((part) =>
+      part.path === undefined ? part : { ...part, path: map(part.path) },
+    ),
+    ...(context.unmeasured === undefined ? {} : { unmeasured: context.unmeasured.map(map) }),
+    ...(memory?.path === undefined ? {} : { memory: { ...memory, path: map(memory.path) } }),
   };
 }
 
