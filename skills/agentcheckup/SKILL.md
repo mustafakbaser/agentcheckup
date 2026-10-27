@@ -4,10 +4,10 @@ description: Checks and fixes coding-agent configuration in this repository (AGE
 license: MIT
 # x-release-please-start-version
 allowed-tools: >-
-  Bash(npx agentcheckup@0.1.1 tasks --format json)
-  Bash(npx agentcheckup@0.1.1 fix)
-  Bash(npx agentcheckup@0.1.1 context)
-  Bash(npx agentcheckup@0.1.1 tasks --check *)
+  Bash(npx agentcheckup@0.2.0 tasks --format json)
+  Bash(npx agentcheckup@0.2.0 fix)
+  Bash(npx agentcheckup@0.2.0 context)
+  Bash(npx agentcheckup@0.2.0 tasks --check *)
   Read
 ---
 
@@ -34,7 +34,7 @@ it, and the permission prompt asks again.
 ## 1. List the work
 
 ```sh
-npx agentcheckup@0.1.1 tasks --format json
+npx agentcheckup@0.2.0 tasks --format json
 ```
 
 Exit 0: no task is open. Exit 1: tasks are open. Exit 2 or 3: show the user stderr and stop.
@@ -53,7 +53,7 @@ Field by field: [references/tasks.md](references/tasks.md).
 When `readyFixes.safe` or `readyFixes.review` is not 0, preview every fix. This changes nothing:
 
 ```sh
-npx agentcheckup@0.1.1 fix
+npx agentcheckup@0.2.0 fix
 ```
 
 Each fix starts with `safe` or `review`, the rule id and a title, then its diff, `effect:` and
@@ -62,7 +62,7 @@ Each fix starts with `safe` or `review`, the rule id and a title, then its diff,
 Tell the user what the safe fixes change, in a few lines. Ask whether to apply them. On yes:
 
 ```sh
-npx agentcheckup@0.1.1 fix --write
+npx agentcheckup@0.2.0 fix --write
 ```
 
 It applies only the safe fixes, scans again from disk and prints
@@ -78,7 +78,7 @@ For each rule with `review` fixes in the preview:
 3. Ask. Apply only on yes, only that rule:
 
 ```sh
-npx agentcheckup@0.1.1 fix --write --review --rule RULE_ID
+npx agentcheckup@0.2.0 fix --write --review --rule RULE_ID
 ```
 
 Replace `RULE_ID` with the rule id, such as `cursor/md-file-ignored`. Never use this for
@@ -97,7 +97,7 @@ Take the tasks in order, one at a time:
 5. Check the task with its id, such as `ac-7f3c91d2`:
 
 ```sh
-npx agentcheckup@0.1.1 tasks --check TASK_ID
+npx agentcheckup@0.2.0 tasks --check TASK_ID
 ```
 
 Replace `TASK_ID` with the task's `id`. `TASK_ID  done` and exit 0: move on. `open` lines name
@@ -111,8 +111,8 @@ Run `tasks --format json` again: a fix can make a new task visible, and `omitted
 You are done when both of these exit 0:
 
 ```sh
-npx agentcheckup@0.1.1 tasks --check
-npx agentcheckup@0.1.1 fix
+npx agentcheckup@0.2.0 tasks --check
+npx agentcheckup@0.2.0 fix
 ```
 
 `fix` exits 1 while review fixes the user declined are left. That is fine: say which ones.
@@ -125,7 +125,7 @@ item with its path, line and `note`. Suggest `git diff` to review the changes.
 When the user asks what a coding agent loads, or why an agent ignores a file:
 
 ```sh
-npx agentcheckup@0.1.1 context
+npx agentcheckup@0.2.0 context
 ```
 
 It prints one plan per agent for a session started in the repository root:
