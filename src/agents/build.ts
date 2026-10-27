@@ -335,6 +335,8 @@ function finish(file: AgentFile, context: Resolver): AgentDefinition {
     scope: _scope,
     key: _key,
     source: _source,
+    skip: _skip,
+    description: _description,
     opaque,
     line,
     ...rest

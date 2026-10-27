@@ -35,7 +35,7 @@ import {
   type FrontmatterReading,
   hasMergeKey,
 } from './frontmatter-config.js';
-import type { Certainty, ContextAgent, SourceKey } from './load/types.js';
+import type { Certainty, ContextAgent, SkipCode, SourceKey } from './load/types.js';
 import type { LoadView } from './load/view.js';
 import { basename, inClaudeFolder } from './paths.js';
 import { readingsOf } from './readings.js';
@@ -91,6 +91,13 @@ export interface AgentFile {
   readonly reason?: string;
   /** For `shadowed`: the file of the definition that wins. */
   readonly shadowedBy?: string;
+  /**
+   * For `skipped`: the load plans' code. `invalid-subagent` for a file that fails the agent's
+   * checks, `invalid-toml` for a Codex file that does not parse, `disabled` for a switch.
+   */
+  readonly skip?: Extract<SkipCode, 'invalid-subagent' | 'invalid-toml' | 'disabled'>;
+  /** The description as written, which the agent lists with the name. */
+  readonly description?: string;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
   /**
@@ -315,6 +322,7 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
         ? 'loads'
         : 'unknown';
   const name = fields === undefined ? undefined : nameOf(fields);
+  const description = fields === undefined ? undefined : stringField(fields, 'description');
   const claude: AgentFile = {
     file: path,
     line: fields === undefined ? 1 : lineOf(artifact, fields.keySpan('name')),
@@ -322,6 +330,8 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
     ...(name === undefined ? {} : { name }),
     status,
     ...(reason === undefined ? {} : { reason }),
+    ...(status === 'skipped' ? { skip: 'invalid-subagent' as const } : {}),
+    ...(description === undefined ? {} : { description }),
     certainty: owner === '' ? 'documented' : 'unverified',
     evidence: ['claudeSubagents'],
     scope: owner,
@@ -455,7 +465,7 @@ function markdownFile(
         line: 1,
         name,
         status: loads ? 'loads' : 'skipped',
-        ...(loads ? {} : { reason: 'no description' }),
+        ...(loads ? {} : { reason: 'no description', skip: 'invalid-subagent' as const }),
         ...placeOf(agent, path, name),
         source: { kind: 'none' },
       });
@@ -479,12 +489,14 @@ function markdownFile(
     const fields = fieldsOf(frontmatter.data);
     const named = copilotId(agent, path) ?? nameOf(fields) ?? fileStem(path);
     const reason = skipReason(agent, fields);
+    const description = stringField(fields, 'description');
     files.push({
       ...base,
       line: lineOf(artifact, fields.keySpan('name')),
       name: named,
       status: reason === undefined ? 'loads' : 'skipped',
-      ...(reason === undefined ? {} : { reason }),
+      ...(reason === undefined ? {} : { reason, skip: 'invalid-subagent' as const }),
+      ...(description === undefined ? {} : { description }),
       ...placeOf(agent, path, named),
       source: { kind: 'frontmatter', artifact, fields, claudeFormat },
     });
@@ -622,6 +634,7 @@ function codexAgentFile(
         reason: unread
           ? "the file is past agentcheckup's parser limits"
           : 'the file is not valid TOML',
+        ...(unread ? {} : { skip: 'invalid-toml' as const }),
         certainty: unread ? 'unverified' : 'source-code',
         ...(unread ? { opaque: opaqueOf(artifact) } : {}),
         source: { kind: 'none' },
@@ -656,7 +669,8 @@ function codexAgentFile(
       name: name ?? fileStem(path),
       key: name ?? '',
       status: reason === undefined ? 'loads' : 'skipped',
-      ...(reason === undefined ? {} : { reason }),
+      ...(reason === undefined ? {} : { reason, skip: 'invalid-subagent' as const }),
+      ...(description === undefined ? {} : { description }),
       // Codex reads project agent files only in a trusted project, from the root down to the
       // working directory.
       certainty:
@@ -682,6 +696,7 @@ function codexConfigRole(view: LoadView, role: DeclaredRole): AgentFile {
     key: role.name,
     rank: 0,
     ranked: true,
+    ...(role.description === undefined ? {} : { description: role.description }),
     source: { kind: 'none' } as const,
   };
   if (!role.configFile) {
@@ -694,6 +709,7 @@ function codexConfigRole(view: LoadView, role: DeclaredRole): AgentFile {
       ...base,
       status: 'skipped',
       reason: 'its config_file does not exist',
+      skip: 'invalid-subagent',
       certainty: 'source-code',
     };
   }
@@ -760,7 +776,7 @@ function switchedOff(file: AgentFile, switches: Switches): AgentFile {
   }
   return reason === undefined
     ? file
-    : { ...file, status: 'skipped', reason, certainty: 'documented' };
+    : { ...file, status: 'skipped', reason, skip: 'disabled', certainty: 'documented' };
 }
 
 // ---------------------------------------------------------------------------------------------

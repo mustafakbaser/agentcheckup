@@ -220,6 +220,18 @@ describe('matrix', () => {
     ]);
   });
 
+  it('gives subagents no row, at the root or below it', () => {
+    const rows = matrixOf({
+      '.claude/agents/reviewer.md': '---\nname: reviewer\ndescription: Reviews.\n---\nR.\n',
+      'pkg/.claude/agents/linter.md': '---\nname: linter\ndescription: Lints.\n---\nL.\n',
+      'pkg/.cursor/agents/planner.md': '---\nname: planner\ndescription: Plans.\n---\nP.\n',
+      'CLAUDE.md': 'Claude.\n',
+    });
+    expect(rows).toEqual([
+      'CLAUDE.md claude-md startup not-read startup startup startup startup not-read startup not-read',
+    ]);
+  });
+
   it('keeps a file that one agent loads while skipping some of its items', () => {
     expect(
       matrixOf({ '.mcp.json': '{"mcpServers":{"docs":{"url":"https://x"},"a":{"command":"a"}}}' }),

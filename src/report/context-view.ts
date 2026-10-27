@@ -316,10 +316,17 @@ export interface Part {
 
 export interface StartupRow {
   readonly position?: number;
-  readonly kind: 'file' | 'import' | 'skills';
-  /** For `skills`: the number of skills in the listing. Otherwise the path. */
+  /**
+   * `skills` and `subagents`: the names and descriptions the model picks from, one row for each
+   * listing; the files load only when the model picks one.
+   */
+  readonly kind: 'file' | 'import' | 'skills' | 'subagents';
+  /** For a listing, `''`. Otherwise the path. */
   readonly path: string;
+  /** For `skills`: the number of skills in the listing. */
   readonly skills?: number;
+  /** For `subagents`: the number of subagents in the listing. */
+  readonly subagents?: number;
   /** Set when the agent reaches the file through a symlink alias. */
   readonly realPath?: string;
   /** Import depth, 1 for a file imported by an instruction file. */
@@ -669,6 +676,11 @@ function inListing(entry: LoadEntry): boolean {
   );
 }
 
+/** Subagents in the listing the model picks from: in the prompt from the start. */
+function inAgentListing(entry: LoadEntry): boolean {
+  return entry.role === 'subagent' && entry.trigger === 'startup';
+}
+
 function whenText(entry: LoadEntry, agent: ContextAgent): string {
   switch (entry.trigger) {
     case 'on-path': {
@@ -705,6 +717,8 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
   const onDemand: OnDemandRow[] = [];
   const listing = plan.entries.filter((entry) => inListing(entry) && entry.size !== undefined);
   let listingShown = false;
+  const agents = plan.entries.filter(inAgentListing);
+  let agentsShown = false;
 
   for (const entry of plan.entries) {
     const unverified = entry.certainty === 'unverified';
@@ -743,6 +757,21 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
         when: whenText(entry, plan.agent),
         unverified,
       });
+      continue;
+    }
+    if (inAgentListing(entry)) {
+      if (!agentsShown) {
+        agentsShown = true;
+        startup.push({
+          kind: 'subagents',
+          path: '',
+          subagents: agents.length,
+          depth: 0,
+          via: [],
+          size: sumSizes(agents.map((agent) => agent.size)),
+          unverified: agents.some((agent) => agent.certainty === 'unverified'),
+        });
+      }
       continue;
     }
     if (entry.trigger === 'startup') {

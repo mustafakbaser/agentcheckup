@@ -12,6 +12,7 @@ import { hash53 } from '../../../src/core/fingerprint.js';
 import type { Snapshot } from '../../../src/core/types.js';
 import { walk } from '../../../src/io/walk.js';
 import { CLAUDE_MAX_FILE_BYTES, loadClaudeCode } from '../../../src/platforms/load/claude-code.js';
+import { withSubagents } from '../../../src/platforms/load/subagents.js';
 import type { LoadEntry, LoadPlan, SkippedLoad } from '../../../src/platforms/load/types.js';
 import { SOURCES } from '../../../src/platforms/sources.js';
 import { builtinRules } from '../../../src/rules/index.js';
@@ -74,11 +75,15 @@ function planSnapshot(snapshot: Snapshot, options: PlanOptions = {}): Planned {
   });
   const rules = options.withoutRules === true ? [] : builtinRules;
   const result = runRules(analysis, { rules, trustDirectives: false });
-  const plan = loadClaudeCode(analysis, {
-    cwd: options.cwd ?? '',
-    config: analysis.config,
-    ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
-  });
+  // The plan as loadPlans assembles it, with the subagents every agent's plan lists.
+  const plan = withSubagents(
+    loadClaudeCode(analysis, {
+      cwd: options.cwd ?? '',
+      config: analysis.config,
+      ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+    }),
+    analysis,
+  );
   if (options.withoutRules === true) {
     expect(plan.skipped.filter((skip) => skip.ruleId !== undefined)).toEqual([]);
   } else {
@@ -759,7 +764,7 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
     ).toMatchObject({ limit: 8000, used: 2 });
   });
 
-  it('loads commands when invoked and subagents when the model picks them', () => {
+  it('loads commands when invoked and lists subagents from the start', () => {
     const result = plan({
       '.claude/commands/review.md': '---\ndescription: Review.\n---\nReview the diff.\n',
       '.claude/commands/git/commit.md': 'Commit.\n',
@@ -776,20 +781,35 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       certainty: 'documented',
     });
     expect(entry(result, 'command:.claude/commands/git/commit.md').name).toBe('git/commit');
+    // The model picks a subagent by its name and description, which are in context from the
+    // start; what the subagent itself starts with goes to a window of its own.
     expect(entry(result, 'subagent:.claude/agents/reviewer.md')).toMatchObject({
-      trigger: 'model-selected',
+      trigger: 'startup',
       name: 'reviewer',
-      size: { chars: 'Reviews code.'.length },
+      size: { chars: 'reviewerReviews code.'.length },
       certainty: 'documented',
       evidence: ['claudeSubagents'],
     });
-    expect(entry(result, 'subagent:pkg/.claude/agents/far.md').certainty).toBe('unverified');
+    expect(entry(result, 'subagent:.claude/agents/reviewer.md').position).toBeUndefined();
+    expect(result.totals.startup.chars).toBe('reviewerReviews code.'.length);
     expect(skips(result)).toEqual([
       'subagent:.claude/agents/broken.md invalid-subagent instr/subagent-invalid',
     ]);
+    // Claude Code walks up from the working directory: a folder below it is not read.
     expect(result.outOfScope).toEqual([
       { path: '.claude/agents/README.md', because: 'documentation' },
+      { path: 'pkg/.claude/agents/far.md', because: 'below-start-dir' },
     ]);
+    expect(limit(result, 'claude-code.agent_descriptions_tokens')).toEqual({
+      key: 'claude-code.agent_descriptions_tokens',
+      label: 'subagents listing',
+      unit: 'tokens',
+      limit: 15_000,
+      used: Math.ceil('reviewerReviews code.'.length / 4),
+      subject: '',
+      effect: 'advice',
+      evidence: ['claudeSubagents'],
+    });
   });
 
   it('lists a subagent with YAML that lenient readers accept as unverified', () => {
@@ -797,9 +817,11 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       '.claude/agents/lenient.md': '---\nname: lenient\ndescription: Use when: reviewing\n---\n',
     });
     expect(entry(result, 'subagent:.claude/agents/lenient.md')).toMatchObject({
-      trigger: 'model-selected',
+      trigger: 'startup',
       certainty: 'unverified',
     });
+    // What it lists is not known.
+    expect(entry(result, 'subagent:.claude/agents/lenient.md').size).toBeUndefined();
     expect(result.skipped).toEqual([]);
   });
 
@@ -837,7 +859,10 @@ describe('loadClaudeCode: subagents through a symlink', () => {
   it('lists the subagent at the path Claude Code reads it from', () => {
     const analysis = analyze(snapshotFrom(files, { paths: ['.git/HEAD'], symlinks }));
     const result = runRules(analysis, { rules: builtinRules, trustDirectives: false });
-    const planned = loadClaudeCode(analysis, { cwd: '', config: analysis.config });
+    const planned = withSubagents(
+      loadClaudeCode(analysis, { cwd: '', config: analysis.config }),
+      analysis,
+    );
     expect(entry(planned, 'subagent:.claude/agents/fix.agent.md')).toMatchObject({
       path: '.claude/agents/fix.agent.md',
       realPath: '.github/agents/fix.agent.md',

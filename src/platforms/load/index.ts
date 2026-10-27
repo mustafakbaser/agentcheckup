@@ -17,6 +17,8 @@ import { loadCodex } from './codex.js';
 import { loadCopilotCli, loadCopilotCloud, loadCopilotVscode } from './copilot.js';
 import { loadCursor } from './cursor.js';
 import { loadGemini } from './gemini.js';
+import { compareEntries, compareOutOfScope, compareSkips } from './order.js';
+import { withSubagents } from './subagents.js';
 import {
   ALL_CONTEXT_AGENTS,
   CONTEXT_AGENTS,
@@ -26,11 +28,8 @@ import {
   type HiddenScope,
   type LoadEntry,
   type LoadPlan,
-  type OutOfScope,
   type SkipFix,
-  type SkippedLoad,
   type SourceKey,
-  TRIGGER_RANK,
 } from './types.js';
 import type { LoadView } from './view.js';
 import { loadWindsurf } from './windsurf.js';
@@ -124,11 +123,14 @@ export function loadPlans(view: LoadView, options: LoadPlansOptions): LoadPlan[]
   checkContextWindow(options.contextWindow);
   return orderedAgents(options.agents).map((agent) =>
     withoutIgnored(
-      LOADERS[agent](view, {
-        cwd: options.cwd,
-        config: options.config,
-        ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
-      }),
+      withSubagents(
+        LOADERS[agent](view, {
+          cwd: options.cwd,
+          config: options.config,
+          ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+        }),
+        view,
+      ),
       options.config,
     ),
   );
@@ -254,23 +256,6 @@ const SCOPE_RANK: Readonly<Record<HiddenScope['scope'], number>> = {
   account: 4,
   plugin: 5,
 };
-
-function compareEntries(a: LoadEntry, b: LoadEntry): number {
-  return (
-    (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) ||
-    TRIGGER_RANK[a.trigger] - TRIGGER_RANK[b.trigger] ||
-    compareStrings(a.path, b.path) ||
-    compareStrings(a.id, b.id)
-  );
-}
-
-function compareSkips(a: SkippedLoad, b: SkippedLoad): number {
-  return compareStrings(a.path, b.path) || compareStrings(a.id, b.id);
-}
-
-function compareOutOfScope(a: OutOfScope, b: OutOfScope): number {
-  return compareStrings(a.path, b.path) || compareStrings(a.because, b.because);
-}
 
 function comparePlans(a: LoadPlan, b: LoadPlan): number {
   return (

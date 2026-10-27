@@ -46,6 +46,16 @@ export interface MatrixPlanOptions {
   readonly contextWindow?: number;
 }
 
+/** Kinds of agent definition files: subagents, which get no row, even below the start. */
+const DEFINITION_KINDS: ReadonlySet<ArtifactKind> = new Set([
+  'claude-agent',
+  'codex-agent',
+  'cursor-agent',
+  'gemini-agent',
+  'copilot-agent',
+  'devin-agent',
+]);
+
 /** Roles that get a row: configuration files, not imports, commands or subagents. */
 const ROW_ROLES: ReadonlySet<LoadRole> = new Set([
   'instructions',
@@ -212,7 +222,11 @@ export function buildMatrix(
       if (ROW_ROLES.has(skip.role)) addRow(skip.path, skip.role === 'skill');
     }
     for (const item of plan.outOfScope) {
-      if (item.because === 'below-start-dir') addRow(item.path, isSkillPath(item.path));
+      if (item.because !== 'below-start-dir') continue;
+      const kind = kindOf(view, item.path);
+      if (kind === undefined || !DEFINITION_KINDS.has(kind)) {
+        addRow(item.path, isSkillPath(item.path));
+      }
     }
     // A configuration file the plan could not analyze still gets its row, marked `unknown`.
     for (const item of plan.incomplete) {

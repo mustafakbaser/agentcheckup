@@ -350,6 +350,24 @@ describe('allowances', () => {
     ]);
   });
 
+  it('skip-without-rule: custom agent files of agents other than Claude Code, which no rule judges', () => {
+    const files = {
+      // No description: Claude Code skips it, which instr/subagent-invalid reports, and so does
+      // the Copilot CLI, which no rule judges. Gemini CLI needs a lowercase name.
+      '.claude/agents/helper.md': '---\nname: helper\n---\nBody.\n',
+      '.gemini/agents/Bad.md': '---\nname: Bad\ndescription: Upper case.\n---\nBody.\n',
+      '.codex/agents/broken.toml': 'name = [\n',
+    };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed['skip-without-rule']).toBeGreaterThan(0);
+    expect(brief(check(files, {}, ['skip-without-rule']).report.mismatches).sort()).toEqual([
+      'skip-without-rule - codex .codex/agents/broken.toml',
+      'skip-without-rule - copilot-cli .claude/agents/helper.md',
+      'skip-without-rule - gemini .gemini/agents/Bad.md',
+    ]);
+  });
+
   it('skip-without-rule: an AGENTS.md copied into CLAUDE.md, which the rule leaves alone', () => {
     const files = { 'CLAUDE.md': 'Same rules.\n', 'AGENTS.md': 'Same rules.\n' };
     const allowed = check(files);

@@ -182,6 +182,9 @@ function startupLabel(row: StartupRow, context: Context): string {
   if (row.kind === 'skills') {
     return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
   }
+  if (row.kind === 'subagents') {
+    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions)`;
+  }
   let label =
     row.kind === 'import'
       ? `${'  '.repeat(row.depth)}${symbols.tree} @${cleanPath(row.path, context)}`

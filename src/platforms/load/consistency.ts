@@ -300,6 +300,17 @@ export const UNREPORTED_CODES: ReadonlySet<SkipCode> = new Set<SkipCode>([
 /** Most related locations one instr/codex-size-budget finding lists (MAX_RELATED there). */
 export const CODEX_BUDGET_MAX_RELATED = 20;
 
+/** Agents other than Claude Code that read custom agent files (src/platforms/agent-files.ts). */
+const OTHER_SUBAGENT_READERS = [
+  'codex',
+  'cursor',
+  'copilot-cli',
+  'copilot-vscode',
+  'copilot-cloud',
+  'gemini',
+  'windsurf',
+] as const satisfies readonly ContextAgent[];
+
 /**
  * The documented exceptions. Each has a test in test/platforms/load/consistency.test.ts that
  * shows the mismatch it accounts for.
@@ -390,6 +401,18 @@ export const ALLOWANCES = {
       rule: 'skill/frontmatter-invalid',
       reason:
         'YAML that does not give name and description as text: Gemini CLI reads them line by line and skips the skill when a line is missing. skill/frontmatter-invalid reports such YAML for other agents and does not name Gemini CLI, and valid YAML has no rule.',
+    },
+    ...OTHER_SUBAGENT_READERS.map((agent) => ({
+      agent,
+      code: 'invalid-subagent' as const,
+      reason:
+        'No rule judges the custom agent files of agents other than Claude Code: `agentcheckup agents` lists a file the agent drops, with the reason (docs/adr/0013). instr/subagent-invalid judges Claude Code alone.',
+    })),
+    {
+      agent: 'codex',
+      code: 'invalid-toml',
+      reason:
+        'No rule judges Codex agent files: `agentcheckup agents` lists one that is not valid TOML (docs/adr/0013). codex/config-invalid judges config.toml alone.',
     },
   ] satisfies readonly {
     readonly agent: ContextAgent;

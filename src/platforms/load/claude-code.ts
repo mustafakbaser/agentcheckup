@@ -12,7 +12,8 @@
  *   matching file. YAML that does not parse loads the rule as if it had no `paths`.
  * - Skills in `.claude/skills/<name>/SKILL.md` from the working directory up to the repository
  *   root are listed at launch, each listing entry cut at 1,536 characters; nested skills folders
- *   load on demand. Commands load when invoked, subagents when the model picks them.
+ *   load on demand. Commands load when invoked. Subagents are listed by ./subagents.ts, which
+ *   every agent's plan shares.
  * - `.mcp.json` servers load after the user approves them; hooks in `.claude/settings.json` and
  *   `.claude/settings.local.json` run once the workspace is trusted.
  *
@@ -33,7 +34,6 @@ import type {
   ParseIssue,
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
-import { pathAs } from '../readings.js';
 import { settingAt } from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
@@ -52,7 +52,6 @@ import {
   skillLocation,
 } from '../skills.js';
 import type { SOURCES } from '../sources.js';
-import { checkSubagent } from '../subagents.js';
 import { yamlSyntaxError } from '../yaml.js';
 import { agentsMdShadowedByClaude, rulesByOwner } from './agents-md-shadow.js';
 import {
@@ -127,7 +126,6 @@ type Evidence = readonly (keyof typeof SOURCES)[];
 const MEMORY: Evidence = ['claudeMemory'];
 const SKILLS: Evidence = ['claudeSkills'];
 const SKILL_OVERRIDES: Evidence = ['claudeSkills', 'claudeSettings'];
-const SUBAGENTS: Evidence = ['claudeSubagents'];
 const MCP: Evidence = ['claudeMcp'];
 const HOOKS: Evidence = ['claudeHooks', 'claudeSettings'];
 
@@ -402,7 +400,6 @@ class ClaudeLoader {
     this.#caseMismatches();
     this.#skills();
     this.#commands();
-    this.#subagents();
     this.#mcpServers();
     this.#hooks();
     return this.#plan();
@@ -843,7 +840,7 @@ class ClaudeLoader {
   }
 
   // -------------------------------------------------------------------------------------------
-  // Skills, commands and subagents
+  // Skills and commands (subagents: ./subagents.ts)
   // -------------------------------------------------------------------------------------------
 
   #skills(): void {
@@ -998,52 +995,6 @@ class ClaudeLoader {
         certainty: scope === 'path' ? 'documented' : 'unverified',
         evidence: SKILLS,
       });
-    }
-  }
-
-  #subagents(): void {
-    for (const artifact of this.#view.artifacts) {
-      // A file in another agent's folder that `.claude/agents` reaches through a symlink is a
-      // subagent at the symlink's path.
-      const path = pathAs(artifact, 'claude-agent');
-      if (path === undefined) continue;
-      const folder = inClaudeFolder(path, 'agents');
-      if (folder === undefined) continue;
-      const certainty = scopeOf(folder.owner, this.#cwd) === 'path' ? 'documented' : 'unverified';
-      const check = checkSubagent(artifact.decoded.text, this.#view.frontmatter(artifact));
-      const base = { role: 'subagent', path, evidence: SUBAGENTS } as const;
-      const loaded = {
-        ...base,
-        id: `subagent:${path}`,
-        trigger: 'model-selected',
-        realPath: artifact.realPath,
-      } as const;
-      switch (check.status) {
-        case 'documentation':
-          this.#out(path, 'documentation');
-          break;
-        case 'skipped':
-          this.#skip({
-            ...base,
-            code: 'invalid-subagent',
-            ruleId: 'instr/subagent-invalid',
-            certainty,
-          });
-          break;
-        case 'unknown':
-          // YAML that lenient readers may accept: whether Claude Code loads it is not known.
-          this.#add({ ...loaded, certainty: 'unverified' });
-          break;
-        case 'loads':
-          this.#add({
-            ...loaded,
-            name: check.name,
-            // What the main context gets: the description the model chooses by.
-            size: size(check.description),
-            certainty,
-          });
-          break;
-      }
     }
   }
 

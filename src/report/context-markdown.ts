@@ -73,6 +73,9 @@ function table(
 function startupFile(row: StartupRow): string {
   if (row.kind === 'skills')
     return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
+  if (row.kind === 'subagents') {
+    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions)`;
+  }
   // The `@` goes through forMarkdown with the path: `@AGENTS.md` raw would mention a user.
   let file = row.kind === 'import' ? `↳ ${path(`@${row.path}`)}` : path(row.path);
   if (row.realPath !== undefined) file += ` → ${path(row.realPath)}`;

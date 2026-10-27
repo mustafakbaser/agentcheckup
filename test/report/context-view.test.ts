@@ -12,6 +12,7 @@ import {
   type ContextAgent,
   type SkipCode,
 } from '../../src/platforms/load/types.js';
+import { formatContextMarkdown } from '../../src/report/context-markdown.js';
 import { formatContextText } from '../../src/report/context-text.js';
 import {
   AGENT_COLUMNS,
@@ -159,5 +160,44 @@ describe('assumption phrases', () => {
       ]),
     });
     expect(output).toContain('\nAssumes surface jetbrains, copilot-cli.future = 3 (default)\n');
+  });
+});
+
+describe('subagents listing', () => {
+  const files: FileMap = {
+    'CLAUDE.md': 'Rules.\n',
+    '.claude/agents/reviewer.md':
+      '---\nname: reviewer\ndescription: Reviews code.\n---\nYou review code.\n',
+    '.claude/agents/planner.md': '---\nname: planner\ndescription: Plans work.\n---\nPlan it.\n',
+  };
+
+  function scanned(map: FileMap): ScanResult {
+    return scanWithContext(snapshotFrom(map, { paths: ['.git/HEAD'] }), {
+      rules: builtinRules,
+      trustDirectives: false,
+      targets: PLATFORM_IDS,
+      agents: ['claude-code'],
+    });
+  }
+
+  it('shows the names and descriptions the model picks from as one startup row', () => {
+    const output = formatContextText(scanned(files));
+    // 39 characters of names and descriptions, ≈6 + ≈5 tokens, as the skills listing row adds
+    // its entries: one row, without a position.
+    const lines = output.split('\n');
+    expect(lines).toContainEqual(
+      expect.stringMatching(
+        /^ {5}Subagents listing \(2 subagents, names and descriptions\) +39 +11$/,
+      ),
+    );
+    // The listing is not the files: a subagent's own prompt is not in the session's context.
+    expect(lines.some((line) => line.trim().startsWith('.claude/agents/'))).toBe(false);
+    const markdown = formatContextMarkdown(scanned(files));
+    expect(markdown).toContain('Subagents listing (2 subagents, names and descriptions)');
+  });
+
+  it('has no row without a listed subagent', () => {
+    const output = formatContextText(scanned({ 'CLAUDE.md': 'Rules.\n' }));
+    expect(output).not.toContain('Subagents listing');
   });
 });

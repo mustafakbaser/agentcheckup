@@ -714,6 +714,7 @@ describe('schemas/report.schema.json', () => {
       'levels',
       'directories',
       'context-fraction',
+      'tokens',
     ] as const satisfies readonly LimitUsage['unit'][];
     // Compile-time exhaustiveness, as above.
     const exhaustive: true[] = [

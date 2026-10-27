@@ -39,6 +39,7 @@ const UNIT_NAMES: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   levels: 'level',
   directories: 'directory',
   'context-fraction': undefined,
+  tokens: 'token',
 };
 
 /** Units after an amount: `33,010 of 32,768 bytes`. */
@@ -50,13 +51,14 @@ const UNIT_PLURALS: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   levels: 'levels',
   directories: 'directories',
   'context-fraction': undefined,
+  tokens: 'tokens',
 };
 
 /**
  * Roles whose startup entries are not files the agent reads into the prompt: MCP servers and
- * hooks start a process, and a skill adds only its line in the skills listing.
+ * hooks start a process, and a skill or a subagent adds only its line in a listing.
  */
-const NOT_FILES: ReadonlySet<string> = new Set(['mcp-server', 'hook', 'skill']);
+const NOT_FILES: ReadonlySet<string> = new Set(['mcp-server', 'hook', 'skill', 'subagent']);
 
 /** Escapes repository text for an output format, cut to `max` code points. */
 export type Clean = (value: string, max: number) => string;
@@ -213,8 +215,9 @@ function limitChanges(
       unitName === undefined
         ? `the limit of ${formatInteger(limit.limit)}`
         : `the ${formatInteger(limit.limit)}-${unitName} limit`;
-    const from = before === null ? '' : `${formatInteger(before)} → `;
-    const amount = `${from}${formatInteger(after)}${unit === undefined ? '' : ` ${unit}`}`;
+    const approx = unit === 'tokens' ? '≈' : '';
+    const from = before === null ? '' : `${approx}${formatInteger(before)} → `;
+    const amount = `${from}${approx}${formatInteger(after)}${unit === undefined ? '' : ` ${unit}`}`;
     changes.push(`${what} ${amount}, ${over ? 'now over' : 'back under'} ${bound}`);
   }
   return changes;
@@ -427,7 +430,9 @@ function limitText(item: LimitItem): string {
     MAX_CELL_LENGTH,
   );
   const unit = item.unit === undefined ? undefined : UNIT_PLURALS[item.unit];
-  const amount = `${formatInteger(item.used)} of ${formatInteger(item.limit)}`;
+  // Tokens are an estimate (characters ÷ 4), marked as such.
+  const approx = item.unit === 'tokens' ? '≈' : '';
+  const amount = `${approx}${formatInteger(item.used)} of ${formatInteger(item.limit)}`;
   const share = item.limit > 0 ? ` (${shareText(item.used, item.limit)})` : '';
   const crossed =
     item.crossed === undefined ? '' : item.crossed === 'over' ? ', now over' : ', back under';
