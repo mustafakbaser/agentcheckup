@@ -25,7 +25,7 @@ import type { ResolvedConfig } from '../../core/config.js';
 import { codePointLength, estimateTokens, lineCount, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
-import { issueKind } from '../../parse/json-access.js';
+import { issueKind, isTable } from '../../parse/json-access.js';
 import type {
   FrontmatterResult,
   ImportReference,
@@ -34,6 +34,7 @@ import type {
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
 import { pathAs } from '../readings.js';
+import { settingAt } from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
@@ -44,7 +45,12 @@ import {
   nearestGitRoot,
   selfAndAncestors,
 } from '../paths.js';
-import { CLAUDE_LISTING_MAX_CHARS, claudeSkillListing, skillLocation } from '../skills.js';
+import {
+  CLAUDE_LISTING_MAX_CHARS,
+  claudeBoolean,
+  claudeSkillListing,
+  skillLocation,
+} from '../skills.js';
 import type { SOURCES } from '../sources.js';
 import { checkSubagent } from '../subagents.js';
 import { yamlSyntaxError } from '../yaml.js';
@@ -120,6 +126,7 @@ const CASE_CHECKED_KINDS: ReadonlySet<Artifact['kind']> = new Set([
 type Evidence = readonly (keyof typeof SOURCES)[];
 const MEMORY: Evidence = ['claudeMemory'];
 const SKILLS: Evidence = ['claudeSkills'];
+const SKILL_OVERRIDES: Evidence = ['claudeSkills', 'claudeSettings'];
 const SUBAGENTS: Evidence = ['claudeSubagents'];
 const MCP: Evidence = ['claudeMcp'];
 const HOOKS: Evidence = ['claudeHooks', 'claudeSettings'];
@@ -204,6 +211,34 @@ function withoutComments(text: string, doc: MarkdownDocument): string {
     from = comment.span.offset + comment.span.length;
   }
   return kept + text.slice(from);
+}
+
+/**
+ * A skill's state in `skillOverrides`: listed with its description (`on`), with its name only,
+ * hidden from the model but run with /name, or off (SOURCES.claudeSkills).
+ */
+type SkillOverride = 'on' | 'name-only' | 'user-invocable-only' | 'off';
+
+const SKILL_OVERRIDE_VALUES: ReadonlySet<string> = new Set<SkillOverride>([
+  'on',
+  'name-only',
+  'user-invocable-only',
+  'off',
+]);
+
+function isSkillOverride(value: string): value is SkillOverride {
+  return SKILL_OVERRIDE_VALUES.has(value);
+}
+
+/**
+ * `disable-model-invocation: true`: the description is not in context, and the skill loads only
+ * when the user runs it (SOURCES.claudeSkills, "Control who invokes a skill").
+ */
+function modelCannotInvoke(frontmatter: FrontmatterResult): boolean {
+  return (
+    frontmatter.kind === 'valid' &&
+    claudeBoolean(frontmatter.data.values['disable-model-invocation']) === true
+  );
 }
 
 function bodyOffset(frontmatter: FrontmatterResult): number {
@@ -338,6 +373,9 @@ class ClaudeLoader {
   /** Skills in the listing at launch, and its characters after each entry's cut. */
   #listedSkills = 0;
   #listed = 0;
+
+  /** `skillOverrides` of the working directory's settings, on first use. */
+  #overrides: ReadonlyMap<string, SkillOverride> | undefined;
 
   // What the rules report, computed the way they compute it, on first use.
   #followed: ReadonlySet<Artifact> | undefined;
@@ -848,6 +886,39 @@ class ClaudeLoader {
       const listing = claudeSkillListing(path, artifact.decoded.text, frontmatter);
       // A block Claude Code may not read as frontmatter: how it lists the skill is not documented.
       const bodyOnly = frontmatter.kind === 'unclosed' || frontmatter.kind === 'unsupported';
+      const body = size(artifact.decoded.text.slice(listing.bodyOffset));
+      const certainty = bodyOnly ? 'unverified' : onDemandCertainty(scope);
+      const override = this.#skillOverrides().get(listing.name);
+      const evidence = override === undefined ? SKILLS : SKILL_OVERRIDES;
+      if (override === 'off') {
+        this.#skip({
+          role: 'skill',
+          path,
+          name: listing.name,
+          code: 'disabled',
+          certainty,
+          evidence,
+        });
+        continue;
+      }
+      if (override === 'user-invocable-only' || modelCannotInvoke(frontmatter)) {
+        // Not in the listing: the skill loads only when the user runs /name.
+        this.#add({
+          id: `skill:${path}`,
+          role: 'skill',
+          trigger: 'manual',
+          path,
+          realPath: artifact.realPath,
+          name: listing.name,
+          size: body,
+          certainty,
+          evidence,
+        });
+        continue;
+      }
+      // The listing always holds the name; `name-only` leaves the description out.
+      const nameOnly = override === 'name-only';
+      const shown = nameOnly ? listing.name : `${listing.name}${listing.shown}`;
       const build = (position: number | undefined): LoadEntry => {
         const entry: LoadEntry = {
           id: `skill:${path}`,
@@ -858,16 +929,17 @@ class ClaudeLoader {
           realPath: artifact.realPath,
           name: listing.name,
           ...(scope === 'path' ? {} : { patterns: [`${owner}/**`] }),
-          size: size(listing.shown),
-          deferred: size(artifact.decoded.text.slice(listing.bodyOffset)),
-          certainty: bodyOnly ? 'unverified' : onDemandCertainty(scope),
-          evidence: SKILLS,
+          size: size(shown),
+          deferred: body,
+          certainty,
+          evidence,
         };
-        this.#listing.push({ path, value: listing.length });
-        if (scope === 'path') {
-          this.#listedSkills++;
-          this.#listed += codePointLength(listing.shown);
+        // The description limits measure the descriptions in the listing.
+        if (!nameOnly) {
+          this.#listing.push({ path, value: listing.length });
+          if (scope === 'path') this.#listed += codePointLength(listing.shown);
         }
+        if (scope === 'path') this.#listedSkills++;
         return entry;
       };
       if (scope === 'path') listed.push({ path, build });
@@ -876,6 +948,31 @@ class ClaudeLoader {
     // The order of the listing is not documented; positions follow the path.
     listed.sort((a, b) => compareStrings(a.path, b.path));
     for (const { build } of listed) this.#add(build(++this.#position));
+  }
+
+  /**
+   * `skillOverrides` from the working directory's `.claude/settings.json` and
+   * `.claude/settings.local.json`, the local file winning per skill (SOURCES.claudeSkills,
+   * "Override skill visibility from settings"). Only the four documented values count. User and
+   * managed settings can set it too; they are not visible.
+   */
+  #skillOverrides(): ReadonlyMap<string, SkillOverride> {
+    if (this.#overrides !== undefined) return this.#overrides;
+    const overrides = new Map<string, SkillOverride>();
+    for (const name of ['.claude/settings.json', '.claude/settings.local.json']) {
+      const path = joinPath(this.#cwd, name);
+      const artifact = this.#view.index.get(path);
+      if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
+      const doc = this.#view.json(artifact);
+      const value = doc.ok ? settingAt(doc, ['skillOverrides']) : undefined;
+      if (!isTable(value)) continue;
+      for (const skill of Object.keys(value)) {
+        const state = value[skill];
+        if (typeof state === 'string' && isSkillOverride(state)) overrides.set(skill, state);
+      }
+    }
+    this.#overrides = overrides;
+    return overrides;
   }
 
   #commands(): void {

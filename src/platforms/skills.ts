@@ -367,6 +367,24 @@ export function cutCodePoints(text: string, max: number): string {
   return text;
 }
 
+const CLAUDE_TRUE: ReadonlySet<string> = new Set(['true', 'yes', 'on', '1']);
+const CLAUDE_FALSE: ReadonlySet<string> = new Set(['false', 'no', 'off', '0']);
+
+/**
+ * A boolean frontmatter field as Claude Code reads it: `true` and `false`, and `yes`, `no`, `on`,
+ * `off`, `1` and `0` in any letter case (SOURCES.claudeSkills, "Boolean fields accept…", v2.1.218
+ * and later). Undefined for any other value.
+ */
+export function claudeBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (value === 1 || value === 0) return value === 1;
+  if (typeof value !== 'string') return undefined;
+  const text = value.toLowerCase();
+  if (CLAUDE_TRUE.has(text)) return true;
+  if (CLAUDE_FALSE.has(text)) return false;
+  return undefined;
+}
+
 /** What Claude Code lists for one skill, before the model picks it. */
 export interface ClaudeSkillListing {
   /** `name` from the frontmatter, else the skill's directory name. */

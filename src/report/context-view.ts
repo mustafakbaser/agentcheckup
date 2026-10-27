@@ -681,7 +681,9 @@ function whenText(entry: LoadEntry, agent: ContextAgent): string {
     case 'model-selected':
       return 'when the model picks it';
     case 'manual':
-      return entry.role === 'command' && entry.name !== undefined
+      // Claude Code runs a command, or a skill the model cannot pick, with /name.
+      return entry.name !== undefined &&
+        (entry.role === 'command' || (entry.role === 'skill' && agent === 'claude-code'))
         ? `when you run /${entry.name}`
         : 'only when you ask for it';
     case 'on-approval':

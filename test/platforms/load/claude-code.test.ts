@@ -578,7 +578,8 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
     const deploy = entry(result, 'skill:.claude/skills/deploy/SKILL.md');
     expect(deploy).toMatchObject({
       name: 'deploy',
-      size: { chars: 'Deploys.On release.'.length },
+      // The listing holds the name and the description, `when_to_use` appended.
+      size: { chars: 'deployDeploys.On release.'.length },
       deferred: { chars: 'Body text.\n'.length },
       certainty: 'documented',
       evidence: ['claudeSkills'],
@@ -589,6 +590,111 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       certainty: 'documented',
     });
     expect(entry(result, 'skill:other/.claude/skills/far/SKILL.md').certainty).toBe('unverified');
+  });
+
+  it('leaves a skill the model cannot pick out of the listing: it loads when you run it', () => {
+    const result = plan({
+      '.claude/skills/deploy/SKILL.md':
+        '---\ndescription: Deploys.\ndisable-model-invocation: true\n---\nDeploy steps.\n',
+      // Claude Code reads yes, no, on, off, 1 and 0 in any case as booleans, quoted or not.
+      '.claude/skills/quoted/SKILL.md':
+        '---\ndescription: Quoted.\ndisable-model-invocation: "true"\n---\nBody.\n',
+      '.claude/skills/yes/SKILL.md':
+        '---\ndescription: Yes.\ndisable-model-invocation: YES\n---\nBody.\n',
+      '.claude/skills/one/SKILL.md':
+        '---\ndescription: One.\ndisable-model-invocation: 1\n---\nBody.\n',
+      '.claude/skills/off/SKILL.md':
+        '---\ndescription: Off.\ndisable-model-invocation: Off\n---\nBody.\n',
+      // Any other value is not a boolean: the skill stays in the listing.
+      '.claude/skills/maybe/SKILL.md':
+        '---\ndescription: Maybe.\ndisable-model-invocation: maybe\n---\nBody.\n',
+    });
+    expect(summary(result.entries)).toEqual([
+      '1 startup skill .claude/skills/maybe/SKILL.md',
+      '2 startup skill .claude/skills/off/SKILL.md',
+      '- manual skill .claude/skills/deploy/SKILL.md',
+      '- manual skill .claude/skills/one/SKILL.md',
+      '- manual skill .claude/skills/quoted/SKILL.md',
+      '- manual skill .claude/skills/yes/SKILL.md',
+    ]);
+    expect(entry(result, 'skill:.claude/skills/deploy/SKILL.md')).toEqual({
+      id: 'skill:.claude/skills/deploy/SKILL.md',
+      role: 'skill',
+      trigger: 'manual',
+      path: '.claude/skills/deploy/SKILL.md',
+      realPath: '.claude/skills/deploy/SKILL.md',
+      name: 'deploy',
+      size: { bytes: 14, chars: 14, tokens: 4 },
+      certainty: 'documented',
+      evidence: ['claudeSkills'],
+    });
+    // Only the skills the model can pick are in the startup listing and its limits.
+    expect(result.totals.startup.chars).toBe('maybeMaybe.offOff.'.length);
+    expect(limit(result, 'claude-code.skill_listing_max_desc_chars')?.subject).toBe(
+      '.claude/skills/maybe/SKILL.md',
+    );
+  });
+
+  it('applies skillOverrides from the settings of the working directory, local over shared', () => {
+    const skills = {
+      '.claude/skills/a/SKILL.md': '---\ndescription: Alpha.\n---\nA body.\n',
+      '.claude/skills/b/SKILL.md': '---\ndescription: Beta.\n---\nB body.\n',
+      '.claude/skills/c/SKILL.md': '---\ndescription: Gamma.\n---\nC body.\n',
+      '.claude/skills/d/SKILL.md': '---\ndescription: Delta.\n---\nD body.\n',
+    };
+    const result = plan({
+      ...skills,
+      '.claude/settings.json': JSON.stringify({
+        skillOverrides: { a: 'name-only', b: 'off', c: 'on', d: 'hidden' },
+      }),
+      '.claude/settings.local.json': JSON.stringify({
+        skillOverrides: { b: 'user-invocable-only' },
+      }),
+    });
+    expect(summary(result.entries)).toEqual([
+      '1 startup skill .claude/skills/a/SKILL.md',
+      '2 startup skill .claude/skills/c/SKILL.md',
+      '3 startup skill .claude/skills/d/SKILL.md',
+      '- manual skill .claude/skills/b/SKILL.md',
+    ]);
+    expect(entry(result, 'skill:.claude/skills/a/SKILL.md')).toMatchObject({
+      size: { chars: 1 },
+      evidence: ['claudeSkills', 'claudeSettings'],
+    });
+    expect(entry(result, 'skill:.claude/skills/b/SKILL.md').size?.chars).toBe('B body.\n'.length);
+    // `hidden` is not one of the four states: the skill is listed as usual.
+    expect(entry(result, 'skill:.claude/skills/d/SKILL.md')).toMatchObject({
+      size: { chars: 'dDelta.'.length },
+      evidence: ['claudeSkills'],
+    });
+    // A name-only entry's description is not in the listing, so the limit does not measure it.
+    expect(limit(result, 'claude-code.skill_listing_budget')?.used).toBe(
+      'Gamma.'.length + 'Delta.'.length,
+    );
+
+    const off = plan({
+      ...skills,
+      '.claude/settings.json': JSON.stringify({ skillOverrides: { b: 'off' } }),
+    });
+    expect(off.skipped).toEqual([
+      {
+        id: 'skill:.claude/skills/b/SKILL.md#b',
+        role: 'skill',
+        path: '.claude/skills/b/SKILL.md',
+        name: 'b',
+        code: 'disabled',
+        certainty: 'documented',
+        evidence: ['claudeSkills', 'claudeSettings'],
+      },
+    ]);
+
+    // The settings of another directory do not apply to a session started at the root.
+    const elsewhere = plan({
+      ...skills,
+      'pkg/.claude/settings.json': JSON.stringify({ skillOverrides: { a: 'off' } }),
+    });
+    expect(elsewhere.skipped).toEqual([]);
+    expect(entry(elsewhere, 'skill:.claude/skills/a/SKILL.md').trigger).toBe('startup');
   });
 
   it('stops at the repository root', () => {
@@ -610,10 +716,11 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       '.claude/skills/broken/SKILL.md': '---\ndescription: [unclosed\n---\nBody.\n',
       '.claude/skills/open/SKILL.md': '---\ndescription: never closed\n',
     });
+    // The name, then the description cut at 1,536 characters.
     expect(entry(result, 'skill:.claude/skills/long/SKILL.md').size).toEqual({
-      bytes: 1500 * 2 + 36,
-      chars: 1536,
-      tokens: 384,
+      bytes: 'long'.length + 1500 * 2 + 36,
+      chars: 'long'.length + 1536,
+      tokens: Math.ceil(('long'.length + 1536) / 4),
     });
     expect(limit(result, 'claude-code.skill_listing_max_desc_chars')).toMatchObject({
       limit: 1536,
@@ -624,13 +731,13 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
     // No frontmatter: the name is the directory and the description the first body line.
     expect(entry(result, 'skill:.claude/skills/bare/SKILL.md')).toMatchObject({
       name: 'bare',
-      size: { chars: '# Bare skill'.length },
+      size: { chars: 'bare# Bare skill'.length },
       certainty: 'documented',
     });
     // YAML that does not parse: the skill loads with no fields.
     expect(entry(result, 'skill:.claude/skills/broken/SKILL.md')).toMatchObject({
       name: 'broken',
-      size: { chars: 0 },
+      size: { chars: 'broken'.length },
       deferred: { chars: 'Body.\n'.length },
     });
     expect(entry(result, 'skill:.claude/skills/open/SKILL.md').certainty).toBe('unverified');
@@ -937,7 +1044,8 @@ describe('loadClaudeCode: plan', () => {
       'pkg/CLAUDE.md': 'efgh\n',
       '.claude/skills/s/SKILL.md': '---\ndescription: Desc.\n---\nBody\n',
     });
-    expect(result.totals.startup).toEqual({ bytes: 10, chars: 10, tokens: 3 });
+    // CLAUDE.md (5) and the listing, `s` and `Desc.` (6).
+    expect(result.totals.startup).toEqual({ bytes: 11, chars: 11, tokens: 3 });
     expect(result.totals.onDemand).toEqual({ bytes: 10, chars: 10, tokens: 3 });
   });
 
