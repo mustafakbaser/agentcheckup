@@ -14,11 +14,11 @@ import {
   isTable,
   type JsonPath,
   keySpanOf,
-  own,
   type SpannedDocument,
   spanOf,
 } from '../parse/json-access.js';
 import type { LoadView } from '../platforms/load/view.js';
+import { settingAt } from '../platforms/root-settings.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 import type { ModelSetting } from './types.js';
 
@@ -106,16 +106,6 @@ const COPILOT_KEYS: readonly Wanted[] = [
   { path: ['effortLevel'], applies: 'session' },
 ];
 
-/** The value at `path` in `doc`, or undefined. */
-function at(doc: SpannedDocument, path: JsonPath): unknown {
-  let value: unknown = doc.value;
-  for (const segment of path) {
-    if (!isTable(value) || typeof segment !== 'string') return undefined;
-    value = own(value, segment);
-  }
-  return value;
-}
-
 /**
  * Whether `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on for a session at the root: in
  * `.claude/settings.local.json` when it sets the switch, else in `.claude/settings.json`.
@@ -127,7 +117,7 @@ function rootForce(view: LoadView): boolean {
     if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
     const doc = view.json(artifact);
     if (!doc.ok) continue;
-    const value = at(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
+    const value = settingAt(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
     if (value !== undefined) force = isTruthy(value);
   }
   return force;
@@ -143,7 +133,7 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
     wanted: Wanted,
     extra: Partial<Pick<ModelSetting, 'forced'>> = {},
   ): void => {
-    const raw = textOf(at(doc, wanted.path));
+    const raw = textOf(settingAt(doc, wanted.path));
     if (raw === undefined) return;
     const key = wanted.path.join('.');
     const fields = { agent, key, value: redactShown(raw), applies: wanted.applies, ...extra };
@@ -165,7 +155,7 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
       // At the root, the local file's switch counts for the shared file's model too.
       const forced = CLAUDE_ROOT_FILES.includes(artifact.path)
         ? forcedAtRoot
-        : isTruthy(at(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']));
+        : isTruthy(settingAt(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']));
       for (const wanted of CLAUDE_KEYS) {
         const subagentModel = wanted.path[1] === 'CLAUDE_CODE_SUBAGENT_MODEL';
         add(artifact, doc, 'claude-code', wanted, subagentModel && forced ? { forced } : {});
@@ -178,7 +168,7 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
       if (!doc.ok) continue;
       for (const wanted of GEMINI_KEYS) add(artifact, doc, 'gemini', wanted);
       // `agents.overrides.<name>.modelConfig.model` picks one agent's model.
-      const overrides = at(doc, ['agents', 'overrides']);
+      const overrides = settingAt(doc, ['agents', 'overrides']);
       if (isTable(overrides)) {
         for (const name of Object.keys(overrides)) {
           const path = ['agents', 'overrides', name, 'modelConfig', 'model'];
@@ -191,20 +181,6 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
     }
   }
   return out.sort((a, b) => compareStrings(a.id, b.id));
-}
-
-/** The value at `path` in the settings file at `file` (JSON, or TOML for Codex), or undefined. */
-export function rootSetting(
-  view: LoadView,
-  file: string,
-  path: JsonPath,
-): { readonly value: unknown; readonly key: string } | undefined {
-  const artifact = view.index.get(file);
-  if (artifact?.path !== file) return undefined;
-  const doc = artifact.kind === 'codex-config' ? view.toml(artifact) : view.json(artifact);
-  if (!doc.ok) return undefined;
-  const value = at(doc, path);
-  return value === undefined ? undefined : { value, key: path.join('.') };
 }
 
 /** Keys whose value is a model, rather than an effort, a switch or a list of models allowed. */

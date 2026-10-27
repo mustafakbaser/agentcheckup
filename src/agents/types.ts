@@ -8,6 +8,7 @@
  * organization sets (user settings, managed allowlists, the model a call passes) is never read;
  * the command lists it as not visible.
  */
+import type { DefinitionStatus } from '../platforms/agent-files.js';
 import type { Certainty, ContextAgent, SourceKey } from '../platforms/load/types.js';
 
 /**
@@ -49,14 +50,8 @@ export interface EffectiveModel {
   readonly overridden?: { readonly key: string; readonly file: string };
 }
 
-/**
- * What the agent does with the file:
- * - `loads`: the agent lists the definition;
- * - `skipped`: the agent drops it, for `reason`;
- * - `shadowed`: another definition with the same name wins;
- * - `unknown`: whether it loads is not documented.
- */
-export type DefinitionStatus = 'loads' | 'skipped' | 'shadowed' | 'unknown';
+/** What the agent does with the file (src/platforms/agent-files.ts). */
+export type { DefinitionStatus } from '../platforms/agent-files.js';
 
 /** One definition as one agent reads it. */
 export interface AgentDefinition {
