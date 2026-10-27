@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AGENTS_HELP } from '../../src/cli/help.js';
 import { EXIT, run } from '../../src/cli/run.js';
@@ -105,7 +105,7 @@ describe('agentcheckup agents', () => {
 
   it('gates model changes since a baseline on request, for the agents it lists', async () => {
     const root = await repository();
-    const base = join(root, '..', `${root.slice(root.lastIndexOf('/') + 1)}-base.json`);
+    const base = join(root, '..', `${basename(root)}-base.json`);
     expect(await run(['agents', '-f', 'json', '-o', base], capture(root))).toBe(EXIT.ok);
     await writeFile(join(root, '.claude/agents/reviewer.md'), subagent('reviewer', 'fable'));
 
