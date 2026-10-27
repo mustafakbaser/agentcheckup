@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.2.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.1.1...v0.2.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **platforms:** A baseline written by an earlier version has no findings in the newly read agent folders, so hidden Unicode there counts as new and `--gate unicode` trips once. A file that `.claude/agents` reaches through a symlink to one of these folders is reported at its real path, so its findings show as new and resolved once, and a Copilot custom agent that declares `mcp-servers` trips `--gate mcp` once. Create the baseline again with this version.
+* **inventory:** the inventory has more items. A policy run without a baseline, or with "existing": "fail", can report violations it did not before, and a baseline made by an earlier version shows the new items as added, so the gate trips once. Create baselines again with this version; the GitHub Action does so on every run.
+
+### Features
+
+* **agents:** list every agent definition and the model it runs with ([1b136ba](https://github.com/mustafakbaser/agentcheckup/commit/1b136ba185b27562862b3ea93c19c1cbeb46cf55))
+* **cli:** add the agents command to list agent definitions and their models ([a277af1](https://github.com/mustafakbaser/agentcheckup/commit/a277af1224083981276809c07a701676d081dbbb))
+* **inventory:** list hooks, MCP servers and permissions declared in frontmatter ([3b2b433](https://github.com/mustafakbaser/agentcheckup/commit/3b2b43392aed974989f16c0e87c6e029219ed73c))
+* **inventory:** list the subagent every Claude Code session starts as ([958c14b](https://github.com/mustafakbaser/agentcheckup/commit/958c14b01e2296179d31d1bfa4ad6114908e18b1))
+* **platforms:** read the custom agent files of Codex, Cursor, Gemini CLI, Copilot and Devin Local ([c977278](https://github.com/mustafakbaser/agentcheckup/commit/c977278d297e7bf509ffb09a2b0a736961efa150))
+* **policy:** allow and deny the models agents may be set to run on ([7bb50ef](https://github.com/mustafakbaser/agentcheckup/commit/7bb50efa0b6331f61c628eb9e5624f7bbea17e55))
+* **report:** write agent definitions and model settings, and gate model changes on request ([b7bfb37](https://github.com/mustafakbaser/agentcheckup/commit/b7bfb374138974822aee1736beb862aa60666a32))
+* **rules:** report model values agents do not document, and subagent models Claude Code ignores ([b2b0575](https://github.com/mustafakbaser/agentcheckup/commit/b2b057558ff81d23c5d00ffc97e49184c5f9a4f6))
+
+
+### Bug fixes
+
+* **gate:** label permission modes as set or changed, and say where each change is ([7b904af](https://github.com/mustafakbaser/agentcheckup/commit/7b904afdc6e6d7e44af54197c96597e42a365d42))
+* **inventory:** remove credentials from permission values ([bd31a4c](https://github.com/mustafakbaser/agentcheckup/commit/bd31a4c85d5d43d3c9839c9a6406236728269e00))
+* **rules:** stop claiming Claude Code skips frontmatter its own reader reads ([8bce8ea](https://github.com/mustafakbaser/agentcheckup/commit/8bce8eae58b82f7444bc52e59d3a04c44d7756ab))
+
+
+### Documentation
+
+* add npm, OpenSSF Scorecard and Marketplace badges ([eb00419](https://github.com/mustafakbaser/agentcheckup/commit/eb00419d25b97e96e14e5e1143ef3b680e985314))
+* document agent definitions and models, and record ADR 0013 ([a3fad3f](https://github.com/mustafakbaser/agentcheckup/commit/a3fad3ff1a3f1aa97250ef005e38cb1893ec95ed))
+* document items declared in frontmatter and the session agent, and record ADR 0012 ([1f12ae4](https://github.com/mustafakbaser/agentcheckup/commit/1f12ae4beab21abed9d88d1d49f4603c408289d6))
+* show a recording of context, fix and fix --write in the README ([a223f3f](https://github.com/mustafakbaser/agentcheckup/commit/a223f3ff0f6ac8a61df44b6a77b4e644e9ed416a))
+
 ## [0.1.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.1.0...v0.1.1) (2026-10-18)
 
 
