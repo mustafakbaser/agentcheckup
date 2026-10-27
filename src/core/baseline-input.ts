@@ -45,8 +45,11 @@ export interface BaselineLoadEntry {
   readonly path: string;
   readonly trigger: string;
   readonly certainty: string;
+  readonly name?: string;
   readonly size?: { readonly chars: number };
   readonly truncated?: { readonly atByte: number; readonly line: number };
+  /** For a subagent: what it starts with when it runs, in ≈tokens. */
+  readonly ownContext?: { readonly size: { readonly tokens: number } };
 }
 
 /** The skipped-load fields a plan comparison reads. A SkippedLoad is assignable to it. */
@@ -748,13 +751,21 @@ function readEntry(value: unknown, at: string): BaselineLoadEntry {
       line: count(own(cut, 'line'), field(path, 'line')),
     };
   });
+  const name = optional(source, 'name', at, string);
+  // A report made before subagents had their own context has none: every call then shows as new.
+  const ownContext = optional(source, 'ownContext', at, (item, path) => {
+    const sized = object(own(object(item, path), 'size'), field(path, 'size'));
+    return { size: { tokens: count(own(sized, 'tokens'), field(path, 'size.tokens')) } };
+  });
   return {
     id: string(own(source, 'id'), field(at, 'id')),
     path: string(own(source, 'path'), field(at, 'path')),
     trigger: string(own(source, 'trigger'), field(at, 'trigger')),
     certainty: string(own(source, 'certainty'), field(at, 'certainty')),
+    ...(name === undefined ? {} : { name }),
     ...(size === undefined ? {} : { size }),
     ...(truncated === undefined ? {} : { truncated }),
+    ...(ownContext === undefined ? {} : { ownContext }),
   };
 }
 

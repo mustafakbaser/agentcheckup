@@ -21,6 +21,10 @@ import {
   type LoadEntry,
   type LoadPlan,
   type MatrixCell,
+  type OwnContext,
+  type OwnContextHidden,
+  type OwnContextPart,
+  type PreloadNotLoaded,
   type Size,
   type SkipCode,
   type SkipFix,
@@ -327,6 +331,11 @@ export interface StartupRow {
   readonly skills?: number;
   /** For `subagents`: the number of subagents in the listing. */
   readonly subagents?: number;
+  /**
+   * For `subagents`: the ≈tokens past which the agent warns at startup about the listing, set
+   * when the listing passes them (Claude Code's 15,000).
+   */
+  readonly warnsPast?: number;
   /** Set when the agent reaches the file through a symlink alias. */
   readonly realPath?: string;
   /** Import depth, 1 for a file imported by an instruction file. */
@@ -353,6 +362,20 @@ export interface OnDemandRow {
   readonly when: string;
   /** For an import: the file that imports it. */
   readonly importedBy?: string;
+  readonly unverified: boolean;
+}
+
+/**
+ * A subagent call: what its own context window starts with, as far as the repository shows.
+ * `parts` are `prompt ≈375`-style labels with sizes; `notes` say what it names and does not get.
+ */
+export interface CallRow {
+  readonly path: string;
+  readonly name?: string;
+  /** Absent when nothing of the call can be measured, as for a file agentcheckup cannot read. */
+  readonly size?: Size;
+  readonly parts: readonly { readonly label: string; readonly size: Size }[];
+  readonly notes: readonly string[];
   readonly unverified: boolean;
 }
 
@@ -392,6 +415,10 @@ export interface PlanView {
   readonly total: Size;
   readonly services: readonly ServiceRow[];
   readonly onDemand: readonly OnDemandRow[];
+  /** Subagent calls, each in a context window of its own, in plan order. */
+  readonly calls: readonly CallRow[];
+  /** What a call also starts with that no file shows, as phrases, in a fixed order. */
+  readonly callsHidden: readonly string[];
   readonly skipped: readonly SkipRow[];
   /** Files and items the agent does not read at all (`not-read`). */
   readonly notRead: readonly { readonly path: string; readonly name?: string }[];
@@ -705,6 +732,76 @@ function whenText(entry: LoadEntry, agent: ContextAgent): string {
   }
 }
 
+const PART_LABELS: Readonly<Record<OwnContextPart['kind'], string>> = {
+  prompt: 'prompt',
+  instructions: 'instructions',
+  skill: 'skill',
+  listing: 'skills listing',
+  memory: 'memory',
+};
+
+const NOT_LOADED_LABELS: Readonly<Record<PreloadNotLoaded['reason'], string>> = {
+  'not-found': "not in this session's skills",
+  'not-model-invocable': 'the model cannot invoke it',
+  off: 'turned off',
+};
+
+/** Phrases for what a subagent call starts with that no file shows, in this order. */
+const HIDDEN_PHRASES: Readonly<Record<OwnContextHidden, string>> = {
+  prompt: 'a prompt from outside the repository',
+  environment: 'environment details',
+  task: 'the task message',
+  tools: 'tool definitions',
+  'git-status': 'git status',
+  'user-instructions': "the user's CLAUDE.md",
+  'managed-instructions': 'managed CLAUDE.md',
+  instructions: 'whether instruction files reach it (not documented)',
+};
+
+const HIDDEN_ORDER = Object.keys(HIDDEN_PHRASES) as OwnContextHidden[];
+
+function callRow(entry: LoadEntry, context: OwnContext): CallRow {
+  const parts = context.parts.map((part) => ({
+    label:
+      part.kind === 'skill' && part.name !== undefined
+        ? `skill ${part.name}`
+        : PART_LABELS[part.kind],
+    size: part.size,
+  }));
+  const notes: string[] = [];
+  const items = (context.notLoaded ?? []).map(
+    (item) => `${item.name} (${NOT_LOADED_LABELS[item.reason]})`,
+  );
+  const overLimit = context.overLimit ?? 0;
+  if (overLimit > 0) {
+    const skills = `${formatInteger(overLimit)} ${overLimit === 1 ? 'skill' : 'skills'}`;
+    items.push(`${items.length === 0 ? '' : 'and '}${skills} past the first 32`);
+  }
+  if (items.length > 0) notes.push(`not preloaded: ${items.join(', ')}`);
+  const unmeasured = context.unmeasured ?? [];
+  if (unmeasured.length > 0) {
+    notes.push(`not measured, so the call starts with more: ${unmeasured.join(', ')}`);
+  }
+  const { memory } = context;
+  const measured = context.parts.some((part) => part.kind === 'memory');
+  if (memory !== undefined && !measured) {
+    if (memory.path === undefined) notes.push(`memory in the user's scope, not visible`);
+    else if (memory.exists === false) notes.push(`memory ${memory.path}, none yet`);
+    else if (!unmeasured.includes(memory.path)) {
+      notes.push(`memory ${memory.path}, not measured`);
+    }
+  }
+  return {
+    path: entry.path,
+    ...(entry.name === undefined ? {} : { name: entry.name }),
+    size: context.size,
+    parts,
+    notes,
+    // The call's own certainty: the listing's, which the entry carries, is the startup row's.
+    unverified: context.parts.some((part) => part.certainty === 'unverified'),
+  };
+}
+
 function itemsById<T extends { readonly id: string }>(items: readonly T[]): Map<string, T> {
   return new Map(items.map((item) => [item.id, item]));
 }
@@ -718,7 +815,6 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
   const listing = plan.entries.filter((entry) => inListing(entry) && entry.size !== undefined);
   let listingShown = false;
   const agents = plan.entries.filter(inAgentListing);
-  let agentsShown = false;
 
   for (const entry of plan.entries) {
     const unverified = entry.certainty === 'unverified';
@@ -759,21 +855,8 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       });
       continue;
     }
-    if (inAgentListing(entry)) {
-      if (!agentsShown) {
-        agentsShown = true;
-        startup.push({
-          kind: 'subagents',
-          path: '',
-          subagents: agents.length,
-          depth: 0,
-          via: [],
-          size: sumSizes(agents.map((agent) => agent.size)),
-          unverified: agents.some((agent) => agent.certainty === 'unverified'),
-        });
-      }
-      continue;
-    }
+    // The subagents listing goes after the other startup rows (below).
+    if (inAgentListing(entry)) continue;
     if (entry.trigger === 'startup') {
       const isImport = entry.role === 'import';
       startup.push({
@@ -799,6 +882,47 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       ...(importer === undefined ? {} : { importedBy: importer }),
       unverified,
     });
+  }
+
+  // No agent documents where the subagents listing sits: after the other startup rows.
+  if (agents.length > 0) {
+    const warning = plan.limits.find(
+      (limit) =>
+        limit.key === 'claude-code.agent_descriptions_tokens' &&
+        limit.limit !== null &&
+        limit.used > limit.limit,
+    );
+    startup.push({
+      kind: 'subagents',
+      path: '',
+      subagents: agents.length,
+      ...(warning?.limit === undefined || warning.limit === null
+        ? {}
+        : { warnsPast: warning.limit }),
+      depth: 0,
+      via: [],
+      size: sumSizes(agents.map((agent) => agent.size)),
+      unverified: agents.some((agent) => agent.certainty === 'unverified'),
+    });
+  }
+
+  const calls: CallRow[] = [];
+  const hidden = new Set<OwnContextHidden>();
+  for (const entry of plan.entries) {
+    if (entry.role !== 'subagent') continue;
+    if (entry.ownContext === undefined) {
+      // A subagent the agent may load whose file agentcheckup cannot read.
+      calls.push({
+        path: entry.path,
+        ...(entry.name === undefined ? {} : { name: entry.name }),
+        parts: [],
+        notes: ['not measured: agentcheckup cannot read what it starts with'],
+        unverified: true,
+      });
+      continue;
+    }
+    calls.push(callRow(entry, entry.ownContext));
+    for (const key of entry.ownContext.notVisible) hidden.add(key);
   }
 
   const skipped: SkipRow[] = [];
@@ -835,6 +959,8 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       ...services.filter((row) => row.kind === 'hook'),
     ],
     onDemand,
+    calls,
+    callsHidden: HIDDEN_ORDER.filter((key) => hidden.has(key)).map((key) => HIDDEN_PHRASES[key]),
     skipped,
     notRead,
     incomplete: plan.incomplete.map(incompleteRow),
@@ -848,20 +974,20 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       startup.some((row) => row.unverified) ||
       services.some((row) => row.unverified) ||
       onDemand.some((row) => row.unverified) ||
+      calls.some((row) => row.unverified) ||
       skipped.some((row) => row.unverified),
   };
 }
 
+/** Sizes added up as the plan's totals add them: the characters first, then the estimate. */
 function sumSizes(sizes: readonly (Size | undefined)[]): Size {
   let bytes = 0;
   let chars = 0;
-  let tokens = 0;
   for (const size of sizes) {
     bytes += size?.bytes ?? 0;
     chars += size?.chars ?? 0;
-    tokens += size?.tokens ?? 0;
   }
-  return { bytes, chars, tokens };
+  return { bytes, chars, tokens: Math.ceil(chars / 4) };
 }
 
 /**

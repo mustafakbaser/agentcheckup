@@ -10,6 +10,7 @@ import {
   CONTEXT_AGENTS,
   CONTEXT_PLATFORM,
   type ContextAgent,
+  type OwnContext,
   type SkipCode,
 } from '../../src/platforms/load/types.js';
 import { formatContextMarkdown } from '../../src/report/context-markdown.js';
@@ -187,17 +188,172 @@ describe('subagents listing', () => {
     const lines = output.split('\n');
     expect(lines).toContainEqual(
       expect.stringMatching(
-        /^ {5}Subagents listing \(2 subagents, names and descriptions\) +39 +11$/,
+        /^ {5}Subagents listing \(2 subagents, names and descriptions\) +39 +10$/,
       ),
     );
-    // The listing is not the files: a subagent's own prompt is not in the session's context.
-    expect(lines.some((line) => line.trim().startsWith('.claude/agents/'))).toBe(false);
+    // The listing is not the files: a subagent's own prompt is not in the session's context,
+    // it is in the calls below.
+    const startup = lines.slice(lines.findIndex((line) => line.startsWith('At session start')));
+    const table = startup.slice(0, startup.indexOf(''));
+    expect(table.some((line) => line.trim().startsWith('.claude/agents/'))).toBe(false);
+    expect(lines).toContain('Subagent calls, each in a context window of its own');
     const markdown = formatContextMarkdown(scanned(files));
     expect(markdown).toContain('Subagents listing (2 subagents, names and descriptions)');
+  });
+
+  it("says on the row when the listing passes Claude Code's startup warning", () => {
+    const listed = (used: number) =>
+      plan('claude-code', {
+        entries: [entry('subagent', '.claude/agents/a.md', { name: 'a', size: size(80) })],
+        limits: [
+          {
+            key: 'claude-code.agent_descriptions_tokens',
+            label: 'subagents listing',
+            unit: 'tokens',
+            limit: 15_000,
+            used,
+            subject: '',
+            effect: 'advice',
+            evidence: [],
+          },
+        ],
+      });
+    const label = (used: number) =>
+      formatContextText({ ...emptyResult, context: contextReport([listed(used)]) })
+        .split('\n')
+        .find((line) => line.includes('Subagents listing'));
+    expect(label(15_001)).toContain(
+      'Subagents listing (1 subagent, names and descriptions, past the 15,000-token startup warning)',
+    );
+    expect(label(15_000)).not.toContain('warning');
   });
 
   it('has no row without a listed subagent', () => {
     const output = formatContextText(scanned({ 'CLAUDE.md': 'Rules.\n' }));
     expect(output).not.toContain('Subagents listing');
+  });
+});
+
+describe('subagent calls', () => {
+  const own = (overrides: Partial<OwnContext>): OwnContext => ({
+    size: size(400),
+    parts: [{ kind: 'prompt', size: size(400), certainty: 'documented', evidence: [] }],
+    notVisible: [],
+    ...overrides,
+  });
+
+  it('shows a subagent it cannot measure as a call, and names what it did not read', () => {
+    const claude = plan('claude-code', {
+      entries: [
+        entry('subagent', '.claude/agents/merged.md', { name: 'merged', certainty: 'unverified' }),
+        entry('subagent', '.claude/agents/keeper.md', {
+          name: 'keeper',
+          size: size(20),
+          ownContext: own({
+            parts: [
+              { kind: 'prompt', size: size(40), certainty: 'documented', evidence: [] },
+              { kind: 'listing', size: size(80), certainty: 'documented', evidence: [] },
+              {
+                kind: 'memory',
+                path: '.claude/agent-memory/keeper/MEMORY.md',
+                size: size(400),
+                certainty: 'documented',
+                evidence: [],
+              },
+            ],
+            unmeasured: ['.claude/skills/huge/SKILL.md'],
+            memory: {
+              scope: 'project',
+              path: '.claude/agent-memory/keeper/MEMORY.md',
+              exists: true,
+            },
+          }),
+        }),
+      ],
+    });
+    const [view] = contextView({ ...emptyResult, context: contextReport([claude]) }).plans;
+    expect(
+      view?.calls.map((row) => [
+        row.path,
+        row.size?.tokens,
+        row.parts.map((part) => part.label),
+        row.notes,
+        row.unverified,
+      ]),
+    ).toEqual([
+      [
+        '.claude/agents/keeper.md',
+        100,
+        ['prompt', 'skills listing', 'memory'],
+        ['not measured, so the call starts with more: .claude/skills/huge/SKILL.md'],
+        false,
+      ],
+      [
+        '.claude/agents/merged.md',
+        undefined,
+        [],
+        ['not measured: agentcheckup cannot read what it starts with'],
+        true,
+      ],
+    ]);
+    const text = formatContextText({ ...emptyResult, context: contextReport([claude]) });
+    expect(text).toMatch(/\.claude\/agents\/merged\.md +not measured \?\n/);
+  });
+
+  it('notes the preloads a call does not get and the memory it is not measured with', () => {
+    const claude = plan('claude-code', {
+      entries: [
+        entry('subagent', '.claude/agents/a.md', {
+          name: 'a',
+          size: size(20),
+          ownContext: own({
+            notLoaded: [
+              { name: 'x', reason: 'not-found' },
+              { name: 'y', reason: 'not-model-invocable' },
+              { name: 'z', reason: 'off' },
+            ],
+            overLimit: 1_200,
+            memory: { scope: 'project', path: '.claude/agent-memory/a/MEMORY.md', exists: false },
+            notVisible: ['tools', 'environment'],
+          }),
+        }),
+        entry('subagent', '.claude/agents/b.md', {
+          name: 'b',
+          size: size(20),
+          ownContext: own({
+            parts: [
+              { kind: 'skill', name: 'api', size: size(80), certainty: 'unverified', evidence: [] },
+            ],
+            overLimit: 1,
+            memory: { scope: 'user' },
+            notVisible: ['task'],
+          }),
+        }),
+      ],
+    });
+    const [view] = contextView({ ...emptyResult, context: contextReport([claude]) }).plans;
+    expect(
+      view?.calls.map((row) => [row.parts.map((part) => part.label), row.notes, row.unverified]),
+    ).toEqual([
+      [
+        ['prompt'],
+        [
+          "not preloaded: x (not in this session's skills), y (the model cannot invoke it), z (turned off), and 1,200 skills past the first 32",
+          'memory .claude/agent-memory/a/MEMORY.md, none yet',
+        ],
+        false,
+      ],
+      [
+        ['skill api'],
+        ['not preloaded: 1 skill past the first 32', "memory in the user's scope, not visible"],
+        true,
+      ],
+    ]);
+    // Every plan's hidden parts once, in a fixed order.
+    expect(view?.callsHidden).toEqual([
+      'environment details',
+      'the task message',
+      'tool definitions',
+    ]);
   });
 });

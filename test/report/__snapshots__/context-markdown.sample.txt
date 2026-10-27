@@ -36,6 +36,14 @@
 | \.claude/rules/api\.md | 900 bytes ≈ 225 | when Claude opens src/api/\*\* |
 | \.claude/commands/release\.md | 600 bytes ≈ 150 | when you run /release |
 
+### Subagent calls, each in a context window of its own
+
+| Subagent | ≈Tokens per call | Parts | Notes |
+| :------- | ---------------: | :---- | :---- |
+| \.claude/agents/reviewer\.md | ≈2,799 | prompt ≈375, instructions ≈2,124, skill docs ≈300 | not preloaded\: personal \(not in this session's skills\); memory \.claude/agent\-memory/reviewer/MEMORY\.md, not measured |
+
+Not visible in a call: environment details, the task message, tool definitions, git status, the user's CLAUDE\.md, managed CLAUDE\.md.
+
 ### Skipped
 
 | File | Reason | Rule |

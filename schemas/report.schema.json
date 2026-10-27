@@ -1592,7 +1592,7 @@
       "description": "Change in one load plan present in both reports.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["agent", "cwd", "entries", "skipped", "startupTokens", "limits"],
+      "required": ["agent", "cwd", "entries", "skipped", "startupTokens", "calls", "limits"],
       "properties": {
         "agent": { "$ref": "#/$defs/contextAgent" },
         "cwd": { "$ref": "#/$defs/relativePath" },
@@ -1605,6 +1605,22 @@
           "properties": {
             "before": { "$ref": "#/$defs/count" },
             "after": { "$ref": "#/$defs/count" }
+          }
+        },
+        "calls": {
+          "description": "Subagents whose own context, in ≈tokens per call, differs. `before` is null for one the baseline does not have, `after` for one the scan no longer lists or, with `unmeasured`, can no longer measure.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "before", "after"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "name": { "type": "string" },
+              "before": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+              "after": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+              "unmeasured": { "const": true }
+            }
           }
         },
         "limits": {

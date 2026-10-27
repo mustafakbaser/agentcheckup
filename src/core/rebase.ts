@@ -215,6 +215,7 @@ function mapBaseline(diff: BaselineDiff, map: PathMap): BaselineDiff {
       cwd: map(delta.cwd),
       entries: mapItemDiff(delta.entries, map),
       skipped: mapItemDiff(delta.skipped, map),
+      calls: delta.calls.map((call) => ({ ...call, id: mapId(call.id, map) })),
       limits: delta.limits.map((limit) => ({ ...limit, subject: map(limit.subject) })),
     })),
     gate: {

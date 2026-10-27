@@ -22,6 +22,13 @@
   .claude/rules/api.md             900 bytes ≈ 225, when Claude opens src/api/**
   .claude/commands/release.md      600 bytes ≈ 150, when you run /release
 
+<b>Subagent calls, each in a context window of its own</b>
+  .claude/agents/reviewer.md  ≈2,799 tokens: prompt ≈375, instructions ≈2,124, skill docs ≈300
+<dim>    not preloaded: personal (not in this session's skills)</dim>
+<dim>    memory .claude/agent-memory/reviewer/MEMORY.md, not measured</dim>
+<dim>  Not visible in a call: environment details, the task message, tool definitions, git status,</dim>
+<dim>  the user's CLAUDE.md, managed CLAUDE.md</dim>
+
 <b>Skipped</b>
   .mcp.json › docs        "url" without "type"                     <gray>mcp/url-without-type</gray>
   packages/api/AGENTS.md  a CLAUDE.md on the path is read instead  <gray>instr/agents-md-ignored-by-claude</gray>

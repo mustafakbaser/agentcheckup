@@ -1575,6 +1575,98 @@ describe('rule sets', () => {
 // ---------------------------------------------------------------------------------------------
 
 describe('context', () => {
+  it('lists the subagents whose own context changed, and how', () => {
+    const call = (path: string, name: string, tokens: number): LoadEntry =>
+      entry(path, {
+        id: `subagent:${path}`,
+        role: 'subagent',
+        name,
+        size: size(40),
+        ownContext: {
+          size: { bytes: tokens * 4, chars: tokens * 4, tokens },
+          parts: [],
+          notVisible: [],
+        },
+      });
+    const before = report({
+      plans: [
+        plan('claude-code', '', {
+          entries: [
+            call('.claude/agents/reviewer.md', 'reviewer', 100),
+            call('.claude/agents/old.md', 'old', 50),
+            call('.claude/agents/same.md', 'same', 30),
+            entry('CLAUDE.md'),
+          ],
+        }),
+      ],
+    });
+    const after = report({
+      plans: [
+        plan('claude-code', '', {
+          entries: [
+            call('.claude/agents/reviewer.md', 'reviewer', 250),
+            call('.claude/agents/tester.md', 'tester', 40),
+            call('.claude/agents/same.md', 'same', 30),
+            entry('CLAUDE.md', { size: size(800) }),
+          ],
+        }),
+      ],
+    });
+    const expected = [
+      { id: 'subagent:.claude/agents/old.md', name: 'old', before: 50, after: null },
+      { id: 'subagent:.claude/agents/reviewer.md', name: 'reviewer', before: 100, after: 250 },
+      { id: 'subagent:.claude/agents/tester.md', name: 'tester', before: null, after: 40 },
+    ];
+    expect(compare(before, after).diff.context[0]?.calls).toEqual(expected);
+    // The same through a baseline file, which keeps only what the comparison reads.
+    const read = validateBaseline(parse(JSON.stringify(before)));
+    if (!read.ok) throw new Error(read.message);
+    expect(
+      compareWithBaseline(after, read.baseline, { gate: GATE_CLASSES }).diff.context[0]?.calls,
+    ).toEqual(expected);
+    // A baseline made before subagents had their own context: every call is new.
+    const older = report({
+      plans: [
+        plan('claude-code', '', {
+          entries: [
+            entry('.claude/agents/reviewer.md', {
+              id: 'subagent:.claude/agents/reviewer.md',
+              role: 'subagent',
+            }),
+          ],
+        }),
+      ],
+    });
+    expect(compare(older, after).diff.context[0]?.calls.map((item) => item.before)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    // Still listed, but no longer measurable, as when the file stops parsing: not removed.
+    const unreadable = report({
+      plans: [
+        plan('claude-code', '', {
+          entries: [
+            entry('.claude/agents/reviewer.md', {
+              id: 'subagent:.claude/agents/reviewer.md',
+              role: 'subagent',
+              name: 'reviewer',
+            }),
+          ],
+        }),
+      ],
+    });
+    expect(
+      compare(before, unreadable).diff.context[0]?.calls.find((item) => item.name === 'reviewer'),
+    ).toEqual({
+      id: 'subagent:.claude/agents/reviewer.md',
+      name: 'reviewer',
+      before: 100,
+      after: null,
+      unmeasured: true,
+    });
+  });
+
   it('compares only plans present in both reports', () => {
     const before = report({ plans: [plan('claude-code', '')] });
     const after = report({ plans: [plan('codex', ''), plan('claude-code', '')] });
@@ -1643,6 +1735,7 @@ describe('context', () => {
         entries: { added: [], removed: [], changed: [] },
         skipped: { added: [], removed: [], changed: [] },
         startupTokens: { before: 0, after: 0 },
+        calls: [],
         limits: [],
       },
       {
@@ -1664,6 +1757,7 @@ describe('context', () => {
           changed: [{ id: 'instructions:x.md', fields: ['code', 'ruleId'] }],
         },
         startupTokens: { before: 2697, after: 4410 },
+        calls: [],
         limits: [
           {
             key: 'a.old',

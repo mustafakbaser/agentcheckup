@@ -47,6 +47,16 @@ export interface BaselineDiff {
   readonly gate: { readonly classes: readonly GateClass[]; readonly hits: readonly GateHit[] };
 }
 
+/** One subagent's own context in ≈tokens, before and after. `name` is the latest one known. */
+export interface CallDelta {
+  readonly id: string;
+  readonly name?: string;
+  readonly before: number | null;
+  readonly after: number | null;
+  /** With `after` null: the scan still lists the subagent, but cannot measure its call. */
+  readonly unmeasured?: true;
+}
+
 /** Ids added, removed and changed between the baseline and the current scan. */
 export interface ItemDiff {
   readonly added: readonly string[];
@@ -65,6 +75,11 @@ export interface PlanDelta {
   readonly entries: ItemDiff;
   readonly skipped: ItemDiff;
   readonly startupTokens: { readonly before: number; readonly after: number };
+  /**
+   * Subagents whose own context, what a call starts with in ≈tokens, differs: `before` is null
+   * for one the baseline does not have, `after` for one the scan no longer lists. Sorted by id.
+   */
+  readonly calls: readonly CallDelta[];
   /** `before` or `after` is null when that report has no usage for the limit. */
   readonly limits: readonly {
     readonly key: string;

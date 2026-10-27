@@ -41,6 +41,7 @@ import type { AgentDefinition, AgentsReport, ModelSetting } from '../agents/type
 import { AGENT_NAMES } from '../platforms/load/types.js';
 import type {
   BaselineDiff,
+  CallDelta,
   GateClass,
   GateHit,
   ItemDiff,
@@ -1219,6 +1220,7 @@ function diffPlans(
       entries: diffById(old.entries, beforeBase, after.entries, afterBase, entryFields),
       skipped: diffById(old.skipped, beforeBase, after.skipped, afterBase, skippedFields),
       startupTokens: { before: old.totals.startup.tokens, after: after.totals.startup.tokens },
+      calls: diffCalls(old.entries, beforeBase, after.entries, afterBase),
       limits: diffLimits(old.limits, beforeBase, after.limits, afterBase),
     });
   }
@@ -1254,6 +1256,47 @@ function diffById<T extends { readonly id: string; readonly path: string }>(
   }
   for (const id of before.keys()) if (!after.has(id)) out.removed.push(id);
   return sortedDiff(out);
+}
+
+/**
+ * Subagents whose own context differs, by id. A CLAUDE.md edit changes every Claude Code
+ * subagent's call, which is why this is a list of its own and not a changed field of each entry.
+ */
+function diffCalls(
+  beforeList: readonly BaselineLoadEntry[],
+  beforeBase: string,
+  afterList: readonly BaselineLoadEntry[],
+  afterBase: string,
+): CallDelta[] {
+  // Every subagent entry, measured or not, so that one still listed is not taken as removed.
+  const index = (list: readonly BaselineLoadEntry[], base: string) => {
+    const map = new Map<string, BaselineLoadEntry>();
+    for (const entry of list) {
+      if (entry.ownContext === undefined && !entry.id.startsWith('subagent:')) continue;
+      const id = rootId(entry.id, entry.path, base);
+      if (!map.has(id)) map.set(id, entry);
+    }
+    return map;
+  };
+  const before = index(beforeList, beforeBase);
+  const after = index(afterList, afterBase);
+  const calls: CallDelta[] = [];
+  for (const id of new Set([...before.keys(), ...after.keys()])) {
+    const old = before.get(id);
+    const now = after.get(id);
+    const was = old?.ownContext?.size.tokens ?? null;
+    const is = now?.ownContext?.size.tokens ?? null;
+    if (was === is) continue;
+    const name = now?.name ?? old?.name;
+    calls.push({
+      id,
+      ...(name === undefined ? {} : { name }),
+      before: was,
+      after: is,
+      ...(is === null && now !== undefined ? { unmeasured: true as const } : {}),
+    });
+  }
+  return calls.sort((a, b) => compareStrings(a.id, b.id));
 }
 
 /** Position-only changes are not listed: they show in the plans themselves. */

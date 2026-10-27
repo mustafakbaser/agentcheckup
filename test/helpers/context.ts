@@ -220,6 +220,7 @@ export function planDelta(
     entries: itemDiff(),
     skipped: itemDiff(),
     startupTokens: { before, after },
+    calls: [],
     limits: [],
     ...overrides,
   };

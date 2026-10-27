@@ -1709,6 +1709,7 @@
           "before": 1977,
           "after": 2697
         },
+        "calls": [],
         "limits": []
       },
       {
@@ -1735,6 +1736,7 @@
           "before": 7801,
           "after": 8253
         },
+        "calls": [],
         "limits": [
           {
             "key": "codex.project_doc_max_bytes",
@@ -1763,6 +1765,7 @@
           "before": 2021,
           "after": 2021
         },
+        "calls": [],
         "limits": []
       }
     ],

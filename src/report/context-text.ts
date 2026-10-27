@@ -183,7 +183,11 @@ function startupLabel(row: StartupRow, context: Context): string {
     return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
   }
   if (row.kind === 'subagents') {
-    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions)`;
+    const warning =
+      row.warnsPast === undefined
+        ? ''
+        : `, past the ${formatInteger(row.warnsPast)}-token startup warning`;
+    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions${warning})`;
   }
   let label =
     row.kind === 'import'
@@ -292,6 +296,38 @@ function renderOnDemand(view: PlanView, context: Context): string[] {
   ];
 }
 
+/**
+ * Subagent calls: what each one's own context window starts with, in ≈tokens and parts, with
+ * what it names and does not get, then one line of what no file shows.
+ */
+function renderCalls(view: PlanView, context: Context): string[] {
+  if (view.calls.length === 0) return [];
+  const { style, symbols } = context;
+  const approx = (size: Size): string => `${symbols.approx}${formatInteger(size.tokens)}`;
+  const rows = view.calls.map((row) => {
+    const parts = row.parts.map((part) => `${clean(part.label, context)} ${approx(part.size)}`);
+    return {
+      path: cleanPath(row.path, context),
+      detail:
+        row.size === undefined
+          ? `not measured${row.unverified ? ' ?' : ''}`
+          : `${approx(row.size)} tokens${parts.length === 0 ? '' : `: ${parts.join(', ')}`}${row.unverified ? ' ?' : ''}`,
+      notes: row.notes.map((note) => clean(note, context)),
+    };
+  });
+  const width = columnWidth(rows.map((row) => row.path));
+  const lines = [style.bold('Subagent calls, each in a context window of its own')];
+  for (const row of rows) {
+    lines.push(...columns(row.path, width, row.detail));
+    for (const note of row.notes) lines.push(style.dim(`    ${note}`));
+  }
+  if (view.callsHidden.length > 0) {
+    const items = view.callsHidden.map((phrase) => clean(phrase, context));
+    lines.push(...wrapItems('  Not visible in a call: ', items).map((line) => style.dim(line)));
+  }
+  return lines;
+}
+
 function renderSkipped(view: PlanView, context: Context): string[] {
   const { style, symbols } = context;
   const lines: string[] = [];
@@ -382,6 +418,7 @@ function renderPlan(view: PlanView, context: Context): string[][] {
     header,
     renderStartup(view, context),
     renderOnDemand(view, context),
+    renderCalls(view, context),
     renderSkipped(view, context),
     renderNotRead(view, context),
     renderIncomplete(view, context),

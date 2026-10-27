@@ -74,7 +74,11 @@ function startupFile(row: StartupRow): string {
   if (row.kind === 'skills')
     return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
   if (row.kind === 'subagents') {
-    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions)`;
+    const warning =
+      row.warnsPast === undefined
+        ? ''
+        : `, past the ${formatInteger(row.warnsPast)}-token startup warning`;
+    return `Subagents listing (${plural(row.subagents ?? 0, 'subagent')}, names and descriptions${warning})`;
   }
   // The `@` goes through forMarkdown with the path: `@AGENTS.md` raw would mention a user.
   let file = row.kind === 'import' ? `↳ ${path(`@${row.path}`)}` : path(row.path);
@@ -160,6 +164,42 @@ function onDemandSection(view: PlanView, maxRows: number): string[] {
       view.onDemand.length,
       'file',
     ),
+  ];
+}
+
+function callsSection(view: PlanView, maxRows: number): string[] {
+  if (view.calls.length === 0) return [];
+  const { rows } = cappedRows(
+    view.calls,
+    (row) => {
+      const parts = row.parts
+        .map((part) => `${text(part.label)} ≈${formatInteger(part.size.tokens)}`)
+        .join(', ');
+      const notes = row.notes.map((note) => text(note)).join('; ');
+      const tokens = row.size === undefined ? 'not measured' : `≈${formatInteger(row.size.tokens)}`;
+      return `| ${path(row.path)} | ${tokens}${row.unverified ? ' ?' : ''} | ${parts} | ${notes} |`;
+    },
+    maxRows,
+    MAX_TABLE_CHARACTERS,
+  );
+  const hidden =
+    view.callsHidden.length === 0
+      ? []
+      : [
+          '',
+          `Not visible in a call: ${view.callsHidden.map((phrase) => text(phrase)).join(', ')}.`,
+        ];
+  return [
+    '### Subagent calls, each in a context window of its own',
+    '',
+    ...table(
+      '| Subagent | ≈Tokens per call | Parts | Notes |',
+      '| :------- | ---------------: | :---- | :---- |',
+      rows,
+      view.calls.length,
+      'subagent',
+    ),
+    ...hidden,
   ];
 }
 
@@ -253,6 +293,7 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
     hiddenList(view),
     startupSection(view, maxRows),
     onDemandSection(view, maxRows),
+    callsSection(view, maxRows),
     skippedSection(view, maxRows),
     incompleteSection(view, maxRows),
     ignoredBlock(view),

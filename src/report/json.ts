@@ -666,6 +666,13 @@ function planDelta(value: PlanDelta): PlanDelta {
     entries: itemDiff(value.entries),
     skipped: itemDiff(value.skipped),
     startupTokens: { before: value.startupTokens.before, after: value.startupTokens.after },
+    calls: sortedBy(value.calls, (call) => call.id).map((call) => ({
+      id: call.id,
+      ...(call.name === undefined ? {} : { name: call.name }),
+      before: call.before,
+      after: call.after,
+      ...(call.unmeasured === true ? { unmeasured: true } : {}),
+    })),
     limits: sortedBy(
       value.limits,
       (entry) => entry.key,

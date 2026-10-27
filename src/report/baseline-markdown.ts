@@ -10,7 +10,7 @@
  * Gate hit summaries, ids, paths, limit labels and the baseline's ruleset come from repositories
  * or from a baseline file: all of it goes through `forMarkdown`.
  */
-import type { BaselineDiff, GateHit, PlanDelta } from '../core/baseline-types.js';
+import type { BaselineDiff, CallDelta, GateHit, PlanDelta } from '../core/baseline-types.js';
 import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
@@ -30,6 +30,8 @@ const MAX_TEXT_LENGTH = 300;
 const MAX_CELL_LENGTH = 80;
 /** Limits per row of the context table before `and N more`. */
 const MAX_LIMITS = 3;
+/** Subagent calls per plan in the terminal summary before `and N more`. */
+const MAX_CALLS = 3;
 
 const UNIT_NAMES: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   bytes: 'byte',
@@ -254,7 +256,8 @@ export function contextDeltas(
     const name = `${AGENT_NAMES[delta.agent]}${where}`;
     const { before, after } = delta.startupTokens;
     const limits = limitChanges(delta, units, clean);
-    if (before === after && limits.length === 0) {
+    const calls = callsText(delta, clean);
+    if (before === after && limits.length === 0 && calls === undefined) {
       unchanged.push(name);
       continue;
     }
@@ -262,9 +265,36 @@ export function contextDeltas(
       before === after
         ? `${name} unchanged`
         : `${name} ≈${formatInteger(before)} → ≈${formatInteger(after)} tokens (${signed(after - before)})`;
-    changed.push([tokens, ...limits].join(', '));
+    changed.push([tokens, ...limits, ...(calls === undefined ? [] : [calls])].join(', '));
   }
   return { changed, unchanged, hidden: Math.max(0, diff.context.length - MAX_DELTAS) };
+}
+
+/** The subagent a call delta is about: its name, else its file. */
+function callSubject(call: CallDelta): string {
+  if (call.name !== undefined) return call.name;
+  const path = call.id.slice(call.id.indexOf(':') + 1);
+  const hash = path.lastIndexOf('#');
+  return hash === -1 ? path : path.slice(0, hash);
+}
+
+/** `reviewer ≈1,200 → ≈2,400 (+1,200)`, `tester new, ≈300`, `old removed`. */
+function callText(call: CallDelta, clean: Clean): string {
+  const who = clean(callSubject(call), MAX_TEXT_LENGTH);
+  const { before, after } = call;
+  if (before === null) return `${who} new, ≈${formatInteger(after ?? 0)}`;
+  if (after === null)
+    return `${who} ${call.unmeasured === true ? 'no longer measured' : 'removed'}`;
+  return `${who} ≈${formatInteger(before)} → ≈${formatInteger(after)} (${signed(after - before)})`;
+}
+
+/** The subagent calls of a plan whose own context changed, or undefined for none. */
+function callsText(delta: PlanDelta, clean: Clean): string | undefined {
+  if (delta.calls.length === 0) return undefined;
+  const texts = delta.calls.slice(0, MAX_CALLS).map((call) => callText(call, clean));
+  const more = delta.calls.length - MAX_CALLS;
+  if (more > 0) texts.push(`and ${formatInteger(more)} more`);
+  return `subagent calls ${texts.join(', ')}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -486,6 +516,51 @@ function contextTable(result: ScanResult, diff: BaselineDiff, maxCharacters: num
     '',
     '| Agent | Before | After | Change | Limits |',
     '| :---- | -----: | ----: | -----: | :----- |',
+    ...rows,
+    ...(note.length > 0 ? ['', ...note] : []),
+    ...callsTable(diff, base, maxCharacters),
+  ];
+}
+
+/**
+ * What a call of each subagent whose own context changed starts with, in ≈tokens: a context
+ * window of its own, so not part of the table above. At most MAX_DELTAS rows and
+ * `maxCharacters`; no lines without such a subagent.
+ */
+function callsTable(diff: BaselineDiff, base: string, maxCharacters: number): string[] {
+  const calls = diff.context.flatMap((delta) => delta.calls.map((call) => ({ delta, call })));
+  if (calls.length === 0) return [];
+  const { rows } = cappedRows(
+    calls,
+    ({ delta, call }) => {
+      const root = delta.cwd === '' || delta.cwd === base;
+      const where = root ? '' : ` (${escaped(delta.cwd, MAX_CELL_LENGTH)})`;
+      const { before, after } = call;
+      const cells = [
+        `${AGENT_NAMES[delta.agent]}${where}`,
+        escaped(callSubject(call), MAX_CELL_LENGTH),
+        before === null ? '—' : `≈${formatInteger(before)}`,
+        after === null ? '—' : `≈${formatInteger(after)}`,
+        before === null
+          ? 'new'
+          : after === null
+            ? call.unmeasured === true
+              ? 'no longer measured'
+              : 'removed'
+            : signed(after - before),
+      ];
+      return `| ${cells.join(' | ')} |`;
+    },
+    MAX_DELTAS,
+    maxCharacters,
+  );
+  const note = omittedNote(rows.length, calls.length, 'subagent');
+  return [
+    '',
+    '**Subagent calls**, each in a context window of its own',
+    '',
+    '| Agent | Subagent | Before | After | Change |',
+    '| :---- | :------- | -----: | ----: | -----: |',
     ...rows,
     ...(note.length > 0 ? ['', ...note] : []),
   ];

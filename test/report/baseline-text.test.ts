@@ -44,6 +44,38 @@ describe('formatBaselineText', () => {
     );
   });
 
+  it('names a few subagents whose calls changed per plan, and tables them all in Markdown', () => {
+    const calls = [
+      { id: 'subagent:.claude/agents/a.md', name: 'alpha', before: 100, after: 250 },
+      { id: 'subagent:.claude/agents/b.md', name: 'beta', before: null, after: 40 },
+      { id: 'subagent:.claude/agents/c.md', before: 30, after: null },
+      { id: 'subagent:.claude/agents/d.md', name: 'a|b`c\nd', before: 10, after: 12 },
+    ];
+    const changed: ScanResult = {
+      ...result,
+      baseline: {
+        ...sampleBaseline,
+        context: sampleBaseline.context.map((delta) =>
+          delta.agent === 'cursor' ? { ...delta, calls } : delta,
+        ),
+      },
+    };
+    const text = formatBaselineText(changed, { style: plainStyle });
+    // Cursor's startup context did not move; its subagents' calls did.
+    expect(text).toContain(
+      '  Cursor unchanged, subagent calls alpha ≈100 → ≈250 (+150), beta new, ≈40, ' +
+        '.claude/agents/c.md removed, and 1 more\n',
+    );
+    expect(text).not.toContain('Unchanged: Cursor');
+    const markdown = formatBaselineMarkdown(changed);
+    expect(markdown).toContain('**Subagent calls**, each in a context window of its own');
+    expect(markdown).toContain('| Cursor | alpha | ≈100 | ≈250 | +150 |');
+    expect(markdown).toContain('| Cursor | beta | — | ≈40 | new |');
+    expect(markdown).toContain('| Cursor | \\.claude/agents/c\\.md | ≈30 | — | removed |');
+    // A name from the repository cannot break the table.
+    expect(markdown).toContain('| Cursor | a\\|b\\`c⏎d | ≈10 | ≈12 | +2 |');
+  });
+
   it('shows plan directories relative to the scanned directory, as the context output does', () => {
     expect(formatBaselineText(rebaseResult(result, 'sub/dir'))).toBe(formatBaselineText(result));
     expect(formatBaselineMarkdown(rebaseResult(result, 'sub/dir'))).toBe(
