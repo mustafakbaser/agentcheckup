@@ -1,6 +1,6 @@
 {
   "name": "agentcheckup",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "See what each coding agent loads from your repository and what a pull request changes about it: AGENTS.md, CLAUDE.md, skills, Cursor rules, MCP servers and hooks.",
   "keywords": [
     "agents-md",

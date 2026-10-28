@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.2.0...v0.3.0) (2026-10-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agents:** `agentcheckup agents` and the JSON report's `agents` list definitions they did not before (files without frontmatter, remote agents, files the scan did not read) and correct some names and statuses. Against a baseline from 0.2, the first comparison can show those definitions as added, removed or changed once, and `--gate models` can trip for them. Create the baseline again with this version.
+* **platforms:** a plan's `totals.startup` now includes the subagents listing, and subagent entries have trigger `startup` and a size of name plus description. A baseline made by an earlier version shows a one-time startup change, and a policy's `budgets.startupTokens` can fail where it passed. Create baselines again with this version.
+* **platforms:** Claude Code's startup totals in load plans, `context` and the JSON report change: listed skills count their names, and skills the model cannot pick, or that `skillOverrides` turns off, leave the startup total. A baseline from 0.2 shows a one-time change, and a policy's `startupTokens` budget can fail where it passed.
+
+### Features
+
+* **cli:** add the tokens command to sum up what each agent's configuration costs in context ([07285b3](https://github.com/mustafakbaser/agentcheckup/commit/07285b3e4e1f6b3220b91bcd70fef4f2a1c974d9))
+* **platforms:** list every agent's subagents in its load plan, from the start ([ba68614](https://github.com/mustafakbaser/agentcheckup/commit/ba68614918ea1b39d1ed869f7f1237700df625db))
+* **platforms:** measure what each subagent starts with when it runs ([e65fc27](https://github.com/mustafakbaser/agentcheckup/commit/e65fc27d59f9f80ace7733ee5a0f6d1b272bf936))
+* **policy:** budget what each subagent call may start with ([f0be6a6](https://github.com/mustafakbaser/agentcheckup/commit/f0be6a6c03c0e2e95dab3f7b21858d7295cf43cc))
+* **report:** show what each subagent call starts with, and how a change moves it ([fe4725d](https://github.com/mustafakbaser/agentcheckup/commit/fe4725d162c92ca32f726ddbcfcff986fcb5fe5a))
+
+
+### Bug fixes
+
+* **agents:** read custom agents as each agent documents them, and switches where a session starts ([613f6e0](https://github.com/mustafakbaser/agentcheckup/commit/613f6e0177766e0710769b7648dbc23fb338bf9c))
+* **platforms:** count Claude Code's skill listing as Claude Code builds it ([e8e57af](https://github.com/mustafakbaser/agentcheckup/commit/e8e57af0ad0885a4057d1f81729a2ed2be7cd984))
+
+
+### Documentation
+
+* compare configuration cost with what sessions spend ([543d561](https://github.com/mustafakbaser/agentcheckup/commit/543d56159cb8843fd8384efaae5bc2f2884f20ed))
+* document the tokens command and subagent calls, and record ADR 0014 ([1b078af](https://github.com/mustafakbaser/agentcheckup/commit/1b078af2692a90ec45807363b4041d9c2a06789c))
+
 ## [0.2.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.1.1...v0.2.0) (2026-10-27)
 
 
