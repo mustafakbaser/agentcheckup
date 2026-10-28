@@ -26,7 +26,7 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
 ...
-  effect: Claude Code session start ≈45 → ≈64 tokens
+  effect: Claude Code session start ≈48 → ≈67 tokens
   effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈64 → ≈67 tokens
   note: GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice ...
 

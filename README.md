@@ -10,13 +10,15 @@
 
 Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin and Cline read different files from
 the same repository, and they rarely say what they skipped. agentcheckup shows, for each agent,
-what is in context when a session starts, what loads later, and what is skipped and why. It
+what is in context when a session starts, what loads later, what it costs in tokens, and what is
+skipped and why. It
 checks every file against how the agents load it, fixes what has one correct form, writes the
 rest as tasks for your coding agent, lists every custom agent and subagent with the model it runs
 on, and flags new MCP servers, hooks, permissions and environment overrides in pull requests.
 
 ```sh
 npx agentcheckup context   # what each agent loads
+npx agentcheckup tokens    # what that costs in context, per agent and per subagent call
 npx agentcheckup agents    # custom agents and subagents, and their models
 npx agentcheckup           # what is wrong, and why
 npx agentcheckup fix       # preview the fixes; changes nothing
@@ -40,8 +42,8 @@ Claude Code context · ./
 …
 At session start                          bytes  ≈tokens
   1  CLAUDE.md                               62       16
-  2  Skills listing (2 skills, metadata)    110       28
-                                   Total    172     ≈ 43
+  2  Skills listing (2 skills, metadata)    119       30
+                                   Total    181     ≈ 46
 
 On demand
   .claude/skills/deploy/SKILL.md  body 41 bytes ≈ 11, when the model picks it
@@ -135,6 +137,39 @@ a definition, a model setting or the model a subagent runs on, and a
 [policy](docs/policy.md#model-not-allowed) can allow or deny models per agent.
 [Agent definitions and models](docs/agents.md) has the details.
 
+## See what agent configuration costs in tokens
+
+Every session pays for its instruction files and for the listings the model picks skills and
+subagents from, and every subagent call starts a context window of its own. For Claude Code, that
+window holds the subagent's prompt, the session's `CLAUDE.md` files and the skills it preloads:
+
+```text
+$ npx agentcheckup tokens --agent claude-code,codex,cursor
+Context cost by agent · ./  ≈tokens
+               At start  Listings  On demand  Subagents
+  Claude Code        95        59         77          2
+  Codex              17         0          0          0
+  Cursor            126        73         55          3
+
+Largest subagent calls, each in a context window of its own
+  ≈tokens  Agent        Subagent     Model                   File
+      101  Claude Code  reviewer     opus                    .claude/agents/reviewer.md
+       23  Cursor       reviewer     opus (not documented)   .claude/agents/reviewer.md
+       15  Cursor       planner      model not visible       .cursor/agents/planner.md
+       14  Claude Code  test-runner  haiku                   .claude/agents/test-runner.md
+…
+```
+
+In [80 public repositories](corpus/SUMMARY.md#subagent-listings-and-calls-root-directory), 88%
+of what Claude Code's 159 subagent calls start with is the session's instruction files, and none of
+those subagents sets `omitClaudeMd`.
+
+`--by-directory` ranks the directories of a monorepo by what a session started there loads, and
+`--baseline` shows what a pull request adds, to context at start and to each subagent call. A
+[policy](docs/policy.md#subagent-budget) can cap both. The numbers are estimates, characters ÷ 4,
+from the repository alone: [What agent configuration costs in context](docs/tokens.md) explains
+them, and how they relate to what a session actually spends.
+
 ## Find what is wrong
 
 A scan starts with what each agent misses. Under each finding, a `why` line adds what the load
@@ -211,7 +246,7 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
  # Acme API
 
  Read @docs/setup.md before you start the service.
-  effect: Claude Code session start ≈43 → ≈74 tokens
+  effect: Claude Code session start ≈46 → ≈77 tokens
   effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈64 → ≈67 tokens
 …
 input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your words: a "Use when ..." clause (agentcheckup fix -i)
@@ -428,6 +463,7 @@ agentcheckup [path] [options]                Check agent configuration
 agentcheckup fix [path] [options]            Preview fixes as a diff, or apply them with --write or -i
 agentcheckup tasks [path] [options]          Write the findings that need judgment as tasks for an agent
 agentcheckup context [path] [options]        Show what each agent loads
+agentcheckup tokens [path] [options]         Show what that costs in context, per agent and call
 agentcheckup agents [path] [options]         List custom agents and subagents, and their models
 agentcheckup skill install [path] [options]  Install the agentcheckup skill for coding agents
 agentcheckup rules [--json]                  List the rules
@@ -446,6 +482,7 @@ npx agentcheckup fix -i                             # ask about each fix, and fo
 npx agentcheckup tasks --format json                # the tasks as JSON
 npx agentcheckup context --cwd packages/api         # a session started in packages/api
 npx agentcheckup context --agent codex --format markdown
+npx agentcheckup tokens --by-directory              # rank the directories of a monorepo
 npx agentcheckup agents --agent claude-code         # Claude Code's subagents and their models
 npx agentcheckup explain instr/codex-size-budget
 ```

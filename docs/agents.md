@@ -17,6 +17,10 @@ that reads it. `--agent` narrows the text, the Markdown and a comparison with `-
 JSON report always holds every agent's definitions, so it can serve as any later baseline. The
 decision is [ADR 0013](adr/0013-list-agent-definitions-and-their-models.md).
 
+The same definitions are in each agent's [load plan](context.md#subagent-calls): their listing at
+session start, and what each call starts with in a context window of its own.
+[`agentcheckup tokens`](tokens.md) puts that next to the model each call runs on.
+
 ## What each agent reads
 
 Only definitions an agent reads from the repository are listed. User folders such as

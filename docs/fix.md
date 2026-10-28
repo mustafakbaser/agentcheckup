@@ -313,7 +313,7 @@ review  skill/description-quality  Add a "Use when ..." sentence to "description
  ---
 
  Run the script.
-  effect: Claude Code session start ≈18 → ≈28 tokens
+  effect: Claude Code session start ≈19 → ≈29 tokens
   effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Devin Local and Cline session start ≈19 → ≈29 tokens
 ✓ re-scanned: the finding is resolved; no new problem.
 Use this? [y]es [e]dit [n]o (Enter: yes) y

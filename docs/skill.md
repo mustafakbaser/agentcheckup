@@ -65,10 +65,11 @@ Install the agentcheckup skill in .claude/skills/agentcheckup:
 Claude Code, Cursor, GitHub Copilot, Devin Local and Cline load skills from .claude/skills.
 Checked in memory with every rule: the skill adds no finding.
 While the skill runs, Claude Code may use these without asking (allowed-tools):
-  Bash(npx agentcheckup@0.1.0 tasks --format json)
-  Bash(npx agentcheckup@0.1.0 fix)
-  Bash(npx agentcheckup@0.1.0 context)
-  Bash(npx agentcheckup@0.1.0 tasks --check *)
+  Bash(npx agentcheckup@0.3.0 tasks --format json)
+  Bash(npx agentcheckup@0.3.0 fix)
+  Bash(npx agentcheckup@0.3.0 context)
+  Bash(npx agentcheckup@0.3.0 tokens)
+  Bash(npx agentcheckup@0.3.0 tasks --check *)
   Read
 Every command that writes asks first.
 Install the skill? [y/N] y
@@ -102,14 +103,15 @@ installed this way before it is written; run `npx agentcheckup` afterwards.
 
 ## What the skill may run without asking
 
-The skill's `allowed-tools` pre-approves five tools:
+The skill's `allowed-tools` pre-approves six tools:
 
 ```yaml
 allowed-tools: >-
-  Bash(npx agentcheckup@0.1.0 tasks --format json)
-  Bash(npx agentcheckup@0.1.0 fix)
-  Bash(npx agentcheckup@0.1.0 context)
-  Bash(npx agentcheckup@0.1.0 tasks --check *)
+  Bash(npx agentcheckup@0.3.0 tasks --format json)
+  Bash(npx agentcheckup@0.3.0 fix)
+  Bash(npx agentcheckup@0.3.0 context)
+  Bash(npx agentcheckup@0.3.0 tokens)
+  Bash(npx agentcheckup@0.3.0 tasks --check *)
   Read
 ```
 
@@ -121,14 +123,16 @@ Each Bash rule is an exact command, except the last, and none of them can write:
 - `tasks --format json` lists the tasks. Without `--output` it writes nothing.
 - `fix` without `--write` or `-i` is a dry run.
 - `context` prints load plans.
+- `tokens` prints what the configuration costs in context, from the same plans.
 - `tasks --check *` allows task ids after `--check`. It is safe only because `--check` takes no
   other option: `--output`, `--format`, `--rule` and every other flag exit 2, so no argument can
   make it write a file.
 
 The commands are pinned to one version, so what runs without asking is the version you
 installed and reviewed, not whatever npm resolves later. `context --agent codex`,
-`tasks --rule …` and `fix --rule …` are not pre-approved even though they only read: allowing
-`context *` or `tasks *` would also allow `--output`, which writes a file.
+`tokens --by-directory`, `tasks --rule …` and `fix --rule …` are not pre-approved even though
+they only read: allowing `context *`, `tokens *` or `tasks *` would also allow `--output`, which
+writes a file.
 
 These are Claude Code permission rules. GitHub Copilot documents `allowed-tools` with its own
 tool names, such as `shell`, and Codex and Cursor do not document the field, so those agents ask
@@ -148,11 +152,12 @@ an agent into running a command, and an approved write would run without stoppin
 `permissions` class of [`--gate`](context.md#gate-classes):
 
 ```text
-✖ 5 security-relevant changes since the baseline need review
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 context)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 fix)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 tasks --check *)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.1.0 tasks --format json)
+✖ 6 security-relevant changes since the baseline need review
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 context)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 fix)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tasks --check *)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tasks --format json)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tokens)
     Permission widened: allowed-tools adds Read
 ```
 

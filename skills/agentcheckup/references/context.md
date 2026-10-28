@@ -13,8 +13,8 @@ Not visible: managed settings, user settings (~/.claude, ~/.claude.json), ...
 
 At session start                          bytes  ≈tokens
   1  CLAUDE.md                               33        9
-  2  Skills listing (2 skills, metadata)    144       37
-                                   Total    177     ≈ 45
+  2  Skills listing (2 skills, metadata)    156       39
+                                   Total    189     ≈ 48
   MCP, asks first:  github  stdio  npx -y @modelcontextprotocol/server-github@2025.4.8 (pinned)
 
 On demand

@@ -55,16 +55,20 @@ The decision and its trade-offs are in [ADR 0011](adr/0011-organization-policy.m
       }
     ]
   },
-  "budgets": { "claude-code": { "startupTokens": 8000 }, "codex": { "startupTokens": 8000 } },
+  "budgets": {
+    "claude-code": { "startupTokens": 8000, "subagentStartupTokens": 20000 },
+    "codex": { "startupTokens": 8000 }
+  },
   "models": { "claude-code": { "allow": ["sonnet", "haiku", "inherit"] } }
 }
 ```
 
 This policy allows five MCP servers, each pinned to an exact version or digest; forbids four
 settings; fails any grant that lets an agent fetch web pages or run `curl`, `wget` or `ssh`
-without asking; requires a Claude Code hook that guards shell commands; and limits what Claude
-Code and Codex load at session start to about 8,000 tokens; and lets Claude Code's subagents and
-settings name only Sonnet, Haiku or the main conversation's model. With `"existing": "report"`
+without asking; requires a Claude Code hook that guards shell commands; limits what Claude Code
+and Codex load at session start to about 8,000 tokens, and what each Claude Code subagent call
+starts with to about 20,000; and lets Claude Code's subagents and settings name only Sonnet, Haiku
+or the main conversation's model. With `"existing": "report"`
 and a baseline, only violations a change adds fail the run.
 
 The file follows [schemas/policy.schema.json](../schemas/policy.schema.json); with `$schema` set,
@@ -72,23 +76,23 @@ editors complete and check it.
 
 ## Fields
 
-| Field                      | Type                                             | Default   | Meaning                                                                                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$schema`                  | string                                           | none      | The schema URL, for editors. Not checked.                                                                                                                                                                                              |
-| `policyVersion`            | `1`                                              | required  | The format version. A newer version than this agentcheckup reads is an error: update agentcheckup.                                                                                                                                     |
-| `name`                     | string, 1 to 120 characters                      | required  | Shown in every report, so readers know which policy ran.                                                                                                                                                                               |
-| `mode`                     | `"enforce"` or `"audit"`                         | `enforce` | `audit` reports violations and never fails the run. Use it to roll a policy out.                                                                                                                                                       |
-| `existing`                 | `"report"` or `"fail"`                           | `report`  | With `--baseline`: `report` fails only on violations the baseline did not have, `fail` on every violation. Without a baseline every violation fails.                                                                                   |
-| `mcp.allow`                | array of [allowlist entries](#allowlist-entries) | none      | Absent: no allowlist check. Present, even empty: only the servers it lists may run.                                                                                                                                                    |
-| `mcp.allowLocal`           | boolean                                          | `false`   | With `mcp.allow`: allow servers that run a script from the repository, such as `node ./tools/mcp.js`.                                                                                                                                  |
-| `mcp.requirePin`           | boolean                                          | `false`   | Every MCP server must run an exact package version, an image digest or a repository script. Servers reached by URL always pass.                                                                                                        |
-| `forbid`                   | array of [setting names](#forbidden-setting)     | `[]`      | Settings that must not be configured. A closed list: a misspelled name is an error.                                                                                                                                                    |
-| `permissions.denyTools`    | array of tool names                              | `[]`      | Tools no grant may let an agent use without asking, such as `WebFetch` or `mcp__github`.                                                                                                                                               |
-| `permissions.denyCommands` | array of program names                           | `[]`      | Programs no shell grant may let an agent run without asking, such as `curl`. Compared without case.                                                                                                                                    |
-| `hooks.require`            | array of [hook requirements](#hook-missing)      | `[]`      | Hooks that must be configured.                                                                                                                                                                                                         |
-| `budgets.<agent>`          | `{ "startupTokens": n }`                         | none      | The most tokens the agent may load at session start, from 1 to 100,000,000. Agents with a load model: `claude-code`, `codex`, `cursor`, `copilot-cli`, `copilot-vscode`, `copilot-cloud`, `gemini`, `windsurf` (Devin Local), `cline`. |
-| `models.<agent>.allow`     | array of model values                            | none      | Absent: no allowlist. Present, even empty: the agent's definitions and the repository's model settings may name only these values. See [`model-not-allowed`](#model-not-allowed).                                                      |
-| `models.<agent>.deny`      | array of model values                            | `[]`      | Values they must not name, even when `allow` lists them. Each `models.<agent>` needs `allow`, `deny` or both.                                                                                                                          |
+| Field                      | Type                                                 | Default   | Meaning                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `$schema`                  | string                                               | none      | The schema URL, for editors. Not checked.                                                                                                                                                                                                                                                                                                                                            |
+| `policyVersion`            | `1`                                                  | required  | The format version. A newer version than this agentcheckup reads is an error: update agentcheckup.                                                                                                                                                                                                                                                                                   |
+| `name`                     | string, 1 to 120 characters                          | required  | Shown in every report, so readers know which policy ran.                                                                                                                                                                                                                                                                                                                             |
+| `mode`                     | `"enforce"` or `"audit"`                             | `enforce` | `audit` reports violations and never fails the run. Use it to roll a policy out.                                                                                                                                                                                                                                                                                                     |
+| `existing`                 | `"report"` or `"fail"`                               | `report`  | With `--baseline`: `report` fails only on violations the baseline did not have, `fail` on every violation. Without a baseline every violation fails.                                                                                                                                                                                                                                 |
+| `mcp.allow`                | array of [allowlist entries](#allowlist-entries)     | none      | Absent: no allowlist check. Present, even empty: only the servers it lists may run.                                                                                                                                                                                                                                                                                                  |
+| `mcp.allowLocal`           | boolean                                              | `false`   | With `mcp.allow`: allow servers that run a script from the repository, such as `node ./tools/mcp.js`.                                                                                                                                                                                                                                                                                |
+| `mcp.requirePin`           | boolean                                              | `false`   | Every MCP server must run an exact package version, an image digest or a repository script. Servers reached by URL always pass.                                                                                                                                                                                                                                                      |
+| `forbid`                   | array of [setting names](#forbidden-setting)         | `[]`      | Settings that must not be configured. A closed list: a misspelled name is an error.                                                                                                                                                                                                                                                                                                  |
+| `permissions.denyTools`    | array of tool names                                  | `[]`      | Tools no grant may let an agent use without asking, such as `WebFetch` or `mcp__github`.                                                                                                                                                                                                                                                                                             |
+| `permissions.denyCommands` | array of program names                               | `[]`      | Programs no shell grant may let an agent run without asking, such as `curl`. Compared without case.                                                                                                                                                                                                                                                                                  |
+| `hooks.require`            | array of [hook requirements](#hook-missing)          | `[]`      | Hooks that must be configured.                                                                                                                                                                                                                                                                                                                                                       |
+| `budgets.<agent>`          | `{ "startupTokens": n, "subagentStartupTokens": n }` | none      | `startupTokens`: the most tokens the agent may load at session start. `subagentStartupTokens`: the most any of its subagent calls may start with (agentcheckup 0.3.0 or later). Each from 1 to 100,000,000; at least one. Agents with a load model: `claude-code`, `codex`, `cursor`, `copilot-cli`, `copilot-vscode`, `copilot-cloud`, `gemini`, `windsurf` (Devin Local), `cline`. |
+| `models.<agent>.allow`     | array of model values                                | none      | Absent: no allowlist. Present, even empty: the agent's definitions and the repository's model settings may name only these values. See [`model-not-allowed`](#model-not-allowed).                                                                                                                                                                                                    |
+| `models.<agent>.deny`      | array of model values                                | `[]`      | Values they must not name, even when `allow` lists them. Each `models.<agent>` needs `allow`, `deny` or both.                                                                                                                                                                                                                                                                        |
 
 Unknown fields are an error, so a typo cannot switch a check off. A policy file with any problem
 stops the run with exit code 2 and one line per problem; see [Errors](#errors). The same holds
@@ -176,6 +180,36 @@ An agent loads more tokens at session start than its budget allows. The check ta
 load plan of the agent: at the root, and for Codex in each directory with an `AGENTS.md`, as
 `agentcheckup context --matrix` shows them. An agent that has no load plan fails the check
 rather than passing it. Token counts are estimates (characters divided by 4), so leave headroom.
+
+### `subagent-budget`
+
+A subagent call starts with more tokens, in a context window of its own, than the agent's
+`subagentStartupTokens` allows. Each subagent over the budget is a violation of its own, at its
+file, measured at its largest in any load plan of the agent. What a call counts is what
+[`agentcheckup tokens`](tokens.md) shows: for Claude Code, the subagent's prompt, the session's
+startup instruction files unless the definition sets `omitClaudeMd: true`, the skills its
+`skills` field preloads and the part of its `MEMORY.md` its `memory` field adds; for the Copilot
+CLI, the repository's instruction files when the agent sets `include-custom-instructions: true`;
+for Codex, its skills instructions block; and the prompt. The task message, tool definitions and
+anything outside the repository are not counted.
+
+- **It fails closed.** An agent that has no load plan fails the check. So does a subagent the
+  agent may load whose call agentcheckup cannot measure, such as a file with a YAML merge key,
+  larger than the scan reads, or a symlink outside the repository, and a call within the budget
+  that starts with a file the scan did not read, such as a preloaded skill past the size it
+  reads.
+- **Either of two may run.** Where two definitions share a name and the agent does not document
+  which one wins, such as two files in one `.claude/agents` folder, both calls are checked.
+- **The plans are those of the startup budget:** each agent at the root, and Codex in each
+  directory with an `AGENTS.md`. A subagent defined below the root is checked where one of them
+  lists it. The report has a note that counts the ones none of them lists; see what one costs with
+  `agentcheckup tokens --cwd <dir>`.
+- **Against a baseline,** a call over the budget is new when it grew. A violation for a call that
+  cannot be measured carries the definition's digest, so any change of the file makes it new. A
+  baseline written before agentcheckup 0.3.0 measures no call, so every violation is new, and the
+  report says so.
+- An older agentcheckup rejects the field as unknown and stops with exit code 2, so a policy that
+  sets it cannot pass by being ignored.
 
 ### `model-not-allowed`
 
@@ -270,7 +304,8 @@ agentcheckup --no-gitignore --policy policy.json --baseline base.json --gate sec
   inventory item the same digest. Changing a server that already violates the policy, such as
   bumping its version, makes a new violation.
 - A startup budget violation is new unless the baseline exceeded the same budget with at least
-  as many tokens.
+  as many tokens. A subagent budget violation is new unless the baseline's call of the same
+  subagent exceeded it with at least as many tokens: a call that grows is new.
 - `"existing": "report"` fails only on new violations; `"fail"` fails on all of them.
 - Budgets need load plans in the baseline: write it with `--context`. A baseline without plans,
   without an inventory or without agent definitions (from an older agentcheckup) makes every
@@ -366,5 +401,5 @@ the base commit or from a central repository, never from the pull request.
 - **Repository scope only.** User, managed and global settings are never read. A developer can
   allow in `~/.claude/settings.json` what the repository's policy forbids.
 - **Static analysis.** The policy checks configuration files, not what an agent or a server does
-  at run time, and the startup budget uses estimated tokens.
+  at run time, and the budgets use estimated tokens.
 - **No suppressions.** A violation goes away when the repository changes or the policy does.

@@ -82,8 +82,8 @@ Not visible: managed settings, user settings (~/.claude, ~/.claude.json), claude
 
 At session start                         bytes  ≈tokens
   1  CLAUDE.md                             191       48
-  2  Skills listing (1 skill, metadata)     98       25
-                                  Total    289     ≈ 73
+  2  Skills listing (1 skill, metadata)    105       27
+                                  Total    296     ≈ 74
   MCP, asks first:    github  stdio  npx -y @modelcontextprotocol/server-github@2025.4.8 (pinned)
   Hooks, asks first:  PreToolUse Bash → scripts/hooks/block-prod-db.sh (fails open)
 
@@ -108,7 +108,8 @@ Skipped
 - **At session start:** what is in the model's context when the session starts, in the order the
   agent assembles it. An import is indented under the file that imports it (`└ @AGENTS.md`).
   The skills listing is one row: the names and descriptions of the skills the model can pick
-  from. `Total` adds up the rows.
+  from. `Total` adds up the rows' characters and then estimates, so it can differ by one from
+  the sum of the rows' estimates.
 - **MCP and hooks:** the servers and hooks the agent starts with the session. "asks first" means
   the agent asks the user to approve or trust them before they run. Each server shows its
   transport, its command or URL origin, and whether its package is pinned. A tool-gating hook
@@ -170,42 +171,42 @@ every file: a pull request cannot hide agent configuration by adding it to `igno
 
 Every entry has a trigger: when the agent adds it to the model's context.
 
-| Trigger          | Meaning                                                                                  | Examples                                                                                                                                                                                          |
-| ---------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `startup`        | In the prompt when the session starts                                                    | Root `CLAUDE.md` and its imports; `.claude/rules` files without `paths`; Codex's `AGENTS.md` chain; `.github/copilot-instructions.md`; a Devin rule with `trigger: always_on`; the skills listing |
-| `on-path`        | When the agent reads or edits a matching file. The plan shows the globs or the directory | Nested `CLAUDE.md`; `.claude/rules` with `paths`; Cursor rules with `globs`; nested `AGENTS.md` in Cursor; Copilot's `*.instructions.md` with `applyTo`; Cline rules with `paths`                 |
-| `model-selected` | When the model picks it from its description                                             | A skill body; a Cursor rule with only a `description`; a Devin rule with `trigger: model_decision`; a subagent                                                                                    |
-| `manual`         | Only when the user asks for it, with an `@`-mention or a `/command`                      | A Cursor rule without `alwaysApply`, `globs` or `description`; a Devin rule with `trigger: manual`; a Cline workflow; a slash command                                                             |
-| `on-approval`    | After the user accepts a trust or approval prompt                                        | `.mcp.json` servers in Claude Code; `.codex/hooks.json` hooks and inline hooks in `.codex/config.toml`; Gemini CLI project hooks                                                                  |
-| `unknown`        | The agent reads the file, but its documentation does not say when. Always unverified     | A Cursor rule whose frontmatter is not valid YAML; a Devin rule without `trigger`                                                                                                                 |
+| Trigger          | Meaning                                                                                  | Examples                                                                                                                                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `startup`        | In the prompt when the session starts                                                    | Root `CLAUDE.md` and its imports; `.claude/rules` files without `paths`; Codex's `AGENTS.md` chain; `.github/copilot-instructions.md`; a Devin rule with `trigger: always_on`; the skills and subagents listings |
+| `on-path`        | When the agent reads or edits a matching file. The plan shows the globs or the directory | Nested `CLAUDE.md`; `.claude/rules` with `paths`; Cursor rules with `globs`; nested `AGENTS.md` in Cursor; Copilot's `*.instructions.md` with `applyTo`; Cline rules with `paths`                                |
+| `model-selected` | When the model picks it from its description                                             | A skill body; a Cursor rule with only a `description`; a Devin rule with `trigger: model_decision`                                                                                                               |
+| `manual`         | Only when the user asks for it, with an `@`-mention or a `/command`                      | A Cursor rule without `alwaysApply`, `globs` or `description`; a Devin rule with `trigger: manual`; a Cline workflow; a slash command; a skill or Copilot custom agent with `disable-model-invocation: true`     |
+| `on-approval`    | After the user accepts a trust or approval prompt                                        | `.mcp.json` servers in Claude Code; `.codex/hooks.json` hooks and inline hooks in `.codex/config.toml`; Gemini CLI project hooks                                                                                 |
+| `unknown`        | The agent reads the file, but its documentation does not say when. Always unverified     | A Cursor rule whose frontmatter is not valid YAML; a Devin rule without `trigger`                                                                                                                                |
 
 ### Why an agent skips a file
 
 Each skip has a code, shown in text and Markdown as a short reason and in JSON as `code`.
 
-| Code                                                             | Shown as                                             | For example                                                                               |
-| ---------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `shadowed-by-claude-md`                                          | a CLAUDE.md on the path is read instead              | Claude Code and a root `AGENTS.md`                                                        |
-| `shadowed-by-override`                                           | AGENTS.override.md in this directory is read instead | Codex                                                                                     |
-| `empty-override`                                                 | an empty AGENTS.override.md in this directory wins   | Codex                                                                                     |
-| `over-byte-budget`                                               | past the byte limit                                  | Codex past `project_doc_max_bytes`; a `CLAUDE.md` over 4 MiB                              |
-| `blank-file`                                                     | the file is blank                                    | An empty `AGENTS.md`                                                                      |
-| `not-mdc`                                                        | only .mdc files are read here                        | Cursor and `.cursor/rules/*.md`                                                           |
-| `no-frontmatter`, `invalid-frontmatter`, `bom`, `no-description` | no frontmatter, and so on                            | Skills that Codex or Gemini CLI does not list                                             |
-| `invalid-subagent`                                               | invalid subagent definition                          | Claude Code subagents                                                                     |
-| `import-unresolved`, `import-too-deep`, `import-outside-root`    | the import does not resolve, and so on               | `@path` imports in Claude Code, Gemini CLI and Copilot CLI                                |
-| `url-without-type`                                               | "url" without "type"                                 | Claude Code and a remote server in `.mcp.json`                                            |
-| `unknown-event`                                                  | unknown hook event                                   | A hook event name the agent does not fire                                                 |
-| `invalid-json`, `not-utf8`                                       | not valid JSON, not valid UTF-8                      | A settings or hooks file the agent cannot read                                            |
-| `case-mismatch`                                                  | the file name has the wrong case                     | `agents.md` on a case-sensitive file system                                               |
-| `materialized-symlink`                                           | a symlink checked out as a text file                 | A symlinked `CLAUDE.md` in a Windows clone                                                |
-| `wrong-location`                                                 | not in a location this agent reads                   | Copilot instructions outside `.github/`                                                   |
-| `no-apply-to`                                                    | no valid "applyTo"                                   | A `*.instructions.md` the Copilot cloud agent never applies                               |
-| `shadowed-by-preferred`                                          | a preferred file is read instead                     | `.windsurf/global_rules.md` when `.devin/global_rules.md` exists                          |
-| `disabled`                                                       | turned off in the configuration                      | Devin's `read_config_from`; `enabled = false` on a Codex server; `features.hooks = false` |
-| `never-active`                                                   | its settings keep it from ever applying              | A Cline rule with `paths: []`                                                             |
-| `invalid-toml`                                                   | not valid TOML                                       | A `.codex/config.toml` Codex cannot parse                                                 |
-| `not-read`                                                       | not read by this agent                               | Listed under "Not read by" in text output                                                 |
+| Code                                                             | Shown as                                             | For example                                                                                                                                                            |
+| ---------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shadowed-by-claude-md`                                          | a CLAUDE.md on the path is read instead              | Claude Code and a root `AGENTS.md`                                                                                                                                     |
+| `shadowed-by-override`                                           | AGENTS.override.md in this directory is read instead | Codex                                                                                                                                                                  |
+| `empty-override`                                                 | an empty AGENTS.override.md in this directory wins   | Codex                                                                                                                                                                  |
+| `over-byte-budget`                                               | past the byte limit                                  | Codex past `project_doc_max_bytes`; a `CLAUDE.md` over 4 MiB                                                                                                           |
+| `blank-file`                                                     | the file is blank                                    | An empty `AGENTS.md`                                                                                                                                                   |
+| `not-mdc`                                                        | only .mdc files are read here                        | Cursor and `.cursor/rules/*.md`                                                                                                                                        |
+| `no-frontmatter`, `invalid-frontmatter`, `bom`, `no-description` | no frontmatter, and so on                            | Skills that Codex or Gemini CLI does not list                                                                                                                          |
+| `invalid-subagent`                                               | invalid subagent definition                          | A subagent or custom agent file the agent drops, such as one without a `description`                                                                                   |
+| `import-unresolved`, `import-too-deep`, `import-outside-root`    | the import does not resolve, and so on               | `@path` imports in Claude Code, Gemini CLI and Copilot CLI                                                                                                             |
+| `url-without-type`                                               | "url" without "type"                                 | Claude Code and a remote server in `.mcp.json`                                                                                                                         |
+| `unknown-event`                                                  | unknown hook event                                   | A hook event name the agent does not fire                                                                                                                              |
+| `invalid-json`, `not-utf8`                                       | not valid JSON, not valid UTF-8                      | A settings or hooks file the agent cannot read                                                                                                                         |
+| `case-mismatch`                                                  | the file name has the wrong case                     | `agents.md` on a case-sensitive file system                                                                                                                            |
+| `materialized-symlink`                                           | a symlink checked out as a text file                 | A symlinked `CLAUDE.md` in a Windows clone                                                                                                                             |
+| `wrong-location`                                                 | not in a location this agent reads                   | Copilot instructions outside `.github/`                                                                                                                                |
+| `no-apply-to`                                                    | no valid "applyTo"                                   | A `*.instructions.md` the Copilot cloud agent never applies                                                                                                            |
+| `shadowed-by-preferred`                                          | a preferred file is read instead                     | `.windsurf/global_rules.md` when `.devin/global_rules.md` exists; a subagent another one of the same name wins over                                                    |
+| `disabled`                                                       | turned off in the configuration                      | Devin's `read_config_from`; `enabled = false` on a Codex server; `features.hooks = false`; a skill `skillOverrides` turns `off`; custom agents a root switch turns off |
+| `never-active`                                                   | its settings keep it from ever applying              | A Cline rule with `paths: []`                                                                                                                                          |
+| `invalid-toml`                                                   | not valid TOML                                       | A `.codex/config.toml` or `.codex/agents/*.toml` Codex cannot parse                                                                                                    |
+| `not-read`                                                       | not read by this agent                               | Listed under "Not read by" in text output                                                                                                                              |
 
 The plans of Copilot, Devin Local, Cline and Codex's `config.toml` added `wrong-location`,
 `no-apply-to`, `shadowed-by-preferred`, `disabled`, `never-active` and `invalid-toml`.
@@ -272,6 +273,79 @@ the JSON plans.
 For a skill, the session-start size is its listing entry (name and description). The body loads
 when the model uses the skill and is shown as `body ... bytes ≈ ...` under On demand. A file that
 a limit cuts shows where: `services/billing/ledger/AGENTS.md (cut at byte 6,316, line 97)`.
+
+Claude Code's listing follows its skills documentation: every listed skill counts its name and
+its description. A skill with `disable-model-invocation: true` (or `yes`, `on` or `1`, in any
+letter case, as Claude Code reads boolean fields) is not listed, since its "description [is] not
+in context": it loads only when you run `/name`, under On demand.
+`skillOverrides` in the working directory's `.claude/settings.json` or
+`.claude/settings.local.json` (the local file wins per skill) lists a skill by `name-only`, hides
+it from the model (`user-invocable-only`, then it is manual), or turns it `off`, which skips it.
+
+A subagent's listing entry, its name and description, is in the session-start total as well: the
+model picks a subagent by it. The plan shows the listing as one row,
+`Subagents listing (N subagents, names and descriptions)`, after the other startup rows. What the
+subagent starts with when it runs is not part of the total; see [Subagent calls](#subagent-calls).
+
+## Subagent calls
+
+A subagent starts in a context window of its own: the session pays for its listing, not for
+what it reads. For each subagent an agent loads, the plan measures what a call starts with, shown
+after On demand:
+
+```text
+Subagent calls, each in a context window of its own
+  .claude/agents/reviewer.md  ≈2,799 tokens: prompt ≈375, instructions ≈2,124, skill docs ≈300
+    not preloaded: personal (not in this session's skills)
+    memory .claude/agent-memory/reviewer/MEMORY.md, not measured
+  Not visible in a call: environment details, the task message, tool definitions, git status,
+  the user's CLAUDE.md, managed CLAUDE.md
+```
+
+- **Claude Code** documents what a subagent starts with
+  ([What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)):
+  - `prompt`: the body of its file;
+  - `instructions`: the instruction files the session loads at startup (`CLAUDE.md` and its
+    imports, `.claude/rules` without `paths`, `AGENTS.md` read in their place), unless the
+    definition sets `omitClaudeMd: true`. Claude Code reads `yes`, `on` and `1` as true in a
+    skill's boolean fields; whether it does for `omitClaudeMd` is not documented, so such a value
+    keeps the files, marked unverified;
+  - `skill`: the body of each skill its `skills` field preloads, of the first 32 distinct names,
+    found by its name or, unverified, by its directory's name. A name with no such skill among
+    the session's skills is `not in this session's skills` (it may be a user or plugin skill, or
+    one below the working directory), a skill the model cannot invoke cannot be preloaded, and
+    one `skillOverrides` turns off is not preloaded. Names past the first 32 are counted, not
+    listed;
+  - `memory`: `memory: project` or `local` adds the first 200 lines or 25 KB of
+    `.claude/agent-memory[-local]/<name>/MEMORY.md`, measured when the file is in the
+    repository. Without one the plan says `none yet`, and `not measured` where it cannot tell;
+    a name that is not one folder name gives no path. Auto memory turned off in the working
+    directory's settings drops it: `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY` set to a true or false
+    value decides, else `autoMemoryEnabled`.
+- **The Copilot CLI** gives a custom agent the repository's instruction files only when it sets
+  `include-custom-instructions: true`
+  ([Custom agents](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#repository-custom-instructions-for-subagents)):
+  the call then has an `instructions` part, and without it none, as documented.
+- **Codex** adds its skills instructions block unless the agent file sets
+  `skills.include_instructions = false`: a `skills listing` part, the session's listing,
+  unverified when the file changes `skills.config` or `skills.bundled`.
+- **The other agents** document only that the file's body is the subagent's prompt. Whether the
+  repository's instruction files reach their subagents is not documented, so it is listed as not
+  visible.
+- **What it cannot measure.** A subagent the agent may load whose file agentcheckup cannot read
+  (a YAML merge key, larger than the scan reads, a symlink outside the repository) is a call
+  `not measured`. A call that starts with a file the scan did not read, such as a preloaded skill
+  larger than it reads, says `not measured, so the call starts with more` and names it. Where two
+  definitions share a name and the agent does not document which one wins, the skip of the one
+  not preferred carries what its call would start with, in JSON.
+- Claude Code warns at startup when the subagents' names and descriptions pass 15,000 tokens. The
+  plan measures it as the limit `claude-code.agent_descriptions_tokens`, an estimate in tokens,
+  and the listing row says `past the 15,000-token startup warning` when it does; every subagent
+  still loads past it.
+- Project subagents are found from the working directory up to the repository root, and of one
+  name the closest folder wins. A folder below the working directory is out of scope there.
+
+[`agentcheckup tokens`](tokens.md) sums the calls up per agent, with the model each runs on.
 
 ## Assumptions and what is not visible
 
@@ -497,22 +571,23 @@ and SARIF include plans only with `--context`. See
 `agentcheckup context --format json` writes the same report as a scan, so one schema covers both:
 [schemas/report.schema.json](../schemas/report.schema.json). The parts that matter here:
 
-| Field                               | What it holds                                                                                                                                                                   |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `context.agents`                    | The planned agents, by id, in the order of the [agents table](#agents)                                                                                                          |
-| `context.plans[]`                   | One plan per agent and working directory: `agent` (`copilot-cli`, `windsurf`, …), `cwd` (`""` is the root)                                                                      |
-| `plans[].entries[]`                 | `id`, `role`, `trigger`, `position` (startup only), `path`, `realPath`, `size`, `deferred`, `truncated`, `certainty`, `evidence`, `inventoryId`                                 |
-| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `size`, `fix`, `certainty`, `evidence`                                                  |
-| `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                                                             |
-| `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`                                       |
-| `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                                                  |
-| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                                                             |
-| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                                                          |
-| `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                                                           |
-| `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                                                   |
-| `inventory`                         | Every MCP server, hook, permission and env override, whether or not an agent loads it. Every report has it. See [Items declared in frontmatter](#items-declared-in-frontmatter) |
-| `baseline`                          | With `--baseline`: the comparison described below                                                                                                                               |
-| `pathBase`                          | The prefix added to every path when the scanned directory is not the current directory                                                                                          |
+| Field                               | What it holds                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `context.agents`                    | The planned agents, by id, in the order of the [agents table](#agents)                                                                                                                                                                                                                                         |
+| `context.plans[]`                   | One plan per agent and working directory: `agent` (`copilot-cli`, `windsurf`, …), `cwd` (`""` is the root)                                                                                                                                                                                                     |
+| `plans[].entries[]`                 | `id`, `role`, `trigger`, `position` (startup only), `path`, `realPath`, `name`, `size`, `deferred`, `truncated`, `certainty`, `evidence`, `inventoryId`; for a subagent, `ownContext`: `size`, `parts`, `notLoaded`, `overLimit`, `unmeasured`, `memory`, `notVisible` (see [Subagent calls](#subagent-calls)) |
+| `plans[].skipped[]`                 | `id`, `role`, `path`, `code` (why), `ruleId` (the rule that reports it, when one does), `size`, `fix`, `certainty`, `evidence`; for a subagent that may load instead of the preferred one, `ownContext`                                                                                                        |
+| `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                                                                                                                                                                                            |
+| `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`                                                                                                                                                                      |
+| `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                                                                                                                                                                                 |
+| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                                                                                                                                                                                            |
+| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                                                                                                                                                                                         |
+| `context.directories`               | With `tokens --by-directory`: the start directories planned besides the root, and `notPlanned`                                                                                                                                                                                                                 |
+| `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                                                                                                                                                                                          |
+| `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                                                                                                                                                                                  |
+| `inventory`                         | Every MCP server, hook, permission and env override, whether or not an agent loads it. Every report has it. See [Items declared in frontmatter](#items-declared-in-frontmatter)                                                                                                                                |
+| `baseline`                          | With `--baseline`: the comparison described below                                                                                                                                                                                                                                                              |
+| `pathBase`                          | The prefix added to every path when the scanned directory is not the current directory                                                                                                                                                                                                                         |
 
 Output is deterministic: the same files give byte-identical JSON. Paths are relative and never
 absolute. JSON paths are relative to the current directory, as in a scan; text and Markdown
@@ -609,6 +684,18 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
 - **Plan entries** match by id within the same agent and working directory, and only for plans
   present in both reports. An entry is changed when its trigger, its size in characters, its
   cut or its certainty differs. A change of position alone shows only in the JSON plans.
+- **Subagent calls** match by entry id too. A plan's `calls` lists each subagent whose call
+  starts with another number of ≈tokens, `before` or `after` null for one added or removed. They
+  are a list of their own, not a changed field of each entry: a `CLAUDE.md` edit moves every
+  Claude Code subagent's call. Text output names up to three per plan after the plan's tokens,
+  such as `subagent calls reviewer ≈1,200 → ≈2,400 (+1,200)`; Markdown tables them under
+  "Subagent calls". A baseline made before agentcheckup measured calls has none, so each call
+  shows as new once.
+- **Subagents in the plans.** agentcheckup lists every agent's subagents in its plan, and counts
+  their listing in the session-start total, since version 0.3.0. A baseline made before then shows
+  a one-time change in session-start tokens wherever a repository has subagents, and the Claude
+  Code skills listing changes once too: it now counts each skill's name and leaves out skills the
+  model cannot invoke.
 - **Agent definitions in 0.3.0.** agentcheckup 0.3.0 reads custom agents more as each agent
   documents them: Cursor and Devin Local files without frontmatter, Gemini CLI remote agents,
   agent files the scan could not read (listed as ones that may load), folders spelled in another
@@ -804,7 +891,7 @@ Since the baseline
     Env override: Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net
 Findings: 0 new, 4 unchanged, 1 resolved
 Session-start context:
-  Claude Code ≈73 → ≈250 tokens (+177)
+  Claude Code ≈74 → ≈252 tokens (+178)
   Cursor ≈281 → ≈284 tokens (+3)
   Copilot CLI ≈302 → ≈305 tokens (+3)
   Copilot in VS Code ≈302 → ≈305 tokens (+3)
@@ -837,7 +924,12 @@ npx agentcheckup context --matrix --format markdown --output agent-context.md
 - **Modes the plans assume away.** Plans assume trusted workspaces and folders, Devin Desktop
   outside Restricted Mode, where agents are unavailable and hooks do not run, and every Cline
   rule toggle on.
-- **Estimates.** Token counts are characters divided by 4.
+- **Estimates.** Token counts are characters divided by 4. A tokenizer count would need the
+  model's tokenizer, which for Claude runs only through an API, and agentcheckup makes no network
+  requests.
+- **Subagent calls.** A call's numbers cover what the repository shows. The task message, tool
+  definitions, git status, the user's and the organization's files, and a memory file are not
+  measured.
 - **Codex project configuration.** Plans and the inventory read each `.codex/config.toml`
   from the project root down to the working directory, the closest one winning. A file named in
   `project_doc_fallback_filenames` is not followed: the AGENTS.md chain stops before its
