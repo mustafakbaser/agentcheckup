@@ -194,6 +194,8 @@ spends depends on the conversation, the files the agent reads and the tools it c
 
 Comparing the two tells you how much of a session is configuration: `tokens` shows what every
 session pays before the first message, and what every subagent call pays before its task.
+[Compare configuration cost with what sessions spend](actual-usage.md) walks through it for each
+agent, with OpenTelemetry for teams.
 
 ## Limitations
 
