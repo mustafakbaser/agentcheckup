@@ -103,6 +103,27 @@ export interface RepoContextFacts {
   readonly modelSettings: number;
   /** `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on in a root Claude Code settings file. */
   readonly subagentModelForced: boolean;
+  /** Per agent, ≈tokens of the subagents listing in the root plan's session-start context. */
+  readonly subagentListingTokens: Readonly<Record<ContextAgent, number>>;
+  /** Per agent, ≈tokens each subagent call starts with, in the root plan. */
+  readonly callTokens: Readonly<Record<ContextAgent, readonly number[]>>;
+  /** Claude Code's calls in the root plan, part by part. */
+  readonly claudeCalls: ClaudeCallFacts;
+  /** The root plan's Claude Code subagents listing is past the 15,000-token warning. */
+  readonly claudeDescriptionsOver: boolean;
+}
+
+/** What Claude Code's subagent calls start with, summed over one repository's root plan. */
+export interface ClaudeCallFacts {
+  readonly calls: number;
+  /** ≈tokens of every call together, and of the session's instruction files in them. */
+  readonly tokens: number;
+  readonly instructionTokens: number;
+  /** Calls without the session's instruction files (`omitClaudeMd: true`). */
+  readonly withoutInstructions: number;
+  /** Calls that preload at least one skill, and preloads that do not load. */
+  readonly preloading: number;
+  readonly notPreloaded: number;
 }
 
 /** One agent's definitions in one repository. */
@@ -127,6 +148,34 @@ const NO_DEFINITIONS: DefinitionCounts = {
   withModel: 0,
   notDocumented: 0,
 };
+
+const NO_CLAUDE_CALLS: ClaudeCallFacts = {
+  calls: 0,
+  tokens: 0,
+  instructionTokens: 0,
+  withoutInstructions: 0,
+  preloading: 0,
+  notPreloaded: 0,
+};
+
+function claudeCallFacts(plan: LoadPlan | undefined): ClaudeCallFacts {
+  const contexts = (plan?.entries ?? []).flatMap((entry) =>
+    entry.ownContext === undefined ? [] : [entry.ownContext],
+  );
+  const instructions = (parts: (typeof contexts)[number]['parts']): number =>
+    parts.find((part) => part.kind === 'instructions')?.size.tokens ?? 0;
+  return {
+    calls: contexts.length,
+    tokens: contexts.reduce((sum, context) => sum + context.size.tokens, 0),
+    instructionTokens: contexts.reduce((sum, context) => sum + instructions(context.parts), 0),
+    withoutInstructions: contexts.filter(
+      (context) => !context.notVisible.includes('user-instructions'),
+    ).length,
+    preloading: contexts.filter((context) => context.parts.some((part) => part.kind === 'skill'))
+      .length,
+    notPreloaded: contexts.reduce((sum, context) => sum + (context.notLoaded?.length ?? 0), 0),
+  };
+}
 
 function definitionCounts(definitions: readonly AgentDefinition[]): DefinitionCounts {
   const status = (value: AgentDefinition['status']): number =>
@@ -183,6 +232,10 @@ function emptyFacts(crash: string, agents: readonly ContextAgent[]): RepoContext
     definitions: perAgent(ALL_CONTEXT_AGENTS, () => NO_DEFINITIONS),
     modelSettings: 0,
     subagentModelForced: false,
+    subagentListingTokens: perAgent(agents, () => 0),
+    callTokens: perAgent(agents, () => []),
+    claudeCalls: NO_CLAUDE_CALLS,
+    claudeDescriptionsOver: false,
   };
 }
 
@@ -308,6 +361,28 @@ export function scanForSummary(
         (definition) =>
           definition.effective.overridden?.key === 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
       ),
+      subagentListingTokens: perAgent(planned, (agent) =>
+        Math.ceil(
+          (root.get(agent)?.entries ?? [])
+            .filter((entry) => entry.trigger === 'startup' && entry.role === 'subagent')
+            .reduce((chars, entry) => chars + (entry.size?.chars ?? 0), 0) / 4,
+        ),
+      ),
+      callTokens: perAgent(planned, (agent) =>
+        (root.get(agent)?.entries ?? []).flatMap((entry) =>
+          entry.ownContext === undefined ? [] : [entry.ownContext.size.tokens],
+        ),
+      ),
+      claudeCalls: claudeCallFacts(root.get('claude-code')),
+      claudeDescriptionsOver:
+        root
+          .get('claude-code')
+          ?.limits.some(
+            (limit) =>
+              limit.key === 'claude-code.agent_descriptions_tokens' &&
+              limit.limit !== null &&
+              limit.used > limit.limit,
+          ) === true,
     };
     return { result, facts };
   } catch (error) {
@@ -617,6 +692,70 @@ export function renderContextSection(
           '`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on',
           number(count((item) => item.subagentModelForced)),
           '-',
+        ],
+      ],
+    ),
+    '',
+    '### Subagent listings and calls, root directory',
+    '',
+    'What `agentcheckup tokens` sums up for a session started in the root. "Listing" is the ' +
+      "subagents' names and descriptions in session-start context; a call is what a subagent " +
+      "starts with in a context window of its own. For Claude Code, that includes the session's " +
+      'instruction files unless the definition sets `omitClaudeMd: true`; for the other agents, ' +
+      'only the prompt is counted. ≈tokens are characters / 4. See [docs/tokens.md](../docs/tokens.md).',
+    '',
+    table(
+      ['Agent', 'Repositories', 'Listing median', 'Calls', 'Call median', 'Call p90', 'Call max'],
+      ['---', '---:', '---:', '---:', '---:', '---:', '---:'],
+      agents
+        .filter((agent) => facts.some((item) => item.callTokens[agent].length > 0))
+        .map((agent) => {
+          const listings = facts
+            .map((item) => item.subagentListingTokens[agent])
+            .filter((tokens) => tokens > 0)
+            .sort((a, b) => a - b);
+          const [, calls, median, p90, max] = distribution(
+            '',
+            facts.flatMap((item) => item.callTokens[agent]),
+          );
+          return [
+            AGENT_NAMES[agent],
+            number(listings.length),
+            number(percentile(listings, 50)),
+            calls ?? '0',
+            median ?? '0',
+            p90 ?? '0',
+            max ?? '0',
+          ];
+        }),
+    ),
+    '',
+    table(
+      ['Claude Code calls', 'Value'],
+      ['---', '---:'],
+      [
+        ['Calls', number(sum((item) => item.claudeCalls.calls))],
+        [
+          "Share of call tokens that are the session's instruction files",
+          `${number(
+            Math.round(
+              (100 * sum((item) => item.claudeCalls.instructionTokens)) /
+                Math.max(
+                  1,
+                  sum((item) => item.claudeCalls.tokens),
+                ),
+            ),
+          )}%`,
+        ],
+        [
+          'Calls without them (`omitClaudeMd: true`)',
+          number(sum((item) => item.claudeCalls.withoutInstructions)),
+        ],
+        ['Calls that preload skills', number(sum((item) => item.claudeCalls.preloading))],
+        ['Preloads that do not load', number(sum((item) => item.claudeCalls.notPreloaded))],
+        [
+          'Repositories past the 15,000-token descriptions warning',
+          number(count((item) => item.claudeDescriptionsOver)),
         ],
       ],
     ),

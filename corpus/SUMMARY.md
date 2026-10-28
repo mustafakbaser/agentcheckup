@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.2.0 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -10,7 +10,7 @@ Aggregate results of agentcheckup 0.1.1 (rule set 2026.10, 64 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7629 |
+| Artifacts                   | 7645 |
 | Errors                      |  698 |
 | Warnings                    | 1287 |
 | Infos                       | 1554 |
@@ -28,12 +28,12 @@ What Claude Code, Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud 
 | Some agent loads no instructions at all                                |     68 of 72 |
 | Root `AGENTS.md`                                                       |           55 |
 | Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead |     11 of 55 |
-| Some agent skips an agent-config file or item                          |           33 |
-| Claude Code skips one                                                  |           24 |
+| Some agent skips an agent-config file or item                          |           34 |
+| Claude Code skips one                                                  |           25 |
 | Codex skips one                                                        |            5 |
-| Cursor skips one                                                       |            4 |
+| Cursor skips one                                                       |            5 |
 | Copilot CLI skips one                                                  |            3 |
-| Copilot in VS Code skips one                                           |            7 |
+| Copilot in VS Code skips one                                           |            8 |
 | Copilot cloud agent skips one                                          |            5 |
 | Gemini CLI skips one                                                   |            1 |
 | Devin Local skips one                                                  |            1 |
@@ -51,19 +51,19 @@ In ≈tokens. "Instructions" are instruction files, imports and rules, after doc
 |                                              | Repositories | Median | 90th percentile | Largest |
 | -------------------------------------------- | -----------: | -----: | --------------: | ------: |
 | Claude Code: instructions                    |           70 |  2,020 |           9,743 |  27,396 |
-| Claude Code: with the skills listing         |           70 |  2,649 |           9,743 |  28,191 |
+| Claude Code: with the skills listing         |           70 |  2,788 |          10,365 |  29,908 |
 | Codex: instructions                          |           58 |  2,200 |           7,323 |   8,189 |
 | Codex: with the skills listing               |           59 |  2,892 |           8,186 |  48,675 |
 | Cursor: instructions                         |           70 |  2,966 |          10,941 |  27,396 |
-| Cursor: with the skills listing              |           70 |  3,997 |          12,380 |  71,481 |
+| Cursor: with the skills listing              |           71 |  3,997 |          12,380 |  71,481 |
 | Copilot CLI: instructions                    |           71 |  3,347 |           9,743 |  28,093 |
-| Copilot CLI: with the skills listing         |           71 |  4,142 |           9,743 |  28,224 |
+| Copilot CLI: with the skills listing         |           72 |  4,136 |          10,365 |  29,945 |
 | Copilot in VS Code: instructions             |           70 |  3,500 |          11,316 |  27,396 |
-| Copilot in VS Code: with the skills listing  |           70 |  4,610 |          12,380 |  37,616 |
+| Copilot in VS Code: with the skills listing  |           71 |  4,610 |          12,397 |  40,992 |
 | Copilot cloud agent: instructions            |           71 |  3,500 |          11,316 |  28,093 |
-| Copilot cloud agent: with the skills listing |           71 |  4,610 |          12,380 |  37,616 |
-| Gemini CLI: instructions                     |            7 |  1,153 |           4,136 |   4,136 |
-| Gemini CLI: with the skills listing          |           33 |    818 |           4,136 |  50,794 |
+| Copilot cloud agent: with the skills listing |           71 |  4,610 |          12,397 |  37,616 |
+| Gemini CLI: instructions                     |            7 |  1,967 |           4,136 |   4,136 |
+| Gemini CLI: with the skills listing          |           33 |    959 |           4,136 |  50,794 |
 | Devin Local: instructions                    |           70 |  2,918 |          10,941 |  27,396 |
 | Devin Local: with the skills listing         |           72 |  3,997 |          12,380 |  53,119 |
 | Cline: instructions                          |           58 |  2,238 |           9,610 |  27,141 |
@@ -82,7 +82,9 @@ Repositories where a modeled agent skips a file or item for this reason, in a pl
 | `wrong-location`        | not in a location the agent reads             |            3 |
 | `no-apply-to`           | no valid applyTo (Copilot)                    |            2 |
 | `blank-file`            | blank file                                    |            1 |
+| `invalid-subagent`      | invalid subagent                              |            1 |
 | `no-frontmatter`        | no frontmatter                                |            1 |
+| `shadowed-by-preferred` | a preferred file is read instead              |            1 |
 
 ### MCP servers, hooks, permissions and env overrides
 
@@ -122,6 +124,28 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | Repository settings that pick a model |            1 |     1 |
 | `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on |            0 |     - |
 
+### Subagent listings and calls, root directory
+
+What `agentcheckup tokens` sums up for a session started in the root. "Listing" is the subagents' names and descriptions in session-start context; a call is what a subagent starts with in a context window of its own. For Claude Code, that includes the session's instruction files unless the definition sets `omitClaudeMd: true`; for the other agents, only the prompt is counted. ≈tokens are characters / 4. See [docs/tokens.md](../docs/tokens.md).
+
+| Agent               | Repositories | Listing median | Calls | Call median | Call p90 | Call max |
+| ------------------- | -----------: | -------------: | ----: | ----------: | -------: | -------: |
+| Claude Code         |           12 |            117 |   159 |      18,496 |   21,346 |   24,896 |
+| Codex               |            2 |             36 |     4 |       3,849 |    3,854 |    3,854 |
+| Cursor              |           12 |            117 |   159 |       1,076 |    3,646 |   16,498 |
+| Copilot CLI         |           15 |            117 |   179 |       1,120 |    3,700 |   16,498 |
+| Copilot in VS Code  |           15 |            117 |   167 |       1,131 |    3,700 |   16,498 |
+| Copilot cloud agent |            3 |             97 |     8 |       2,288 |    6,547 |    6,547 |
+
+| Claude Code calls                                             | Value |
+| ------------------------------------------------------------- | ----: |
+| Calls                                                         |   159 |
+| Share of call tokens that are the session's instruction files |   88% |
+| Calls without them (`omitClaudeMd: true`)                     |     0 |
+| Calls that preload skills                                     |     1 |
+| Preloads that do not load                                     |     3 |
+| Repositories past the 15,000-token descriptions warning       |     0 |
+
 ## Artifacts by kind
 
 | Kind                        | Artifacts | Repositories |
@@ -138,6 +162,7 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | `mcp-json`                  |        53 |           25 |
 | `cursor-rule`               |        49 |           10 |
 | `claude-settings`           |        44 |           38 |
+| `imported-file`             |        21 |            5 |
 | `copilot-instructions`      |        19 |           16 |
 | `gemini-md`                 |        15 |            8 |
 | `copilot-agent`             |        12 |            6 |
@@ -146,7 +171,6 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | `cursor-mcp`                |         7 |            7 |
 | `codex-config`              |         6 |            6 |
 | `codex-hooks`               |         6 |            6 |
-| `imported-file`             |         6 |            2 |
 | `cursor-hooks`              |         5 |            5 |
 | `vscode-mcp`                |         5 |            5 |
 | `codex-agent`               |         4 |            2 |
@@ -154,6 +178,7 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | `gemini-settings`           |         4 |            4 |
 | `windsurf-rule`             |         2 |            2 |
 | `agents-override-md`        |         1 |            1 |
+| `claude-agent-memory`       |         1 |            1 |
 | `claude-local-md`           |         1 |            1 |
 | `copilot-hooks`             |         1 |            1 |
 | `copilot-mcp`               |         1 |            1 |
