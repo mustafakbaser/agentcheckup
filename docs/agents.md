@@ -22,16 +22,16 @@ decision is [ADR 0013](adr/0013-list-agent-definitions-and-their-models.md).
 Only definitions an agent reads from the repository are listed. User folders such as
 `~/.claude/agents`, plugins and managed settings are never read.
 
-| Agent               | Files                                                                                                                              | Needs                                                                                                                                                                     | Known by                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Claude Code         | `.claude/agents/**/*.md`                                                                                                           | `name` and `description`                                                                                                                                                  | `name`                                            |
-| Codex               | `.codex/agents/**/*.toml`, and the roles `[agents.<name>]` in `.codex/config.toml` declares, with the file its `config_file` names | `name`, `description` and `developer_instructions`, each of its type; a file a role declares takes the role's name and description, and needs no `developer_instructions` | `name`, or the role's                             |
-| Cursor              | `.cursor/agents/**/*.md`, `.claude/agents/**/*.md` and the Markdown in `.codex/agents`                                             | frontmatter                                                                                                                                                               | `name`, or the file name                          |
-| Gemini CLI          | `.gemini/agents/*.md`, not in subfolders                                                                                           | `name` of lowercase letters, digits, hyphens and underscores, and `description`                                                                                           | `name`                                            |
-| Copilot CLI         | `.github/agents/**/*.md`, then `.claude/agents` in Claude Code's format                                                            | `description`                                                                                                                                                             | the path below `agents`, such as `team--reviewer` |
-| Copilot in VS Code  | `.github/agents/*.md`, not in subfolders, and `.claude/agents` in Claude Code's format                                             | nothing: the header is optional                                                                                                                                           | `name`, or the file name                          |
-| Copilot cloud agent | `.github/agents/**/*.agent.md`                                                                                                     | `description`                                                                                                                                                             | the file name                                     |
-| Devin Local         | `.devin/agents/<name>.md`, or `<name>/` with `AGENT.md` or `AGENTS.md`, and the same under `.agents/agents` (experimental)         | frontmatter                                                                                                                                                               | `name`, or the file name                          |
+| Agent               | Files                                                                                                                                                              | Needs                                                                                                                                                                     | Known by                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Claude Code         | `.claude/agents/**/*.md`                                                                                                                                           | `name` and `description`                                                                                                                                                  | `name`                                            |
+| Codex               | `.codex/agents/**/*.toml`, and the roles `[agents.<name>]` in `.codex/config.toml` declares, with the file its `config_file` names                                 | `name`, `description` and `developer_instructions`, each of its type; a file a role declares takes the role's name and description, and needs no `developer_instructions` | `name`, or the role's                             |
+| Cursor              | `.cursor/agents/**/*.md`, `.claude/agents/**/*.md` and the Markdown in `.codex/agents`                                                                             | nothing: every field is optional; a file without frontmatter loads, unverified, except in `.claude/agents`                                                                | `name`, or the file name                          |
+| Gemini CLI          | `.gemini/agents/*.md`, not in subfolders                                                                                                                           | frontmatter, with a `name` of lowercase letters, digits, hyphens and underscores, and `description` (a remote agent: `agent_card_url` or `agent_card_json` instead)       | `name`                                            |
+| Copilot CLI         | `.github/agents/**/*.md`, then `.claude/agents` in Claude Code's format                                                                                            | `description`                                                                                                                                                             | the path below `agents`, such as `team--reviewer` |
+| Copilot in VS Code  | `.github/agents/*.md`, not in subfolders, and `.claude/agents` in Claude Code's format                                                                             | nothing: the header is optional                                                                                                                                           | `name`, or the file name                          |
+| Copilot cloud agent | `.github/agents/**/*.agent.md` at the repository root                                                                                                              | `description`                                                                                                                                                             | the file name                                     |
+| Devin Local         | `.devin/agents/<name>.md`, or `<name>/` with `AGENT.md`, `AGENTS.md`, `agent.md` or `agents.md`, the first of them; the same under `.agents/agents` (experimental) | a name other than `subagent_explore` and `subagent_general`; a file without frontmatter loads, unverified                                                                 | `name`, or the file or directory name             |
 
 An `AGENTS.md` or `GEMINI.md` directly in one of these folders documents it, and is read as the
 instruction file it is. A Copilot file whose `target` is `vscode` is not the cloud agent's, and one
@@ -45,23 +45,37 @@ Each definition has a status, which the JSON report writes as `loads`, `skipped`
 - **skipped**: the agent drops it, and the output says why, such as `no description`, or that
   the repository's settings turn the agent's custom agents off: Codex's `agents.enabled` or
   `features.multi_agent`, Gemini CLI's `experimental.enableAgents` or
-  `agents.overrides.<name>.enabled`. [instr/subagent-invalid](rules/instr/subagent-invalid.md)
-  reports the files Claude Code skips.
+  `agents.overrides.<name>.enabled`. The settings are those of a session started in the
+  directory that owns the agent folder: for Codex every `.codex/config.toml` from the repository
+  root down to it, the closest winning, for Gemini CLI that directory's `.gemini/settings.json`.
+  [instr/subagent-invalid](rules/instr/subagent-invalid.md) reports the files Claude Code skips.
 - **shadowed**: another definition wins, and the output names its file. Cursor takes
   `.cursor/agents` first; the Copilot CLI loads `.github/agents` before `.claude/agents` and keeps
   the first of an id, so two files with one `name` under two ids both load; a role
-  `.codex/config.toml` declares wins over a Codex file of the same name. Where the agent does not
+  `.codex/config.toml` declares wins over a Codex file of the same name; Devin Local reads one
+  file of an `agents/<name>/` directory. Where the agent does not
   document which one wins, such as two files in one `.claude/agents` folder with the same name,
   the later file in path order is marked shadowed, as unverified.
 - **unknown**, shown as "may not load": whether the agent loads it, or what it reads from it, is
   not documented: frontmatter only Claude Code's own reader accepts (see
   [Items declared in frontmatter](context.md#items-declared-in-frontmatter)), a `<<` merge key, a
-  file past agentcheckup's parser limits, or a Codex `config_file` outside the repository.
+  file past agentcheckup's parser limits, a Codex `config_file` outside the repository, or a file
+  the scan did not read at all: larger than it reads, unreadable, or a symlink to a file outside
+  the repository. A role `.codex/config.toml` declares keeps its precedence over a file of the
+  same name even when it is unknown; the file is then shadowed, unverified.
 
 Definitions in another directory's agent folder, such as `packages/api/.claude/agents`, are
 marked `?`, unverified: they serve sessions started there, where they win over the root's, so a
 name they share with the root's shadows neither. So are definitions in subfolders the
-documentation does not mention.
+documentation does not mention, and in a folder spelled in another letter case, such as
+`.Claude/agents`, which an agent finds only where the file system ignores case. Folders match on
+whole path segments: `notes.cursor/agents` is not a `.cursor/agents` folder.
+
+A Gemini CLI remote agent (`kind: remote`) needs a `name` and an `agent_card_url` or
+`agent_card_json`, and no description: its agent card, outside the repository, describes it, so
+its listing and its call are unverified
+([Remote subagents](https://geminicli.com/docs/core/remote-agents/)). A file that lists several
+remote agents is unknown.
 
 A file an agent reaches through a symlink is read at the symlink's path, as what it is there.
 With `.claude/agents -> ../.github/agents`, each Copilot agent file is also a Claude Code

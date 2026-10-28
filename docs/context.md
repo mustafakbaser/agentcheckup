@@ -609,6 +609,12 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
 - **Plan entries** match by id within the same agent and working directory, and only for plans
   present in both reports. An entry is changed when its trigger, its size in characters, its
   cut or its certainty differs. A change of position alone shows only in the JSON plans.
+- **Agent definitions in 0.3.0.** agentcheckup 0.3.0 reads custom agents more as each agent
+  documents them: Cursor and Devin Local files without frontmatter, Gemini CLI remote agents,
+  agent files the scan could not read (listed as ones that may load), folders spelled in another
+  letter case, and Copilot CLI ids of `agent.md` files. Against a baseline from 0.2, the first
+  comparison can show such definitions as added, removed or changed once, and the `models` class
+  can trip for them. Create the baseline again to compare definition by definition.
 - **Rule sets.** A baseline from another rule set is accepted with a warning. Findings from
   rules the baseline did not run count as new.
 - **Codex `config.toml`.** agentcheckup reads `.codex/config.toml` since its Codex TOML support.

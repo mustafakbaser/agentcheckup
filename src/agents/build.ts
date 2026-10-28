@@ -16,7 +16,7 @@ import { redactShown } from '../inventory/redact.js';
 import { isTable, own, type SpannedDocument } from '../parse/json-access.js';
 import {
   type AgentFile,
-  agentFiles,
+  definitionFiles,
   type FileFields,
   stringField,
 } from '../platforms/agent-files.js';
@@ -51,7 +51,7 @@ export function buildAgents(view: LoadView): AgentsReport {
 function build(view: LoadView): AgentsReport {
   const settings = buildModelSettings(view);
   const context = new Resolver(settings);
-  const finished = agentFiles(view).map((file) => finish(file, context));
+  const finished = definitionFiles(view).map((file) => finish(file, context));
   return {
     definitions: finished.sort((a, b) => compareStrings(a.id, b.id)),
     settings,

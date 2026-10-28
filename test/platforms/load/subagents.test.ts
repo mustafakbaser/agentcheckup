@@ -190,6 +190,55 @@ describe('subagents the agent does not list', () => {
     expect(subagents(planOf(plans, 'gemini'))).toEqual([]);
   });
 
+  it('applies the switches of the session, wherever the definitions are', () => {
+    const codex = (name: string): string =>
+      `name = "${name}"\ndescription = "d"\ndeveloper_instructions = "x"\n`;
+    const files = {
+      '.codex/config.toml': '[features]\nmulti_agent = false\n',
+      '.codex/agents/root.toml': codex('root'),
+      'pkg/.codex/agents/near.toml': codex('near'),
+      'pkg/.gemini/settings.json': JSON.stringify({ experimental: { enableAgents: false } }),
+      'pkg/.gemini/agents/helper.md': '---\nname: helper\ndescription: Helps.\n---\n',
+    };
+    const pkg = plansOf(files, { cwd: 'pkg' });
+    // The root's layer reaches a session in pkg, and turns pkg's agents off too.
+    expect(subagents(planOf(pkg, 'codex'))).toEqual([]);
+    expect(skips(planOf(pkg, 'codex'))).toEqual([
+      'disabled .codex/agents/root.toml',
+      'disabled pkg/.codex/agents/near.toml',
+    ]);
+    expect(skips(planOf(pkg, 'gemini'))).toEqual(['disabled pkg/.gemini/agents/helper.md']);
+    // A closer layer turns them back on.
+    const on = plansOf(
+      { ...files, 'pkg/.codex/config.toml': '[features]\nmulti_agent = true\n' },
+      { cwd: 'pkg' },
+    );
+    expect(subagents(planOf(on, 'codex'))).toEqual([
+      'startup .codex/agents/root.toml ?',
+      'startup pkg/.codex/agents/near.toml ?',
+    ]);
+  });
+
+  it('names a Claude Code subagent whatever the type of its name, as Claude Code reads it', () => {
+    const plan = planOf(
+      plansOf(
+        {
+          '.claude/agents/a.md': '---\nname: 42\ndescription: Root.\n---\nRoot.\n',
+          'pkg/.claude/agents/a.md': '---\nname: 42\ndescription: [a, b]\n---\nNear.\n',
+        },
+        { cwd: 'pkg' },
+      ),
+      'claude-code',
+    );
+    expect(subagents(plan)).toEqual(['startup pkg/.claude/agents/a.md']);
+    expect(skips(plan)).toEqual(['shadowed-by-preferred .claude/agents/a.md']);
+    // The name and the description as text: 42 and ["a","b"].
+    expect(subagent(plan, 'subagent:pkg/.claude/agents/a.md')).toMatchObject({
+      name: '42',
+      size: { chars: '42["a","b"]'.length },
+    });
+  });
+
   it('skips the loser of a name both folders of an agent use', () => {
     const plan = planOf(
       plansOf({
@@ -224,6 +273,42 @@ describe('subagents the agent does not list', () => {
       'manual .github/agents/legacy.agent.md ?',
     ]);
     expect(subagent(plan, 'subagent:.github/agents/deploy.agent.md').size).toBeUndefined();
+  });
+});
+
+describe('subagents agentcheckup cannot read', () => {
+  it('lists a file the scan did not read as one the agent may load, without a call', () => {
+    const analysis = analyze(
+      {
+        ...snapshotFrom({ '.claude/agents/small.md': reviewer }, { paths: ['.git/HEAD'] }),
+        skipped: [{ path: '.claude/agents/huge.md', reason: 'too-large', size: 2_000_000 }],
+      },
+      { targets: PLATFORM_IDS },
+    );
+    const plan = planOf(
+      loadPlans(analysis, { agents: ['claude-code'], cwd: '', config: analysis.config }),
+      'claude-code',
+    );
+    expect(subagents(plan)).toEqual([
+      'startup .claude/agents/huge.md ?',
+      'startup .claude/agents/small.md',
+    ]);
+    expect(subagent(plan, 'subagent:.claude/agents/huge.md').ownContext).toBeUndefined();
+  });
+
+  it("gives a Gemini CLI remote agent's call no prompt from the repository", () => {
+    const plan = planOf(
+      plansOf({
+        '.gemini/agents/remote.md':
+          '---\nkind: remote\nname: remote-one\nagent_card_url: https://example.com/card\n---\nNot a prompt.\n',
+      }),
+      'gemini',
+    );
+    expect(subagent(plan, 'subagent:.gemini/agents/remote.md').ownContext).toMatchObject({
+      size: { chars: 0 },
+      parts: [],
+      notVisible: ['prompt', 'environment', 'task', 'tools', 'instructions'],
+    });
   });
 });
 

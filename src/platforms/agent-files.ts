@@ -14,20 +14,27 @@
  *   declares wins over a file of the same name (source code).
  * - Cursor reads `.cursor/agents`, `.claude/agents` and the Markdown in `.codex/agents`, and on a
  *   name used twice takes `.cursor` over the others.
- * - Gemini CLI reads `.gemini/agents/*.md`, which need a `name` of lowercase letters, digits,
- *   hyphens and underscores, and a `description`.
+ * - Gemini CLI reads `.gemini/agents/*.md`, which must start with frontmatter and need a `name` of
+ *   lowercase letters, digits, hyphens and underscores, and a `description`.
  * - GitHub Copilot reads `.github/agents`: in VS Code the folder itself, with or without a header,
- *   on the CLI subfolders too, as the cloud agent `*.agent.md`. The CLI knows an agent by its path
- *   below `agents` (`team--reviewer`) and loads `.github/agents` before `.claude/agents`, the first
- *   of an id winning. VS Code and the CLI read `.claude/agents` as well, in Claude's format.
- * - Devin Local reads `.devin/agents` and `.agents/agents` (experimental).
+ *   on the CLI subfolders too, as the cloud agent the root folder's `*.agent.md`. The CLI knows an
+ *   agent by its path below `agents` (`team--reviewer`) and loads `.github/agents` before
+ *   `.claude/agents`, the first of an id winning. VS Code and the CLI read `.claude/agents` as
+ *   well, in Claude's format.
+ * - Devin Local reads `.devin/agents` and `.agents/agents` (experimental); of the files of one
+ *   `agents/<name>/` directory it reads `AGENT.md`, then `AGENTS.md`, `agent.md`, `agents.md`, and
+ *   it skips a profile named like a built-in one.
  * A file an agent reaches through a symlink is read at the symlink's path, as what it is there.
+ *
+ * The switches that turn an agent's custom agents off are read where a session starts
+ * ({@link switchesAt}): a definition's own status, in {@link definitionFiles}, is that of a
+ * session started in the directory that owns its folder; a load plan applies its own session's.
  */
 import { compareStrings } from '../core/compare.js';
 import { hash53 } from '../core/fingerprint.js';
 import { dirnamePosix, joinRelative, pathStatus } from '../core/paths.js';
 import { positionAt } from '../core/text.js';
-import type { Artifact, ArtifactKind, Span } from '../core/types.js';
+import type { Artifact, ArtifactKind, SkipReason, Span, SymlinkProblem } from '../core/types.js';
 import { issueKind, isTable, own, type SpannedDocument } from '../parse/json-access.js';
 import type { FrontmatterData, FrontmatterResult } from '../parse/types.js';
 import {
@@ -35,9 +42,12 @@ import {
   type FrontmatterReading,
   hasMergeKey,
 } from './frontmatter-config.js';
+import { codexProjectConfig } from './codex-config.js';
+import { chainDirectories } from './load/codex-chain.js';
 import type { Certainty, ContextAgent, SkipCode, SourceKey } from './load/types.js';
 import type { LoadView } from './load/view.js';
-import { basename, inClaudeFolder } from './paths.js';
+import { classify } from './classify.js';
+import { basename, joinPath, nearestGitRoot } from './paths.js';
 import { readingsOf } from './readings.js';
 import { rootSetting } from './root-settings.js';
 import { checkSubagent, type SubagentIssue } from './subagents.js';
@@ -113,6 +123,11 @@ export interface AgentFile {
   readonly ranked: boolean;
   /** Hash of text the agent may read and agentcheckup cannot: any change of it is a change. */
   readonly opaque?: string;
+  /**
+   * A Gemini CLI remote agent: it runs elsewhere, and its agent card, which the repository does
+   * not hold, gives its description and instructions.
+   */
+  readonly remote?: true;
   readonly source: AgentFileSource;
 }
 
@@ -123,14 +138,31 @@ export interface AgentFile {
 const CACHE = new WeakMap<readonly Artifact[], readonly AgentFile[]>();
 
 /**
- * Every custom agent and subagent file, once for each agent that reads it, after the switches
- * that turn an agent's custom agents off and the name collisions. In discovery order.
+ * Every custom agent and subagent file, once for each agent that reads it, after the name
+ * collisions, before any switch. In discovery order. A load plan applies its session's switches
+ * with {@link switchedOff}.
  */
 export function agentFiles(view: LoadView): readonly AgentFile[] {
   const cached = CACHE.get(view.artifacts);
   if (cached !== undefined) return cached;
   const files = discover(view);
   CACHE.set(view.artifacts, files);
+  return files;
+}
+
+const DEFINITIONS = new WeakMap<readonly Artifact[], readonly AgentFile[]>();
+
+/**
+ * {@link agentFiles}, each with the switches of a session started in the directory that owns its
+ * folder: what `agentcheckup agents` lists.
+ */
+export function definitionFiles(view: LoadView): readonly AgentFile[] {
+  const cached = DEFINITIONS.get(view.artifacts);
+  if (cached !== undefined) return cached;
+  const files = agentFiles(view).map((file) =>
+    switchedOff(file, switchesAt(view, file.agent, file.scope)),
+  );
+  DEFINITIONS.set(view.artifacts, files);
   return files;
 }
 
@@ -159,8 +191,86 @@ function discover(view: LoadView): AgentFile[] {
       files.push(codexConfigRole(view, role));
     }
   }
-  const switches = agentSwitches(view);
-  return shadowRepeats(files.map((file) => switchedOff(file, switches)));
+  files.push(...unreadFiles(view, new Set(declaredFiles.keys())));
+  return shadowRepeats(files);
+}
+
+/** Why the scan did not read a file, as trusted text. */
+const UNREAD_REASONS: Readonly<Record<Exclude<SkipReason, 'import-limit'>, string>> = {
+  'too-large': 'it is larger than the scan reads',
+  binary: 'it looks binary',
+  'special-file': 'it is not a regular file',
+  unreadable: 'it could not be read',
+  'file-limit': 'the scan reached its file limit',
+  'byte-limit': 'the scan reached its byte limit',
+  'depth-limit': 'it is deeper than the scan goes',
+};
+
+/** Symlink problems behind which the agent still reads a file the scan does not. */
+const UNREAD_LINKS: Readonly<Partial<Record<SymlinkProblem, string>>> = {
+  'outside-root': 'it is a symlink to a file outside the repository',
+};
+
+/** The agents that read an agent file of each kind, before anything is read of it. */
+const UNREAD_READERS: Readonly<Partial<Record<ArtifactKind, readonly ContextAgent[]>>> = {
+  'claude-agent': ['claude-code', 'cursor', 'copilot-cli', 'copilot-vscode'],
+  'codex-agent': ['codex'],
+  'cursor-agent': ['cursor'],
+  'gemini-agent': ['gemini'],
+  'devin-agent': ['windsurf'],
+};
+
+function readersOf(kind: ArtifactKind, path: string): readonly ContextAgent[] {
+  return kind === 'copilot-agent' ? copilotReaders(path) : (UNREAD_READERS[kind] ?? []);
+}
+
+/**
+ * Agent files the walk saw but did not read: past a size or count limit, unreadable, or a symlink
+ * to a file outside the repository. The agent may load each of them, and nothing in it can be
+ * measured, so each is `unknown` for every agent that reads its folder. Its digest follows its
+ * size, so that a change shows.
+ */
+function unreadFiles(view: LoadView, declared: ReadonlySet<string>): AgentFile[] {
+  const candidates = [
+    ...view.snapshot.skipped.flatMap((entry) =>
+      entry.reason === 'import-limit'
+        ? []
+        : [{ path: entry.path, why: UNREAD_REASONS[entry.reason], size: entry.size }],
+    ),
+    ...view.snapshot.unresolvedSymlinks.flatMap((link) => {
+      const why = UNREAD_LINKS[link.problem];
+      return why === undefined ? [] : [{ path: link.path, why, size: undefined }];
+    }),
+  ];
+  const files: AgentFile[] = [];
+  for (const { path, why, size } of candidates) {
+    const kind = classify(path)?.kind;
+    if (kind === undefined || declared.has(path)) continue;
+    const place = folderPlace(path);
+    const scope = kind === 'codex-agent' ? codexOwner(path) : (place?.owner ?? '');
+    for (const agent of readersOf(kind, path)) {
+      const name = copilotId(agent, path) ?? nameFromPath(agent, path, place);
+      const { key, rank, ranked } = placeOf(agent, path, name, place?.folder);
+      files.push({
+        file: path,
+        line: 1,
+        agent,
+        name,
+        status: 'unknown',
+        reason: `the scan did not read the file: ${why}`,
+        certainty: 'unverified',
+        evidence: EVIDENCE[agent],
+        scope,
+        // Only an id the agent takes from the path is known without reading the file.
+        key: agent.startsWith('copilot-') ? key : '',
+        rank,
+        ranked,
+        opaque: hash53(`${why}\u0000${String(size ?? '')}`),
+        source: { kind: 'none' },
+      });
+    }
+  }
+  return files;
 }
 
 /** How each kind of agent file is read at `path`, and by which agents. */
@@ -207,45 +317,107 @@ export function stringField(fields: FileFields, key: string): string | undefined
   return typeof value === 'string' ? value : undefined;
 }
 
+/** `text` trimmed, or undefined when nothing is left. */
+function nonEmpty(text: string | undefined): string | undefined {
+  const trimmed = text?.trim();
+  return trimmed === undefined || trimmed === '' ? undefined : trimmed;
+}
+
 /** `name` as written, when it is a non-empty string. */
 function nameOf(fields: FileFields): string | undefined {
-  const name = stringField(fields, 'name')?.trim();
-  return name === undefined || name === '' ? undefined : name;
+  return nonEmpty(stringField(fields, 'name'));
 }
 
 /** The name a file gives an agent that does not read `name`: the file name without suffixes. */
 function fileStem(path: string): string {
   const file = basename(path);
   const lower = file.toLowerCase();
-  if (lower === 'agent.md' || lower === 'agents.md') return basename(dirnamePosix(path));
   for (const suffix of ['.agent.md', '.md', '.toml']) {
     if (lower.endsWith(suffix)) return file.slice(0, -suffix.length);
   }
   return file;
 }
 
+/** The agent folders, spelled as the agents document them. */
+const AGENT_FOLDERS: readonly string[] = [
+  '.cursor/agents',
+  '.claude/agents',
+  '.codex/agents',
+  '.gemini/agents',
+  '.github/agents',
+  '.devin/agents',
+  '.agents/agents',
+];
+
 /**
- * True when a folder of the path sits between the agent folder and the file. Devin Local's
- * `agents/<name>/AGENT.md` is its own documented layout, not a subfolder.
+ * Where a file sits in an agent folder: the folder as documented, the directory that owns it, the
+ * path below it, and whether the path spells the folder exactly.
  */
-function inSubfolder(path: string, folder: string): boolean {
-  const marker = `${folder}/`;
-  const index = path.lastIndexOf(marker);
-  if (index === -1) return false;
-  const below = path.slice(index + marker.length);
-  const devinLayout =
-    (folder === '.devin/agents' || folder === '.agents/agents') &&
-    below.split('/').length === 2 &&
-    ['agent.md', 'agents.md'].includes(basename(below).toLowerCase());
-  return below.includes('/') && !devinLayout;
+export interface FolderPlace {
+  readonly folder: string;
+  readonly owner: string;
+  readonly relative: string;
+  /**
+   * False for a folder whose letter case differs, such as `.Claude/agents`: the agent finds it
+   * only where the file system ignores case.
+   */
+  readonly exactCase: boolean;
 }
 
-/** The directory that owns the agent folder: `a/.github/agents/x.md` -> `a`. */
-function ownerOf(path: string, folder: string): string | undefined {
-  const marker = `${folder}/`;
-  if (path.startsWith(marker)) return '';
-  const index = path.indexOf(`/${marker}`);
-  return index === -1 ? undefined : path.slice(0, index);
+/**
+ * The first of `folders` on the path from the root, matched on whole path segments and without
+ * case: `x.cursor/agents` is not `.cursor/agents`, and `.Claude/agents` is one only where the file
+ * system ignores case. Undefined outside them.
+ */
+export function folderPlace(
+  path: string,
+  folders: readonly string[] = AGENT_FOLDERS,
+): FolderPlace | undefined {
+  const segments = path.split('/');
+  for (let i = 0; i + 2 < segments.length; i++) {
+    const written = `${segments[i] ?? ''}/${segments[i + 1] ?? ''}`;
+    const folder = folders.find((candidate) => candidate === written.toLowerCase());
+    if (folder === undefined) continue;
+    return {
+      folder,
+      owner: segments.slice(0, i).join('/'),
+      relative: segments.slice(i + 2).join('/'),
+      exactCase: written === folder,
+    };
+  }
+  return undefined;
+}
+
+/** Devin Local's file names in an `agents/<name>/` directory, the first present winning. */
+const DEVIN_DIRECTORY_FILES = ['AGENT.md', 'AGENTS.md', 'agent.md', 'agents.md'];
+
+/** True for Devin Local's documented `agents/<name>/AGENT.md` layout (and its other names). */
+function devinLayout(place: FolderPlace): boolean {
+  const parts = place.relative.split('/');
+  return (
+    (place.folder === '.devin/agents' || place.folder === '.agents/agents') &&
+    parts.length === 2 &&
+    DEVIN_DIRECTORY_FILES.includes(parts[1] ?? '')
+  );
+}
+
+/**
+ * True when a folder sits between the agent folder and the file. Devin Local's
+ * `agents/<name>/AGENT.md` is its own documented layout, not a subfolder.
+ */
+function inSubfolder(place: FolderPlace | undefined): boolean {
+  return place !== undefined && place.relative.includes('/') && !devinLayout(place);
+}
+
+/**
+ * The name a file gives an agent without a `name`: Devin Local names a directory-layout profile
+ * after its directory (SOURCES.devinSubagents); the others take the file name.
+ */
+function nameFromPath(agent: ContextAgent, path: string, place: FolderPlace | undefined): string {
+  if (agent === 'windsurf' && place !== undefined && devinLayout(place)) {
+    return place.relative.slice(0, place.relative.indexOf('/'));
+  }
+  return fileStem(path);
 }
 
 /** The digest of text agentcheckup cannot read for an agent, so that any change shows. */
@@ -295,7 +467,8 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
     true,
   );
   if (check.status === 'documentation') return others;
-  const owner = inClaudeFolder(path, 'agents')?.owner ?? '';
+  const place = folderPlace(path, ['.claude/agents']);
+  const owner = place?.owner ?? '';
   // The fields Claude Code reads: the documented parse, else the block its reader finds or
   // repairs (src/platforms/frontmatter-config.ts). A block it may read and agentcheckup cannot,
   // such as one with a `<<` merge key or past a parser limit, may set any field.
@@ -321,8 +494,19 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
       : check.status === 'loads' && !unreadable
         ? 'loads'
         : 'unknown';
-  const name = fields === undefined ? undefined : nameOf(fields);
-  const description = fields === undefined ? undefined : stringField(fields, 'description');
+  // Claude Code reads a name or description of another type as text, as checkSubagent does.
+  const name =
+    check.status === 'loads'
+      ? nonEmpty(check.name)
+      : fields === undefined
+        ? undefined
+        : nameOf(fields);
+  const description =
+    check.status === 'loads'
+      ? check.description
+      : fields === undefined
+        ? undefined
+        : stringField(fields, 'description');
   const claude: AgentFile = {
     file: path,
     line: fields === undefined ? 1 : lineOf(artifact, fields.keySpan('name')),
@@ -332,7 +516,7 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
     ...(reason === undefined ? {} : { reason }),
     ...(status === 'skipped' ? { skip: 'invalid-subagent' as const } : {}),
     ...(description === undefined ? {} : { description }),
-    certainty: owner === '' ? 'documented' : 'unverified',
+    certainty: owner === '' && place?.exactCase === true ? 'documented' : 'unverified',
     evidence: ['claudeSubagents'],
     scope: owner,
     key: name ?? '',
@@ -351,11 +535,17 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
 // Markdown agent files: Cursor, Gemini CLI, GitHub Copilot, Devin Local
 // ---------------------------------------------------------------------------------------------
 
-/** The Copilot surfaces that read a `.github/agents` file (SOURCES.vscodeCustomAgents etc.). */
+/**
+ * The Copilot surfaces that read a `.github/agents` file (SOURCES.vscodeCustomAgents etc.). The
+ * cloud agent reads the repository's own folder, at the root (SOURCES.copilotCustomAgents).
+ */
 function copilotReaders(path: string): ContextAgent[] {
+  const place = folderPlace(path, ['.github/agents']);
   const readers: ContextAgent[] = ['copilot-cli'];
-  if (!inSubfolder(path, '.github/agents')) readers.push('copilot-vscode');
-  if (path.toLowerCase().endsWith('.agent.md')) readers.push('copilot-cloud');
+  if (!inSubfolder(place)) readers.push('copilot-vscode');
+  if (place?.owner === '' && place.exactCase && path.toLowerCase().endsWith('.agent.md')) {
+    readers.push('copilot-cloud');
+  }
   return readers;
 }
 
@@ -390,22 +580,6 @@ const EVIDENCE: Readonly<Record<ContextAgent, readonly SourceKey[]>> = {
   cline: [],
 };
 
-/** The folder of each agent's own files, for its name, owner and subfolders. */
-function agentFolder(path: string): string {
-  for (const folder of [
-    '.cursor/agents',
-    '.claude/agents',
-    '.codex/agents',
-    '.gemini/agents',
-    '.github/agents',
-    '.devin/agents',
-    '.agents/agents',
-  ]) {
-    if (path.startsWith(`${folder}/`) || path.includes(`/${folder}/`)) return folder;
-  }
-  return '';
-}
-
 /**
  * Where a definition stands among the agent's folders and what it is known by:
  * - Cursor takes `.cursor/agents` over `.claude/agents` and `.codex/agents`, by name
@@ -420,15 +594,57 @@ function placeOf(
   agent: ContextAgent,
   path: string,
   name: string,
+  folder: string | undefined,
 ): Pick<AgentFile, 'key' | 'rank' | 'ranked'> {
   if (agent === 'cursor') {
-    return { key: name, rank: path.includes('.cursor/agents/') ? 0 : 1, ranked: true };
+    return { key: name, rank: folder === '.cursor/agents' ? 0 : 1, ranked: true };
   }
   if (agent === 'copilot-cli') {
-    return { key: name, rank: path.includes('.github/agents/') ? 0 : 1, ranked: true };
+    return { key: name, rank: folder === '.github/agents' ? 0 : 1, ranked: true };
   }
   if (agent === 'copilot-cloud') return { key: fileStem(path), rank: 0, ranked: false };
   return { key: name, rank: 0, ranked: false };
+}
+
+/**
+ * What an agent does with a file that has no frontmatter, in its own folder:
+ * - `loads`: Copilot in VS Code, whose header is optional (SOURCES.vscodeCustomAgents); Cursor and
+ *   Devin Local, whose fields are all optional, the name taken from the file or its directory
+ *   (SOURCES.cursorSubagents, SOURCES.devinSubagents), though neither shows a file without a
+ *   header, so unverified.
+ * - `skipped`: Gemini CLI, whose files "MUST start with YAML frontmatter"
+ *   (SOURCES.geminiSubagents); the Copilot CLI and cloud agent, which need a description.
+ */
+const WITHOUT_FRONTMATTER: Readonly<
+  Partial<Record<ContextAgent, { readonly loads: boolean; readonly reason?: string }>>
+> = {
+  'copilot-vscode': { loads: true },
+  cursor: { loads: true },
+  windsurf: { loads: true },
+  gemini: { loads: false, reason: 'no frontmatter' },
+  'copilot-cli': { loads: false, reason: 'no description' },
+  'copilot-cloud': { loads: false, reason: 'no description' },
+};
+
+/** Devin Local's built-in profiles: a custom profile of one of these names is skipped. */
+const DEVIN_BUILT_INS: ReadonlySet<string> = new Set(['subagent_explore', 'subagent_general']);
+
+/**
+ * For a Devin Local file in an `agents/<name>/` directory, the file of that directory it reads
+ * instead, if one comes before it (SOURCES.devinSubagents).
+ */
+function devinPreferred(
+  view: LoadView,
+  path: string,
+  place: FolderPlace | undefined,
+): string | undefined {
+  if (place === undefined || !devinLayout(place)) return undefined;
+  const index = DEVIN_DIRECTORY_FILES.indexOf(basename(path));
+  if (index <= 0) return undefined;
+  const directory = dirnamePosix(path);
+  return DEVIN_DIRECTORY_FILES.slice(0, index)
+    .map((name) => `${directory}/${name}`)
+    .find((sibling) => pathStatus(view.snapshot, sibling) === 'exists');
 }
 
 function markdownFile(
@@ -440,17 +656,21 @@ function markdownFile(
 ): AgentFile[] {
   const frontmatter = view.frontmatter(artifact);
   if (frontmatter.kind === 'unsupported') return [];
-  const folder = agentFolder(path);
-  const owner = ownerOf(path, folder) ?? '';
-  const nested = inSubfolder(path, folder);
+  const place = folderPlace(path);
+  const owner = place?.owner ?? '';
+  const nested = inSubfolder(place);
+  const exactCase = place?.exactCase === true;
   const files: AgentFile[] = [];
   for (const agent of agents) {
-    // A file without frontmatter is an agent only for VS Code, in its own format: its header is
-    // optional (SOURCES.vscodeCustomAgents). The Copilot CLI and cloud agent need a description.
-    if (frontmatter.kind === 'absent' && (claudeFormat || !agent.startsWith('copilot-'))) continue;
+    // In Claude's folder a file without frontmatter is not an agent: Claude Code calls it
+    // documentation, and no other agent says it reads one.
+    const absent = frontmatter.kind === 'absent' ? WITHOUT_FRONTMATTER[agent] : undefined;
+    if (frontmatter.kind === 'absent' && (claudeFormat || absent === undefined)) continue;
     const certainty: Certainty =
-      owner === '' && !(nested && agent !== 'copilot-cli') ? 'documented' : 'unverified';
-    const name = copilotId(agent, path) ?? fileStem(path);
+      owner === '' && exactCase && !(nested && agent !== 'copilot-cli')
+        ? 'documented'
+        : 'unverified';
+    const name = copilotId(agent, path) ?? nameFromPath(agent, path, place);
     const base = {
       file: path,
       agent,
@@ -458,58 +678,111 @@ function markdownFile(
       evidence: EVIDENCE[agent],
       scope: owner,
     };
-    if (frontmatter.kind === 'absent') {
-      const loads = agent === 'copilot-vscode';
+    const preferred = agent === 'windsurf' ? devinPreferred(view, path, place) : undefined;
+    if (preferred !== undefined) {
+      files.push({
+        ...base,
+        line: 1,
+        name,
+        status: 'shadowed',
+        reason: 'another file of its directory comes first',
+        shadowedBy: preferred,
+        ...placeOf(agent, path, name, place?.folder),
+        source: { kind: 'none' },
+      });
+      continue;
+    }
+    if (absent !== undefined) {
+      const builtIn = agent === 'windsurf' && DEVIN_BUILT_INS.has(name);
+      const loads = absent.loads && !builtIn;
+      const reason = builtIn ? 'the name is a built-in profile' : absent.reason;
       files.push({
         ...base,
         line: 1,
         name,
         status: loads ? 'loads' : 'skipped',
-        ...(loads ? {} : { reason: 'no description', skip: 'invalid-subagent' as const }),
-        ...placeOf(agent, path, name),
+        ...(loads ? {} : { reason, skip: 'invalid-subagent' as const }),
+        // Copilot in VS Code documents a file without a header; the others do not show one.
+        ...(loads && agent !== 'copilot-vscode' ? { certainty: 'unverified' as const } : {}),
+        ...placeOf(agent, path, name, place?.folder),
         source: { kind: 'none' },
       });
       continue;
     }
     if (frontmatter.kind !== 'valid') {
-      // How these agents read a block that does not parse is not documented.
+      // How these agents read a block that does not parse is not documented. Gemini CLI reads a
+      // list of remote agents from one file (SOURCES.geminiRemoteAgents), one by one.
+      const list =
+        agent === 'gemini' &&
+        frontmatter.kind === 'invalid' &&
+        frontmatter.errors.some((issue) => issue.code === 'not-a-mapping');
       files.push({
         ...base,
         line: 1,
         name,
         status: 'unknown',
-        reason: 'the frontmatter is not valid YAML',
+        reason: list
+          ? 'the frontmatter is a list, as of remote agents, which agentcheckup does not read one by one'
+          : 'the frontmatter is not valid YAML',
         certainty: 'unverified',
-        ...placeOf(agent, path, name),
+        ...placeOf(agent, path, name, place?.folder),
         opaque: opaqueOf(artifact),
         source: { kind: 'none' },
       });
       continue;
     }
     const fields = fieldsOf(frontmatter.data);
-    const named = copilotId(agent, path) ?? nameOf(fields) ?? fileStem(path);
-    const reason = skipReason(agent, fields);
+    const named = copilotId(agent, path) ?? nameOf(fields) ?? nameFromPath(agent, path, place);
+    const reason = skipReason(agent, fields, named);
     const description = stringField(fields, 'description');
+    // A Gemini CLI remote agent runs elsewhere: its card, not the file, describes it, so what the
+    // model sees of it is not known.
+    const remote = agent === 'gemini' && stringField(fields, 'kind') === 'remote';
     files.push({
       ...base,
+      ...(remote
+        ? {
+            remote: true,
+            evidence: ['geminiSubagents', 'geminiRemoteAgents'],
+            ...(reason === undefined ? { certainty: 'unverified' as const } : {}),
+          }
+        : {}),
       line: lineOf(artifact, fields.keySpan('name')),
       name: named,
       status: reason === undefined ? 'loads' : 'skipped',
       ...(reason === undefined ? {} : { reason, skip: 'invalid-subagent' as const }),
       ...(description === undefined ? {} : { description }),
-      ...placeOf(agent, path, named),
+      ...placeOf(agent, path, named, place?.folder),
       source: { kind: 'frontmatter', artifact, fields, claudeFormat },
     });
   }
   return files;
 }
 
-/** Why `agent` skips a file with these fields, or undefined when it loads it. */
-function skipReason(agent: ContextAgent, fields: FileFields): string | undefined {
+/**
+ * Why Gemini CLI skips a remote agent: it needs a `name` slug, and `agent_card_url` or
+ * `agent_card_json`, but no description (SOURCES.geminiRemoteAgents).
+ */
+function remoteSkipReason(fields: FileFields): string | undefined {
+  if (!GEMINI_NAME.test(nameOf(fields) ?? '')) {
+    return 'the name is not lowercase letters, digits, hyphens and underscores';
+  }
+  const card = ['agent_card_url', 'agent_card_json'].some(
+    (key) => (stringField(fields, key)?.trim() ?? '') !== '',
+  );
+  return card ? undefined : 'no agent_card_url or agent_card_json';
+}
+
+/** Why `agent` skips a file with these fields and name, or undefined when it loads it. */
+function skipReason(agent: ContextAgent, fields: FileFields, name: string): string | undefined {
+  if (agent === 'gemini' && stringField(fields, 'kind') === 'remote') {
+    return remoteSkipReason(fields);
+  }
   const missing = (REQUIRED[agent] ?? []).find(
     (key) => (stringField(fields, key)?.trim() ?? '') === '',
   );
   if (missing !== undefined) return `no ${missing}`;
+  if (agent === 'windsurf' && DEVIN_BUILT_INS.has(name)) return 'the name is a built-in profile';
   const target = stringField(fields, 'target')?.trim();
   if (target !== undefined && target === OTHER_TARGET[agent]) return `its target is ${target}`;
   if (agent === 'gemini' && !GEMINI_NAME.test(nameOf(fields) ?? '')) {
@@ -525,15 +798,11 @@ function skipReason(agent: ContextAgent, fields: FileFields): string | undefined
  */
 function copilotId(agent: ContextAgent, path: string): string | undefined {
   if (agent !== 'copilot-cli') return undefined;
-  for (const marker of ['.github/agents/', '.claude/agents/']) {
-    const index = path.lastIndexOf(marker);
-    if (index === -1) continue;
-    const relative = path.slice(index + marker.length);
-    const stem = fileStem(relative);
-    const folder = dirnamePosix(relative);
-    return (folder === '' ? stem : `${folder}/${stem}`).replaceAll('/', '--');
-  }
-  return undefined;
+  const place = folderPlace(path, ['.github/agents', '.claude/agents']);
+  if (place === undefined) return undefined;
+  const stem = fileStem(place.relative);
+  const folder = dirnamePosix(place.relative);
+  return (folder === '' ? stem : `${folder}/${stem}`).replaceAll('/', '--');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -589,10 +858,16 @@ function declaredCodexRoles(view: LoadView): DeclaredRole[] {
   return roles;
 }
 
-/** The directory that owns a `.codex` folder: `a/.codex/agents/x.toml` -> `a`. */
+/**
+ * The directory that owns a `.codex` folder, the first on the path, matched on a whole segment:
+ * `a/.codex/agents/x.toml` -> `a`.
+ */
 function codexOwner(path: string): string {
-  const index = path.lastIndexOf('.codex/');
-  return index <= 0 ? '' : path.slice(0, index - 1);
+  const segments = path.split('/');
+  const index = segments.findIndex(
+    (segment, i) => i < segments.length - 1 && segment.toLowerCase() === '.codex',
+  );
+  return index <= 0 ? '' : segments.slice(0, index).join('/');
 }
 
 /**
@@ -608,7 +883,7 @@ function codexAgentFile(
   path: string,
   declared: DeclaredRole | undefined,
 ): AgentFile[] {
-  const owner = ownerOf(path, '.codex/agents');
+  const place = folderPlace(path, ['.codex/agents']);
   const base = {
     file: path,
     agent: 'codex' as const,
@@ -674,7 +949,11 @@ function codexAgentFile(
       // Codex reads project agent files only in a trusted project, from the root down to the
       // working directory.
       certainty:
-        reason === undefined ? (owner === '' ? 'documented' : 'unverified') : 'source-code',
+        reason === undefined
+          ? place?.owner === '' && place.exactCase
+            ? 'documented'
+            : 'unverified'
+          : 'source-code',
       source: { kind: 'toml', artifact, doc },
     },
   ];
@@ -725,58 +1004,85 @@ function codexConfigRole(view: LoadView, role: DeclaredRole): AgentFile {
 // Switches that turn custom agents off
 // ---------------------------------------------------------------------------------------------
 
-interface Switches {
-  /** Codex's multi-agent tools are off: `agents.enabled` or `features.multi_agent` is false. */
-  readonly codexOff: boolean;
-  /** Gemini CLI's subagents are off: `experimental.enableAgents` is false. */
-  readonly geminiOff: boolean;
-  /** Gemini CLI agents turned off one by one: `agents.overrides.<name>.enabled` is false. */
-  readonly geminiAgentsOff: ReadonlySet<string>;
+/** What turns an agent's custom agents off for a session, if anything does. */
+export interface Switches {
+  /** Why every custom agent of the agent is off, as trusted text without paths. */
+  readonly off?: string;
+  /** Agents turned off one by one, by name, and why. */
+  readonly agentsOff?: ReadonlyMap<string, string>;
 }
 
+const NO_SWITCHES: Switches = {};
+
+const SWITCHES = new WeakMap<readonly Artifact[], Map<string, Switches>>();
+
 /**
- * The repository root's switches (SOURCES.codexConfigReference, SOURCES.geminiSubagents). Both
- * default to on; a session started elsewhere reads the files on its path too.
+ * The switches of `agent` for a session started in `directory`, which both default to on:
+ * - Codex: `agents.enabled` or `features.multi_agent` set to false in the `.codex/config.toml`
+ *   layers from the repository root down to the directory, the closest winning
+ *   (SOURCES.codexConfigReference, ../codex-config.ts).
+ * - Gemini CLI: `experimental.enableAgents` set to false, or `agents.overrides.<name>.enabled`
+ *   for one agent, in the directory's `.gemini/settings.json` (SOURCES.geminiSubagents).
  */
-function agentSwitches(view: LoadView): Switches {
-  const off = (file: string, path: readonly string[]): boolean =>
-    rootSetting(view, file, path)?.value === false;
-  const overrides = rootSetting(view, '.gemini/settings.json', ['agents', 'overrides'])?.value;
-  const geminiAgentsOff = new Set<string>();
+export function switchesAt(view: LoadView, agent: ContextAgent, directory: string): Switches {
+  if (agent !== 'codex' && agent !== 'gemini') return NO_SWITCHES;
+  let cache = SWITCHES.get(view.artifacts);
+  if (cache === undefined) {
+    cache = new Map();
+    SWITCHES.set(view.artifacts, cache);
+  }
+  const key = `${agent}\u0000${directory}`;
+  let switches = cache.get(key);
+  if (switches === undefined) {
+    switches = agent === 'codex' ? codexSwitches(view, directory) : geminiSwitches(view, directory);
+    cache.set(key, switches);
+  }
+  return switches;
+}
+
+function codexSwitches(view: LoadView, directory: string): Switches {
+  const root = nearestGitRoot(view.snapshot, directory) ?? directory;
+  const config = codexProjectConfig(view, chainDirectories(root, directory));
+  for (const path of [
+    ['agents', 'enabled'],
+    ['features', 'multi_agent'],
+  ]) {
+    const setting = config.setting(path);
+    if (setting?.value === false) {
+      const where = setting.layer.directory === '' ? "the root's" : 'a nested';
+      return { off: `multi-agent tools are off in ${where} .codex/config.toml` };
+    }
+  }
+  return NO_SWITCHES;
+}
+
+function geminiSwitches(view: LoadView, directory: string): Switches {
+  const file = joinPath(directory, '.gemini/settings.json');
+  const where = directory === '' ? "the root's" : 'a nested';
+  if (rootSetting(view, file, ['experimental', 'enableAgents'])?.value === false) {
+    return { off: `subagents are off in ${where} .gemini/settings.json` };
+  }
+  const overrides = rootSetting(view, file, ['agents', 'overrides'])?.value;
+  const agentsOff = new Map<string, string>();
   if (isTable(overrides)) {
     for (const name of Object.keys(overrides)) {
       const entry = overrides[name];
-      if (isTable(entry) && own(entry, 'enabled') === false) geminiAgentsOff.add(name);
+      if (isTable(entry) && own(entry, 'enabled') === false) {
+        agentsOff.set(name, `the agent is turned off in ${where} .gemini/settings.json`);
+      }
     }
   }
-  return {
-    codexOff:
-      off('.codex/config.toml', ['agents', 'enabled']) ||
-      off('.codex/config.toml', ['features', 'multi_agent']),
-    geminiOff: off('.gemini/settings.json', ['experimental', 'enableAgents']),
-    geminiAgentsOff,
-  };
+  return agentsOff.size === 0 ? NO_SWITCHES : { agentsOff };
 }
 
-/** The file, skipped when a root switch turns its agent's custom agents off. */
-function switchedOff(file: AgentFile, switches: Switches): AgentFile {
-  if (file.status !== 'loads' && file.status !== 'unknown') return file;
-  if (file.scope !== '') return file;
-  let reason: string | undefined;
-  if (file.agent === 'codex' && switches.codexOff) {
-    reason = "multi-agent tools are off in the root's .codex/config.toml";
-  } else if (file.agent === 'gemini' && switches.geminiOff) {
-    reason = "subagents are off in the root's .gemini/settings.json";
-  } else if (
-    file.agent === 'gemini' &&
-    file.name !== undefined &&
-    switches.geminiAgentsOff.has(file.name)
-  ) {
-    reason = "the agent is turned off in the root's .gemini/settings.json";
-  }
-  return reason === undefined
-    ? file
-    : { ...file, status: 'skipped', reason, skip: 'disabled', certainty: 'documented' };
+/** The file, skipped when a switch of the session turns it off. */
+export function switchedOff(file: AgentFile, switches: Switches): AgentFile {
+  if (file.status === 'skipped') return file;
+  const reason =
+    switches.off ?? (file.name === undefined ? undefined : switches.agentsOff?.get(file.name));
+  if (reason === undefined) return file;
+  const { shadowedBy: _shadowedBy, ...rest } = file;
+  return { ...rest, status: 'skipped', reason, skip: 'disabled', certainty: 'documented' };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -802,17 +1108,26 @@ function shadowRepeats(files: readonly AgentFile[]): AgentFile[] {
     if (file.status !== 'loads' || file.key === '') continue;
     if (!winners.has(keyOf(file))) winners.set(keyOf(file), file);
   }
+  // A definition that may load keeps a documented precedence over a later rank: Codex takes a role
+  // a config.toml declares over a file of the same name it finds, whether or not agentcheckup can
+  // read the role (loader.rs).
+  for (const file of ordered) {
+    if (file.status !== 'unknown' || !file.ranked || file.key === '') continue;
+    const winner = winners.get(keyOf(file));
+    if (winner !== undefined && file.rank < winner.rank) winners.set(keyOf(file), file);
+  }
   return files.map((file) => {
     if (file.status !== 'loads' || file.key === '') return file;
     const winner = winners.get(keyOf(file));
     if (winner === undefined || winner === file) return file;
-    const documentedOrder = file.ranked && winner.rank < file.rank;
+    // The order is documented, and the winner surely loads: the loser surely does not.
+    const certain = file.ranked && winner.rank < file.rank && winner.status === 'loads';
     return {
       ...file,
       status: 'shadowed',
       reason: SHADOW_REASONS[file.agent] ?? 'another definition has the same name',
       shadowedBy: winner.file,
-      certainty: documentedOrder ? file.certainty : 'unverified',
+      certainty: certain ? file.certainty : 'unverified',
     };
   });
 }

@@ -409,13 +409,23 @@ describe('Cursor', () => {
     });
   });
 
-  it('reads nothing from a file without frontmatter, and leaves subfolders unverified', () => {
+  it('names a file without frontmatter after the file, unverified, and leaves subfolders unverified', () => {
     const report = agentsOf({
-      '.cursor/agents/README.md': '# Agents\n',
+      '.cursor/agents/plain.md': 'You plan.\n',
       '.cursor/agents/team/x.md': '---\nname: x\n---\n',
     });
-    expect(report.definitions.map(({ file, certainty }) => ({ file, certainty }))).toEqual([
-      { file: '.cursor/agents/team/x.md', certainty: 'unverified' },
+    // Every field is optional, the name taken from the file name; no example shows a file
+    // without a header.
+    expect(
+      report.definitions.map(({ file, name, status, certainty }) => ({
+        file,
+        name,
+        status,
+        certainty,
+      })),
+    ).toEqual([
+      { file: '.cursor/agents/plain.md', name: 'plain', status: 'loads', certainty: 'unverified' },
+      { file: '.cursor/agents/team/x.md', name: 'x', status: 'loads', certainty: 'unverified' },
     ]);
   });
 });
@@ -472,6 +482,16 @@ describe('GitHub Copilot', () => {
     });
   });
 
+  it("gives the cloud agent the root's folder only, and the others a package's too", () => {
+    const report = agentsOf({
+      'pkg/.github/agents/fix.agent.md': '---\ndescription: Fixes.\n---\nFix.\n',
+    });
+    expect(Object.keys(of(report, 'pkg/.github/agents/fix.agent.md')).sort()).toEqual([
+      'copilot-cli',
+      'copilot-vscode',
+    ]);
+  });
+
   it('skips a CLI or cloud agent without a description', () => {
     const report = agentsOf({ '.github/agents/x.agent.md': '---\nname: x\n---\n' });
     expect(report.definitions.map(({ agent, status }) => [agent, status]).sort()).toEqual([
@@ -503,6 +523,64 @@ describe('Devin Local', () => {
         tools: 'inherited',
       },
       { file: '.devin/agents/reviewer.md', name: 'reviewer', form: 'alias', tools: 'listed' },
+    ]);
+  });
+
+  it('reads the first of AGENT.md, AGENTS.md, agent.md and agents.md in a directory', () => {
+    const report = agentsOf({
+      '.devin/agents/scout/AGENT.md': '---\ndescription: First.\n---\n',
+      '.devin/agents/scout/agents.md': '---\ndescription: Last.\n---\n',
+      '.devin/agents/lone/agents.md': '---\ndescription: Alone.\n---\n',
+    });
+    expect(
+      report.definitions.map(({ file, status, reason, certainty }) => [
+        file,
+        status,
+        reason,
+        certainty,
+      ]),
+    ).toEqual([
+      ['.devin/agents/lone/agents.md', 'loads', undefined, 'documented'],
+      ['.devin/agents/scout/AGENT.md', 'loads', undefined, 'documented'],
+      [
+        '.devin/agents/scout/agents.md',
+        'shadowed',
+        'another file of its directory comes first',
+        'documented',
+      ],
+    ]);
+  });
+
+  it('skips a profile named like a built-in one, and names one without frontmatter after its file', () => {
+    const report = agentsOf({
+      '.devin/agents/explore.md': '---\nname: subagent_explore\ndescription: Mine.\n---\n',
+      '.devin/agents/subagent_general.md': 'Body only.\n',
+      '.devin/agents/plain.md': 'Body only.\n',
+    });
+    expect(
+      report.definitions.map(({ file, name, status, reason, certainty }) => [
+        file,
+        name,
+        status,
+        reason,
+        certainty,
+      ]),
+    ).toEqual([
+      [
+        '.devin/agents/explore.md',
+        'subagent_explore',
+        'skipped',
+        'the name is a built-in profile',
+        'documented',
+      ],
+      ['.devin/agents/plain.md', 'plain', 'loads', undefined, 'unverified'],
+      [
+        '.devin/agents/subagent_general.md',
+        'subagent_general',
+        'skipped',
+        'the name is a built-in profile',
+        'documented',
+      ],
     ]);
   });
 });
@@ -720,6 +798,55 @@ describe('switches and Gemini CLI names', () => {
     expect(on.definitions.map(({ status }) => status)).toEqual(['loads', 'loads']);
   });
 
+  it('judges a nested definition by the settings of a session started beside it', () => {
+    const codex = 'name = "x"\ndescription = "d"\ndeveloper_instructions = "x"\n';
+    const report = buildAgents(
+      analyze(
+        snapshotFrom(
+          {
+            // Codex layers config.toml from the root down: the root's switch reaches pkg's agents,
+            // and app's own layer turns them back on.
+            '.codex/config.toml': '[agents]\nenabled = false\n',
+            'pkg/.codex/agents/x.toml': codex,
+            'app/.codex/agents/x.toml': codex,
+            'app/.codex/config.toml': '[agents]\nenabled = true\n',
+            // Gemini CLI reads the settings of the folder it starts in, not the root's.
+            '.gemini/settings.json': json({ experimental: { enableAgents: false } }),
+            'pkg/.gemini/agents/g.md': '---\nname: g\ndescription: d\n---\n',
+            'app/.gemini/agents/g.md': '---\nname: g\ndescription: d\n---\n',
+            'app/.gemini/settings.json': json({ agents: { overrides: { g: { enabled: false } } } }),
+          },
+          // Codex's project root is the repository's.
+          { paths: ['.git/HEAD'] },
+        ),
+        {},
+      ),
+    );
+    expect(
+      report.definitions.map(({ file, status, reason }) => [file, status, reason ?? '']),
+    ).toEqual([
+      ['app/.codex/agents/x.toml', 'loads', ''],
+      [
+        'app/.gemini/agents/g.md',
+        'skipped',
+        'the agent is turned off in a nested .gemini/settings.json',
+      ],
+      [
+        'pkg/.codex/agents/x.toml',
+        'skipped',
+        "multi-agent tools are off in the root's .codex/config.toml",
+      ],
+      ['pkg/.gemini/agents/g.md', 'loads', ''],
+    ]);
+  });
+
+  it('skips a Gemini CLI agent file without frontmatter', () => {
+    const report = agentsOf({ '.gemini/agents/plain.md': 'You help.\n' });
+    expect(
+      report.definitions.map(({ status, reason, certainty }) => [status, reason, certainty]),
+    ).toEqual([['skipped', 'no frontmatter', 'documented']]);
+  });
+
   it('skips a Gemini CLI agent whose name is not a slug', () => {
     const report = agentsOf({
       '.gemini/agents/bad.md': '---\nname: Bad Name\ndescription: d\n---\n',
@@ -739,5 +866,112 @@ describe('caching', () => {
   it('builds one report per artifact list', () => {
     const analysis = analyze(snapshotFrom({ '.claude/agents/a.md': subagent('opus') }), {});
     expect(buildAgents(analysis)).toBe(buildAgents(analysis));
+  });
+});
+
+describe('agent folders on whole path segments, in any case, and files the scan did not read', () => {
+  const brief = (report: AgentsReport): string[] =>
+    report.definitions.map(
+      ({ agent, file, name, status, certainty }) =>
+        `${agent} ${file} ${name ?? '-'} ${status} ${certainty}`,
+    );
+
+  it('takes a folder only from whole path segments, so x.cursor/agents is no .cursor/agents', () => {
+    const report = agentsOf({
+      '.cursor/agents/reviewer.md': '---\nname: reviewer\ndescription: Real.\n---\nBig.\n',
+      '.claude/agents/x.cursor/agents/r.md': '---\nname: reviewer\ndescription: Fake.\n---\nR.\n',
+      '.github/agents/a.github/agents/reviewer.agent.md': '---\ndescription: Nested.\n---\nN.\n',
+      '.codex/agents/team.codex/big.toml':
+        'name = "big"\ndescription = "d"\ndeveloper_instructions = "x"\n',
+    });
+    // Cursor ranks the real .cursor folder first, so the Claude-folder file is the one shadowed.
+    expect(of(report, '.cursor/agents/reviewer.md')['cursor']?.status).toBe('loads');
+    expect(of(report, '.claude/agents/x.cursor/agents/r.md')['cursor']?.status).toBe('shadowed');
+    // The Copilot CLI names the nested file by its whole path below .github/agents; VS Code does
+    // not read a subfolder.
+    const nested = of(report, '.github/agents/a.github/agents/reviewer.agent.md');
+    expect(nested['copilot-cli']?.name).toBe('a.github--agents--reviewer');
+    expect(Object.keys(nested)).not.toContain('copilot-vscode');
+    // A folder named team.codex belongs to the root's .codex.
+    expect(of(report, '.codex/agents/team.codex/big.toml')['codex']).toMatchObject({
+      status: 'loads',
+    });
+  });
+
+  it('reads a folder spelled in another case where the file system ignores case, unverified', () => {
+    const report = agentsOf({
+      '.claude/Agents/rev.md': '---\nname: rev\ndescription: Root.\n---\nR.\n',
+      'packages/x/.Claude/agents/xx.md': '---\nname: xx\ndescription: Nested.\n---\nX.\n',
+    });
+    expect(brief(report).filter((line) => line.startsWith('claude-code'))).toEqual([
+      'claude-code .claude/Agents/rev.md rev loads unverified',
+      'claude-code packages/x/.Claude/agents/xx.md xx loads unverified',
+    ]);
+  });
+
+  it('names agent.md after its directory for Devin Local only', () => {
+    const report = agentsOf({
+      '.cursor/agents/agent.md': '---\ndescription: d\n---\nA.\n',
+      '.github/agents/team/agent.md': '---\ndescription: d\n---\nA.\n',
+      '.devin/agents/scout/agent.md': '---\ndescription: d\n---\nA.\n',
+    });
+    expect(of(report, '.cursor/agents/agent.md')['cursor']?.name).toBe('agent');
+    expect(of(report, '.github/agents/team/agent.md')['copilot-cli']?.name).toBe('team--agent');
+    expect(of(report, '.devin/agents/scout/agent.md')['windsurf']?.name).toBe('scout');
+  });
+
+  it('reads a Gemini CLI remote agent by its card, and a list of them as unknown', () => {
+    const report = agentsOf({
+      '.gemini/agents/remote.md':
+        '---\nkind: remote\nname: remote-one\nagent_card_url: https://example.com/card\n---\n',
+      '.gemini/agents/cardless.md': '---\nkind: remote\nname: cardless\n---\n',
+      '.gemini/agents/list.md':
+        '---\n- kind: remote\n  name: a\n  agent_card_url: https://example.com/a\n---\n',
+    });
+    expect(brief(report)).toEqual([
+      'gemini .gemini/agents/cardless.md cardless skipped documented',
+      'gemini .gemini/agents/list.md list unknown unverified',
+      'gemini .gemini/agents/remote.md remote-one loads unverified',
+    ]);
+    expect(of(report, '.gemini/agents/cardless.md')['gemini']?.reason).toBe(
+      'no agent_card_url or agent_card_json',
+    );
+  });
+
+  it('lets a declared Codex role it cannot read keep its precedence over a file of the same name', () => {
+    const report = agentsOf({
+      '.codex/config.toml': '[agents.reviewer]\nconfig_file = "/opt/roles/reviewer.toml"\n',
+      '.codex/agents/reviewer.toml':
+        'name = "reviewer"\ndescription = "d"\ndeveloper_instructions = "x"\n',
+    });
+    expect(brief(report)).toEqual([
+      'codex .codex/agents/reviewer.toml reviewer shadowed unverified',
+      'codex .codex/config.toml reviewer unknown unverified',
+    ]);
+  });
+
+  it('lists an agent file the scan did not read as one each agent may load', () => {
+    const analysis = analyze(
+      {
+        ...snapshotFrom({ '.claude/agents/small.md': subagent() }),
+        skipped: [{ path: '.claude/agents/huge.md', reason: 'too-large', size: 2_000_000 }],
+        unresolvedSymlinks: [
+          { path: '.cursor/agents/outside.md', target: '/etc/agent.md', problem: 'outside-root' },
+          { path: '.cursor/agents/broken.md', target: 'missing.md', problem: 'broken' },
+        ],
+      },
+      {},
+    );
+    const report = buildAgents(analysis);
+    expect(brief(report).filter((line) => !line.includes('small.md'))).toEqual([
+      'claude-code .claude/agents/huge.md huge unknown unverified',
+      'copilot-cli .claude/agents/huge.md huge unknown unverified',
+      'copilot-vscode .claude/agents/huge.md huge unknown unverified',
+      'cursor .claude/agents/huge.md huge unknown unverified',
+      'cursor .cursor/agents/outside.md outside unknown unverified',
+    ]);
+    expect(of(report, '.claude/agents/huge.md')['claude-code']?.reason).toBe(
+      'the scan did not read the file: it is larger than the scan reads',
+    );
   });
 });

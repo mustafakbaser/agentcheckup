@@ -31,7 +31,13 @@ import { compareStrings } from '../../core/compare.js';
 import { codePointLength, utf8ByteLength } from '../../core/measure.js';
 import type { Artifact } from '../../core/types.js';
 import { isTable, own } from '../../parse/json-access.js';
-import { type AgentFile, agentFiles } from '../agent-files.js';
+import {
+  type AgentFile,
+  agentFiles,
+  folderPlace,
+  switchedOff,
+  switchesAt,
+} from '../agent-files.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import { basename, inClaudeFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { readingsOf } from '../readings.js';
@@ -189,13 +195,15 @@ export function withSubagents(plan: LoadPlan, view: LoadView): LoadPlan {
   const insideRepository = (owner: string): boolean =>
     repositoryRoot === '' || owner === repositoryRoot || owner.startsWith(`${repositoryRoot}/`);
 
+  // The switches this session reads turn custom agents off, wherever their folders are.
+  const switches = switchesAt(view, agent, cwd);
   const onPath: AgentFile[] = [];
   for (const file of agentFiles(view)) {
     if (file.agent !== agent) continue;
     const place = placeFor(agent, file.scope, cwd, repositoryRoot);
     if (place === 'below') out(file.file, 'below-start-dir');
     if (place !== 'path' || !insideRepository(file.scope)) continue;
-    onPath.push(file);
+    onPath.push(switchedOff(file, switches));
   }
 
   // Of one name on the path, one definition wins ({@link precedes}).
@@ -301,7 +309,9 @@ export function withSubagents(plan: LoadPlan, view: LoadView): LoadPlan {
     for (const artifact of view.artifacts) {
       for (const reading of readingsOf(artifact)) {
         const folder =
-          reading.kind === 'claude-agent' ? inClaudeFolder(reading.path, 'agents') : undefined;
+          reading.kind === 'claude-agent'
+            ? folderPlace(reading.path, ['.claude/agents'])
+            : undefined;
         if (folder === undefined) continue;
         const place = placeFor(agent, folder.owner, cwd, repositoryRoot);
         if (place === 'outside' || (place === 'path' && !insideRepository(folder.owner))) continue;
@@ -462,7 +472,8 @@ function codexSkillsBlock(file: AgentFile): 'listed' | 'changed' | 'off' {
  * documented.
  */
 function ownContextOf(file: AgentFile, session: Session, view: LoadView): OwnContext {
-  const prompt = promptPart(file, view);
+  // A Gemini CLI remote agent's instructions are in its agent card, outside the repository.
+  const prompt = file.remote === true ? undefined : promptPart(file, view);
   const parts = prompt === undefined ? [] : [prompt];
   const copilotCli = file.agent === 'copilot-cli';
   if (copilotCli && field(file, 'include-custom-instructions') === true) {

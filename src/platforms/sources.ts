@@ -458,6 +458,11 @@ export const SOURCES = {
     'https://geminicli.com/docs/core/subagents/',
     AGENTS_CHECKED,
   ),
+  geminiRemoteAgents: verified(
+    'Gemini CLI: Remote subagents',
+    'https://geminicli.com/docs/core/remote-agents/',
+    '2026-10-28',
+  ),
   vscodeCustomAgents: verified(
     'VS Code: Custom agents',
     'https://code.visualstudio.com/docs/agent-customization/custom-agents',
