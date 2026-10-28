@@ -32,7 +32,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, lineCount, utf8ByteLength } from '../../core/measure.js';
+import { codePointLength, lineCount, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ArtifactKind } from '../../core/types.js';
 import type { JsonDocument } from '../../parse/types.js';
@@ -156,7 +156,7 @@ const CLAUDE_SETTINGS: ReadonlySet<string> = new Set([
 ]);
 
 function sizeOf(bytes: number, chars: number): Size {
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 function textSize(text: string): Size {

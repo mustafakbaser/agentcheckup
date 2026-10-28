@@ -63,6 +63,7 @@ import {
   type ScanOptions,
   scanWithContext,
 } from '../core/engine.js';
+import { tokensOf } from '../core/measure.js';
 import { createParseCache, type ParseCache } from '../core/parse-cache.js';
 import type { Finding, Snapshot } from '../core/types.js';
 import type { LoadEntry, LoadPlan } from '../platforms/load/types.js';
@@ -378,9 +379,6 @@ function disjointGroups(
   }
   return groups.map((group) => group.fixes);
 }
-
-/** The estimate load plans use: `Math.ceil(chars / 4)` (Size in src/platforms/load/types.ts). */
-const tokensOf = (chars: number): number => Math.ceil(chars / 4);
 
 /**
  * What an entry adds to its plan's startup total: its size when it loads at startup, and for

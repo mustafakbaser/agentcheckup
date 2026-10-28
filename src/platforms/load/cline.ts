@@ -33,7 +33,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, utf8ByteLength } from '../../core/measure.js';
+import { codePointLength, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix } from '../../core/paths.js';
 import type { Artifact, ArtifactKind } from '../../core/types.js';
 import type { FrontmatterResult } from '../../parse/types.js';
@@ -161,7 +161,7 @@ const RULE_EVIDENCE: readonly SourceKey[] = ['clinePathsSource', 'clineRules'];
 const LOADER_EVIDENCE: readonly SourceKey[] = ['clineInstructionLoaderSource'];
 
 function sizeOf(bytes: number, chars: number): Size {
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 function textSize(text: string): Size {

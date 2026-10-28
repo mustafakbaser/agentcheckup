@@ -1,10 +1,12 @@
 /**
- * Settings at the repository root: a value at a key path of a root settings file, as a session
- * started at the root reads it. Shared by the agent file discovery (switches that turn custom
- * agents off) and the model settings of src/agents. Pure.
+ * Settings files a session reads from the repository: a value at a key path of one file, and
+ * Claude Code's project settings of a directory. Shared by the agent file discovery (switches
+ * that turn custom agents off), the Claude Code load plan and its subagents, and the model
+ * settings of src/agents. Pure.
  */
 import { isTable, type JsonPath, own, type SpannedDocument } from '../parse/json-access.js';
 import type { LoadView } from './load/view.js';
+import { joinPath } from './paths.js';
 
 /** The text of a switch's value, lowercase, for a string, number or boolean. */
 function switchText(value: unknown): string | undefined {
@@ -28,6 +30,43 @@ export function settingAt(doc: SpannedDocument, path: JsonPath): unknown {
   for (const segment of path) {
     if (!isTable(value) || typeof segment !== 'string') return undefined;
     value = own(value, segment);
+  }
+  return value;
+}
+
+/** Claude Code's project settings files in a directory, the shared one first. */
+export const CLAUDE_PROJECT_SETTINGS: readonly string[] = [
+  '.claude/settings.json',
+  '.claude/settings.local.json',
+];
+
+/**
+ * The Claude Code project settings a session started in `directory` reads from the repository:
+ * its `.claude/settings.json`, then `.claude/settings.local.json`, which wins on a key
+ * (SOURCES.claudeSettings). A file that does not parse is left out; user and managed settings are
+ * never read.
+ */
+export function claudeProjectSettings(
+  view: LoadView,
+  directory: string,
+): readonly SpannedDocument[] {
+  const docs: SpannedDocument[] = [];
+  for (const name of CLAUDE_PROJECT_SETTINGS) {
+    const path = joinPath(directory, name);
+    const artifact = view.index.get(path);
+    if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
+    const doc = view.json(artifact);
+    if (doc.ok) docs.push(doc);
+  }
+  return docs;
+}
+
+/** The value at `path` in the last of `docs` that sets it, or undefined. */
+export function lastSetting(docs: readonly SpannedDocument[], path: JsonPath): unknown {
+  let value: unknown;
+  for (const doc of docs) {
+    const set = settingAt(doc, path);
+    if (set !== undefined) value = set;
   }
   return value;
 }

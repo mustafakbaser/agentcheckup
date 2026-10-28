@@ -22,7 +22,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, utf8ByteLength } from '../../core/measure.js';
+import { codePointLength, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, normalizeRelative, pathStatus } from '../../core/paths.js';
 import { positionAt } from '../../core/text.js';
 import type { Artifact } from '../../core/types.js';
@@ -149,7 +149,7 @@ function weakest(a: Certainty, b: Certainty): Certainty {
 
 function sizeOf(bytes: number, text: string): Size {
   const chars = codePointLength(text);
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 function sumSizes(sizes: readonly Size[]): Size {
@@ -159,7 +159,7 @@ function sumSizes(sizes: readonly Size[]): Size {
     bytes += size.bytes;
     chars += size.chars;
   }
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 function sortedKeys(keys: readonly SourceKey[]): SourceKey[] {

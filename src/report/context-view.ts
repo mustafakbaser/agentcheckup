@@ -10,6 +10,7 @@
 import { compareStrings } from '../core/compare.js';
 import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
+import { tokensOf } from '../core/measure.js';
 import { stripPathBase } from '../core/rebase.js';
 import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../inventory/types.js';
 import {
@@ -987,7 +988,7 @@ function sumSizes(sizes: readonly (Size | undefined)[]): Size {
     bytes += size?.bytes ?? 0;
     chars += size?.chars ?? 0;
   }
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 /**

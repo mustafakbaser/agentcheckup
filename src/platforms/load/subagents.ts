@@ -28,7 +28,7 @@
  *   not mentioned.
  */
 import { compareStrings } from '../../core/compare.js';
-import { codePointLength, utf8ByteLength } from '../../core/measure.js';
+import { codePointLength, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import type { Artifact } from '../../core/types.js';
 import { isTable, own } from '../../parse/json-access.js';
 import {
@@ -41,7 +41,7 @@ import {
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import { basename, inClaudeFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { readingsOf } from '../readings.js';
-import { isFalsy, isTruthy, settingAt } from '../root-settings.js';
+import { claudeProjectSettings, isFalsy, isTruthy, lastSetting } from '../root-settings.js';
 import { bodyOffset, claudeBoolean } from '../skills.js';
 import { checkSubagent } from '../subagents.js';
 import { compareEntries, compareOutOfScope, compareSkips } from './order.js';
@@ -64,11 +64,8 @@ import type { LoadView } from './view.js';
 /** Claude Code warns when the subagents' names and descriptions pass this many tokens. */
 export const CLAUDE_AGENT_DESCRIPTIONS_TOKENS = 15_000;
 
-/** Characters per token, the same estimate as `Size.tokens`. */
-const CHARS_PER_TOKEN = 4;
-
 function sizeOf(chars: number, bytes: number): Size {
-  return { bytes, chars, tokens: Math.ceil(chars / CHARS_PER_TOKEN) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 /** Each definition's listing, measured once for every plan of a scan. */
@@ -804,20 +801,11 @@ function memoryOf(
  * direction", else `autoMemoryEnabled: false` (SOURCES.claudeSettingsReference).
  */
 function autoMemoryOff(view: LoadView, cwd: string): boolean {
-  let enabled: unknown;
-  let disable: unknown;
-  for (const name of ['.claude/settings.json', '.claude/settings.local.json']) {
-    const path = joinPath(cwd, name);
-    const artifact = view.index.get(path);
-    if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
-    const doc = view.json(artifact);
-    if (!doc.ok) continue;
-    enabled = settingAt(doc, ['autoMemoryEnabled']) ?? enabled;
-    disable = settingAt(doc, ['env', 'CLAUDE_CODE_DISABLE_AUTO_MEMORY']) ?? disable;
-  }
+  const settings = claudeProjectSettings(view, cwd);
+  const disable = lastSetting(settings, ['env', 'CLAUDE_CODE_DISABLE_AUTO_MEMORY']);
   if (isTruthy(disable)) return true;
   if (isFalsy(disable)) return false;
-  return enabled === false;
+  return lastSetting(settings, ['autoMemoryEnabled']) === false;
 }
 
 /** Whether a `.claude/agents` file is documentation, once per file for every plan of a scan. */
@@ -852,7 +840,7 @@ function descriptionsLimit(entries: readonly LoadEntry[], cwd: string): LimitUsa
       label: 'subagents listing',
       unit: 'tokens',
       limit: CLAUDE_AGENT_DESCRIPTIONS_TOKENS,
-      used: Math.ceil(chars / CHARS_PER_TOKEN),
+      used: tokensOf(chars),
       subject: cwd,
       effect: 'advice',
       evidence: ['claudeSubagents'],

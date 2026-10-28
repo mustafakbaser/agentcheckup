@@ -23,7 +23,14 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, estimateTokens, lineCount, utf8ByteLength } from '../../core/measure.js';
+import {
+  codePointLength,
+  estimateTokens,
+  lineCount,
+  tokensOf,
+  utf8ByteLength,
+  CHARS_PER_TOKEN,
+} from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
 import { issueKind, isTable } from '../../parse/json-access.js';
@@ -34,7 +41,7 @@ import type {
   ParseIssue,
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
-import { settingAt } from '../root-settings.js';
+import { claudeProjectSettings, settingAt } from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
@@ -107,9 +114,6 @@ export const CLAUDE_ADVISED_LINES = 200;
 
 /** Share of the context window the skill listing may use (`skillListingBudgetFraction`). */
 const LISTING_BUDGET_FRACTION = 0.01;
-
-/** Characters per token, the same estimate as `Size.tokens`. */
-const CHARS_PER_TOKEN = 4;
 
 const LINES_RULE = 'instr/claude-md-too-long';
 const SHADOW_RULE = 'instr/agents-md-ignored-by-claude';
@@ -956,12 +960,8 @@ class ClaudeLoader {
   #skillOverrides(): ReadonlyMap<string, SkillOverride> {
     if (this.#overrides !== undefined) return this.#overrides;
     const overrides = new Map<string, SkillOverride>();
-    for (const name of ['.claude/settings.json', '.claude/settings.local.json']) {
-      const path = joinPath(this.#cwd, name);
-      const artifact = this.#view.index.get(path);
-      if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
-      const doc = this.#view.json(artifact);
-      const value = doc.ok ? settingAt(doc, ['skillOverrides']) : undefined;
+    for (const doc of claudeProjectSettings(this.#view, this.#cwd)) {
+      const value = settingAt(doc, ['skillOverrides']);
       if (!isTable(value)) continue;
       for (const skill of Object.keys(value)) {
         const state = value[skill];
@@ -1337,7 +1337,7 @@ class ClaudeLoader {
     }
     const totalSize = (total: { bytes: number; chars: number }): Size => ({
       ...total,
-      tokens: Math.ceil(total.chars / CHARS_PER_TOKEN),
+      tokens: tokensOf(total.chars),
     });
     return {
       agent: 'claude-code',

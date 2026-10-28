@@ -18,7 +18,13 @@ import {
   spanOf,
 } from '../parse/json-access.js';
 import type { LoadView } from '../platforms/load/view.js';
-import { isTruthy, settingAt } from '../platforms/root-settings.js';
+import {
+  CLAUDE_PROJECT_SETTINGS,
+  claudeProjectSettings,
+  isTruthy,
+  lastSetting,
+  settingAt,
+} from '../platforms/root-settings.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 import type { ModelSetting } from './types.js';
 
@@ -76,9 +82,6 @@ const CLAUDE_KEYS: readonly Wanted[] = [
   { path: ['env', 'ANTHROPIC_DEFAULT_FABLE_MODEL'], applies: 'alias' },
 ];
 
-/** Claude Code settings files at the repository root, the local one last: it wins. */
-const CLAUDE_ROOT_FILES = ['.claude/settings.json', '.claude/settings.local.json'];
-
 /**
  * Codex `config.toml` (SOURCES.codexConfigReference, SOURCES.codexSubagents): a project file may
  * set the session's model and effort, and the subagents' defaults in `[agents]`.
@@ -107,16 +110,9 @@ const COPILOT_KEYS: readonly Wanted[] = [
  * `.claude/settings.local.json` when it sets the switch, else in `.claude/settings.json`.
  */
 function rootForce(view: LoadView): boolean {
-  let force = false;
-  for (const path of CLAUDE_ROOT_FILES) {
-    const artifact = view.index.get(path);
-    if (artifact?.kind !== 'claude-settings' || artifact.path !== path) continue;
-    const doc = view.json(artifact);
-    if (!doc.ok) continue;
-    const value = settingAt(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
-    if (value !== undefined) force = isTruthy(value);
-  }
-  return force;
+  return isTruthy(
+    lastSetting(claudeProjectSettings(view, ''), ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']),
+  );
 }
 
 /** Every model setting the repository's settings files declare, sorted by id. */
@@ -149,7 +145,7 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
       const doc = view.json(artifact);
       if (!doc.ok) continue;
       // At the root, the local file's switch counts for the shared file's model too.
-      const forced = CLAUDE_ROOT_FILES.includes(artifact.path)
+      const forced = CLAUDE_PROJECT_SETTINGS.includes(artifact.path)
         ? forcedAtRoot
         : isTruthy(settingAt(doc, ['env', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE']));
       for (const wanted of CLAUDE_KEYS) {

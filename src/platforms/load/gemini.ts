@@ -36,7 +36,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, estimateTokens, utf8ByteLength } from '../../core/measure.js';
+import { codePointLength, estimateTokens, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
 import { isObject, issueKind, own, ownObject } from '../../parse/json-access.js';
@@ -1016,7 +1016,7 @@ class GeminiLoader {
     }
     const totalSize = (total: { bytes: number; chars: number }): Size => ({
       ...total,
-      tokens: Math.ceil(total.chars / 4),
+      tokens: tokensOf(total.chars),
     });
     return {
       agent: 'gemini',

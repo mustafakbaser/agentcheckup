@@ -39,7 +39,13 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import { codePointLength, estimateTokens, lineCount, utf8ByteLength } from '../../core/measure.js';
+import {
+  codePointLength,
+  estimateTokens,
+  lineCount,
+  tokensOf,
+  utf8ByteLength,
+} from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact, ArtifactKind } from '../../core/types.js';
 import {
@@ -406,7 +412,7 @@ function within(directory: string, root: string): boolean {
 }
 
 function sizeOf(bytes: number, chars: number): Size {
-  return { bytes, chars, tokens: Math.ceil(chars / 4) };
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 function textSize(text: string): Size {

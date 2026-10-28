@@ -27,7 +27,15 @@ export function lineCount(text: string): number {
   return lines;
 }
 
-/** Rough token estimate (4 characters per token). Used only for `info` findings. */
+/** Characters per token in agentcheckup's estimate: not a tokenizer count. */
+export const CHARS_PER_TOKEN = 4;
+
+/** The estimate of `chars` characters in tokens, rounded up: `Size.tokens` of the load plans. */
+export function tokensOf(chars: number): number {
+  return Math.ceil(chars / CHARS_PER_TOKEN);
+}
+
+/** Rough token estimate of `text`, {@link tokensOf} its characters. */
 export function estimateTokens(text: string): number {
-  return Math.ceil(codePointLength(text) / 4);
+  return tokensOf(codePointLength(text));
 }
