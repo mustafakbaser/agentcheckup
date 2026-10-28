@@ -29,6 +29,11 @@ import {
   loadPlans,
   orderedAgents,
 } from '../platforms/load/index.js';
+import {
+  MAX_START_DIRECTORIES,
+  startDirectories,
+  startDirectoryTotals,
+} from '../platforms/load/directories.js';
 import { buildMatrix, matrixPlans } from '../platforms/load/matrix.js';
 import type { ContextAgent, ContextReport } from '../platforms/load/types.js';
 import type { PolicyReport } from '../policy/types.js';
@@ -141,6 +146,11 @@ export interface ContextOptions {
   readonly matrix?: boolean;
   /** The model's context window in tokens, for limits that depend on it. A positive integer. */
   readonly contextWindow?: number;
+  /**
+   * Also plan every agent in each start directory below the root (startDirectories), up to
+   * MAX_START_DIRECTORIES of them in path order, for `tokens --by-directory`. Default false.
+   */
+  readonly startDirectories?: boolean;
 }
 
 /**
@@ -683,6 +693,9 @@ export function scanWithContext(
   if (options.matrix === true && cwd !== '') {
     throw new Error('The matrix covers the whole repository: plan it from the root.');
   }
+  if (options.startDirectories === true && (cwd !== '' || options.matrix === true)) {
+    throw new Error('Start directories are planned from the root, without the matrix.');
+  }
   if (options.agents !== undefined) orderedAgents(options.agents);
 
   const analysis = analyze(snapshot, options);
@@ -706,11 +719,31 @@ export function scanWithContext(
             findings: result.findings,
           });
         })()
-      : buildContextReport({
-          agents,
-          plans: loadPlans(analysis, { ...shared, cwd }),
-          findings: result.findings,
-        });
+      : options.startDirectories === true
+        ? (() => {
+            const found = startDirectories(analysis);
+            const planned = found.slice(0, MAX_START_DIRECTORIES);
+            return buildContextReport({
+              agents,
+              plans: loadPlans(analysis, { ...shared, cwd: '' }),
+              // Each directory's plans are summed up and dropped, one directory at a time.
+              directories: {
+                planned: planned.map((directory) =>
+                  startDirectoryTotals(
+                    directory,
+                    loadPlans(analysis, { ...shared, cwd: directory }),
+                  ),
+                ),
+                notPlanned: found.length - planned.length,
+              },
+              findings: result.findings,
+            });
+          })()
+        : buildContextReport({
+            agents,
+            plans: loadPlans(analysis, { ...shared, cwd }),
+            findings: result.findings,
+          });
   return { ...result, inventory, agents: definitions, context };
 }
 

@@ -28,6 +28,9 @@ import { formatBaselineMarkdown } from '../report/baseline-markdown.js';
 import { formatBaselineText } from '../report/baseline-text.js';
 import { formatContextMarkdown } from '../report/context-markdown.js';
 import { formatContextText } from '../report/context-text.js';
+import { formatTokensMarkdown } from '../report/tokens-markdown.js';
+import { formatTokensText } from '../report/tokens-text.js';
+import { formatTokensJson } from '../report/tokens-view.js';
 import { fixLabels } from '../report/feedback.js';
 import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
@@ -35,6 +38,7 @@ import { forTerminal } from '../report/sanitize.js';
 import {
   type AgentsCommandOptions,
   type ContextCommandOptions,
+  type TokensCommandOptions,
   type FailOn,
   parseCommand,
   type ScanCommandOptions,
@@ -52,7 +56,15 @@ import {
   styleFor,
 } from './common.js';
 import { fix } from './fix.js';
-import { AGENTS_HELP, CONTEXT_HELP, FIX_HELP, HELP, SKILL_HELP, TASKS_HELP } from './help.js';
+import {
+  AGENTS_HELP,
+  CONTEXT_HELP,
+  FIX_HELP,
+  HELP,
+  SKILL_HELP,
+  TASKS_HELP,
+  TOKENS_HELP,
+} from './help.js';
 import { loadPolicy, policyFailure, PolicyFileError, withPolicy } from './policy.js';
 import { skill } from './skill.js';
 import { ansiStyle } from './style.js';
@@ -63,6 +75,7 @@ export { EXIT, type ExitCode, type Io, type Prompt } from './common.js';
 const HELP_TOPICS = {
   main: HELP,
   context: CONTEXT_HELP,
+  tokens: TOKENS_HELP,
   agents: AGENTS_HELP,
   fix: FIX_HELP,
   tasks: TASKS_HELP,
@@ -89,6 +102,8 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         return await scan(command.options, io);
       case 'context':
         return await context(command.options, io);
+      case 'tokens':
+        return await tokens(command.options, io);
       case 'agents':
         return await agents(command.options, io);
       case 'fix':
@@ -104,6 +119,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
       const first = argv.find((arg) => !arg.startsWith('-'));
       const help =
         first === 'context' ||
+        first === 'tokens' ||
         first === 'agents' ||
         first === 'fix' ||
         first === 'tasks' ||
@@ -359,6 +375,70 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
       break;
     case 'json':
       report = formatJson(result);
+      break;
+  }
+  warn(result, options.format, io);
+  await emit(report, options, io);
+  return contextExitCode(result);
+}
+
+/**
+ * `agentcheckup tokens`: the context command's plans, summed up per agent with the largest
+ * subagent calls and their models, and with `--by-directory` every start directory. With
+ * `--baseline`, the baseline section shows context at start and each subagent call before and
+ * after.
+ */
+async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> {
+  const root = resolve(io.cwd, options.path);
+  const baseline = await loadBaseline(options.baseline, io.cwd);
+  const config = await loadConfig(options, root, io.cwd);
+  const snapshot = await walk(root, {
+    respectGitignore: options.gitignore,
+    scanIgnoredAgentConfig: options.untrusted,
+  });
+  checkListedDirectory(snapshot, options.cwd, options.path);
+
+  const configured = config?.targets ?? PLATFORM_IDS;
+  const agents = options.agents ?? contextAgentsOf(configured);
+  if (agents.length === 0) {
+    throw new UsageError(
+      `None of the targets (${configured.join(', ')}) has a load model. ` +
+        `agentcheckup tokens models ${CONTEXT_AGENTS.join(', ')}; choose with --agent.`,
+    );
+  }
+  // As in context: an agent named with --agent is planned, and its rules run, even if the
+  // configuration does not target it.
+  const targets =
+    options.agents === undefined
+      ? undefined
+      : [...new Set([...configured, ...agents.map((agent) => CONTEXT_PLATFORM[agent])])];
+  const scanned = scanWithContext(snapshot, {
+    ...scanOptionsFor(options, config, targets),
+    agents,
+    cwd: options.cwd,
+    startDirectories: options.byDirectory,
+    ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+  });
+  const result = rebaseResult(
+    withBaseline(scanned, baseline, options.gate),
+    pathPrefix(root, io, options.format),
+  );
+
+  let report: string;
+  switch (options.format) {
+    case 'text': {
+      const style = styleFor(options, io);
+      report = joinSections(
+        formatTokensText(result, { style }),
+        formatBaselineText(result, { style }),
+      );
+      break;
+    }
+    case 'markdown':
+      report = joinSections(formatTokensMarkdown(result), formatBaselineMarkdown(result));
+      break;
+    case 'json':
+      report = formatTokensJson(result);
       break;
   }
   warn(result, options.format, io);

@@ -45,9 +45,14 @@ export function cappedRows<T>(
 }
 
 /** `Showing 3 of 10 rows.` when rows were left out, else nothing. */
-export function omittedNote(shown: number, total: number, noun: string): string[] {
+export function omittedNote(
+  shown: number,
+  total: number,
+  noun: string,
+  pluralForm?: string,
+): string[] {
   if (shown >= total) return [];
-  return [`Showing ${shown} of ${plural(total, noun)}.`];
+  return [`Showing ${shown} of ${plural(total, noun, pluralForm)}.`];
 }
 
 /** Lines as separate paragraphs: a blank line between each, so Markdown keeps them apart. */

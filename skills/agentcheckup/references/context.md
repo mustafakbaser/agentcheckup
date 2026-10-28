@@ -1,7 +1,8 @@
 # Reading context output
 
 Commands on this page leave out the `npx agentcheckup@...` prefix. Run them with the exact
-prefix that SKILL.md uses. Only plain `context` is pre-approved; the variants ask first.
+prefix that SKILL.md uses. Only plain `context` and `tokens` are pre-approved; the variants ask
+first.
 
 ## A plan
 
@@ -31,7 +32,8 @@ Skipped
   reads them, so the plan shows what the repository contributes, not everything the agent sees.
 - **At session start**: what is in the model's context when the session starts, in the order
   the agent builds it. An import is indented under the file that imports it. The skills listing
-  is one row: the names and descriptions of the skills.
+  is one row: the names and descriptions of the skills. The subagents listing is one row too,
+  after the others: the model picks a subagent by its name and description.
 - **MCP, Hooks**: servers and hooks that start with the session. "asks first" means the agent
   asks the user to approve them. "fails open" means a hook error lets the tool call go ahead.
 - **On demand**: what can load later, and the trigger: a matching file path, the model picking
@@ -39,6 +41,10 @@ Skipped
 - **Skipped**: files and items the agent considers but does not load, the reason, and the rule
   that reports the problem. `fix: safe` or `fix: review` means `fix` can remove the skip. A skip
   without a rule id is expected behavior, such as a root `AGENTS.md` that a `CLAUDE.md` replaces.
+- **Subagent calls**: what each subagent starts with when it runs, in a context window of its
+  own, so not part of the total: its prompt, and for Claude Code the session's startup
+  instruction files (unless `omitClaudeMd: true`) and the skills it preloads. "not preloaded"
+  names skills it asks for and does not get, and why.
 - **Incomplete**: files the plan could not analyze, so entries may be missing.
 
 `?` after a position or on a row marks behavior that neither documentation nor source code
@@ -56,6 +62,8 @@ confirms. `≈tokens` is characters divided by 4, an estimate.
   opened in Cursor.
 - `context --matrix`: which agent reads which file, from the root.
 - `context --format json`: the same as JSON.
+- `tokens`: the plans summed up per agent, and the largest subagent calls with their models.
+  `tokens --by-directory` ranks the directories a session can start in by context at start.
 
 `context` exits 0 whatever it finds. Exit 2 means an invalid option, such as an unknown agent or
 a `--cwd` that is not a directory in the repository.

@@ -1,12 +1,13 @@
 ---
 name: agentcheckup
-description: Checks and fixes coding-agent configuration in this repository (AGENTS.md, CLAUDE.md, skills, Cursor rules, MCP servers, hooks) with the agentcheckup CLI. Use when the user asks to lint, audit or clean up agent config, asks why Claude Code, Codex or Cursor ignores a file, or asks what an agent loads at session start.
+description: Checks and fixes coding-agent configuration in this repository (AGENTS.md, CLAUDE.md, skills, Cursor rules, MCP servers, hooks) with the agentcheckup CLI. Use when the user asks to lint, audit or clean up agent config, asks why Claude Code, Codex or Cursor ignores a file, or asks what an agent loads at session start or what its configuration costs in tokens.
 license: MIT
 # x-release-please-start-version
 allowed-tools: >-
   Bash(npx agentcheckup@0.2.0 tasks --format json)
   Bash(npx agentcheckup@0.2.0 fix)
   Bash(npx agentcheckup@0.2.0 context)
+  Bash(npx agentcheckup@0.2.0 tokens)
   Bash(npx agentcheckup@0.2.0 tasks --check *)
   Read
 ---
@@ -131,7 +132,9 @@ npx agentcheckup@0.2.0 context
 It prints one plan per agent for a session started in the repository root:
 
 - **At session start**: the files in the model's context when the session starts, in order, with
-  bytes and ≈tokens. The skills listing is one row.
+  bytes and ≈tokens. The skills listing and the subagents listing are one row each.
+- **Subagent calls**: what each subagent starts with when it runs, in a context window of its
+  own. Not part of the session's total.
 - **On demand**: what loads later, and what triggers it.
 - **Skipped**: files the agent does not load, why, the rule that reports it, and `fix: safe`
   or `fix: review` when `fix` can remove the skip. A skip without a rule id is expected
@@ -144,6 +147,16 @@ and cloud agent), `gemini`, `windsurf` (Devin Local) or `cline`. For a session
 started in a subdirectory, add `--cwd packages/api`. These variants are not pre-approved, so the
 user is asked first. `context` exits 0 whatever it finds. More:
 [references/context.md](references/context.md).
+
+When the user asks what agent configuration costs in tokens:
+
+```sh
+npx agentcheckup@0.2.0 tokens
+```
+
+It sums each plan up per agent (at start, the listings within it, on demand, subagents) and lists
+the largest subagent calls with the model each runs on. The numbers are estimates, characters
+divided by 4, never findings; `tokens` exits 0.
 
 ## Exit codes
 

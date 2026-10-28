@@ -514,12 +514,35 @@ export type MatrixCell =
   | 'unknown'
   | 'not-read';
 
+/** What a session started in a directory below the scan root starts with, per agent. */
+export interface StartDirectoryTotals {
+  readonly cwd: string;
+  /** One row per agent planned there, in report order. */
+  readonly agents: readonly {
+    readonly agent: ContextAgent;
+    /** The plan's `totals.startup`. */
+    readonly startup: Size;
+    /** True when a startup entry of the plan is unverified. */
+    readonly unverified: boolean;
+  }[];
+}
+
 /** Load plans for one scan: the `context` field of a ScanResult. */
 export interface ContextReport {
   readonly agents: readonly ContextAgent[];
   /** Every source cited by `evidence` in the plans. */
   readonly sources: Readonly<Record<SourceKey, RuleSource>>;
   readonly plans: readonly LoadPlan[];
+  /**
+   * With start directories (`tokens --by-directory`): what a session started in each directory
+   * planned besides the scan root starts with, sorted by directory, and how many more directories
+   * hold agent configuration but were not planned. Totals only: a plan of every agent in every
+   * directory would make the report grow with directories × agents × entries.
+   */
+  readonly directories?: {
+    readonly planned: readonly StartDirectoryTotals[];
+    readonly notPlanned: number;
+  };
   /** With `--matrix`. `cells[i]` is the state for `agents[i]`. */
   readonly matrix?: {
     readonly rows: readonly {

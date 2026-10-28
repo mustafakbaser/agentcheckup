@@ -140,6 +140,17 @@ function mapContext(context: ContextReport, map: PathMap): ContextReport {
   return {
     ...context,
     plans: context.plans.map((plan) => mapPlan(plan, map)),
+    ...(context.directories === undefined
+      ? {}
+      : {
+          directories: {
+            ...context.directories,
+            planned: context.directories.planned.map((directory) => ({
+              ...directory,
+              cwd: map(directory.cwd),
+            })),
+          },
+        }),
     ...(context.matrix === undefined
       ? {}
       : {

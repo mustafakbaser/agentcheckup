@@ -455,6 +455,23 @@ export function toJsonContext(context: ContextReport): ContextReport {
       (plan) => agentRank(plan.agent),
       (plan) => plan.cwd,
     ).map(loadPlan),
+    ...(context.directories === undefined
+      ? {}
+      : {
+          directories: {
+            planned: sortedBy(context.directories.planned, (directory) => directory.cwd).map(
+              (directory) => ({
+                cwd: directory.cwd,
+                agents: sortedBy(directory.agents, (row) => agentRank(row.agent)).map((row) => ({
+                  agent: row.agent,
+                  startup: size(row.startup),
+                  unverified: row.unverified,
+                })),
+              }),
+            ),
+            notPlanned: context.directories.notPlanned,
+          },
+        }),
     ...(context.matrix === undefined
       ? {}
       : {

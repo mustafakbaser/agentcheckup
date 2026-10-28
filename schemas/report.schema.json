@@ -104,6 +104,7 @@
     "inventory": { "$ref": "#/$defs/inventory" },
     "agents": { "$ref": "#/$defs/agents" },
     "context": { "$ref": "#/$defs/contextReport" },
+    "tokens": { "$ref": "#/$defs/tokenSummary" },
     "baseline": { "$ref": "#/$defs/baselineDiff" },
     "policy": {
       "description": "The check against the `--policy` file. Violations are not findings: they have no rule id, never change the score, and no configuration or directive can suppress them. Messages hold raw repository text, quoted, on one line and bounded in length; they carry no `path:line`.",
@@ -1111,6 +1112,122 @@
         "not-read"
       ]
     },
+    "tokenSummary": {
+      "description": "`agentcheckup tokens`: what each agent's configuration costs in context, in ≈tokens (characters / 4), from the load plans.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agents", "calls"],
+      "properties": {
+        "agents": {
+          "description": "The plans of the working directory, in platform order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "agent",
+              "cwd",
+              "startup",
+              "listings",
+              "onDemand",
+              "subagents",
+              "unverified"
+            ],
+            "properties": {
+              "agent": { "$ref": "#/$defs/contextAgent" },
+              "cwd": { "$ref": "#/$defs/relativePath" },
+              "startup": {
+                "description": "In context from the first message, listings included.",
+                "$ref": "#/$defs/count"
+              },
+              "listings": {
+                "description": "Of startup: the names and descriptions the model picks skills and subagents by.",
+                "$ref": "#/$defs/count"
+              },
+              "onDemand": {
+                "description": "The most later triggers can add.",
+                "$ref": "#/$defs/count"
+              },
+              "subagents": {
+                "description": "Subagents the agent loads, each with a call of its own.",
+                "$ref": "#/$defs/count"
+              },
+              "unverified": { "description": "A startup entry is unverified.", "type": "boolean" }
+            }
+          }
+        },
+        "calls": {
+          "description": "What each subagent call starts with, with the model it runs on as far as the repository says: calls nothing of can be measured first, then the largest. A call that may run instead of a preferred one has `mayRun`.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["agent", "cwd", "id", "path", "unverified"],
+            "properties": {
+              "agent": { "$ref": "#/$defs/contextAgent" },
+              "cwd": { "$ref": "#/$defs/relativePath" },
+              "id": { "type": "string", "minLength": 1 },
+              "path": { "$ref": "#/$defs/path" },
+              "name": { "type": "string" },
+              "tokens": {
+                "description": "Absent when nothing of the call can be measured; a lower bound when `unmeasured` names files.",
+                "$ref": "#/$defs/count"
+              },
+              "unmeasured": {
+                "description": "Files the call starts with that the scan did not read.",
+                "type": "array",
+                "items": { "$ref": "#/$defs/path" },
+                "minItems": 1
+              },
+              "unverified": { "type": "boolean" },
+              "mayRun": { "const": true },
+              "model": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source"],
+                "properties": {
+                  "value": {
+                    "oneOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ]
+                  },
+                  "source": { "enum": ["definition", "setting", "session", "not-visible"] },
+                  "undocumented": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        "directories": {
+          "description": "With --by-directory: the start directories planned besides the root, largest first.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cwd", "largest", "agents"],
+            "properties": {
+              "cwd": { "$ref": "#/$defs/path" },
+              "largest": { "$ref": "#/$defs/count" },
+              "agents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["agent", "startup", "unverified"],
+                  "properties": {
+                    "agent": { "$ref": "#/$defs/contextAgent" },
+                    "startup": { "$ref": "#/$defs/count" },
+                    "unverified": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "directoriesNotPlanned": { "$ref": "#/$defs/count" }
+      }
+    },
     "contextReport": {
       "description": "Load plans: what each agent loads (`agentcheckup context`, or a scan with `--context`).",
       "type": "object",
@@ -1122,6 +1239,39 @@
           "type": "array",
           "items": { "$ref": "#/$defs/contextAgent" },
           "uniqueItems": true
+        },
+        "directories": {
+          "description": "With `tokens --by-directory`: what a session started in each directory planned besides the root starts with, per agent, sorted by directory, and how many more directories hold agent configuration but were not planned. Totals only, without the plans.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planned", "notPlanned"],
+          "properties": {
+            "planned": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["cwd", "agents"],
+                "properties": {
+                  "cwd": { "$ref": "#/$defs/path" },
+                  "agents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["agent", "startup", "unverified"],
+                      "properties": {
+                        "agent": { "$ref": "#/$defs/contextAgent" },
+                        "startup": { "$ref": "#/$defs/size" },
+                        "unverified": { "type": "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "notPlanned": { "$ref": "#/$defs/count" }
+          }
         },
         "sources": {
           "description": "Every source cited by `evidence`, by key, sorted.",

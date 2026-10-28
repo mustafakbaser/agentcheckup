@@ -65,6 +65,7 @@ describe('the agentcheckup skill', () => {
       `Bash(${prefix(version)}tasks --format json)`,
       `Bash(${prefix(version)}fix)`,
       `Bash(${prefix(version)}context)`,
+      `Bash(${prefix(version)}tokens)`,
       `Bash(${prefix(version)}tasks --check *)`,
       'Read',
     ]);
@@ -100,7 +101,11 @@ describe('the agentcheckup skill', () => {
       if (command.kind === 'fix') {
         expect(command.options.write || command.options.interactive).toBe(false);
         expect(command.options.output).toBeUndefined();
-      } else if (command.kind === 'tasks' || command.kind === 'context') {
+      } else if (
+        command.kind === 'tasks' ||
+        command.kind === 'context' ||
+        command.kind === 'tokens'
+      ) {
         expect(command.options.output).toBeUndefined();
       } else {
         throw new Error(`unexpected command ${command.kind} for ${rule}`);

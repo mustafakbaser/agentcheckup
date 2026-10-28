@@ -288,6 +288,7 @@ export interface ContextReportInput {
   readonly agents: readonly ContextAgent[];
   readonly plans: readonly LoadPlan[];
   readonly matrix?: ContextReport['matrix'];
+  readonly directories?: ContextReport['directories'];
   /**
    * The scan's findings. A skip gets `fix`, how the fix on the unsuppressed finding of its rule
    * on its file is applied ({@link withFixClasses}). Without them, skips keep what they have.
@@ -351,6 +352,7 @@ export function buildContextReport(input: ContextReportInput): ContextReport {
     agents: orderedAgents(input.agents),
     sources: sourcesOf(citedSourceKeys(plans)),
     plans,
+    ...(input.directories === undefined ? {} : { directories: input.directories }),
     ...(input.matrix === undefined
       ? {}
       : {

@@ -1,6 +1,7 @@
 import { GATE_CLASSES } from '../core/baseline.js';
 import { CONFIG_FILE_NAME, REPOSITORY_URL, TOOL_NAME } from '../core/meta.js';
 import { PLATFORM_IDS } from '../core/types.js';
+import { MAX_START_DIRECTORIES } from '../platforms/load/directories.js';
 import { contextAgentsOf } from '../platforms/load/index.js';
 import { AGENT_NAMES, CONTEXT_AGENTS } from '../platforms/load/types.js';
 import { joinNames, readerList } from '../rules/shared/format.js';
@@ -55,6 +56,7 @@ export const HELP = `Usage: ${TOOL_NAME} [path] [options]
        ${TOOL_NAME} fix [path] [options]
        ${TOOL_NAME} tasks [path] [options]
        ${TOOL_NAME} context [path] [options]
+       ${TOOL_NAME} tokens [path] [options]
        ${TOOL_NAME} agents [path] [options]
        ${TOOL_NAME} skill install [path] [options]
        ${TOOL_NAME} rules [--json]
@@ -63,9 +65,9 @@ export const HELP = `Usage: ${TOOL_NAME} [path] [options]
 Check AGENTS.md, CLAUDE.md, SKILL.md, Cursor rules, Copilot instructions and MCP
 configs against how coding agents actually load them. "${TOOL_NAME} fix" repairs
 what it can, "${TOOL_NAME} tasks" writes the rest as tasks for a coding agent,
-"${TOOL_NAME} context" shows what each agent loads, and "${TOOL_NAME} agents"
-lists the custom agents and subagents with their models; run any of them with
---help for its options.
+"${TOOL_NAME} context" shows what each agent loads, "${TOOL_NAME} tokens" what
+that costs in context, and "${TOOL_NAME} agents" lists the custom agents and
+subagents with their models; run any of them with --help for its options.
 
 Options
   -f, --format <name>      stylish (default), json, sarif, github, markdown, badge
@@ -235,6 +237,51 @@ Options
 
 Exit codes
   0  The plans were shown. Findings never fail this command
+  1  --gate found changes it gates since --baseline
+  2  Invalid arguments, configuration, --agent, --cwd or baseline
+  3  Internal error (a rule or a loader crashed)
+
+${FOOTER}`;
+
+export const TOKENS_HELP = `Usage: ${TOOL_NAME} tokens [path] [options]
+
+Show what each coding agent's configuration costs in context, as estimated
+tokens (characters / 4): what is in context from the first message, the skill
+and subagent listings the model picks from, the most later triggers can add,
+and what each subagent call starts with in a context window of its own, with
+the model it runs on. [path] is the repository root; default: the current
+directory. Text and Markdown output show paths relative to [path]; JSON output
+is the context report with the summary as "tokens".
+
+The numbers are estimates, not tokenizer counts. Scopes outside the repository
+(user, managed, plugins), tool definitions and the conversation are not visible.
+
+Options
+      --agent <list>       ${AGENT_OPTION}
+      --cwd <dir>          Plan a session started in this directory, relative to [path].
+                           Default: the root
+      --by-directory       Also plan each directory below the root that holds agent
+                           configuration (at most ${String(MAX_START_DIRECTORIES)}), and rank them by context
+                           at start. Only from the root
+      --context-window <n> The model's context window in tokens, for limits that depend
+                           on it, such as the skills listing
+  -f, --format <name>      text (default), json, markdown
+  -o, --output <file>      Write the report to a file instead of stdout
+      --baseline <file>    Compare with a JSON report of an earlier scan with --context:
+                           context at start and each subagent call, before and after
+      --gate <classes>     Exit 1 on changes since --baseline:
+                           ${GATE_CLASSES.join(', ')},
+                           or security for all but models, or none
+  -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
+      --no-config          Ignore config files
+      --untrusted          Ignore the repository's config and inline suppressions, and
+                           do not let its .gitignore hide agent configuration
+      --no-gitignore       Also read files excluded by .gitignore
+      --color, --no-color  Force or disable color
+  -h, --help               Show this help
+
+Exit codes
+  0  The summary was shown. Findings never fail this command
   1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)

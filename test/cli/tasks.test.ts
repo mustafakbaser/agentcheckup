@@ -229,7 +229,10 @@ describe('parsing', () => {
       expect(usage(['tasks', flag])).toContain('does not apply to the tasks command');
     }
     expect(usage(['tasks', '--write'])).toContain('works only with the fix command');
-    expect(usage(['tasks', '--cwd', 'x'])).toContain('works only with the context command');
+    expect(usage(['tasks', '--cwd', 'x'])).toContain(
+      'works only with the context and tokens commands',
+    );
+    expect(usage(['tasks', '--by-directory'])).toContain('works only with the tokens command');
     expect(usage(['tasks', 'a', 'b'])).toContain('"tasks" takes at most one path');
     expect(usage(['tasks', '--format', 'diff'])).toContain(
       '--format must be one of: markdown, json',

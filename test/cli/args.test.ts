@@ -138,8 +138,9 @@ describe('parseCommand', () => {
     [['--baseline', 'b.json', '--gate', 'none,mcp'], /"none" cannot be combined/],
     [['--baseline', 'b.json', '--gate', 'mcp,,hooks'], /Empty gate class/],
     [['--context-window', '1000'], /--context-window needs --context/],
-    [['--agent', 'codex'], /--agent works only with the context and agents commands/],
-    [['--cwd', 'packages'], /--cwd works only with the context command/],
+    [['--agent', 'codex'], /--agent works only with the context, tokens and agents commands/],
+    [['--cwd', 'packages'], /--cwd works only with the context and tokens commands/],
+    [['--by-directory'], /--by-directory works only with the tokens command/],
     [['--matrix'], /--matrix works only with the context command/],
   ])('rejects scan flags %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
@@ -205,7 +206,8 @@ describe('parseCommand: agents', () => {
     [['agents', '--targets', 'codex'], /--targets does not apply to the agents command/],
     [['agents', '--context-window', '9'], /--context-window does not apply to the agents command/],
     [['agents', '--fail-on', 'warn'], /--fail-on does not apply to the agents command/],
-    [['agents', '--cwd', 'x'], /--cwd works only with the context command/],
+    [['agents', '--cwd', 'x'], /--cwd works only with the context and tokens commands/],
+    [['agents', '--by-directory'], /--by-directory works only with the tokens command/],
     [['agents', '--matrix'], /--matrix works only with the context command/],
     [['agents', '--write'], /--write works only with the fix command/],
     [['agents', '--max', '3'], /--max works only with the tasks command/],
@@ -361,6 +363,79 @@ describe('parseCommand: context', () => {
     [['context', '--color', '--no-color'], /cannot be combined/],
   ])('rejects %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
+    expect(() => parseCommand(argv)).toThrow(message);
+  });
+});
+
+describe('parseCommand: tokens', () => {
+  it('defaults to the text summary of every modeled target at the root', () => {
+    expect(parseCommand(['tokens'])).toEqual({
+      kind: 'tokens',
+      options: {
+        path: '.',
+        format: 'text',
+        output: undefined,
+        config: undefined,
+        useConfig: true,
+        untrusted: false,
+        gitignore: true,
+        color: undefined,
+        baseline: undefined,
+        gate: [],
+        contextWindow: undefined,
+        agents: undefined,
+        cwd: '',
+        byDirectory: false,
+      },
+    });
+  });
+
+  it('parses every tokens option', () => {
+    expect(
+      parseCommand([
+        'tokens',
+        'repo',
+        '--agent',
+        'copilot',
+        '--by-directory',
+        '--context-window',
+        '200000',
+        '-f',
+        'json',
+        '--baseline',
+        'base.json',
+        '--gate',
+        'models',
+      ]),
+    ).toMatchObject({
+      kind: 'tokens',
+      options: {
+        path: 'repo',
+        format: 'json',
+        agents: ['copilot-cli', 'copilot-vscode', 'copilot-cloud'],
+        cwd: '',
+        byDirectory: true,
+        contextWindow: 200_000,
+        baseline: 'base.json',
+        gate: ['models'],
+      },
+    });
+    expect(parseCommand(['tokens', '--cwd', './packages//api/'])).toMatchObject({
+      options: { cwd: 'packages/api', byDirectory: false },
+    });
+    expect(parseCommand(['tokens', '--help'])).toEqual({ kind: 'help', topic: 'tokens' });
+  });
+
+  it.each([
+    [['tokens', '--by-directory', '--cwd', 'packages'], /cannot be combined with --cwd/],
+    [['tokens', '--matrix'], /--matrix works only with the context command/],
+    [['tokens', '--targets', 'codex'], /does not apply to the tokens command/],
+    [['tokens', '--policy', 'p.json'], /does not apply to the tokens command/],
+    [['tokens', '--write'], /works only with the fix command/],
+    [['tokens', '--format', 'sarif'], /--format/],
+    [['tokens', 'a', 'b'], /"tokens" takes at most one path, got 2/],
+    [['context', '--by-directory'], /--by-directory works only with the tokens command/],
+  ])('rejects %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(message);
   });
 });
