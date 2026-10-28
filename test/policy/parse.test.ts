@@ -137,6 +137,35 @@ describe('parsePolicy', () => {
     expect(policyOf(document).budgets).toEqual([{ agent: 'codex', startupTokens: 10 }]);
   });
 
+  it('reads a budget for subagent calls, alone or with the startup budget', () => {
+    expect(
+      policyOf({
+        policyVersion: 1,
+        name: 'p',
+        budgets: {
+          codex: { subagentStartupTokens: 4000 },
+          'claude-code': { startupTokens: 8000, subagentStartupTokens: 20_000 },
+        },
+      }).budgets,
+    ).toEqual([
+      { agent: 'claude-code', startupTokens: 8000, subagentStartupTokens: 20_000 },
+      { agent: 'codex', subagentStartupTokens: 4000 },
+    ]);
+  });
+
+  it('needs at least one budget for an agent, and checks each', () => {
+    expect(
+      errorsOf({
+        policyVersion: 1,
+        name: 'p',
+        budgets: { codex: {}, cursor: { subagentStartupTokens: 0, startupTokens: 5 } },
+      }),
+    ).toEqual([
+      'budgets.codex: "startupTokens" or "subagentStartupTokens" is required.',
+      'budgets.cursor.subagentStartupTokens: expected a whole number from 1 to 100,000,000, got 0.',
+    ]);
+  });
+
   it('lists budgets in agent order and lower-cases denied commands', () => {
     const policy = policyOf({
       ...minimal,

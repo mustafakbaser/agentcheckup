@@ -931,6 +931,191 @@ describe('startup-budget', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
+// Subagent budgets
+// ---------------------------------------------------------------------------------------------
+
+describe('subagent-budget', () => {
+  const agent = (name: string, body: string): string =>
+    `---\nname: ${name}\ndescription: ${name}.\n---\n${body}\n`;
+  const files = {
+    'CLAUDE.md': '# Rules\nShort.\n',
+    '.claude/agents/big.md': agent('big', 'word '.repeat(8000)),
+    '.claude/agents/small.md': agent('small', 'Small.'),
+  };
+
+  it('reports each subagent whose call starts with more than the budget, at its file', () => {
+    const current = scan(files);
+    const tokens = current.context.plans
+      .find((plan) => plan.agent === 'claude-code')
+      ?.entries.find((entry) => entry.name === 'big')?.ownContext?.size.tokens;
+    expect(tokens).toBeGreaterThan(8000);
+    const report = evaluate(
+      policyOf({ budgets: { 'claude-code': { subagentStartupTokens: 8000 } } }),
+      { current },
+    );
+    expect(brief(report)).toEqual([
+      {
+        check: 'subagent-budget',
+        entry: 'big',
+        at: '.claude/agents/big.md:-',
+        message: `Claude Code starts each call of subagent big with ≈${(tokens ?? 0).toLocaleString('en-US')} tokens in ./ (policy limit ≈8,000).`,
+      },
+    ]);
+    expect(report.violations[0]).toMatchObject({
+      id: 'subagent-budget:claude-code:subagent:.claude/agents/big.md',
+      agent: 'claude-code',
+    });
+    // The startup budget is a check of its own; this policy does not set one.
+    expect(
+      activeChecks(policyOf({ budgets: { 'claude-code': { subagentStartupTokens: 1 } } })),
+    ).toEqual(['subagent-budget']);
+  });
+
+  it('checks both budgets of one agent independently', () => {
+    const report = run(
+      { budgets: { 'claude-code': { startupTokens: 1, subagentStartupTokens: 100_000 } } },
+      files,
+    );
+    expect(report.violations.map((violation) => violation.check)).toEqual(['startup-budget']);
+    expect(
+      activeChecks(
+        policyOf({ budgets: { 'claude-code': { startupTokens: 1, subagentStartupTokens: 1 } } }),
+      ),
+    ).toEqual(['startup-budget', 'subagent-budget']);
+  });
+
+  it('counts a call that grows past the baseline as new, and one that does not as unchanged', () => {
+    const policy = { budgets: { 'claude-code': { subagentStartupTokens: 10 } } };
+    const grown = {
+      ...files,
+      '.claude/agents/small.md': agent('small', 'Now much longer. '.repeat(20)),
+    };
+    const report = run(policy, grown, { baseline: files });
+    expect(report.violations.map((violation) => [violation.entry, violation.baseline])).toEqual([
+      ['big', 'unchanged'],
+      ['small', 'new'],
+    ]);
+  });
+
+  it('fails closed when the agent was not planned', () => {
+    const policy = policyOf({ budgets: { cursor: { subagentStartupTokens: 10 } } });
+    expect(messages(evaluate(policy, { current: { inventory: scan({}).inventory } }))).toEqual([
+      'Cursor has no load plan in this scan, so its subagent calls cannot be checked (policy limit ≈10).',
+    ]);
+  });
+
+  it('fails closed on a subagent whose call cannot be measured, unchanged when it was before', () => {
+    const unreadable = {
+      ...files,
+      // A merge key: Claude Code may read the fields, agentcheckup cannot.
+      '.claude/agents/merged.md':
+        '---\nbase: &b\n  description: Merged.\n<<: *b\nname: merged\n---\nPrompt.\n',
+    };
+    const policy = { budgets: { 'claude-code': { subagentStartupTokens: 100_000 } } };
+    const report = run(policy, unreadable);
+    expect(brief(report)).toEqual([
+      {
+        check: 'subagent-budget',
+        entry: 'merged',
+        at: '.claude/agents/merged.md:-',
+        message:
+          'Claude Code may start subagent merged in ./, and what its call starts with cannot be measured, which the policy counts as over the budget (policy limit ≈100,000).',
+      },
+    ]);
+    expect(run(policy, unreadable, { baseline: unreadable }).violations[0]?.baseline).toBe(
+      'unchanged',
+    );
+    // Its id follows the file: one that grows cannot pass as the baseline's.
+    const grown = {
+      ...unreadable,
+      '.claude/agents/merged.md': `${unreadable['.claude/agents/merged.md']}${'more '.repeat(100_000)}\n`,
+    };
+    expect(run(policy, grown, { baseline: unreadable }).violations[0]).toMatchObject({
+      baseline: 'new',
+      fails: true,
+    });
+  });
+
+  it('budgets a definition that may load instead of another of its name', () => {
+    const twins = {
+      'CLAUDE.md': '# Rules\n',
+      '.claude/agents/a.md': agent('reviewer', 'Small.'),
+      '.claude/agents/b.md': agent('reviewer', 'word '.repeat(8000)),
+    };
+    expect(
+      messages(run({ budgets: { 'claude-code': { subagentStartupTokens: 8000 } } }, twins)),
+    ).toEqual([
+      expect.stringMatching(
+        /^Claude Code starts each call of subagent reviewer, if it is the one of its name that loads, with ≈[\d,]+ tokens in \.\/ \(policy limit ≈8,000\)\.$/,
+      ),
+    ]);
+  });
+
+  it('fails closed on a call within the budget that starts with files the scan did not read', () => {
+    const current = scanWithContext(
+      {
+        ...snapshotFrom(
+          {
+            '.claude/agents/a.md': '---\nname: a\ndescription: A.\nskills: [huge]\n---\nA.\n',
+          },
+          { paths: ['.git/'] },
+        ),
+        skipped: [{ path: '.claude/skills/huge/SKILL.md', reason: 'too-large', size: 2_000_000 }],
+      },
+      { rules: builtinRules, matrix: true },
+    );
+    const report = evaluate(
+      policyOf({ budgets: { 'claude-code': { subagentStartupTokens: 100_000 } } }),
+      { current },
+    );
+    expect(messages(report)).toEqual([
+      expect.stringMatching(
+        /^Claude Code starts each call of subagent a with more than ≈\d+ tokens in \.\/: files it starts with were not read, which the policy counts as over the budget/,
+      ),
+    ]);
+  });
+
+  it('says when a baseline measures no call, and counts every violation as new', () => {
+    const policy = { budgets: { 'claude-code': { subagentStartupTokens: 10 } } };
+    const current = scan(files);
+    // A report from before calls were measured: the same plans without their own context.
+    const older = {
+      ...current,
+      context: {
+        ...current.context,
+        plans: current.context.plans.map((plan) => ({
+          ...plan,
+          entries: plan.entries.map(({ ownContext: _ownContext, ...entry }) => entry),
+        })),
+      },
+    };
+    const report = evaluate(policyOf(policy), { current, baseline: older });
+    expect(report.violations.map((violation) => [violation.entry, violation.baseline])).toEqual([
+      ['big', 'new'],
+    ]);
+    expect(report.notes.map((note) => note.id)).toContain('baseline-without-calls');
+    expect(
+      evaluate(policyOf(policy), { current, baseline: current }).notes.map((note) => note.id),
+    ).not.toContain('baseline-without-calls');
+  });
+
+  it('notes the subagents below the root that no plan of the run lists', () => {
+    const nested = {
+      ...files,
+      'pkg/.claude/agents/near.md': agent('near', 'Near.'),
+      'pkg/.claude/agents/far.md': agent('far', 'Far.'),
+    };
+    const notes = (budgets: object): readonly string[] =>
+      run({ budgets }, nested).notes.map((note) => `${note.id}: ${note.message}`);
+    expect(notes({ 'claude-code': { subagentStartupTokens: 100_000 } })).toEqual([
+      'subagents-not-planned:claude-code: 2 Claude Code subagents below the root are in no load plan this run checks, so their calls are not checked against the subagent budget. See one with agentcheckup tokens --cwd <dir>.',
+    ]);
+    // Only a subagent budget reads the calls.
+    expect(notes({ 'claude-code': { startupTokens: 100_000 } })).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
 // Unanalyzed configuration
 // ---------------------------------------------------------------------------------------------
 

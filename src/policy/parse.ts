@@ -63,7 +63,7 @@ const MCP_FIELDS = ['allow', 'allowLocal', 'requirePin'] as const;
 const PERMISSION_FIELDS = ['denyTools', 'denyCommands'] as const;
 const HOOKS_FIELDS = ['require'] as const;
 const REQUIREMENT_FIELDS = ['agent', 'event', 'matcher', 'script', 'command'] as const;
-const BUDGET_FIELDS = ['startupTokens'] as const;
+const BUDGET_FIELDS = ['startupTokens', 'subagentStartupTokens'] as const;
 const MODEL_RULE_FIELDS = ['allow', 'deny'] as const;
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -594,7 +594,7 @@ function checkBudgets(v: Validator, value: unknown): Policy['budgets'] {
   if (value === undefined) return [];
   const budgets = v.record(value, 'budgets');
   if (budgets === undefined) return [];
-  const out: { agent: ContextAgent; startupTokens: number }[] = [];
+  const out: { agent: ContextAgent; startupTokens?: number; subagentStartupTokens?: number }[] = [];
   for (const agent of Object.keys(budgets)) {
     const path = child('budgets', agent);
     if (!isContextAgent(agent)) {
@@ -609,24 +609,31 @@ function checkBudgets(v: Validator, value: unknown): Policy['budgets'] {
     const budget = v.record(budgets[agent], path);
     if (budget === undefined) continue;
     v.unknownFields(budget, BUDGET_FIELDS, path);
-    if (!Object.hasOwn(budget, 'startupTokens')) {
-      v.add(path, '"startupTokens" is required.');
+    if (!BUDGET_FIELDS.some((field) => Object.hasOwn(budget, field))) {
+      v.add(path, '"startupTokens" or "subagentStartupTokens" is required.');
       continue;
     }
-    const tokens = budget['startupTokens'];
-    if (
-      typeof tokens !== 'number' ||
-      !Number.isInteger(tokens) ||
-      tokens < 1 ||
-      tokens > MAX_STARTUP_TOKENS
-    ) {
-      v.add(
-        child(path, 'startupTokens'),
-        `expected a whole number from 1 to ${formatInteger(MAX_STARTUP_TOKENS)}, got ${describe(tokens)}.`,
-      );
-      continue;
+    const limits: { startupTokens?: number; subagentStartupTokens?: number } = {};
+    let valid = true;
+    for (const field of BUDGET_FIELDS) {
+      if (!Object.hasOwn(budget, field)) continue;
+      const tokens = budget[field];
+      if (
+        typeof tokens !== 'number' ||
+        !Number.isInteger(tokens) ||
+        tokens < 1 ||
+        tokens > MAX_STARTUP_TOKENS
+      ) {
+        v.add(
+          child(path, field),
+          `expected a whole number from 1 to ${formatInteger(MAX_STARTUP_TOKENS)}, got ${describe(tokens)}.`,
+        );
+        valid = false;
+        continue;
+      }
+      limits[field] = tokens;
     }
-    out.push({ agent, startupTokens: tokens });
+    if (valid) out.push({ agent, ...limits });
   }
   // CONTEXT_AGENTS order, so the policy's key order changes nothing.
   return out.sort((a, b) => CONTEXT_AGENTS.indexOf(a.agent) - CONTEXT_AGENTS.indexOf(b.agent));

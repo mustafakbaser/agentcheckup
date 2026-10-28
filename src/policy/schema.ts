@@ -83,11 +83,18 @@ const hookRequirementSchema = {
 const budgetSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['startupTokens'],
+  minProperties: 1,
   properties: {
     startupTokens: {
       description:
         'The most tokens (≈ characters / 4) any load plan of the agent may have at session start.',
+      type: 'integer',
+      minimum: 1,
+      maximum: MAX_STARTUP_TOKENS,
+    },
+    subagentStartupTokens: {
+      description:
+        "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
       type: 'integer',
       minimum: 1,
       maximum: MAX_STARTUP_TOKENS,

@@ -116,8 +116,15 @@ export interface Policy {
   /** Program names, lower case. */
   readonly denyCommands: readonly string[];
   readonly requireHooks: readonly HookRequirement[];
-  /** Per agent, the most startup tokens any of its load plans may have. */
-  readonly budgets: readonly { readonly agent: ContextAgent; readonly startupTokens: number }[];
+  /**
+   * Per agent, the most ≈tokens any of its load plans may have at startup, and the most any of
+   * its subagent calls may start with; at least one of the two.
+   */
+  readonly budgets: readonly {
+    readonly agent: ContextAgent;
+    readonly startupTokens?: number;
+    readonly subagentStartupTokens?: number;
+  }[];
   /** Per agent, the models it may be set to run on; in agent report order. */
   readonly models: readonly ModelRule[];
 }
@@ -129,6 +136,7 @@ export const POLICY_CHECKS = [
   'denied-tool',
   'hook-missing',
   'startup-budget',
+  'subagent-budget',
   'model-not-allowed',
   'unanalyzed-config',
 ] as const;
@@ -152,6 +160,7 @@ export type PolicyCheck = (typeof POLICY_CHECKS)[number];
  * - `denied-tool`: the `denyTools` and `denyCommands` values the grant violates, comma-separated.
  * - `hook-missing`: the requirement, such as `claude-code PreToolUse matcher "Bash"`.
  * - `startup-budget`: the agent.
+ * - `subagent-budget`: the subagent's name, else its file; the agent when it has no plan.
  * - `model-not-allowed`: the model value as written, or `unknown` when it cannot be read.
  * - `unanalyzed-config`: the inventory's `incomplete` entry.
  *

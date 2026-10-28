@@ -328,10 +328,16 @@
         "claude-code": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -341,10 +347,16 @@
         "codex": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -354,10 +366,16 @@
         "cursor": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -367,10 +385,16 @@
         "copilot-cli": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -380,10 +404,16 @@
         "copilot-vscode": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -393,10 +423,16 @@
         "copilot-cloud": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -406,10 +442,16 @@
         "gemini": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -419,10 +461,16 @@
         "windsurf": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000
@@ -432,10 +480,16 @@
         "cline": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["startupTokens"],
+          "minProperties": 1,
           "properties": {
             "startupTokens": {
               "description": "The most tokens (≈ characters / 4) any load plan of the agent may have at session start.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000000
+            },
+            "subagentStartupTokens": {
+              "description": "The most tokens (≈ characters / 4) any of the agent's subagent calls may start with, in a context window of its own. Needs agentcheckup 0.3.0 or later.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100000000

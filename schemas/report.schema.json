@@ -153,6 +153,7 @@
                   "denied-tool",
                   "hook-missing",
                   "startup-budget",
+                  "subagent-budget",
                   "model-not-allowed",
                   "unanalyzed-config"
                 ]

@@ -48,11 +48,26 @@ import {
   type PolicyViolation,
 } from './types.js';
 
-/** The load-plan fields the budget check reads. A LoadPlan and a BaselinePlan are assignable. */
+/** The fields of a plan entry or skip a subagent budget reads. */
+export interface PolicyCall {
+  readonly id: string;
+  readonly path: string;
+  readonly name?: string;
+  readonly ownContext?: {
+    readonly size: { readonly tokens: number };
+    readonly unmeasured?: readonly string[];
+  };
+}
+
+/** The load-plan fields the budget checks read. A LoadPlan and a BaselinePlan are assignable. */
 export interface PolicyPlan {
   readonly agent: ContextAgent;
   readonly cwd: string;
   readonly totals: { readonly startup: { readonly tokens: number } };
+  /** For subagent budgets: each subagent's own context. */
+  readonly entries?: readonly PolicyCall[];
+  /** For subagent budgets: a subagent that may run instead of the preferred one carries one. */
+  readonly skipped?: readonly PolicyCall[];
 }
 
 /**
@@ -85,7 +100,7 @@ export interface PolicyInput {
 export const HOOKS_NOT_ENFORCED =
   'Configured, not enforced: hooks fail open on errors and timeouts, and user settings can turn them off.';
 
-/** A violation before the baseline comparison. `tokens` is set for startup budgets. */
+/** A violation before the baseline comparison. `tokens` is set for budgets. */
 interface Found {
   readonly id: string;
   readonly check: PolicyCheck;
@@ -103,7 +118,7 @@ export function evaluatePolicy(policy: Policy, input: PolicyInput): PolicyReport
   const before =
     input.baseline === undefined
       ? undefined
-      : new Map(collect(policy, input.baseline).map((item) => [item.id, item]));
+      : new Map(collect(policy, input.baseline, true).map((item) => [item.id, item]));
 
   const violations = found
     .map((item): PolicyViolation => {
@@ -154,7 +169,8 @@ export function activeChecks(policy: Policy): PolicyCheck[] {
     'forbidden-setting': policy.forbid.length > 0,
     'denied-tool': policy.denyTools.length > 0 || policy.denyCommands.length > 0,
     'hook-missing': policy.requireHooks.length > 0,
-    'startup-budget': policy.budgets.length > 0,
+    'startup-budget': policy.budgets.some((budget) => budget.startupTokens !== undefined),
+    'subagent-budget': policy.budgets.some((budget) => budget.subagentStartupTokens !== undefined),
     'model-not-allowed': policy.models.length > 0,
     'unanalyzed-config': readsInventory(policy),
   };
@@ -231,20 +247,27 @@ function hookAgent(file: string): HookPlatform | undefined {
 }
 
 /** The violations of one scan, each id once: a requirement the policy repeats is one violation. */
-function collect(policy: Policy, subject: PolicySubject): Found[] {
+function collect(policy: Policy, subject: PolicySubject, baseline = false): Found[] {
   const unique = new Map<string, Found>();
-  for (const item of collectAll(policy, subject)) {
+  for (const item of collectAll(policy, subject, baseline)) {
     if (!unique.has(item.id)) unique.set(item.id, item);
   }
   return [...unique.values()];
 }
 
-function collectAll(policy: Policy, subject: PolicySubject): Found[] {
+function collectAll(policy: Policy, subject: PolicySubject, baseline: boolean): Found[] {
   const base = normalizeBase(subject.pathBase);
   const inventory = subject.inventory;
   const out: Found[] = [];
   const itemId = (check: string, item: { id: string; file: string; digest: string }): string =>
     `${check}:${rootId(item.id, item.file, base)}@${item.digest}`;
+  // Definition digests by id, root-relative, for subagent calls that cannot be measured.
+  const digests = new Map(
+    (subject.agents?.definitions ?? []).map((definition) => [
+      rootId(definition.id, definition.file, base),
+      definition.digest,
+    ]),
+  );
 
   for (const server of inventory?.mcpServers ?? []) {
     out.push(...serverViolations(policy, server, itemId));
@@ -299,8 +322,19 @@ function collectAll(policy: Policy, subject: PolicySubject): Found[] {
   }
 
   for (const budget of policy.budgets) {
-    const violation = overBudget(budget, subject.context?.plans ?? []);
-    if (violation !== undefined) out.push(violation);
+    const plans = subject.context?.plans ?? [];
+    if (budget.startupTokens !== undefined) {
+      const violation = overBudget(budget.agent, budget.startupTokens, plans);
+      if (violation !== undefined) out.push(violation);
+    }
+    if (budget.subagentStartupTokens !== undefined) {
+      // A report written before calls were measured has none to compare (see notesOf).
+      if (!(baseline && measuresNoCalls(subject))) {
+        out.push(
+          ...callsOverBudget(budget.agent, budget.subagentStartupTokens, plans, base, digests),
+        );
+      }
+    }
   }
 
   if (policy.models.length > 0) out.push(...modelViolations(policy.models, subject.agents, itemId));
@@ -632,10 +666,10 @@ function hookMissing(requirement: HookRequirement): Found {
 // ---------------------------------------------------------------------------------------------
 
 function overBudget(
-  budget: Policy['budgets'][number],
+  agent: ContextAgent,
+  limit: number,
   plans: readonly PolicyPlan[],
 ): Found | undefined {
-  const { agent, startupTokens: limit } = budget;
   const label = AGENT_NAMES[agent];
   const base = {
     id: `startup-budget:${agent}`,
@@ -668,6 +702,130 @@ function overBudget(
     message: `${label} loads ≈${formatInteger(tokens)} tokens at session start in ./${bounded(largest.cwd)} (policy limit ≈${formatInteger(limit)}).`,
     tokens,
   };
+}
+
+/** Every call a plan carries: its subagents, and the skips that may run instead. */
+function callsOf(
+  plan: PolicyPlan,
+): readonly { readonly call: PolicyCall; readonly mayRun: boolean }[] {
+  return [
+    ...(plan.entries ?? []).map((call) => ({ call, mayRun: false })),
+    ...(plan.skipped ?? []).flatMap((call) =>
+      call.ownContext === undefined ? [] : [{ call, mayRun: true }],
+    ),
+  ];
+}
+
+/**
+ * True when a subject's plans list subagents but measure no call, as a report written before
+ * agentcheckup measured calls does: its subagent budget cannot be compared.
+ */
+function measuresNoCalls(subject: PolicySubject): boolean {
+  const calls = (subject.context?.plans ?? []).flatMap((plan) => plan.entries ?? []);
+  const subagents = calls.filter((call) => call.id.startsWith('subagent:'));
+  return subagents.length > 0 && subagents.every((call) => call.ownContext === undefined);
+}
+
+/**
+ * Each subagent call of `agent` that starts with more ≈tokens than `limit`, in any of its plans:
+ * one violation per subagent, at its largest. Its id names the agent and the subagent's file, so
+ * a call that grows past the baseline's counts as new. A definition that may run instead of the
+ * preferred one, where the agent does not document which one wins, counts too.
+ *
+ * It fails closed: a subagent the agent may load whose call cannot be measured, such as one
+ * agentcheckup cannot read, is a violation, and so is a call within the budget that starts with
+ * files the scan did not read. Their id adds the definition's digest, so a change of the file
+ * counts as new against a baseline.
+ */
+function callsOverBudget(
+  agent: ContextAgent,
+  limit: number,
+  plans: readonly PolicyPlan[],
+  base: string,
+  digests: ReadonlyMap<string, string>,
+): Found[] {
+  const label = AGENT_NAMES[agent];
+  const own = plans.filter((plan) => plan.agent === agent);
+  if (own.length === 0) {
+    return [
+      {
+        id: `subagent-budget:${agent}`,
+        check: 'subagent-budget',
+        entry: agent,
+        agent,
+        message: `${label} has no load plan in this scan, so its subagent calls cannot be checked (policy limit ≈${formatInteger(limit)}).`,
+      },
+    ];
+  }
+  interface Measured {
+    readonly plan: PolicyPlan;
+    readonly call: PolicyCall;
+    readonly tokens: number;
+    readonly mayRun: boolean;
+    readonly unmeasured: readonly string[];
+  }
+  const largest = new Map<string, Measured>();
+  const unmeasurable = new Map<string, { readonly plan: PolicyPlan; readonly call: PolicyCall }>();
+  for (const plan of own) {
+    for (const { call, mayRun } of callsOf(plan)) {
+      const key = rootId(call.id, call.path, base);
+      const context = call.ownContext;
+      if (context === undefined) {
+        if (call.id.startsWith('subagent:') && !unmeasurable.has(key)) {
+          unmeasurable.set(key, { plan, call });
+        }
+        continue;
+      }
+      const tokens = context.size.tokens;
+      const known = largest.get(key);
+      if (known === undefined || tokens > known.tokens) {
+        largest.set(key, { plan, call, tokens, mayRun, unmeasured: context.unmeasured ?? [] });
+      }
+    }
+  }
+  const subject = (call: PolicyCall): string => call.name ?? stripPath(call.path, base);
+  const where = (plan: PolicyPlan): string => `./${bounded(stripPath(plan.cwd, base))}`;
+  // The definition of `subagent:<file>` is `agent:<file>@<agent>`.
+  const digestOf = (key: string): string => {
+    const digest = digests.get(`agent:${key.slice(key.indexOf(':') + 1)}@${agent}`);
+    return digest === undefined ? '' : `@${digest}`;
+  };
+  const out: Found[] = [];
+  for (const [key, { plan, call }] of unmeasurable) {
+    if (largest.has(key)) continue;
+    out.push({
+      id: `subagent-budget:${agent}:${key}${digestOf(key)}`,
+      check: 'subagent-budget',
+      entry: subject(call),
+      path: call.path,
+      agent,
+      message: `${label} may start subagent ${bounded(subject(call))} in ${where(plan)}, and what its call starts with cannot be measured, which the policy counts as over the budget (policy limit ≈${formatInteger(limit)}).`,
+    });
+  }
+  for (const [key, { plan, call, tokens, mayRun, unmeasured }] of largest) {
+    const ifLoads = mayRun ? ', if it is the one of its name that loads,' : '';
+    if (tokens > limit) {
+      out.push({
+        id: `subagent-budget:${agent}:${key}`,
+        check: 'subagent-budget',
+        entry: subject(call),
+        path: call.path,
+        agent,
+        message: `${label} starts each call of subagent ${bounded(subject(call))}${ifLoads} with ≈${formatInteger(tokens)} tokens in ${where(plan)} (policy limit ≈${formatInteger(limit)}).`,
+        tokens,
+      });
+    } else if (unmeasured.length > 0) {
+      out.push({
+        id: `subagent-budget:${agent}:${key}${digestOf(key)}`,
+        check: 'subagent-budget',
+        entry: subject(call),
+        path: call.path,
+        agent,
+        message: `${label} starts each call of subagent ${bounded(subject(call))}${ifLoads} with more than ≈${formatInteger(tokens)} tokens in ${where(plan)}: files it starts with were not read, which the policy counts as over the budget (policy limit ≈${formatInteger(limit)}).`,
+      });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -832,6 +990,40 @@ function unanalyzedMessage(prefix: string): string {
 // Notes
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * For each agent a subagent budget names, how many of its definitions that load, or may, no plan
+ * of the run lists: those below the root that no plan starts beside. Each agent's own plans list
+ * the definitions on their path (`subagent:<file>` for `agent:<file>@<agent>`).
+ */
+function unplannedSubagents(
+  policy: Policy,
+  subject: PolicySubject,
+): { readonly agent: ContextAgent; readonly count: number }[] {
+  const out: { agent: ContextAgent; count: number }[] = [];
+  const definitions = subject.agents?.definitions ?? [];
+  for (const budget of policy.budgets) {
+    if (budget.subagentStartupTokens === undefined) continue;
+    const listed = new Set(
+      (subject.context?.plans ?? [])
+        .filter((plan) => plan.agent === budget.agent)
+        .flatMap((plan) =>
+          [...(plan.entries ?? []), ...(plan.skipped ?? [])].map((item) => item.id),
+        ),
+    );
+    const suffix = `@${budget.agent}`;
+    let count = 0;
+    for (const definition of definitions) {
+      if (definition.agent !== budget.agent) continue;
+      if (definition.status !== 'loads' && definition.status !== 'unknown') continue;
+      if (!definition.id.startsWith('agent:') || !definition.id.endsWith(suffix)) continue;
+      const file = definition.id.slice('agent:'.length, -suffix.length);
+      if (!listed.has(`subagent:${file}`)) count++;
+    }
+    if (count > 0) out.push({ agent: budget.agent, count });
+  }
+  return out;
+}
+
 function notesOf(
   policy: Policy,
   input: PolicyInput,
@@ -857,8 +1049,25 @@ function notesOf(
   ) {
     notes.push({ id: 'hooks-not-enforced', message: HOOKS_NOT_ENFORCED });
   }
+  for (const { agent, count } of unplannedSubagents(policy, input.current)) {
+    const many = count !== 1;
+    notes.push({
+      id: `subagents-not-planned:${agent}`,
+      message: `${formatInteger(count)} ${AGENT_NAMES[agent]} ${many ? 'subagents' : 'subagent'} below the root ${many ? 'are' : 'is'} in no load plan this run checks, so ${many ? 'their calls are' : 'its call is'} not checked against the subagent budget. See one with agentcheckup tokens --cwd <dir>.`,
+    });
+  }
   const { baseline } = input;
   if (baseline !== undefined) {
+    if (
+      policy.budgets.some((budget) => budget.subagentStartupTokens !== undefined) &&
+      measuresNoCalls(baseline)
+    ) {
+      notes.push({
+        id: 'baseline-without-calls',
+        message:
+          'The baseline measures no subagent call, as a report written before agentcheckup 0.3.0, so every subagent budget violation counts as new. Write the baseline with this version.',
+      });
+    }
     if (baseline.inventory === undefined && readsInventory(policy)) {
       notes.push({
         id: 'baseline-without-inventory',
@@ -877,7 +1086,7 @@ function notesOf(
       notes.push({
         id: 'baseline-without-plans',
         message:
-          'The baseline has no load plans, so every startup-budget violation counts as new. Write the baseline with --context.',
+          'The baseline has no load plans, so every budget violation counts as new. Write the baseline with --context.',
       });
     }
     if (

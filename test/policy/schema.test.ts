@@ -142,6 +142,10 @@ describe('POLICY_JSON_SCHEMA', () => {
           fc.constantFrom(0, 1, 8000, 100_000_000, 100_000_001, 1.5, -3, '8000'),
           fc.integer(),
         ),
+        subagentStartupTokens: fc.oneof(
+          fc.constantFrom(0, 1, 20_000, 100_000_000, 100_000_001, 2.5, '1'),
+          fc.integer(),
+        ),
         extra: fc.integer(),
       },
       { requiredKeys: [] },
@@ -272,7 +276,14 @@ describe('POLICY_JSON_SCHEMA', () => {
     ),
     budgets: fc.dictionary(
       fc.constantFrom(...CONTEXT_AGENTS),
-      fc.record({ startupTokens: fc.integer({ min: 1, max: 100_000_000 }) }),
+      fc.record(
+        {
+          startupTokens: fc.integer({ min: 1, max: 100_000_000 }),
+          subagentStartupTokens: fc.integer({ min: 1, max: 100_000_000 }),
+        },
+        // At least one of the two: an empty budget is an error.
+        { requiredKeys: ['startupTokens'] },
+      ),
       { maxKeys: 3 },
     ),
     models: fc.dictionary(
