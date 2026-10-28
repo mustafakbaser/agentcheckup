@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../src/core/config.js';
 import {
   analyze,
+  analyzeWithIgnored,
   buildArtifacts,
   runRules,
   type ScanOptions,
@@ -157,6 +158,60 @@ describe('analyze', () => {
   });
 });
 
+describe('analyzeWithIgnored', () => {
+  const FILES: FileMap = {
+    'AGENTS.md': '# Project\n',
+    'vendor/pkg/AGENTS.md': `# Vendored\n\n${'Vendored text. '.repeat(10)}\n`,
+    'vendor/notes.txt': 'Not configuration.\n',
+  };
+
+  it('analyzes the snapshot as if ignore matched nothing, keeping the rest of the configuration', () => {
+    const options = {
+      config: resolveConfig({ ignore: ['vendor/**'] }),
+      targets: ['codex'] as const,
+    };
+    const analysis = analyze(snapshotFrom(FILES), options);
+    const all = analyzeWithIgnored(analysis, options);
+    expect(analysis.artifacts.map((artifact) => artifact.path)).toEqual(['AGENTS.md']);
+    expect(all?.artifacts.map((artifact) => artifact.path)).toEqual([
+      'AGENTS.md',
+      'vendor/pkg/AGENTS.md',
+    ]);
+    expect(all?.config.isIgnored('vendor/pkg/AGENTS.md')).toBe(false);
+    expect(all?.config.ruleSetting).toBe(analysis.config.ruleSetting);
+    expect(all?.targetList).toEqual(['codex']);
+  });
+
+  it('copies the scan artifacts, shares the parses that spend no budget, and parses no Markdown', () => {
+    const options = { config: resolveConfig({ ignore: ['vendor/**'] }), markdownBudget: 20 };
+    const analysis = analyze(snapshotFrom(FILES), options);
+    const all = analyzeWithIgnored(analysis, options);
+    const [root] = analysis.artifacts;
+    const copy = all?.index.get('AGENTS.md');
+    const vendored = all?.index.get('vendor/pkg/AGENTS.md');
+    if (root === undefined || copy === undefined || vendored === undefined) {
+      throw new Error('Missing artifact.');
+    }
+    // A copy: caches keyed on an artifact keep the two analyses apart. Its text is not decoded
+    // again, and its front matter is the scan's own parse.
+    expect(copy).not.toBe(root);
+    expect(copy.decoded).toBe(root.decoded);
+    expect(all?.frontmatter(copy)).toBe(analysis.frontmatter(root));
+    // No Markdown, not even of the vendored file, so the scan's budget stays whole.
+    expect(all?.markdown(vendored).analysis.analyzedLength).toBe(0);
+    expect(all?.markdown(copy).analysis.analyzedLength).toBe(0);
+    expect(analysis.markdown(root).analysis.complete).toBe(true);
+  });
+
+  it('is undefined when ignore leaves out no file the classifier recognizes', () => {
+    const snapshot = snapshotFrom(FILES);
+    for (const ignore of [undefined, ['vendor/*.txt'], ['missing/**']]) {
+      const options = ignore === undefined ? {} : { config: resolveConfig({ ignore }) };
+      expect(analyzeWithIgnored(analyze(snapshot, options), options)).toBeUndefined();
+    }
+  });
+});
+
 describe('runRules(analyze()) matches scanSnapshot', () => {
   async function fixture(name: string, gitRoot: boolean): Promise<Snapshot> {
     const walked = await walk(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)));
@@ -187,6 +242,16 @@ describe('runRules(analyze()) matches scanSnapshot', () => {
           rules: { 'instr/codex-size-budget': 'info' },
           overrides: [{ files: ['packages/**'], rules: { 'instr/empty-file': 'off' } }],
         }),
+      },
+    },
+    {
+      // The plans also count what `ignore` leaves out, over an analysis of their own.
+      name: 'an ignore that leaves out agent configuration, on a tight Markdown budget',
+      options: {
+        rules: builtinRules,
+        config: resolveConfig({ ignore: ['packages/**', '.cursor/**'] }),
+        markdownBudget: 4096,
+        markdownLineBudget: 120,
       },
     },
   ];

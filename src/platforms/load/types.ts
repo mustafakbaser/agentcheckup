@@ -482,10 +482,11 @@ export interface LoadPlan {
    */
   readonly incomplete: readonly string[];
   /**
-   * How many files the plan leaves out because the configuration's `ignore` matches them: files
-   * it would otherwise list as entries, skips, out of scope or incomplete. The agent may still
-   * load them; agentcheckup was told not to look. Absent when none. See `withoutIgnored` in
-   * ./index.ts.
+   * How many files the agent may load that the plan does not show because the configuration's
+   * `ignore` matches them, or matches the only way to them: files it would otherwise list as
+   * entries, unverified skips or files not analyzed, found by planning the agent again as if
+   * `ignore` matched nothing. agentcheckup was told not to look; the agent was not. Absent when
+   * none. See `withoutIgnored` in ./index.ts.
    */
   readonly ignored?: number;
 }

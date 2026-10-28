@@ -129,8 +129,8 @@ Skipped
 - **Incomplete:** files the plan could not analyze, so entries may be missing. For example, a
   `.codex/config.toml` in UTF-16, which agentcheckup does not parse, so Codex servers and hooks
   declared there are not listed; or a Cline hook script, whose format no source documents.
-- **Ignored by configuration:** how many files the plan leaves out because the `ignore` of
-  `agentcheckup.config.json` matches them. See [Files the configuration ignores](#files-the-configuration-ignores).
+- **Ignored by configuration:** how many files the agent may load that the plan does not show
+  because the `ignore` of `agentcheckup.config.json` matches them. See [Files the configuration ignores](#files-the-configuration-ignores).
 
 A skip whose fix needs your words, here a skill whose empty `description` Codex rejects:
 
@@ -149,23 +149,41 @@ Gemini CLI context · ./: loads nothing from this repository
 ### Files the configuration ignores
 
 Files that match `ignore` in [the configuration](configuration.md#fields) do not appear in load
-plans or in the matrix, just as no rule checks them. Agents still load them, so each plan says
-how many files it left out, in one line after the plan:
+plans or in the matrix, just as no rule checks them. `ignore` changes only what agentcheckup
+checks, not what agents load, so each plan counts the ignored files its agent may load, in one
+line after the plan:
 
 ```text
 Ignored by configuration: 22 files are not shown; Cursor may still load them
 ```
 
-The count covers the files that plan would otherwise have listed: an import of an ignored file,
-a nested `AGENTS.md` or a skill in an ignored directory. A plan that leaves nothing out has no
-such line. The plan does not list the files: `ignore` usually covers whole directories, such as
-test fixtures, and listing them would bury the real configuration. In JSON the count is
-`plans[].ignored`. The startup positions of the remaining entries are numbered again without
-gaps; the totals do not change, because agentcheckup never read the ignored files.
+The count covers the files the plan would otherwise show as loaded, as not analyzed, or as
+skipped where no source confirms the skip: an import of an ignored file, a nested `AGENTS.md`
+or a skill in an ignored directory. Files the agent skips for a documented reason, or does not
+look at in a session started where the plan starts, are not counted: Codex at the root does
+not read a nested `AGENTS.md`. A plan whose agent may load none of the ignored files has no such
+line.
 
-Only a file's own path counts: a file that is not ignored keeps its entries, skips and
-findings. `--untrusted` ignores the repository's configuration, so its plans and matrix show
-every file: a pull request cannot hide agent configuration by adding it to `ignore`.
+To find the files, agentcheckup plans each agent a second time as if `ignore` matched nothing.
+That also finds the files an agent discovers only by reading them, such as Claude Code's nested
+`CLAUDE.md` files. The second plan is used only for the count and reads the ignored files on its
+own, so they never change a finding, an entry or a total. It parses no Markdown, so the scan
+stays within its Markdown budget; files that only an ignored file imports are not counted. It
+runs only when `ignore` matches agent configuration and the output shows the count: in
+`context`, and in the JSON of `tokens` and of a scan with `--context`. In the matrix, Codex's
+plans for other directories count only the ignored files they find without reading them.
+
+The plan does not list the files: `ignore` usually covers whole directories, such as test
+fixtures, and listing them would bury the real configuration. In JSON the count is
+`plans[].ignored`. The startup positions of the remaining entries are numbered again without
+gaps; the totals do not change, because they never include an ignored file.
+
+Only a file's own path decides whether the plan shows it: a file that is not ignored keeps its
+entries, skips and findings. An agent may still reach such a file only through an ignored one,
+as with a `SKILL.md` that is a symlink into an ignored directory. The plan cannot show it then,
+and the count includes it. `--untrusted` ignores the repository's configuration, so its plans
+and matrix show every file: a pull request cannot hide agent configuration by adding it to
+`ignore`.
 
 ### Triggers
 
@@ -581,7 +599,7 @@ and SARIF include plans only with `--context`. See
 | `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`                                                                                                                                                                      |
 | `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                                                                                                                                                                                 |
 | `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                                                                                                                                                                                            |
-| `plans[].ignored`                   | How many files the plan leaves out because the configuration's `ignore` matches them; absent when none                                                                                                                                                                                                         |
+| `plans[].ignored`                   | How many files the agent may load that the plan does not show because of the configuration's `ignore`; absent when none                                                                                                                                                                                        |
 | `context.directories`               | With `tokens --by-directory`: the start directories planned besides the root, and `notPlanned`                                                                                                                                                                                                                 |
 | `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                                                                                                                                                                                          |
 | `context.sources`                   | Every source an `evidence` key points to: title, URL, the date it was checked                                                                                                                                                                                                                                  |

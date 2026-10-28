@@ -630,6 +630,8 @@ class Run {
       ...options,
       cwd: '',
       matrix: false,
+      // Verification reads totals and gate hits, not what the configuration's `ignore` hides.
+      countIgnored: false,
       parseCache: options.parseCache ?? createParseCache(),
     };
     this.selection = selection;

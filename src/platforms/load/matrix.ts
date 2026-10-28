@@ -44,6 +44,13 @@ export interface MatrixPlanOptions {
   readonly agents: readonly ContextAgent[];
   readonly config: ResolvedConfig;
   readonly contextWindow?: number;
+  /**
+   * The scan as if `ignore` matched nothing, for the plans at the root: see
+   * `LoadPlansOptions.withIgnored`. Codex's plans in other directories count only the ignored
+   * files their loader finds without reading them: planning each of thousands of directories
+   * twice would cost more than the count is worth.
+   */
+  readonly withIgnored?: LoadView;
 }
 
 /** Kinds of agent definition files: subagents, which get no row, even below the start. */
@@ -91,7 +98,12 @@ export function matrixPlans(view: LoadView, options: MatrixPlanOptions): LoadPla
     config: options.config,
     ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
   };
-  const plans = loadPlans(view, { ...shared, agents, cwd: '' });
+  const plans = loadPlans(view, {
+    ...shared,
+    agents,
+    cwd: '',
+    ...(options.withIgnored === undefined ? {} : { withIgnored: options.withIgnored }),
+  });
   if (agents.includes('codex')) {
     for (const cwd of codexStartDirectories(view)) {
       plans.push(...loadPlans(view, { ...shared, agents: ['codex'], cwd }));

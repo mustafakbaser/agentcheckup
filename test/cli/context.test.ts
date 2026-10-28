@@ -22,12 +22,14 @@ interface Report {
       readonly agent: string;
       readonly cwd: string;
       readonly entries: readonly { readonly path: string; readonly trigger: string }[];
+      readonly skipped: readonly { readonly path: string; readonly certainty: string }[];
       readonly assumptions: readonly { readonly key: string; readonly value: unknown }[];
       readonly limits: readonly {
         readonly key: string;
         readonly subject: string;
         readonly label?: string;
       }[];
+      readonly ignored?: number;
     }[];
     readonly matrix?: { readonly rows: readonly { readonly path: string }[] };
   };
@@ -330,10 +332,13 @@ describe('agentcheckup context', () => {
     expect(await run(['context', '--matrix'], io)).toBe(EXIT.ok);
     const text = io.output();
     expect(text).not.toContain('test/fixtures');
-    // The nested AGENTS.md and the skill, which Cursor reads anywhere in the workspace.
+    // The nested AGENTS.md and the skill, which Cursor reads anywhere in the workspace, and the
+    // .md file in .cursor/rules, which it skips.
     expect(text).toContain(
-      '\nIgnored by configuration: 2 files are not shown; Cursor may still load them\n',
+      '\nIgnored by configuration: 3 files are not shown; Cursor may still load them\n',
     );
+    // Claude Code leaves files in a fixtures folder to their own sessions: nothing to count.
+    expect(text).not.toContain('Claude Code may still load');
     expect(text).not.toContain('Incomplete');
 
     const json = await contextJson(['--matrix'], repo);
@@ -346,6 +351,33 @@ describe('agentcheckup context', () => {
       'test/fixtures/broken/AGENTS.md',
     );
     expect(JSON.stringify(untrusted.context)).not.toContain('"ignored"');
+    // Each plan at the root counts the fixture files that its --untrusted plan says the agent
+    // loads, or may load. (With --untrusted, the matrix also plans Codex in the fixture's
+    // directory.)
+    type Plan = NonNullable<typeof untrusted.context>['plans'][number];
+    const mayLoad = (plan: Plan): number =>
+      new Set(
+        [
+          ...plan.entries.map((item) => item.path),
+          ...plan.skipped
+            .filter((item) => item.certainty === 'unverified')
+            .map((item) => item.path),
+        ].filter((path) => path.startsWith('test/fixtures/')),
+      ).size;
+    const atRoot = (plans: readonly Plan[] | undefined): Plan[] =>
+      (plans ?? []).filter((plan) => plan.cwd === '');
+    expect(atRoot(json.context?.plans).map((plan) => [plan.agent, plan.ignored ?? 0])).toEqual(
+      atRoot(untrusted.context?.plans).map((plan) => [plan.agent, mayLoad(plan)]),
+    );
+
+    // The JSON of tokens and of a scan with --context counts the same.
+    const counts = (report: Report): (readonly [string, number | undefined])[] =>
+      atRoot(report.context?.plans).map((plan) => [plan.agent, plan.ignored] as const);
+    for (const args of [['tokens'], ['--context']]) {
+      const out = capture(repo);
+      await run([...args, '--format', 'json'], out);
+      expect(counts(JSON.parse(out.output()) as Report)).toEqual(counts(json));
+    }
   });
 
   it('exits 2 for a bad configuration or a missing path', async () => {

@@ -1092,7 +1092,7 @@
           "items": { "type": "string" }
         },
         "ignored": {
-          "description": "How many files the plan leaves out because the configuration's `ignore` matches them. The agent may still load them. Absent when none.",
+          "description": "How many files the agent may load that the plan does not show because the configuration's `ignore` matches them, or matches the only way to them. Absent when none.",
           "type": "integer",
           "minimum": 1
         }

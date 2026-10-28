@@ -4,7 +4,8 @@
  *
  * Run the loaders on the analysis the rules ran on, after the rules (see `scanWithContext` in
  * src/core/engine.ts): they read the same cached parses, so the scan's Markdown budget is spent
- * in the same order and findings cannot change.
+ * in the same order and findings cannot change. The second plan that counts what `ignore` hides
+ * runs on an analysis of its own (`LoadPlansOptions.withIgnored`).
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
@@ -43,6 +44,13 @@ export interface LoadPlansOptions {
   readonly config: ResolvedConfig;
   /** The model's context window in tokens (`--context-window`): a positive integer. */
   readonly contextWindow?: number;
+  /**
+   * The scan as if the configuration's `ignore` matched nothing, when `ignore` leaves out any
+   * file (`analyzeWithIgnored` in src/core/engine.ts). Each agent is planned over it too, to count
+   * the files `ignore` hides that the agent may load (see {@link withoutIgnored}). Without it, a
+   * plan counts only the ignored files its loader finds without reading them.
+   */
+  readonly withIgnored?: LoadView;
 }
 
 type Loader = (
@@ -121,18 +129,26 @@ export function checkContextWindow(contextWindow: number | undefined): void {
 export function loadPlans(view: LoadView, options: LoadPlansOptions): LoadPlan[] {
   checkWorkingDirectory(options.cwd);
   checkContextWindow(options.contextWindow);
+  const loaderOptions = {
+    cwd: options.cwd,
+    config: options.config,
+    ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
+  };
+  const planOver = (agent: ContextAgent, over: LoadView): LoadPlan =>
+    withSubagents(LOADERS[agent](over, loaderOptions), over);
+  const { withIgnored } = options;
+  // Only the count depends on the plan over the ignored files: if a loader fails on one of them,
+  // the count falls back to what the plan itself finds, and the command goes on.
+  const unignored = (agent: ContextAgent): LoadPlan | undefined => {
+    if (withIgnored === undefined) return undefined;
+    try {
+      return planOver(agent, withIgnored);
+    } catch {
+      return undefined;
+    }
+  };
   return orderedAgents(options.agents).map((agent) =>
-    withoutIgnored(
-      withSubagents(
-        LOADERS[agent](view, {
-          cwd: options.cwd,
-          config: options.config,
-          ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
-        }),
-        view,
-      ),
-      options.config,
-    ),
+    withoutIgnored(planOver(agent, view), options.config, unignored(agent)),
   );
 }
 
@@ -143,41 +159,96 @@ function incompletePath(item: string): string {
 }
 
 /**
- * `plan` without the paths the configuration's `ignore` matches, and with `ignored` set to how
- * many distinct paths it left out.
- *
- * The scan never reads an ignored file, so a loader finds it on disk without its content and
- * would list it as unread, skipped or out of scope, and the matrix would give it a row. The
- * agents still load those files, so the plan does not pretend they are gone: it counts them.
- * A count, not a list, because `ignore` usually covers whole directories such as test fixtures,
- * whose files would otherwise crowd out the real configuration. `--untrusted` ignores the
- * repository's configuration, so its plans leave nothing out.
- *
- * Only an item's own path counts: an item whose path is not ignored stays, whatever the files
- * behind it, so plans keep agreeing with the findings (src/platforms/load/consistency.ts).
+ * Every path `plan` lists: its entries, skips, files out of scope, limit subjects and incomplete
+ * items.
  */
-export function withoutIgnored(plan: LoadPlan, config: ResolvedConfig): LoadPlan {
-  const ignored = new Set<string>();
-  const keep = (path: string): boolean => {
-    if (path === '' || !config.isIgnored(path)) return true;
-    ignored.add(path);
-    return false;
-  };
+function listedPaths(plan: LoadPlan): string[] {
+  return [
+    ...plan.entries.map((entry) => entry.path),
+    ...plan.skipped.map((skip) => skip.path),
+    ...plan.outOfScope.map((item) => item.path),
+    ...plan.limits.map((limit) => limit.subject),
+    ...plan.incomplete.map(incompletePath),
+  ];
+}
+
+/** Incomplete items that name a file the agent may load; the others mark how far parsing went. */
+const MAY_LOAD_INCOMPLETE: ReadonlySet<string> = new Set(['unread', 'unparsed', 'fallback']);
+
+/**
+ * The files `plan` says its agent loads or may load: its entries, the skips no source confirms,
+ * and the files it could not analyze. Not the files it skips for a documented reason or leaves out
+ * of scope, which the agent is not expected to load, and not directories.
+ */
+function mayLoad(plan: LoadPlan): string[] {
+  return [
+    ...plan.entries.map((entry) => entry.path),
+    ...plan.skipped.filter((skip) => skip.certainty === 'unverified').map((skip) => skip.path),
+    ...plan.incomplete
+      .filter((item) => MAY_LOAD_INCOMPLETE.has(item.slice(0, item.indexOf(':'))))
+      .filter((item) => !item.endsWith('/'))
+      .map(incompletePath),
+  ].filter((path) => path !== '');
+}
+
+/**
+ * `plan` without the paths the configuration's `ignore` matches, and with `ignored` set to how
+ * many files it hides that the agent may load.
+ *
+ * Neither the rules nor the plan read an ignored file. A loader that looks on disk still finds
+ * one, without its content, and lists it as unread, skipped or out of scope; the matrix would
+ * give it a row. A loader that looks only among the files the scan read, as for a nested
+ * CLAUDE.md, does not find it at all. So `unignored`, the same agent's plan over the scan as if
+ * `ignore` matched nothing, counts too.
+ *
+ * `ignored` counts the files the plan over the ignored files says the agent loads or may load
+ * (entries, unverified skips, files not analyzed) that this plan does not show: ignored files,
+ * and files the agent reaches only through them, such as a skill symlinked into an ignored
+ * directory. Ignored files that plan does not list count when this plan could not read them, as
+ * for a settings file without hooks or servers. Files the agent skips for a documented reason,
+ * or does not look at from this session, are left out without a count, so "may still load them"
+ * holds. A count, not a list, because `ignore` usually covers whole directories such as test
+ * fixtures, whose files would otherwise crowd out the real configuration. `--untrusted` ignores
+ * the repository's configuration, so its plans leave nothing out.
+ *
+ * Only an item's own path decides whether it stays: an item whose path is not ignored stays,
+ * whatever the files behind it, so plans keep agreeing with the findings
+ * (src/platforms/load/consistency.ts).
+ */
+export function withoutIgnored(
+  plan: LoadPlan,
+  config: ResolvedConfig,
+  unignored?: LoadPlan,
+): LoadPlan {
+  const isIgnored = (path: string): boolean => path !== '' && config.isIgnored(path);
+  const keep = (path: string): boolean => !isIgnored(path);
   const entries = plan.entries.filter((entry) => keep(entry.path));
   const skipped = plan.skipped.filter((skip) => keep(skip.path));
   const outOfScope = plan.outOfScope.filter((item) => keep(item.path));
   const incomplete = plan.incomplete.filter((item) => keep(incompletePath(item)));
   // A limit measured on an ignored file, such as the import depth an ignored import reaches.
   const limits = plan.limits.filter((limit) => keep(limit.subject));
-  if (ignored.size === 0) return plan;
+  const kept = { ...plan, entries, skipped, outOfScope, limits, incomplete };
+  // The plan over the ignored files decides for every file it lists. For the others, such as a
+  // settings file that declares nothing it lists, the files this plan could not read count.
+  const decided = new Set(unignored === undefined ? [] : listedPaths(unignored));
+  const hidden = new Set(mayLoad(plan).filter((path) => isIgnored(path) && !decided.has(path)));
+  if (unignored !== undefined) {
+    const shown = new Set(listedPaths(kept));
+    for (const path of mayLoad(unignored))
+      if (isIgnored(path) || !shown.has(path)) hidden.add(path);
+  }
+  const removed =
+    entries.length !== plan.entries.length ||
+    skipped.length !== plan.skipped.length ||
+    outOfScope.length !== plan.outOfScope.length ||
+    incomplete.length !== plan.incomplete.length ||
+    limits.length !== plan.limits.length;
+  if (!removed && hidden.size === 0) return plan;
   return {
-    ...plan,
+    ...kept,
     entries: renumbered(entries),
-    skipped,
-    outOfScope,
-    limits,
-    incomplete,
-    ignored: ignored.size,
+    ...(hidden.size === 0 ? {} : { ignored: hidden.size }),
   };
 }
 

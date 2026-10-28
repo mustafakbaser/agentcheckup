@@ -151,6 +151,13 @@ export interface ContextOptions {
    * MAX_START_DIRECTORIES of them in path order, for `tokens --by-directory`. Default false.
    */
   readonly startDirectories?: boolean;
+  /**
+   * Count in each plan the files the configuration's `ignore` hides that the agent may load
+   * (`LoadPlan.ignored`), with a second plan over {@link analyzeWithIgnored}. Default true. Turn
+   * it off where nothing shows the count: the second plan reads the ignored files. Off, a plan
+   * counts only the ignored files its loader finds without reading them.
+   */
+  readonly countIgnored?: boolean;
 }
 
 /**
@@ -402,6 +409,56 @@ export function analyze(snapshot: Snapshot, options: AnalyzeOptions = {}): Analy
     artifacts,
     index: indexArtifacts(artifacts),
     ...createParseServices(options),
+  };
+}
+
+/**
+ * The analysis of the same snapshot as if the configuration's `ignore` matched nothing, or
+ * undefined when `ignore` leaves out no file the classifier recognizes. Load plans are built over
+ * it only to count the files `ignore` hides from them (`LoadPlan.ignored`, see `withoutIgnored` in
+ * src/platforms/load/index.ts).
+ *
+ * Planning over it changes nothing the scan reports:
+ * - Its artifacts are copies of the scan's, which share their decoded text, plus the ignored
+ *   files. Caches keyed on an artifact keep the two analyses apart.
+ * - Front matter, JSON and TOML of the scan's files are the scan's own parses, which spend no
+ *   budget and are the same whenever they are made.
+ * - It parses no Markdown: the Markdown budget is the whole scan's (ADR 0003), so files that only
+ *   ignored files import are not counted.
+ * - Caches keyed on the snapshot alone hold what the walk saw, the same for both.
+ */
+export function analyzeWithIgnored(
+  analysis: Analysis,
+  options: AnalyzeOptions = {},
+): Analysis | undefined {
+  const { snapshot, config } = analysis;
+  const onlyIgnored = { ...config, isIgnored: (path: string) => !config.isIgnored(path) };
+  const ignored = buildArtifacts(snapshot, onlyIgnored, options.parseCache);
+  if (ignored.length === 0) return undefined;
+  const originals = new Map<Artifact, Artifact>(
+    analysis.artifacts.map((artifact) => [{ ...artifact }, artifact]),
+  );
+  const artifacts = [...originals.keys(), ...ignored].sort((a, b) =>
+    compareStrings(a.path, b.path),
+  );
+  const own = createParseServices({ ...options, markdownBudget: 0, markdownLineBudget: 0 });
+  const scans =
+    <T>(scanned: (artifact: Artifact) => T, ownParse: (artifact: Artifact) => T) =>
+    (artifact: Artifact): T => {
+      const original = originals.get(artifact);
+      return original === undefined ? ownParse(artifact) : scanned(original);
+    };
+  return {
+    snapshot,
+    config: { ...config, isIgnored: () => false },
+    targets: analysis.targets,
+    targetList: analysis.targetList,
+    artifacts,
+    index: indexArtifacts(artifacts),
+    frontmatter: scans(analysis.frontmatter, own.frontmatter),
+    json: scans(analysis.json, own.json),
+    toml: scans(analysis.toml, own.toml),
+    markdown: own.markdown,
   };
 }
 
@@ -677,7 +734,9 @@ export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResu
  * {@link scanSnapshot} plus what each agent loads: the rules run first, then the inventory is
  * built, then the loaders plan each agent on the same analysis. The loaders read the parses the
  * rules made, so the scan's Markdown budget is spent in the same order and the findings are those
- * of {@link scanSnapshot}. Pure: no I/O, deterministic output.
+ * of {@link scanSnapshot}. Each reported plan also counts what `ignore` hides from it, from a
+ * second plan over {@link analyzeWithIgnored} (see {@link ContextOptions.countIgnored}). Pure: no
+ * I/O, deterministic output.
  *
  * Throws, before running any rule, for an agent without a load model, a working directory that
  * is not normalized or climbs above the root, a context window that is not a positive integer,
@@ -708,10 +767,15 @@ export function scanWithContext(
     config: analysis.config,
     ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
   };
+  // The plans a report shows also count what `ignore` hides from them. Start directories keep
+  // only their totals, so their plans skip that count.
+  const withIgnored =
+    options.countIgnored === false ? undefined : analyzeWithIgnored(analysis, options);
+  const reported = withIgnored === undefined ? shared : { ...shared, withIgnored };
   const context =
     options.matrix === true
       ? (() => {
-          const plans = matrixPlans(analysis, shared);
+          const plans = matrixPlans(analysis, reported);
           return buildContextReport({
             agents,
             plans,
@@ -725,7 +789,7 @@ export function scanWithContext(
             const planned = found.slice(0, MAX_START_DIRECTORIES);
             return buildContextReport({
               agents,
-              plans: loadPlans(analysis, { ...shared, cwd: '' }),
+              plans: loadPlans(analysis, { ...reported, cwd: '' }),
               // Each directory's plans are summed up and dropped, one directory at a time.
               directories: {
                 planned: planned.map((directory) =>
@@ -741,7 +805,7 @@ export function scanWithContext(
           })()
         : buildContextReport({
             agents,
-            plans: loadPlans(analysis, { ...shared, cwd }),
+            plans: loadPlans(analysis, { ...reported, cwd }),
             findings: result.findings,
           });
   return { ...result, inventory, agents: definitions, context };

@@ -4,7 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../../src/core/config.js';
-import { analyze, runRules } from '../../../src/core/engine.js';
+import {
+  analyze,
+  analyzeWithIgnored,
+  runRules,
+  scanWithContext,
+} from '../../../src/core/engine.js';
 import { PLATFORM_IDS } from '../../../src/core/types.js';
 import {
   buildContextReport,
@@ -32,7 +37,7 @@ import {
 } from '../../../src/platforms/load/types.js';
 import { SOURCES } from '../../../src/platforms/sources.js';
 import { builtinRules } from '../../../src/rules/index.js';
-import { entry, plan, size } from '../../helpers/context.js';
+import { entry, plan, size, skip } from '../../helpers/context.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
 
 function analysisOf(files: FileMap, extras: SnapshotExtras = {}) {
@@ -273,14 +278,23 @@ describe('paths the configuration ignores', () => {
     'fixtures/repo/.agents/skills/s/SKILL.md': '---\nname: s\ndescription: Does s.\n---\nBody.\n',
   };
 
-  /** As a scan with `agentcheckup.config.json` (`ignore`) or with `--untrusted` (none). */
+  /**
+   * As a scan with `agentcheckup.config.json` (`ignore`) or with `--untrusted` (none), with the
+   * plans' count of what `ignore` leaves out as `scanWithContext` makes it.
+   */
   function scan(ignore: readonly string[] | undefined) {
-    const analysis = analyze(snapshotFrom(FILES, { paths: ['.git/HEAD'] }), {
+    const options = {
       targets: PLATFORM_IDS,
       ...(ignore === undefined ? {} : { config: resolveConfig({ ignore }) }),
-    });
+    };
+    const analysis = analyze(snapshotFrom(FILES, { paths: ['.git/HEAD'] }), options);
     const { findings } = runRules(analysis, { rules: builtinRules, trustDirectives: false });
-    const plans = matrixPlans(analysis, { agents: CONTEXT_AGENTS, config: analysis.config });
+    const withIgnored = analyzeWithIgnored(analysis, options);
+    const plans = matrixPlans(analysis, {
+      agents: CONTEXT_AGENTS,
+      config: analysis.config,
+      ...(withIgnored === undefined ? {} : { withIgnored }),
+    });
     return { findings, plans, matrix: buildMatrix(analysis, plans, CONTEXT_AGENTS) };
   }
 
@@ -305,23 +319,193 @@ describe('paths the configuration ignores', () => {
       'AGENTS.md',
       'CLAUDE.md',
     ]);
-    // What each plan would have listed as unread: Claude Code the import of fixtures/guide.md
-    // (it leaves files in a fixtures folder to their own sessions), Cursor the nested files it
-    // reads from anywhere in the workspace, Devin Local those and the skill of a deeper project.
-    // Codex at the root does not reach them.
+    // What each agent may load of them, as its plan would show it without the configuration.
+    // Claude Code: the import of fixtures/guide.md; it leaves the instruction files of a fixtures
+    // folder to their own sessions. Codex at the root does not read the files below it. Cursor:
+    // the nested AGENTS.md and the skill, which it reads anywhere in the workspace, and the .md
+    // file in .cursor/rules, which no source says it skips. Devin Local does not load the skill
+    // from the root, although its loader finds the file unread. Copilot in VS Code and Cline do
+    // not read a nested AGENTS.md.
     expect(plans.map((item) => `${item.agent} ${String(item.ignored)}`)).toEqual([
       'claude-code 1',
       'codex undefined',
-      'cursor 2',
+      'cursor 3',
       'copilot-cli 3',
       'copilot-vscode undefined',
       'copilot-cloud 1',
       'gemini undefined',
-      'windsurf 4',
+      'windsurf 3',
       'cline undefined',
     ]);
     // The rules never saw them either.
     expect(findings.filter((finding) => finding.path.startsWith('fixtures/'))).toEqual([]);
+  });
+
+  it('counts the ignored files that each plan, without the configuration, says its agent may load', () => {
+    const mayLoad = (item: LoadPlan): string[] => [
+      ...item.entries.map((each) => each.path),
+      ...item.skipped.filter((each) => each.certainty === 'unverified').map((each) => each.path),
+      ...item.incomplete
+        .filter((each) => each.startsWith('unread:'))
+        .map((each) => each.slice('unread:'.length)),
+    ];
+    const counted = scan(['fixtures/**']).plans;
+    const listed = scan(undefined).plans.filter((item) => item.cwd === '');
+    expect(counted.map((item) => [item.agent, item.ignored ?? 0])).toEqual(
+      listed.map((item) => [
+        item.agent,
+        new Set(mayLoad(item).filter((path) => path.startsWith('fixtures/'))).size,
+      ]),
+    );
+  });
+
+  /** Each agent's count at the root, as a scan with `ignore` makes it. */
+  function countsOf(
+    files: FileMap,
+    ignore: readonly string[],
+    extras: SnapshotExtras = {},
+  ): Partial<Record<ContextAgent, number>> {
+    const options = { targets: PLATFORM_IDS, config: resolveConfig({ ignore }) };
+    const snapshot = snapshotFrom(files, {
+      ...extras,
+      paths: ['.git/HEAD', ...(extras.paths ?? [])],
+    });
+    const analysis = analyze(snapshot, options);
+    const withIgnored = analyzeWithIgnored(analysis, options);
+    const plans = loadPlans(analysis, {
+      agents: CONTEXT_AGENTS,
+      cwd: '',
+      config: analysis.config,
+      ...(withIgnored === undefined ? {} : { withIgnored }),
+    });
+    return Object.fromEntries(plans.map((item) => [item.agent, item.ignored]));
+  }
+
+  it('does not count a file the agent skips for a documented reason', () => {
+    // Gemini CLI reads GEMINI.md, not AGENTS.md; the others read the root AGENTS.md.
+    const counts = countsOf({ 'AGENTS.md': 'Rules.\n', 'GEMINI.md': 'Gemini.\n' }, ['AGENTS.md']);
+    expect(counts.gemini).toBeUndefined();
+    expect([counts['claude-code'], counts.codex, counts.cline]).toEqual([1, 1, 1]);
+  });
+
+  it('counts a file the agent reaches only through an ignored one', () => {
+    const skill = '---\nname: s\ndescription: Does s.\n---\nBody.\n';
+    const counts = countsOf(
+      {
+        'CLAUDE.md': 'Root.\n',
+        'vendor/skills/s/SKILL.md': skill,
+        '.claude/skills/s/SKILL.md': skill,
+      },
+      ['vendor/**'],
+      { symlinks: { '.claude/skills/s/SKILL.md': 'vendor/skills/s/SKILL.md' } },
+    );
+    expect(counts['claude-code']).toBe(1);
+  });
+
+  it('changes nothing in a plan but the count, even when the Markdown budget runs out', () => {
+    // A budget the scan's own files fit in and the vendored file does not: counting over the
+    // scan's own parses would cut Gemini CLI's GEMINI.md short.
+    const snapshot = snapshotFrom(
+      {
+        'CLAUDE.md': 'Root.\n',
+        'GEMINI.md': 'Gemini.\n',
+        'vendor/pkg/CLAUDE.md': `${'Vendored text. '.repeat(40)}\n`,
+      },
+      { paths: ['.git/HEAD'] },
+    );
+    const options = {
+      targets: PLATFORM_IDS,
+      config: resolveConfig({ ignore: ['vendor/**'] }),
+      markdownBudget: 40,
+    };
+    const plansOf = (counted: boolean): LoadPlan[] => {
+      const analysis = analyze(snapshot, options);
+      const withIgnored = counted ? analyzeWithIgnored(analysis, options) : undefined;
+      return loadPlans(analysis, {
+        agents: CONTEXT_AGENTS,
+        cwd: '',
+        config: analysis.config,
+        ...(withIgnored === undefined ? {} : { withIgnored }),
+      });
+    };
+    const counted = plansOf(true);
+    const uncounted = plansOf(false);
+    const uncountedPart = (plans: readonly LoadPlan[]) =>
+      plans.map((item) => ({ ...item, ignored: undefined }));
+    expect(uncountedPart(counted)).toEqual(uncountedPart(uncounted));
+    // Claude Code finds the nested CLAUDE.md only by reading it.
+    expect(uncounted.find((item) => item.agent === 'claude-code')?.ignored).toBeUndefined();
+    expect(counted.find((item) => item.agent === 'claude-code')?.ignored).toBe(1);
+    expect(counted.find((item) => item.agent === 'gemini')?.incomplete).toEqual([]);
+  });
+
+  it('falls back to what the plan finds when planning over the ignored files fails', () => {
+    const options = { targets: PLATFORM_IDS, config: resolveConfig({ ignore: ['vendor/**'] }) };
+    const snapshot = snapshotFrom(
+      { 'CLAUDE.md': 'Root.\n', 'vendor/pkg/CLAUDE.md': 'Vendored.\n' },
+      { paths: ['.git/HEAD'] },
+    );
+    const analysis = analyze(snapshot, options);
+    const all = analyzeWithIgnored(analysis, options);
+    if (all === undefined) throw new Error('Nothing is ignored.');
+    const failing = {
+      ...all,
+      get artifacts(): never {
+        throw new Error('A loader failed.');
+      },
+    };
+    const shared = { agents: CONTEXT_AGENTS, cwd: '', config: analysis.config };
+    expect(loadPlans(analysis, { ...shared, withIgnored: failing })).toEqual(
+      loadPlans(analysis, shared),
+    );
+  });
+
+  it('plans only the root over the ignored files in the matrix', () => {
+    const skill = '---\nname: s\ndescription: Does s.\n---\nBody.\n';
+    const files: FileMap = { 'AGENTS.md': 'Root.\n', 'pkg/AGENTS.md': 'Package.\n' };
+    const options = {
+      targets: PLATFORM_IDS,
+      config: resolveConfig({ ignore: ['pkg/.agents/**'] }),
+    };
+    const analysis = analyze(snapshotFrom(files, { paths: ['.git/HEAD'] }), options);
+    // A view with an ignored skill the scan itself never saw, so only a plan over it counts it.
+    const withIgnored = analyzeWithIgnored(
+      analyze(
+        snapshotFrom(
+          { ...files, 'pkg/.agents/skills/s/SKILL.md': skill },
+          { paths: ['.git/HEAD'] },
+        ),
+        options,
+      ),
+      options,
+    );
+    if (withIgnored === undefined) throw new Error('Nothing is ignored.');
+    const shared = { agents: ['codex'] as const, config: analysis.config, withIgnored };
+    expect(loadPlans(analysis, { ...shared, cwd: 'pkg' })[0]?.ignored).toBe(1);
+    expect(
+      matrixPlans(analysis, shared).map((item) => `${item.cwd} ${String(item.ignored)}`),
+    ).toEqual([' undefined', 'pkg undefined']);
+  });
+
+  it('counts only what the loaders find when the scan turns the count off', () => {
+    const snapshot = snapshotFrom(
+      { 'CLAUDE.md': 'Root.\n', 'vendor/pkg/CLAUDE.md': 'Vendored.\n' },
+      { paths: ['.git/HEAD'] },
+    );
+    const options = {
+      rules: builtinRules,
+      targets: PLATFORM_IDS,
+      config: resolveConfig({ ignore: ['vendor/**'] }),
+    };
+    const claudeCount = (countIgnored: boolean | undefined): number | undefined =>
+      scanWithContext(snapshot, {
+        ...options,
+        ...(countIgnored === undefined ? {} : { countIgnored }),
+      }).context.plans.find((item) => item.agent === 'claude-code')?.ignored;
+    // Claude Code finds the nested CLAUDE.md only by reading it.
+    expect(claudeCount(undefined)).toBe(1);
+    expect(claudeCount(true)).toBe(1);
+    expect(claudeCount(false)).toBeUndefined();
   });
 
   it('numbers the session start again without the ignored import', () => {
@@ -347,6 +531,56 @@ describe('paths the configuration ignores', () => {
       incomplete: ['unread:pkg/'],
     });
     expect(withoutIgnored(original, resolveConfig({ ignore: ['fixtures/**'] }))).toBe(original);
+  });
+
+  it('counts what the plan over the ignored files says the agent may load, each file once', () => {
+    const config = resolveConfig({ ignore: ['vendor/**'] });
+    const original = plan('claude-code', {
+      entries: [entry('instructions', 'CLAUDE.md', { position: 1, size: size(10) })],
+      incomplete: [
+        'unread:vendor/a.md',
+        'unread:vendor/b.md',
+        'unread:vendor/settings.json',
+        'unread:vendor/dir/',
+      ],
+    });
+    const unignored = plan('claude-code', {
+      entries: [
+        entry('instructions', 'CLAUDE.md', { position: 1, size: size(10) }),
+        entry('import', 'vendor/a.md', { position: 2, size: size(4) }),
+        entry('instructions', 'vendor/x/CLAUDE.md', { trigger: 'on-path' }),
+        entry('skill', '.claude/skills/s/SKILL.md', { trigger: 'model-selected' }),
+      ],
+      skipped: [
+        skip('instructions', 'vendor/AGENTS.md', 'shadowed-by-claude-md'),
+        skip('instructions', 'vendor/Agents.md', 'case-mismatch', { certainty: 'unverified' }),
+      ],
+      outOfScope: [
+        { path: 'vendor/b.md', because: 'below-start-dir' },
+        { path: 'vendor/y/.mcp.json', because: 'below-start-dir' },
+      ],
+    });
+    const filtered = withoutIgnored(original, config, unignored);
+    // vendor/a.md, which both plans list; vendor/x/CLAUDE.md; the skill, which is not ignored but
+    // which this plan does not show; vendor/Agents.md, whose skip no source confirms; and
+    // vendor/settings.json, which only this plan lists. Not CLAUDE.md, which it shows; not the
+    // documented skip or the files out of scope, vendor/b.md included; not the directory.
+    expect(filtered.ignored).toBe(5);
+    expect(filtered.entries).toEqual(original.entries);
+    expect(filtered.incomplete).toEqual([]);
+    expect(filtered.totals).toBe(original.totals);
+    // Nothing ignored in either plan: the plan stays as it is.
+    const clean = plan('codex', {
+      entries: [entry('instructions', 'AGENTS.md', { position: 1, size: size(8) })],
+    });
+    expect(withoutIgnored(clean, config, clean)).toBe(clean);
+    // Files left out that the agent does not load: no count.
+    const skippedOnly = plan('cline', {
+      skipped: [skip('instructions', 'vendor/AGENTS.md', 'not-read')],
+    });
+    const left = withoutIgnored(skippedOnly, config, skippedOnly);
+    expect(left.skipped).toEqual([]);
+    expect(left.ignored).toBeUndefined();
   });
 
   it('filters each list by its own path, including directories and limit subjects', () => {
@@ -391,8 +625,9 @@ describe('paths the configuration ignores', () => {
     expect(filtered.outOfScope).toEqual([]);
     expect(filtered.limits).toEqual([]);
     expect(filtered.incomplete).toEqual(['unread:docs/c.md']);
-    // vendor/a.md, vendor/rules/r.md, vendor/AGENTS.md, vendor/x/CLAUDE.md, vendor/deep.
-    expect(filtered.ignored).toBe(5);
+    // vendor/a.md and vendor/rules/r.md, which Claude Code loads. Not the documented skip of
+    // vendor/AGENTS.md, vendor/x/CLAUDE.md out of scope, or the directory vendor/deep/.
+    expect(filtered.ignored).toBe(2);
     // The totals stay: the loader computed them, and an unread file has no size.
     expect(filtered.totals).toBe(original.totals);
   });

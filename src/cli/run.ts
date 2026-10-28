@@ -242,7 +242,8 @@ function pathPrefix(root: string, io: Io, format: string): string {
  */
 function scanWithRootPlans(snapshot: Snapshot, scanOptions: ScanOptions, io: Io): ScanResult {
   try {
-    return scanWithContext(snapshot, { ...scanOptions, matrix: false });
+    // The summary reads skips, not what the configuration's `ignore` hides.
+    return scanWithContext(snapshot, { ...scanOptions, matrix: false, countIgnored: false });
   } catch (error) {
     io.stderr(
       `Warning: Could not work out what each agent loads, so the report leaves it out: ` +
@@ -270,6 +271,8 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
     ? scanWithContext(snapshot, {
         ...scanOptions,
         matrix: true,
+        // Only the JSON report shows the plans, and with them what `ignore` hides.
+        countIgnored: options.format === 'json',
         ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
       })
     : rootPlans
@@ -417,6 +420,8 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
     agents,
     cwd: options.cwd,
     startDirectories: options.byDirectory,
+    // The summary does not show what `ignore` hides; the JSON report's plans do.
+    countIgnored: options.format === 'json',
     ...(options.contextWindow === undefined ? {} : { contextWindow: options.contextWindow }),
   });
   const result = rebaseResult(

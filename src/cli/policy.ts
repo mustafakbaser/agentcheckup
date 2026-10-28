@@ -117,5 +117,6 @@ function budgetPlans(
     return context.plans;
   }
   const { targets: _targets, ...options } = scanOptions;
-  return scanWithContext(snapshot, { ...options, agents, matrix: true }).context.plans;
+  return scanWithContext(snapshot, { ...options, agents, matrix: true, countIgnored: false })
+    .context.plans;
 }
