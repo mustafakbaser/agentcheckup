@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.3.0...v0.3.1) (2026-10-28)
+
+
+### Bug fixes
+
+* **platforms:** count the ignored files an agent may load in each plan ([5cbb9ed](https://github.com/mustafakbaser/agentcheckup/commit/5cbb9ede4ad98a3147f3fa27a14ae91f530f14ec))
+
 ## [0.3.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.2.0...v0.3.0) (2026-10-28)
 
 
