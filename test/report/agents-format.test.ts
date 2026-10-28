@@ -111,7 +111,7 @@ describe('formatAgentsText', () => {
         '  Claude Code  reviewer  opus → haiku (subagent setting, .claude/settings.json); its own is ignored: .claude/settings.json sets env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE · effort high',
         '  Cursor       reviewer  opus (not a value Cursor documents) · shadowed by .cursor/agents/reviewer.md',
         '.codex/config.toml',
-        '  Codex        remote    no model → set outside the repository · may not load: its config_file is not a file agentcheckup reads ?',
+        '  Codex        remote    model not known · may not load: its config_file is not a file agentcheckup reads ?',
         '.gemini/agents/broken.md',
         '  Gemini CLI   broken    skipped: no description',
         '.github/agents/team/d.agent.md',

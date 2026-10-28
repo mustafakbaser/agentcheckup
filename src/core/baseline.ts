@@ -762,9 +762,17 @@ function modelText(model: AgentDefinition['model']): string {
 function definitionSummary(definition: AgentDefinition, old: AgentDefinition | undefined): string {
   const name = `${text(definition.name ?? definition.file)} for ${AGENT_NAMES[definition.agent]}`;
   if (old === undefined) {
-    const status = definition.status === 'loads' ? '' : `, ${definition.status}`;
+    const status =
+      definition.status === 'loads'
+        ? ''
+        : `, ${definition.status === 'unknown' ? 'may not load' : definition.status}`;
+    // A file the agent may read differently may set a model agentcheckup cannot see.
     const model =
-      definition.model === undefined ? 'no model' : `model ${modelText(definition.model)}`;
+      definition.model !== undefined
+        ? `model ${modelText(definition.model)}`
+        : definition.status === 'unknown'
+          ? 'model not known'
+          : 'no model';
     return `${name} (${model}${status})`;
   }
   const changes: string[] = [];
@@ -772,6 +780,14 @@ function definitionSummary(definition: AgentDefinition, old: AgentDefinition | u
     if (before !== after) changes.push(`${what} ${before} → ${after}`);
   };
   change('model', modelText(old.model), modelText(definition.model));
+  if (
+    definition.model !== undefined &&
+    modelText(old.model) === modelText(definition.model) &&
+    (old.model?.form === 'not-documented') !== (definition.model.form === 'not-documented')
+  ) {
+    const documented = definition.model.form === 'not-documented' ? 'not documented' : 'documented';
+    changes.push(`model ${modelText(definition.model)} now ${documented}`);
+  }
   change(
     'effort',
     text(old.effort?.value ?? 'not set'),
@@ -784,7 +800,8 @@ function definitionSummary(definition: AgentDefinition, old: AgentDefinition | u
     text(old.permissionMode ?? 'not set'),
     text(definition.permissionMode ?? 'not set'),
   );
-  return changes.length === 0 ? name : `${name} (${changes.join(', ')})`;
+  // The digest differs in what no field above shows, such as the text of a file read as unknown.
+  return `${name} (${changes.length === 0 ? 'details changed' : changes.join(', ')})`;
 }
 
 // MCP ------------------------------------------------------------------------------------------

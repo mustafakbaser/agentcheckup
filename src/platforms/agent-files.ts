@@ -549,6 +549,12 @@ function copilotReaders(path: string): ContextAgent[] {
   return readers;
 }
 
+/** Why Devin Local skips a profile named like one of its own. */
+const BUILT_IN_REASON = 'the name is a built-in profile';
+
+/** Why Gemini CLI skips a name that is not a slug (SOURCES.geminiSubagents). */
+const NAME_PATTERN_REASON = 'the name is not lowercase letters, digits, hyphens and underscores';
+
 /** Fields each agent requires; a file without one is skipped. */
 const REQUIRED: Readonly<Partial<Record<ContextAgent, readonly string[]>>> = {
   gemini: ['name', 'description'],
@@ -695,7 +701,7 @@ function markdownFile(
     if (absent !== undefined) {
       const builtIn = agent === 'windsurf' && DEVIN_BUILT_INS.has(name);
       const loads = absent.loads && !builtIn;
-      const reason = builtIn ? 'the name is a built-in profile' : absent.reason;
+      const reason = builtIn ? BUILT_IN_REASON : absent.reason;
       files.push({
         ...base,
         line: 1,
@@ -733,17 +739,39 @@ function markdownFile(
     }
     const fields = fieldsOf(frontmatter.data);
     const named = copilotId(agent, path) ?? nameOf(fields) ?? nameFromPath(agent, path, place);
-    const reason = skipReason(agent, fields, named);
     const description = stringField(fields, 'description');
+    const reason = skipReason(agent, fields, named);
     // A Gemini CLI remote agent runs elsewhere: its card, not the file, describes it, so what the
     // model sees of it is not known.
     const remote = agent === 'gemini' && stringField(fields, 'kind') === 'remote';
+    const remoteFields = remote
+      ? { remote: true as const, evidence: ['geminiSubagents', 'geminiRemoteAgents'] }
+      : {};
+    // agentcheckup reads YAML without merge keys (ADR 0003), and none of these agents documents
+    // whether its reader merges them: a `<<` may set any field the file leaves out, the model or a
+    // required one included. A key the file sets beside it wins either way, so a skip that key
+    // decides holds. The file's text goes into its digest, so a change still shows.
+    if (hasMergeKey(frontmatter.data) && (reason === undefined || mayFill(reason, fields))) {
+      files.push({
+        ...base,
+        ...remoteFields,
+        line: lineOf(artifact, fields.keySpan('name')),
+        name: named,
+        status: 'unknown',
+        reason: 'the frontmatter uses a << merge key',
+        certainty: 'unverified',
+        ...(description === undefined ? {} : { description }),
+        ...placeOf(agent, path, named, place?.folder),
+        opaque: opaqueOf(artifact),
+        source: { kind: 'frontmatter', artifact, fields, claudeFormat },
+      });
+      continue;
+    }
     files.push({
       ...base,
       ...(remote
         ? {
-            remote: true,
-            evidence: ['geminiSubagents', 'geminiRemoteAgents'],
+            ...remoteFields,
             ...(reason === undefined ? { certainty: 'unverified' as const } : {}),
           }
         : {}),
@@ -759,13 +787,24 @@ function markdownFile(
   return files;
 }
 
+/** Skip reasons that judge a definition's name. */
+const NAME_REASONS: ReadonlySet<string> = new Set([BUILT_IN_REASON, NAME_PATTERN_REASON]);
+
+/**
+ * True when a merge key may supply what `reason` says is missing: a field the file leaves out, or
+ * the name a name rule judged, when the file gives none of its own.
+ */
+function mayFill(reason: string, fields: FileFields): boolean {
+  return reason.startsWith('no ') || (NAME_REASONS.has(reason) && nameOf(fields) === undefined);
+}
+
 /**
  * Why Gemini CLI skips a remote agent: it needs a `name` slug, and `agent_card_url` or
  * `agent_card_json`, but no description (SOURCES.geminiRemoteAgents).
  */
 function remoteSkipReason(fields: FileFields): string | undefined {
   if (!GEMINI_NAME.test(nameOf(fields) ?? '')) {
-    return 'the name is not lowercase letters, digits, hyphens and underscores';
+    return NAME_PATTERN_REASON;
   }
   const card = ['agent_card_url', 'agent_card_json'].some(
     (key) => (stringField(fields, key)?.trim() ?? '') !== '',
@@ -782,11 +821,11 @@ function skipReason(agent: ContextAgent, fields: FileFields, name: string): stri
     (key) => (stringField(fields, key)?.trim() ?? '') === '',
   );
   if (missing !== undefined) return `no ${missing}`;
-  if (agent === 'windsurf' && DEVIN_BUILT_INS.has(name)) return 'the name is a built-in profile';
+  if (agent === 'windsurf' && DEVIN_BUILT_INS.has(name)) return BUILT_IN_REASON;
   const target = stringField(fields, 'target')?.trim();
   if (target !== undefined && target === OTHER_TARGET[agent]) return `its target is ${target}`;
   if (agent === 'gemini' && !GEMINI_NAME.test(nameOf(fields) ?? '')) {
-    return 'the name is not lowercase letters, digits, hyphens and underscores';
+    return NAME_PATTERN_REASON;
   }
   return undefined;
 }

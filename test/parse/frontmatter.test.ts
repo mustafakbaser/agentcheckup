@@ -257,6 +257,16 @@ describe('hostile YAML', () => {
     expect(codes(warnings)).toEqual(['alias', 'alias']);
   });
 
+  it('keeps a key tagged as a merge key as <<, however it is written', () => {
+    for (const key of ['!!merge ', '? !!merge\n', '!<tag:yaml.org,2002:merge> ', '!!merge <<']) {
+      const { data } = valid(`---\nname: x\n${key}: {model: a}\n---\n`);
+      expect(Object.keys(values(data))).toEqual(['name', '<<']);
+    }
+    // Another tag on a key leaves it as written.
+    const { data } = valid('---\n!!str <<x: 1\n---\n');
+    expect(Object.keys(values(data))).toEqual(['<<x']);
+  });
+
   it('stops a billion-laughs alias bomb quickly', () => {
     const lines = ['---', 'a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]'];
     for (let level = 1; level < 10; level++) {

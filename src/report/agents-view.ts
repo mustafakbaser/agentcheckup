@@ -17,7 +17,10 @@ export interface DefinitionRow {
   readonly agent: string;
   /** The name the agent knows it by; empty when the file gives none. */
   readonly name: string;
-  /** The model as written: `opus`, `inherit`, `no model`; empty for a skipped file without one. */
+  /**
+   * The model as written: `opus`, `inherit`, `no model`, or `model not known` where the agent may
+   * read one agentcheckup cannot see; empty for a skipped file without one.
+   */
   readonly model: string;
   /**
    * Where the model it runs with comes from when that is not the file, such as
@@ -91,9 +94,24 @@ function source(effective: EffectiveModel): string {
   return `${joined(effective.value)} (${what}${where})`;
 }
 
+/**
+ * True when the agent may read a definition differently from agentcheckup, the definition shows
+ * no model, and nothing in the repository tells the model it runs on, or a setting overrides
+ * whatever the file sets: the file may still set one, such as behind a `<<` merge key or in a file
+ * the scan did not read (`effective` in src/agents/build.ts).
+ */
+function modelUnseen(definition: AgentDefinition): boolean {
+  const { effective } = definition;
+  return (
+    definition.status === 'unknown' &&
+    definition.model === undefined &&
+    (effective.source === 'not-visible' || effective.overridden !== undefined)
+  );
+}
+
 function declaredText(definition: AgentDefinition): string {
   const { model } = definition;
-  if (model === undefined) return 'no model';
+  if (model === undefined) return modelUnseen(definition) ? 'model not known' : 'no model';
   const note =
     model.form === 'not-documented'
       ? ` (not a value ${AGENT_NAMES[definition.agent]} documents)`
@@ -134,7 +152,11 @@ function definitionRow(definition: AgentDefinition): DefinitionRow {
     agent: AGENT_NAMES[definition.agent],
     name: definition.name ?? '',
     model: runs || definition.model !== undefined ? declaredText(definition) : '',
-    runsOn: runs ? runsOnText(definition.effective) : '',
+    // A model nothing decides is not known; one a setting forces still shows where it comes from.
+    runsOn:
+      runs && !(modelUnseen(definition) && definition.effective.source === 'not-visible')
+        ? runsOnText(definition.effective)
+        : '',
     effort: definition.effort?.value ?? '',
     status: statusText(definition),
     warn:

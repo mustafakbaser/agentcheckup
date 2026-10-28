@@ -1120,6 +1120,41 @@ describe('gate: models', () => {
     ).toEqual([]);
   });
 
+  it('says what changed when no field it lists did, and that a model is not known', () => {
+    const before = report({ agents: agents([definition('opus')]) });
+    const reclassified = report({
+      agents: agents([
+        definition('opus', {
+          model: { value: 'opus', form: 'not-documented', line: 4 },
+          digest: 'd-opus-not-documented',
+        }),
+      ]),
+    });
+    const text = report({ agents: agents([definition('opus', { digest: 'd-text' })]) });
+    const opaque = report({
+      agents: agents([
+        definition('opus'),
+        definition(undefined, {
+          id: 'agent:.cursor/agents/m.md@cursor',
+          file: '.cursor/agents/m.md',
+          agent: 'cursor',
+          name: 'm',
+          status: 'unknown',
+          reason: 'the frontmatter uses a << merge key',
+        }),
+      ]),
+    });
+    expect(hits(before, reclassified).map(({ summary }) => summary)).toEqual([
+      'reviewer for Claude Code (model opus now not documented)',
+    ]);
+    expect(hits(before, text).map(({ summary }) => summary)).toEqual([
+      'reviewer for Claude Code (details changed)',
+    ]);
+    expect(hits(before, opaque).map(({ summary }) => summary)).toEqual([
+      'm for Cursor (model not known, may not load)',
+    ]);
+  });
+
   it('trips for a removed setting, not for a removed definition or a line that moved', () => {
     const before = report({ agents: agents([definition('opus')], [setting('haiku')]) });
     const moved = report({

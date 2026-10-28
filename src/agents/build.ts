@@ -240,10 +240,16 @@ function fromSetting(setting: ModelSetting, source: EffectiveModel['source']): E
 
 const NOT_VISIBLE: EffectiveModel = { source: 'not-visible' };
 
-/** The model a definition runs with, as the agent's documented order picks it. */
+/**
+ * The model a definition runs with, as the agent's documented order picks it. `unseen`: the agent
+ * may read a model from the file that agentcheckup cannot see, such as behind a `<<` merge key or
+ * in a file the scan did not read; then only a setting that overrides every definition's own
+ * model tells which one it runs on.
+ */
 function effectiveModel(
   definition: Pick<AgentDefinition, 'agent' | 'name' | 'model'>,
   context: Resolver,
+  unseen: boolean,
 ): EffectiveModel {
   const own = definition.model;
   // `inherit` where the agent documents it; elsewhere it is a value like any other.
@@ -271,10 +277,11 @@ function effectiveModel(
             : NOT_VISIBLE;
       if (force !== undefined && isTruthy(force.value)) {
         // Every subagent runs on CLAUDE_CODE_SUBAGENT_MODEL, or the session's model without it.
-        return own === undefined
+        return own === undefined && !unseen
           ? fallback
           : { ...fallback, overridden: { key: force.key, file: force.file } };
       }
+      if (unseen) return NOT_VISIBLE;
       if (ownModel !== undefined) return ownModel;
       if (own?.form === 'inherit') {
         return session === undefined ? NOT_VISIBLE : fromSetting(session, 'session');
@@ -282,6 +289,7 @@ function effectiveModel(
       return fallback;
     }
     case 'codex': {
+      if (unseen) return NOT_VISIBLE;
       if (ownModel !== undefined) return ownModel;
       const subagents = context.get('codex', 'agents.default_subagent_model');
       if (subagents !== undefined) return fromSetting(subagents, 'setting');
@@ -295,18 +303,20 @@ function effectiveModel(
           ? undefined
           : context.get('gemini', `agents.overrides.${name}.modelConfig.model`);
       if (override !== undefined) {
-        return own === undefined
+        return own === undefined && !unseen
           ? fromSetting(override, 'setting')
           : {
               ...fromSetting(override, 'setting'),
               overridden: { key: override.key, file: override.file },
             };
       }
+      if (unseen) return NOT_VISIBLE;
       if (ownModel !== undefined) return ownModel;
       const session = context.get('gemini', 'model.name');
       return session === undefined ? NOT_VISIBLE : fromSetting(session, 'session');
     }
     case 'copilot-cli': {
+      if (unseen) return NOT_VISIBLE;
       if (ownModel !== undefined) return ownModel;
       const session = context.get('copilot-cli', 'model');
       return session === undefined ? NOT_VISIBLE : fromSetting(session, 'session');
@@ -342,7 +352,8 @@ function finish(file: AgentFile, context: Resolver): AgentDefinition {
     ...rest
   } = file;
   const said = { ...rest, ...detailsOf(file) };
-  const effective = effectiveModel(said, context);
+  const unseen = opaque !== undefined && said.model === undefined;
+  const effective = effectiveModel(said, context, unseen);
   const withoutLine = <T extends { readonly line: number }>(value: T | undefined) => {
     if (value === undefined) return undefined;
     const { line: _line, ...other } = value;

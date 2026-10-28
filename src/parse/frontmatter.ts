@@ -280,8 +280,16 @@ function scalarValue(node: Scalar.Parsed): ScalarValue {
   return node.source;
 }
 
-/** The JavaScript key a JS-based agent would see, mirroring yaml's `toJS()` stringification. */
+/** The tag of a merge key, whether written `<<`, `!!merge` or `!<tag:yaml.org,2002:merge>`. */
+const MERGE_TAG = 'tag:yaml.org,2002:merge';
+
+/**
+ * The JavaScript key a JS-based agent would see, mirroring yaml's `toJS()` stringification. A key
+ * tagged as a merge key is `<<` whatever its text: readers that merge, such as js-yaml, merge it,
+ * so it stays visible to the checks that flag merge keys (agentcheckup merges none, ADR 0003).
+ */
 function keyString(context: BuildContext, key: ParsedNode, depth: number): string {
+  if (key.tag === MERGE_TAG) return '<<';
   const value = buildValue(context, key, depth);
   if (value === null) return '';
   if (typeof value === 'string') return value;

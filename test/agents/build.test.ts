@@ -676,6 +676,128 @@ describe('Claude Code subagents agentcheckup cannot fully read', () => {
     expect(definitionOf('opus')?.digest).not.toBe(definitionOf('haiku')?.digest);
   });
 
+  it('lists a merge key as unknown for every agent, with the file text in each digest', () => {
+    const text = (model: string, extra = '') =>
+      `---\nbase: &b\n  model: ${model}\n  description: d\n<<: *b\nname: m\n${extra}---\nBody.\n`;
+    const files = (model: string): FileMap => ({
+      '.claude/agents/m.md': text(model),
+      '.cursor/agents/m.md': text(model),
+      '.github/agents/m.agent.md': text(model),
+      '.gemini/agents/m.md': text(model),
+      '.devin/agents/m.md': text(model),
+    });
+    const before = agentsOf(files('opus'));
+    const after = agentsOf(files('haiku'));
+    // The model and the description sit behind the merge key: no agent's reading is skipped
+    // for want of them, and none claims the file has no model.
+    expect(before.definitions.map(({ agent, status }) => `${agent} ${status}`)).toEqual(
+      before.definitions.map(({ agent }) => `${agent} unknown`),
+    );
+    // Four agents read .claude/agents, three Copilot surfaces .github/agents.
+    expect(before.definitions).toHaveLength(10);
+    for (const definition of before.definitions) {
+      expect(definition.reason).toBe('the frontmatter uses a << merge key');
+      expect(definition.model).toBeUndefined();
+    }
+    const digests = (report: AgentsReport) => report.definitions.map(({ digest }) => digest);
+    for (const [index, digest] of digests(before).entries()) {
+      expect(digests(after)[index]).not.toBe(digest);
+    }
+    // A key set beside the merge key wins over it, so a model written there is read.
+    const beside = agentsOf({ '.cursor/agents/m.md': text('opus', 'model: inherit\n') });
+    expect(of(beside, '.cursor/agents/m.md')['cursor']?.model).toMatchObject({ value: 'inherit' });
+  });
+
+  it('reads a merge key written with its tag as one, for Claude Code too', () => {
+    for (const key of ['!!merge ', '? !!merge\n', '!<tag:yaml.org,2002:merge> ']) {
+      const text = (model: string) =>
+        `---\nname: m\ndescription: d\n${key}: {model: ${model}}\n---\nBody.\n`;
+      const files = (model: string): FileMap => ({
+        '.claude/agents/m.md': text(model),
+        '.gemini/agents/m.md': text(model),
+      });
+      const before = agentsOf(files('a'));
+      const after = agentsOf(files('b'));
+      expect(before.definitions.map(({ agent, status }) => `${agent} ${status}`)).toEqual(
+        before.definitions.map(({ agent }) => `${agent} unknown`),
+      );
+      for (const [index, definition] of before.definitions.entries()) {
+        expect(after.definitions[index]?.digest).not.toBe(definition.digest);
+      }
+    }
+  });
+
+  it('keeps a skip a key beside the merge key decides, and lets the merge key supply a missing one', () => {
+    const report = agentsOf({
+      '.github/agents/vs.agent.md':
+        '---\nbase: &b\n  model: gpt-5\n<<: *b\ndescription: d\ntarget: vscode\n---\n',
+      '.devin/agents/explore.md':
+        '---\nbase: &b\n  model: swe\n<<: *b\nname: subagent_explore\n---\n',
+      '.github/agents/nodesc.agent.md': '---\nbase: &b\n  description: d\n<<: *b\n---\n',
+    });
+    expect(of(report, '.github/agents/vs.agent.md')['copilot-cloud']).toMatchObject({
+      status: 'skipped',
+      reason: 'its target is vscode',
+    });
+    expect(of(report, '.devin/agents/explore.md')['windsurf']).toMatchObject({
+      status: 'skipped',
+      reason: 'the name is a built-in profile',
+    });
+    expect(of(report, '.github/agents/nodesc.agent.md')['copilot-cli']).toMatchObject({
+      status: 'unknown',
+      reason: 'the frontmatter uses a << merge key',
+    });
+  });
+
+  it('knows no model for a file it cannot read, unless a setting overrides every one', () => {
+    const merged = '---\nbase: &b\n  model: opus\n<<: *b\nname: m\ndescription: d\n---\n';
+    const plain = of(
+      agentsOf({
+        '.claude/agents/m.md': merged,
+        '.claude/settings.json': json({ model: 'sonnet' }),
+      }),
+      '.claude/agents/m.md',
+    )['claude-code'];
+    expect(plain?.effective).toEqual({ source: 'not-visible' });
+    const forced = of(
+      agentsOf({
+        '.claude/agents/m.md': merged,
+        '.claude/settings.json': json({
+          env: { CLAUDE_CODE_SUBAGENT_MODEL: 'haiku', CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1' },
+        }),
+      }),
+      '.claude/agents/m.md',
+    )['claude-code'];
+    expect(forced?.effective).toMatchObject({
+      value: 'haiku',
+      source: 'setting',
+      overridden: { key: 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE' },
+    });
+    const overridden = of(
+      agentsOf({
+        '.gemini/agents/m.md': merged,
+        '.gemini/settings.json': json({
+          agents: { overrides: { m: { modelConfig: { model: 'gemini-3-flash' } } } },
+        }),
+      }),
+      '.gemini/agents/m.md',
+    )['gemini'];
+    expect(overridden?.effective).toMatchObject({
+      value: 'gemini-3-flash',
+      source: 'setting',
+      overridden: { key: 'agents.overrides.m.modelConfig.model' },
+    });
+    // A file it reads in full with no model still runs on the session's.
+    const read = of(
+      agentsOf({
+        '.claude/agents/a.md': subagent(),
+        '.claude/settings.json': json({ model: 'sonnet' }),
+      }),
+      '.claude/agents/a.md',
+    )['claude-code'];
+    expect(read?.effective).toMatchObject({ value: 'sonnet', source: 'session' });
+  });
+
   it('still lists the readings of Cursor and Copilot when Claude Code calls a file documentation', () => {
     const report = agentsOf({ '.claude/agents/empty.md': '---\n---\nNotes.\n' });
     expect(report.definitions.map(({ agent }) => agent)).toEqual([
