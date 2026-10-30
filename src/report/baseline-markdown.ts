@@ -2,8 +2,8 @@
  * The pull request summary of a scan with `--baseline`: changes that need review (gate hits:
  * security-relevant changes and, with `--gate models`, model changes), new and resolved
  * findings, and a table of session-start context per agent before and after the change. Part of
- * the Markdown report (markdown.ts), which gives it a character budget so the whole comment stays
- * under GitHub's limit. What the change makes each
+ * the Markdown report (markdown.ts), which gives it a budget in UTF-8 bytes so the whole comment
+ * stays under GitHub's limit. What the change makes each
  * agent miss is the Markdown report's impact table (markdown.ts), which lists only the skips the
  * change adds when the comparison has plan deltas.
  *
@@ -111,7 +111,7 @@ function whereCell(hit: GateHit, result: ScanResult, known: Map<string, Location
     : `${file} › ${escaped(location.name, MAX_TEXT_LENGTH)}`;
 }
 
-function changesTable(result: ScanResult, diff: BaselineDiff, maxCharacters: number): string[] {
+function changesTable(result: ScanResult, diff: BaselineDiff, maxBytes: number): string[] {
   if (diff.gate.classes.length === 0) return [];
   const changes = gateRows(diff);
   if (changes.length === 0) return [`**${noGateChanges(diff.gate.classes)}.**`];
@@ -124,7 +124,7 @@ function changesTable(result: ScanResult, diff: BaselineDiff, maxCharacters: num
       return `| ${label} | ${whereCell(change.hit, result, known)} | ${detail} |`;
     },
     MAX_CHANGES,
-    maxCharacters,
+    maxBytes,
   );
   const lines = [
     `**Needs review: ${gateChangeCount(changes)}**`,
@@ -497,10 +497,10 @@ function contextRow(delta: PlanDelta, plan: LoadPlan | undefined, base: string):
 /**
  * Session-start context per plan present in both reports, in canonical plan order: estimated
  * tokens and files before and after the change, the signed change, and how much of each limit
- * on session-start context the plan uses. At most MAX_DELTAS rows and `maxCharacters`. No lines
+ * on session-start context the plan uses. At most MAX_DELTAS rows and `maxBytes`. No lines
  * when no plan is in both reports.
  */
-function contextTable(result: ScanResult, diff: BaselineDiff, maxCharacters: number): string[] {
+function contextTable(result: ScanResult, diff: BaselineDiff, maxBytes: number): string[] {
   if (diff.context.length === 0) return [];
   const plans = plansByKey(result);
   const base = stripTrailingSlashes(result.pathBase ?? '');
@@ -508,7 +508,7 @@ function contextTable(result: ScanResult, diff: BaselineDiff, maxCharacters: num
     diff.context,
     (delta) => contextRow(delta, plans.get(pairKey(delta.agent, delta.cwd)), base),
     MAX_DELTAS,
-    maxCharacters,
+    maxBytes,
   );
   const note = omittedNote(rows.length, diff.context.length, 'plan');
   return [
@@ -518,16 +518,16 @@ function contextTable(result: ScanResult, diff: BaselineDiff, maxCharacters: num
     '| :---- | -----: | ----: | -----: | :----- |',
     ...rows,
     ...(note.length > 0 ? ['', ...note] : []),
-    ...callsTable(diff, base, maxCharacters),
+    ...callsTable(diff, base, maxBytes),
   ];
 }
 
 /**
  * What a call of each subagent whose own context changed starts with, in ≈tokens: a context
  * window of its own, so not part of the table above. At most MAX_DELTAS rows and
- * `maxCharacters`; no lines without such a subagent.
+ * `maxBytes`; no lines without such a subagent.
  */
-function callsTable(diff: BaselineDiff, base: string, maxCharacters: number): string[] {
+function callsTable(diff: BaselineDiff, base: string, maxBytes: number): string[] {
   const calls = diff.context.flatMap((delta) => delta.calls.map((call) => ({ delta, call })));
   if (calls.length === 0) return [];
   const { rows } = cappedRows(
@@ -552,7 +552,7 @@ function callsTable(diff: BaselineDiff, base: string, maxCharacters: number): st
       return `| ${cells.join(' | ')} |`;
     },
     MAX_DELTAS,
-    maxCharacters,
+    maxBytes,
   );
   const note = omittedNote(rows.length, calls.length, 'subagent');
   return [
@@ -568,22 +568,22 @@ function callsTable(diff: BaselineDiff, base: string, maxCharacters: number): st
 
 /**
  * The baseline section of the Markdown report, or no lines when the scan has no baseline. The
- * table of changes and the table of session-start context each stop at `maxCharacters`.
+ * table of changes and the table of session-start context each stop at `maxBytes` of UTF-8.
  */
-export function baselineSummary(result: ScanResult, maxCharacters: number): string[] {
+export function baselineSummary(result: ScanResult, maxBytes: number): string[] {
   if (result.baseline === undefined) return [];
   const diff = toJsonBaseline(result.baseline);
   const blocks: string[][] = [['### Agent configuration changes']];
-  const changes = changesTable(result, diff, maxCharacters);
+  const changes = changesTable(result, diff, maxBytes);
   if (changes.length > 0) blocks.push(changes);
   blocks.push([findingsLine(result, diff)]);
-  const context = contextTable(result, diff, maxCharacters);
+  const context = contextTable(result, diff, maxBytes);
   if (context.length > 0) blocks.push(context);
   return blocks.flatMap((block, index) => (index === 0 ? block : ['', ...block]));
 }
 
-/** Character budget for the table of changes in {@link formatBaselineMarkdown}. */
-const MAX_STANDALONE_CHARACTERS = 50_000;
+/** Budget in UTF-8 bytes for the table of changes in {@link formatBaselineMarkdown}. */
+const MAX_STANDALONE_BYTES = 50_000;
 
 /**
  * The baseline section on its own, for output without a findings table, such as
@@ -592,6 +592,6 @@ const MAX_STANDALONE_CHARACTERS = 50_000;
  * baseline.
  */
 export function formatBaselineMarkdown(result: ScanResult): string {
-  const lines = baselineSummary(stripPathBase(result), MAX_STANDALONE_CHARACTERS);
+  const lines = baselineSummary(stripPathBase(result), MAX_STANDALONE_BYTES);
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
 }

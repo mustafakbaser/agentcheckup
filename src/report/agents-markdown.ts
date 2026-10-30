@@ -21,7 +21,7 @@ export interface AgentsMarkdownOptions {
 
 const DEFAULT_MAX_ROWS = 100;
 /** Per table; keeps the output well inside a 1 MiB job summary. */
-const MAX_TABLE_CHARACTERS = 50_000;
+const MAX_TABLE_BYTES = 50_000;
 const MAX_PATH_LENGTH = 200;
 const MAX_TEXT_LENGTH = 300;
 
@@ -54,7 +54,7 @@ function definitionTable(files: readonly FileGroup[], maxRows: number): string[]
     ({ file, row }) =>
       `| ${path(file)} | ${text(row.agent)} | ${text(row.name)} | ${modelCell(row)} | ${statusCell(row)} |`,
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   return [
     '| File | Agent | Name | Model | Status |',
@@ -87,7 +87,7 @@ export function formatAgentsMarkdown(
       (setting) =>
         `| ${path(setting.file)}:${setting.line} | ${text(setting.key)} | ${text(setting.value)} | ${text(setting.applies)} |`,
       maxRows,
-      MAX_TABLE_CHARACTERS,
+      MAX_TABLE_BYTES,
     );
     blocks.push(['## Model settings']);
     blocks.push([

@@ -7,9 +7,34 @@ import { HOSTILE_STRINGS } from './hostile.js';
 
 /** Code points that must never reach an output channel raw. */
 const FORBIDDEN_INVISIBLE = new Set([
-  0x061c, 0x200b, 0x200c, 0x200e, 0x200f, 0x2028, 0x2029, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e,
-  0x2060, 0x2066, 0x2067, 0x2068, 0x2069, 0xfeff,
+  0x061c, 0x200b, 0x200e, 0x200f, 0x2028, 0x2029, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2060,
+  0x2066, 0x2067, 0x2068, 0x2069, 0xfeff,
 ]);
+
+/** Scripts in which ZWNJ and ZWJ between two letters are part of the spelling. */
+const JOINING_SCRIPTS: readonly RegExp[] = [
+  /^\p{Script_Extensions=Arabic}$/u,
+  /^\p{Script_Extensions=Devanagari}$/u,
+  /^\p{Script_Extensions=Bengali}$/u,
+  /^\p{Script_Extensions=Gurmukhi}$/u,
+  /^\p{Script_Extensions=Gujarati}$/u,
+  /^\p{Script_Extensions=Oriya}$/u,
+  /^\p{Script_Extensions=Tamil}$/u,
+  /^\p{Script_Extensions=Telugu}$/u,
+  /^\p{Script_Extensions=Kannada}$/u,
+  /^\p{Script_Extensions=Malayalam}$/u,
+  /^\p{Script_Extensions=Sinhala}$/u,
+];
+
+/** ZWNJ or ZWJ between these two is a joining choice: letters or marks of one such script. */
+function joinsWithin(previous: string, next: string): boolean {
+  const letter = /^[\p{L}\p{M}]$/u;
+  return (
+    letter.test(previous) &&
+    letter.test(next) &&
+    JOINING_SCRIPTS.some((script) => script.test(previous) && script.test(next))
+  );
+}
 
 function isPictographic(ch: string): boolean {
   return /^\p{Extended_Pictographic}$/u.test(ch);
@@ -27,8 +52,8 @@ function isTag(cp: number): boolean {
 
 /**
  * Every unsafe code point in `text`, as `U+XXXX` strings: controls (C0 except the allowed ones,
- * DEL, C1), bidi controls, zero-width characters, tags, lone surrogates, and ZWJ / VS16 outside
- * emoji context.
+ * DEL, C1), bidi controls, zero-width characters, tags, lone surrogates, ZWJ / VS16 outside
+ * emoji context, and ZWNJ / ZWJ that do not join two letters of an Arabic-script or Indic word.
  */
 export function unsafeCodePoints(
   text: string,
@@ -46,8 +71,10 @@ export function unsafeCodePoints(
     else if (cp < 0x20 || (cp >= 0x7f && cp <= 0x9f)) bad = true;
     else if (FORBIDDEN_INVISIBLE.has(cp) || isTag(cp)) bad = true;
     else if (cp >= 0xd800 && cp <= 0xdfff) bad = true;
-    else if (cp === 0x200d) bad = !joinable(previous) || !isPictographic(next);
-    else if (cp === 0xfe0f || cp === 0xfe0e) {
+    else if (cp === 0x200c) bad = !joinsWithin(previous, next);
+    else if (cp === 0x200d) {
+      bad = (!joinable(previous) || !isPictographic(next)) && !joinsWithin(previous, next);
+    } else if (cp === 0xfe0f || cp === 0xfe0e) {
       const keycap = /^[#*\d]$/.test(previous) && next.codePointAt(0) === 0x20e3;
       bad = !isPictographic(previous) && !keycap;
     } else if ((cp >= 0xfe00 && cp <= 0xfe0d) || (cp >= 0xe0100 && cp <= 0xe01ef)) bad = true;

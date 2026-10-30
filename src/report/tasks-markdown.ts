@@ -17,6 +17,7 @@
  */
 import type { Task, TaskAnchor, TaskExcerpt, TaskList } from '../tasks/index.js';
 import { codeSpan, tildeFence } from '../tasks/text.js';
+import { shownOf } from './markdown-common.js';
 import { forMarkdown, guardWorkflowCommands } from './sanitize.js';
 import { plural, SEVERITY_LABELS } from './text.js';
 
@@ -138,7 +139,7 @@ export function formatTasksMarkdown(list: TaskList): string {
     ...list.tasks.map((task, index) => taskLines(task, index, list.open)),
     list.tasks.length < list.open
       ? [
-          `Showing ${list.tasks.length} of ${plural(list.open, 'open task')}. When these are done, run ${codeSpan(list.rerun.command)} for the rest.`,
+          `Showing ${shownOf(list.tasks.length, list.open)} open ${list.open === 1 ? 'task' : 'tasks'}. When these are done, run ${codeSpan(list.rerun.command)} for the rest.`,
         ]
       : [],
     forYouLines(list),

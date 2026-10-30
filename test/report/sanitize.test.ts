@@ -199,6 +199,40 @@ describe('forTerminal', () => {
     expect(forTerminal(`1${c(0xfe0f)}`)).toBe('1<U+FE0F>');
   });
 
+  it('keeps ZWNJ and ZWJ inside Persian, Urdu and Indic words, in every channel', () => {
+    const words = [
+      `می${c(0x200c)}خواهم`, // Persian: "I want", ZWNJ after the prefix می
+      `نامه${c(0x200c)}ها`, // Persian plural suffix
+      `क्${c(0x200d)}ष`, // Devanagari: KA, VIRAMA, ZWJ, SSA (half form)
+      `क्${c(0x200c)}ष`, // Devanagari: KA, VIRAMA, ZWNJ, SSA (explicit virama)
+      `ര്${c(0x200d)}ര`, // Malayalam: RA, VIRAMA, ZWJ, RA
+    ];
+    for (const word of words) {
+      expect(forTerminal(word)).toBe(word);
+      expect(forMarkdown(word)).toBe(word);
+      expect(forSarifText(word)).toBe(word);
+      expect(forWorkflowCommand(word)).toBe(word);
+      expect(unsafeCodePoints(forTerminal(word))).toEqual([]);
+    }
+    // JSON escapes them anyway, losslessly.
+    expect(forJsonOutput(JSON.stringify(words[0]))).toBe('"می\\u200cخواهم"');
+  });
+
+  it('escapes ZWNJ and ZWJ anywhere else', () => {
+    const z = c(0x200c);
+    expect(forTerminal(`a${z}b`)).toBe('a<U+200C>b');
+    expect(forTerminal(`${z}می`)).toBe('<U+200C>می');
+    expect(forTerminal(`می${z}`)).toBe('می<U+200C>');
+    // A run: neither has a letter on both sides.
+    expect(forTerminal(`می${z}${z}خواهم`)).toBe('می<U+200C><U+200C>خواهم');
+    expect(forTerminal(`می${c(0x200d, 0x200c)}خواهم`)).toBe('می<U+200D><U+200C>خواهم');
+    // Two scripts, a digit, a bidi mark, Latin around Persian.
+    expect(forTerminal(`م${z}क`)).toBe('م<U+200C>क');
+    expect(forTerminal(`۱${z}۲`)).toBe('۱<U+200C>۲');
+    expect(forTerminal(`م${z}${c(0x061c)}`)).toBe('م<U+200C><U+061C>');
+    expect(forTerminal(`x${z}م`)).toBe('x<U+200C>م');
+  });
+
   it('escapes ZWJ that does not join two emoji', () => {
     expect(forTerminal(`a${c(0x200d)}b`)).toBe('a<U+200D>b');
     expect(forTerminal(`😀${c(0x200d)}`)).toBe('😀<U+200D>');

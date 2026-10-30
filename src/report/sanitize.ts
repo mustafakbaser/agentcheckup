@@ -28,6 +28,14 @@
  * between emoji (`👨\u200D👩\u200D👧`). Everything else in those ranges is escaped, which defeats data
  * smuggled into long runs of variation selectors after an emoji. Known trade-offs: ideographic
  * variation sequences (CJK + U+E0100..) and subdivision flags (tag characters) render escaped.
+ *
+ * Joining context: ZERO WIDTH NON-JOINER and ZERO WIDTH JOINER choose the form of the letters
+ * around them in Persian, Urdu and the Indic scripts (`می\u200Cخواهم`, Devanagari `क्\u200Dष`), where
+ * they are part of the spelling. One of them is kept between two letters or marks of the same
+ * Arabic-script or Indic block (JOINING_BLOCKS); a mark, because in Indic text it follows a
+ * virama. A run of them, one at the start or end of a word, or one between Latin letters or two
+ * scripts still renders escaped. The trade-off: one such character between two letters of
+ * those scripts, which changes only how they join, can carry a hidden bit.
  */
 
 /** Marker for a line break inside a single-line field. */
@@ -61,11 +69,34 @@ const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
   [0xe0100, 0xe01ef], // VARIATION SELECTOR-17..256
 ];
 
+const ZWNJ = 0x200c;
 const ZWJ = 0x200d;
 const VS15 = 0xfe0e;
 const VS16 = 0xfe0f;
 const KEYCAP = 0x20e3;
 const PICTOGRAPHIC = /^\p{Extended_Pictographic}$/u;
+const LETTER_OR_MARK = /^[\p{L}\p{M}]$/u;
+
+/**
+ * Blocks whose letters ZWNJ and ZWJ join or keep apart as part of the spelling: the Arabic
+ * script's (Persian, Urdu, Kurdish) and the Indic scripts'. Inclusive, sorted.
+ */
+const JOINING_BLOCKS: readonly (readonly [number, number])[] = [
+  [0x0600, 0x06ff], // Arabic
+  [0x0750, 0x077f], // Arabic Supplement
+  [0x0870, 0x089f], // Arabic Extended-B
+  [0x08a0, 0x08ff], // Arabic Extended-A
+  [0x0900, 0x097f], // Devanagari
+  [0x0980, 0x09ff], // Bengali
+  [0x0a00, 0x0a7f], // Gurmukhi
+  [0x0a80, 0x0aff], // Gujarati
+  [0x0b00, 0x0b7f], // Oriya
+  [0x0b80, 0x0bff], // Tamil
+  [0x0c00, 0x0c7f], // Telugu
+  [0x0c80, 0x0cff], // Kannada
+  [0x0d00, 0x0d7f], // Malayalam
+  [0x0d80, 0x0dff], // Sinhala
+];
 /** Printable ASCII only: nothing to neutralize. */
 const PLAIN_ASCII = /^[\x20-\x7e]*$/;
 
@@ -97,6 +128,19 @@ function isSkinTone(cp: number): boolean {
 
 function isKeycapBase(cp: number): boolean {
   return (cp >= 0x30 && cp <= 0x39) || cp === 0x23 || cp === 0x2a;
+}
+
+/** The index of the JOINING_BLOCKS block of a letter or mark, else -1. */
+function joiningBlock(cp: number): number {
+  if (cp < 0x0600 || cp > 0x0dff || !LETTER_OR_MARK.test(String.fromCodePoint(cp))) return -1;
+  return JOINING_BLOCKS.findIndex(([low, high]) => cp >= low && cp <= high);
+}
+
+/** Whether a ZWNJ or ZWJ sits between two letters or marks of one joining block. */
+function keptInJoiningContext(cp: number, previous: number, next: number): boolean {
+  if (cp !== ZWNJ && cp !== ZWJ) return false;
+  const block = joiningBlock(previous);
+  return block !== -1 && block === joiningBlock(next);
 }
 
 /**
@@ -149,7 +193,9 @@ function neutralize(text: string, options: NeutralizeOptions): string {
       out += codePointLabel(cp);
       emojiTail = false;
     } else if (isInvisible(cp)) {
-      const keep = keptInEmojiContext(cp, previous, next, emojiTail);
+      const keep: boolean =
+        keptInEmojiContext(cp, previous, next, emojiTail) ||
+        keptInJoiningContext(cp, previous, next);
       out += keep ? String.fromCodePoint(cp) : codePointLabel(cp);
       emojiTail = keep && cp === VS16;
     } else {

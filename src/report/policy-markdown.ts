@@ -21,7 +21,7 @@ import { forMarkdown } from './sanitize.js';
 import { plural } from './text.js';
 
 /** Most of the report the violations table may take. */
-export const MAX_POLICY_CHARACTERS = 10_000;
+export const MAX_POLICY_BYTES = 10_000;
 const MAX_ROWS = 50;
 const MAX_NAME_LENGTH = 120;
 const MAX_PATH_LENGTH = 200;
@@ -75,7 +75,7 @@ export function policySection(result: ScanResult): string[] {
 
   if (counts.total > 0) {
     const ranked = rankedViolations(report);
-    const { rows } = cappedRows(ranked, row, MAX_ROWS, MAX_POLICY_CHARACTERS);
+    const { rows } = cappedRows(ranked, row, MAX_ROWS, MAX_POLICY_BYTES);
     lines.push(
       '',
       '| Location | Check | Violation | Status |',

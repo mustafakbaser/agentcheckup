@@ -2,12 +2,12 @@
  * GitHub-flavored Markdown for `$GITHUB_STEP_SUMMARY` and PR comments. Every untrusted string
  * goes through {@link forMarkdown}; the output contains no raw HTML at all.
  *
- * Size: a PR comment body is limited to 65,536 characters and a step summary to 1 MiB, so the
- * findings table stops at `maxFindings` rows or MAX_TABLE_CHARACTERS, whichever comes first,
- * and says how many findings it left out. With `--baseline`, the summary of changes
- * (baseline-markdown.ts) comes out of the same budget, and so do the table of what each agent
- * misses and, with `--policy`, the policy section (policy-markdown.ts): the findings table gets
- * what they leave.
+ * Size: a PR comment body is limited to 65,536 characters, the agentcheckup Action cuts a
+ * comment at 60,000 bytes, and a step summary is limited to 1 MiB, so the findings table stops
+ * at `maxFindings` rows or MAX_TABLE_BYTES of UTF-8, whichever comes first, and says how many
+ * findings it left out. With `--baseline`, the summary of changes (baseline-markdown.ts) comes
+ * out of the same budget, and so do the table of what each agent misses and, with `--policy`,
+ * the policy section (policy-markdown.ts): the findings table gets what they leave.
  *
  * At the `default` and `verbose` levels (see {@link DetailLevel}), a table of what each agent
  * misses (from the root load plans, when the result has them) comes before the findings, the
@@ -38,6 +38,8 @@ import {
   omittedNote,
   ruleCode as safeRuleCode,
   ruleLink as safeRuleLink,
+  shownOf,
+  utf8Length,
 } from './markdown-common.js';
 import { policySection } from './policy-markdown.js';
 import { forMarkdown } from './sanitize.js';
@@ -59,14 +61,14 @@ export interface MarkdownOptions {
 
 const DEFAULT_MAX_FINDINGS = 50;
 /**
- * Budget for the findings table and the baseline summary together, leaving room for the rest
- * within GitHub's 65,536.
+ * Budget in UTF-8 bytes for the findings table and the baseline summary together, leaving room
+ * for the rest within the Action's 60,000 bytes (see utf8Length).
  */
-const MAX_TABLE_CHARACTERS = 50_000;
-/** Most of MAX_TABLE_CHARACTERS the table of baseline changes may take. */
-const MAX_BASELINE_CHARACTERS = 10_000;
-/** Most of MAX_TABLE_CHARACTERS the table of what each agent misses may take. */
-const MAX_IMPACT_CHARACTERS = 10_000;
+const MAX_TABLE_BYTES = 50_000;
+/** Most of MAX_TABLE_BYTES the table of baseline changes may take. */
+const MAX_BASELINE_BYTES = 10_000;
+/** Most of MAX_TABLE_BYTES the table of what each agent misses may take. */
+const MAX_IMPACT_BYTES = 10_000;
 /** Rows in the table of what each agent misses. */
 const MAX_IMPACT_ROWS = 25;
 const MAX_MESSAGE_LENGTH = 300;
@@ -222,9 +224,10 @@ function findingsSection(
   let size = 0;
   for (const finding of findings.slice(0, maxFindings)) {
     const row = findingRow(finding, newRules, withFix);
-    if (size + row.length > budget) break;
+    const bytes = utf8Length(row);
+    if (size + bytes > budget) break;
     rows.push(row);
-    size += row.length + 1;
+    size += bytes + 1;
   }
   const lines = ['### Findings', ''];
   if (rows.length > 0) {
@@ -241,7 +244,7 @@ function findingsSection(
   if (rows.length < findings.length) {
     if (rows.length > 0) lines.push('');
     lines.push(
-      `Showing ${rows.length} of ${plural(findings.length, 'finding')}, most severe first. ` +
+      `Showing ${shownOf(rows.length, findings.length)} ${findings.length === 1 ? 'finding' : 'findings'}, most severe first. ` +
         'Run `npx agentcheckup` locally for the full report.',
     );
   }
@@ -271,7 +274,7 @@ function impactRow(row: ImpactRow): string {
 function impactSection(result: ScanResult): string[] {
   const impact = impactOf(result, { onlyNew: true });
   if (impact === undefined || impact.rows.length === 0) return [];
-  const { rows } = cappedRows(impact.rows, impactRow, MAX_IMPACT_ROWS, MAX_IMPACT_CHARACTERS);
+  const { rows } = cappedRows(impact.rows, impactRow, MAX_IMPACT_ROWS, MAX_IMPACT_BYTES);
   const note = omittedNote(rows.length, impact.rows.length, 'skip');
   return [
     impact.onlyNew ? '### What this change makes each agent miss' : '### What each agent misses',
@@ -320,7 +323,7 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
   }
   const policy = policySection(result);
   if (policy.length > 0) blocks.push(policy);
-  const baseline = baselineSummary(result, MAX_BASELINE_CHARACTERS);
+  const baseline = baselineSummary(result, MAX_BASELINE_BYTES);
   if (baseline.length > 0) blocks.push(baseline);
   const failures = ruleFailures(result);
   if (failures.length > 0) blocks.push(failures);
@@ -329,13 +332,13 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
   const impact = detailed ? impactSection(result) : [];
   if (impact.length > 0) blocks.push(impact);
   const used = [...policy, ...baseline, ...impact].reduce(
-    (size, line) => size + line.length + 1,
+    (size, line) => size + utf8Length(line) + 1,
     0,
   );
   const findings = findingsSection(
     result,
     maxFindings,
-    Math.max(0, MAX_TABLE_CHARACTERS - used),
+    Math.max(0, MAX_TABLE_BYTES - used),
     detailed,
   );
   if (findings.length > 0) blocks.push(findings);

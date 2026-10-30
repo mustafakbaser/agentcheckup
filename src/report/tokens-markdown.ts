@@ -19,7 +19,7 @@ import {
 import { tokenSummary } from './tokens-view.js';
 
 /** Per table; keeps the output well inside a 1 MiB job summary. */
-const MAX_TABLE_CHARACTERS = 50_000;
+const MAX_TABLE_BYTES = 50_000;
 const MAX_PATH_LENGTH = 200;
 const MAX_TEXT_LENGTH = 120;
 
@@ -56,7 +56,7 @@ export function formatTokensMarkdown(result: ScanResult): string {
       (call) =>
         `| ${call.tokens === undefined ? '' : '≈'}${callTokensText(call)} | ${AGENT_NAMES[call.agent]} | ${text(callSubjectText(call))} | ${text(modelText(call))} | ${path(call.path)} |`,
       MAX_TOKEN_ROWS,
-      MAX_TABLE_CHARACTERS,
+      MAX_TABLE_BYTES,
     );
     lines.push(
       '',
@@ -88,7 +88,7 @@ export function formatTokensMarkdown(result: ScanResult): string {
         return `| ${path(directory.cwd)} | ${cells.join(' | ')} |`;
       },
       MAX_TOKEN_ROWS,
-      MAX_TABLE_CHARACTERS,
+      MAX_TABLE_BYTES,
     );
     const notPlanned = summary.directoriesNotPlanned ?? 0;
     lines.push(

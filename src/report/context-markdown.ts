@@ -32,7 +32,7 @@ export interface ContextMarkdownOptions {
 
 const DEFAULT_MAX_ROWS = 100;
 /** Per table; keeps a plan well inside a 1 MiB job summary. */
-const MAX_TABLE_CHARACTERS = 50_000;
+const MAX_TABLE_BYTES = 50_000;
 const MAX_PATH_LENGTH = 200;
 const MAX_TEXT_LENGTH = 300;
 const MAX_NOT_READ = 5;
@@ -103,7 +103,7 @@ function startupSection(view: PlanView, maxRows: number): string[] {
       return `| ${position} | ${startupFile(row)} | ${bytes} | ${tokens} | ${via} |`;
     },
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   const total = `|  | **Total** | **${formatInteger(view.total.bytes)}** | **≈ ${formatInteger(view.total.tokens)}** |  |`;
   return [
@@ -127,7 +127,7 @@ function servicesTable(view: PlanView, maxRows: number): string[] {
     view.services,
     (row) => `| ${row.group} | ${partsText(row.parts)}${row.unverified ? ' ?' : ''} |`,
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   return [
     '',
@@ -152,7 +152,7 @@ function onDemandSection(view: PlanView, maxRows: number): string[] {
       return `| ${path(row.path)} | ${size} | ${when} |`;
     },
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   return [
     '### On demand',
@@ -180,7 +180,7 @@ function callsSection(view: PlanView, maxRows: number): string[] {
       return `| ${path(row.path)} | ${tokens}${row.unverified ? ' ?' : ''} | ${parts} | ${notes} |`;
     },
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   const hidden =
     view.callsHidden.length === 0
@@ -218,7 +218,7 @@ function skippedSection(view: PlanView, maxRows: number): string[] {
         return withFix ? `${cells} ${row.fix === undefined ? '' : skipFixLabel(row.fix)} |` : cells;
       },
       maxRows,
-      MAX_TABLE_CHARACTERS,
+      MAX_TABLE_BYTES,
     );
     lines.push(
       '### Skipped',
@@ -252,7 +252,7 @@ function incompleteSection(view: PlanView, maxRows: number): string[] {
     view.incomplete,
     (row) => `| ${path(row.subject)} | ${text(row.reason)} |`,
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   return [
     '### Incomplete',
@@ -312,7 +312,7 @@ function matrixBlock(view: MatrixView | undefined, maxRows: number): string[] {
     (row) =>
       `| ${path(row.path)} | ${row.cells.map((cell) => MATRIX_CELL_LABELS[cell]).join(' | ')} |`,
     maxRows,
-    MAX_TABLE_CHARACTERS,
+    MAX_TABLE_BYTES,
   );
   const used = new Set(view.rows.flatMap((row) => row.cells));
   const legend = MATRIX_LEGEND.filter((item) => used.has(item.cell)).map(
