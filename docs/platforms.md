@@ -1,6 +1,6 @@
 # What coding agents read
 
-Last verified: 2026-10-30 for the Copilot CLI's rules, commands, skills and repository settings; 2026-10-27 for what a Claude Code subagent starts with and Claude Code's skill listing; 2026-10-26 for custom agents and subagents; 2026-10-17 for GitHub Copilot, Gemini CLI, Devin Desktop, Cline and Codex `config.toml`; 2026-10-14 for the rest
+Last verified: 2026-10-30 for the Copilot CLI's rules, commands, skills and repository settings, and for Copilot hooks; 2026-10-27 for what a Claude Code subagent starts with and Claude Code's skill listing; 2026-10-26 for custom agents and subagents; 2026-10-17 for GitHub Copilot, Gemini CLI, Devin Desktop, Cline and Codex `config.toml`; 2026-10-14 for the rest
 
 This page lists the configuration files that seven coding agents read, where each agent looks for them, in what order, and which limits apply. Every fact links to the vendor documentation or source code it comes from. Anything we could not confirm is marked **Unverified**.
 
@@ -311,13 +311,16 @@ Copilot reads different files on different surfaces. This section covers Copilot
 ### Hooks
 
 - Format: `{ "version": 1, "hooks": { "<event>": [ { "type": "command", "bash", "powershell", "cwd", "env", "timeoutSec" } ] } }`. [About hooks][gh-hooks]
-- Events: camelCase, such as `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `agentStop`, `subagentStop` and `errorOccurred`; the CLI supports more. PascalCase names such as `SessionStart` select the VS Code-compatible payload format. For `PreToolUse` and `PermissionRequest`, PascalCase also selects Claude Code matcher rules. [About hooks][gh-hooks], [Hooks reference][gh-hooks-ref]
+- Events: camelCase, such as `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `agentStop`, `subagentStop` and `errorOccurred`; the CLI supports more. PascalCase names such as `SessionStart` select the VS Code-compatible payload format. For `PreToolUse` and `PermissionRequest`, PascalCase also selects Claude Code matcher rules. The reference gives no PascalCase name for `userPromptTransformed`, `subagentStart` and `notification`, so agentcheckup marks `SubagentStart` and `Notification` **Unverified** on the CLI. [About hooks][gh-hooks], [Hooks reference][gh-hooks-ref]
+- Agent-scoped hooks (CLI): a `hooks` event map in a custom agent's frontmatter runs only while that agent is selected, in addition to the other hooks. Runtime names and aliases are accepted, commands resolve from the repository root, and a subagent's `Stop` hooks run at `SubagentStop`. VS Code's custom agent file reference lists the same `hooks` field for its Local and Copilot harnesses. The security inventory lists these hooks with the subagent scope. [Hooks reference][gh-hooks-ref], [VS Code custom agent file][vscode-custom-agent-file]
+- `disableAllHooks: true` at the top of a `.github/hooks/*.json` file skips only that file's hooks, on the CLI and the cloud agent. At the top level of the repository's settings it skips every hook from every source, CLI only; policy hooks still run. The CLI reads it in `.github/copilot/settings.json`, `.github/copilot/settings.local.json` (which wins over the first), `.claude/settings.json` and `.claude/settings.local.json`. Which of these wins when they disagree is not documented, so agentcheckup marks the skip **Unverified** then. VS Code's Local hooks reference does not mention the key. [Hooks reference][gh-hooks-ref], [CLI configuration][gh-cli-config]
 - Matcher: a regular expression anchored as `^(?:PATTERN)$`. A hook with an invalid regular expression is skipped. [Hooks reference][gh-hooks-ref]
 - Timeout: seconds (`timeoutSec`), default 30. [About hooks][gh-hooks]
 - Failure: for most events, non-zero exits and timeouts are logged and execution continues. `preToolUse` command hooks fail closed: exit 2, a crash or any other non-zero exit denies the tool call, even if stdout says `allow`. Timeouts always fail open. HTTP `preToolUse` hooks fail open. A hook registered under the PascalCase name `PreToolUse` uses the VS Code-compatible format, and VS Code continues after any exit code other than 2, so agentcheckup treats it as failing open. [Hooks reference][gh-hooks-ref], [VS Code hooks reference][vscode-hooks-ref]
-- A malformed hook item is dropped and its siblings still load. Invalid JSON, a bad `version` or an event list that is not an array rejects the whole file. [Hooks reference][gh-hooks-ref]
+- A malformed hook item is dropped and its siblings still load. Invalid JSON, a bad `version` or an event list that is not an array rejects the whole file. Inline `hooks` in a settings file "remain strict": one malformed item rejects the whole `hooks` field. agentcheckup counts as malformed what the field tables require: an item that is not an object, a command hook without `bash`, `powershell`, `command` or `exec` (or with `exec` next to one of the others), an HTTP hook without `url`, a prompt hook without `prompt`; a `type` the reference does not list is **Unverified**. [Hooks reference][gh-hooks-ref]
 - Cloud agent: only `.github/hooks/*.json` from the cloned repository is read, and a subset of events fires. [Hooks reference][gh-hooks-ref]
 - VS Code Local harness: `.github/hooks/*.json` and `~/.copilot/hooks/*.json`. Claude Code settings files load only with `chat.useClaudeHooks` (off by default), and their matcher values are ignored, so every command for the event runs. Timeout in seconds, default 30. Exit 2 blocks; other exit codes show a warning and processing continues. [VS Code hooks][vscode-hooks], [VS Code hooks reference][vscode-hooks-ref]
+- VS Code Local harness events: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop` and `PreCompact`; "Local accepts PascalCase and Copilot event aliases", such as `preToolUse` and `agentStop`. Other events, such as `SessionEnd`, are **Unverified** there. [VS Code hooks reference][vscode-hooks-ref]
 
 ### MCP
 
@@ -551,6 +554,7 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [codex-subagents]: https://learn.chatgpt.com/docs/agent-configuration/subagents
 [cursor-subagents]: https://cursor.com/docs/subagents
 [vscode-custom-agents]: https://code.visualstudio.com/docs/agent-customization/custom-agents
+[vscode-custom-agent-file]: https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference
 [gh-cli-agents]: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
 [gh-custom-agents]: https://docs.github.com/en/copilot/reference/custom-agents-configuration
 [gemini-subagents]: https://geminicli.com/docs/core/subagents/

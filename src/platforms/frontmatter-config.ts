@@ -140,6 +140,14 @@ function readBlock(text: string, block: Block): BlockRead {
 }
 
 /**
+ * Frontmatter that parsed as documented, as a document the configuration readers accept, with
+ * spans into the file: for agents other than Claude Code, whose readers are not modeled.
+ */
+export function frontmatterDocument(data: FrontmatterData): SpannedDocument {
+  return documentOf(data);
+}
+
+/**
  * Frontmatter as a document. A top-level path uses the spans the parse kept; a deeper one is
  * resolved on demand. `map` moves a span from the text that was parsed into the file's text.
  */

@@ -33,7 +33,7 @@ The finding points at the first syntax error. Fix it and run agentcheckup again.
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
 - [Cursor forum: "The mcp.json parser can't handle JavaScript comments" (user report)](https://forum.cursor.com/t/92529), unverified, checked 2026-10-14
-- [GitHub Copilot: Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), verified, checked 2026-10-17
+- [GitHub Copilot: Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), verified, checked 2026-10-30
 - [Devin CLI: Configuration file (JSON with comments)](https://docs.devin.ai/cli/reference/configuration/config-file), verified, checked 2026-10-17
 
 ## Fix

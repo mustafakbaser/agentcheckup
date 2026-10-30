@@ -2577,7 +2577,7 @@
         {
           "title": "GitHub Copilot: Hooks reference",
           "url": "https://docs.github.com/en/copilot/reference/hooks-reference",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

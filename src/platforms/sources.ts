@@ -235,7 +235,7 @@ export const SOURCES = {
   copilotHooksReference: verified(
     'GitHub Copilot: Hooks reference',
     'https://docs.github.com/en/copilot/reference/hooks-reference',
-    COVERAGE_CHECKED,
+    COPILOT_CHECKED,
   ),
   copilotCloudMcp: verified(
     'GitHub Copilot cloud agent: Configure MCP servers',
@@ -260,12 +260,12 @@ export const SOURCES = {
   vscodeHooks: verified(
     'VS Code: Hooks',
     'https://code.visualstudio.com/docs/agent-customization/hooks',
-    COVERAGE_CHECKED,
+    COPILOT_CHECKED,
   ),
   vscodeHooksReference: verified(
-    'VS Code: Hooks reference',
+    'VS Code: Legacy Local hooks reference',
     'https://code.visualstudio.com/docs/agents/reference/hooks-reference',
-    COVERAGE_CHECKED,
+    COPILOT_CHECKED,
   ),
   vscodeMcp: verified(
     'VS Code: MCP configuration reference',

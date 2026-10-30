@@ -35,7 +35,10 @@
  *   name (`disabledSkills`, `disabledMcpServers`).
  * - Hooks in `.github/hooks/*.json` on every surface; the CLI also reads `hooks` in
  *   `.github/copilot/settings(.local).json` and Claude Code's `.claude/settings(.local).json`,
- *   which VS Code reads only with `chat.useClaudeHooks` (off by default).
+ *   which VS Code reads only with `chat.useClaudeHooks` (off by default). A malformed item drops
+ *   out of a hook file and rejects every inline hook of a settings file. `disableAllHooks` turns
+ *   off the hooks of its file, or on the CLI, in the repository's settings, every hook. Which
+ *   event names count as documented depends on the surface (src/platforms/hooks.ts).
  *
  * Order: Copilot documents none ("combines all files", "additive"), so startup positions are the
  * order of the listing above (per directory from the repository root down, then the skills) and
@@ -59,6 +62,7 @@ import {
   type JsonObject,
   own,
   type ParsedJson,
+  type SpannedDocument,
 } from '../../parse/json-access.js';
 import type {
   FrontmatterResult,
@@ -77,7 +81,14 @@ import {
   VSCODE_SKILL_NAME_MAX,
   vscodeSkillNameIssue,
 } from '../copilot.js';
-import { HOOK_EVENTS, hookHandlers } from '../hooks.js';
+import {
+  COPILOT_REFERENCE_EVENTS,
+  copilotHookItemIssue,
+  copilotHookItems,
+  HOOK_EVENTS,
+  hookHandlers,
+  VSCODE_LOCAL_EVENTS,
+} from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill, pluginRootOf } from '../location.js';
 import { mcpServers, urlWithoutType } from '../mcp.js';
@@ -89,7 +100,7 @@ import {
   nearestGitRoot,
   selfAndAncestors,
 } from '../paths.js';
-import { settingAt } from '../root-settings.js';
+import { claudeProjectSettings, settingAt } from '../root-settings.js';
 import { bodyOffset, normalizeName, pluginReaders, readersAt, skillLocation } from '../skills.js';
 import type { SOURCES } from '../sources.js';
 import { isBlank } from './codex-text.js';
@@ -175,6 +186,8 @@ const HOOKS: Readonly<Record<Surface, Evidence>> = {
   vscode: ['vscodeHooks', 'vscodeHooksReference'],
   cloud: ['copilotHooksReference'],
 };
+/** `disableAllHooks` in the CLI's repository settings or Claude Code's settings files. */
+const CLI_HOOKS_OFF: Evidence = ['copilotHooksReference', 'copilotCliConfigDir'];
 const CLI_MCP: Evidence = ['copilotCliMcp'];
 const VSCODE_MCP: Evidence = ['vscodeMcp'];
 const CODE_REVIEW: Evidence = ['copilotCodeReview'];
@@ -684,6 +697,8 @@ class CopilotLoader {
   readonly #skillNamesListed = new Set<string>();
   #graph: ImportGraph | undefined;
   #settings: readonly ParsedJson[] | undefined;
+  /** CLI: how sure it is that the repository's settings turn every hook off, if they do. */
+  #hooksOff: Certainty | undefined;
   #position = 0;
 
   // Usage of each limit.
@@ -1714,6 +1729,7 @@ class CopilotLoader {
   }
 
   #hooks(): void {
+    this.#hooksOff = this.#repositoryHooksOff();
     const folder = this.#hooksFolder();
     for (const file of this.#reached) {
       if (file.kind !== 'copilot-hooks') continue;
@@ -1735,6 +1751,49 @@ class CopilotLoader {
       }
     }
     if (this.#surface !== 'cloud') this.#claudeHooks();
+  }
+
+  /**
+   * CLI: `disableAllHooks: true` at the top level of the repository's settings skips "every hook
+   * from every source" (SOURCES.copilotHooksReference). The CLI reads it in
+   * `.github/copilot/settings.json` and `.github/copilot/settings.local.json`, the local file
+   * winning, and in Claude Code's `.claude/settings.json` and `.claude/settings.local.json`
+   * (SOURCES.copilotCliConfigDir). Which of the two pairs wins, and the order within Claude
+   * Code's, are not documented: a value set both ways makes the result unverified.
+   */
+  #repositoryHooksOff(): Certainty | undefined {
+    if (this.#surface !== 'cli') return undefined;
+    const values = (docs: readonly ParsedJson[] | readonly SpannedDocument[]): boolean[] =>
+      docs.flatMap((doc) => {
+        const value = settingAt(doc, ['disableAllHooks']);
+        return typeof value === 'boolean' ? [value] : [];
+      });
+    const copilot = values(this.#cliSettings());
+    const claude = values(claudeProjectSettings(this.#view, this.#root));
+    const copilotValue = copilot.at(-1);
+    const claudeValue = claude.at(-1);
+    if (copilotValue !== true && claudeValue !== true) return undefined;
+    const conflict = copilotValue === false || claudeValue === false || new Set(claude).size > 1;
+    return conflict ? 'unverified' : 'documented';
+  }
+
+  /**
+   * Why this surface does not run the hooks of a file: the repository's settings turn every hook
+   * off (CLI), or `disableAllHooks: true` at the top of a `.github/hooks/*.json` file skips "only
+   * the hooks declared in that file", on the CLI and the cloud agent (SOURCES.copilotHooksReference).
+   * VS Code's Local harness does not document the key, so its hooks stay listed as unverified.
+   */
+  #hooksDisabled(doc: SpannedDocument | undefined):
+    | {
+        readonly certainty: Certainty;
+        readonly evidence: Evidence;
+      }
+    | undefined {
+    if (this.#hooksOff !== undefined) return { certainty: this.#hooksOff, evidence: CLI_HOOKS_OFF };
+    if (doc === undefined || this.#surface === 'vscode') return undefined;
+    return settingAt(doc, ['disableAllHooks']) === true
+      ? { certainty: 'documented', evidence: HOOKS[this.#surface] }
+      : undefined;
   }
 
   /** `.github/hooks/*.json`, or the `hooks` of `.github/copilot/settings(.local).json` (CLI). */
@@ -1768,8 +1827,32 @@ class CopilotLoader {
     const handlers = hookHandlers(doc, 'copilot', { includeUnknown: true });
     const ids = hookInventoryIds(path, handlers, 'copilot');
     const inventoryIds = hookInventoryIds(artifact.path, handlers, 'copilot');
+    const disabled = this.#hooksDisabled(source === 'hooks' ? doc : undefined);
+    // In a hook file a malformed item "is dropped and logged" and its siblings load; inline hooks
+    // in a settings file "remain strict": one malformed item rejects the whole `hooks` field.
+    const strict =
+      source === 'settings' &&
+      copilotHookItems(doc).some((item) => copilotHookItemIssue(item) !== undefined);
+    const offInVscode = this.#surface === 'vscode' && settingAt(doc, ['disableAllHooks']) === true;
     handlers.forEach((handler, index) => {
       const id = ids[index] ?? '';
+      if (disabled !== undefined) {
+        this.#skip({ id, role: 'hook', path, name: handler.event, code: 'disabled', ...disabled });
+        return;
+      }
+      const issue = strict ? 'rejected' : copilotHookItemIssue(handler.handler);
+      if (issue !== undefined) {
+        this.#skip({
+          id,
+          role: 'hook',
+          path,
+          name: handler.event,
+          code: 'not-read',
+          certainty: issue === 'unknown-type' ? 'unverified' : 'documented',
+          evidence,
+        });
+        return;
+      }
       const fires = this.#fires(handler.event);
       if (fires === undefined) {
         this.#skip({
@@ -1805,7 +1888,7 @@ class CopilotLoader {
         realPath: artifact.realPath,
         name: handler.event,
         inventoryId: inventoryIds[index] ?? '',
-        certainty: fires,
+        certainty: offInVscode ? 'unverified' : fires,
         evidence,
       });
     });
@@ -1819,10 +1902,12 @@ class CopilotLoader {
     const pascal = first >= 0x41 && first <= 0x5a;
     switch (this.#surface) {
       case 'cli':
-        return 'documented';
+        // A name only another surface documents, such as VS Code's `SubagentStart`, may fire.
+        return COPILOT_REFERENCE_EVENTS.has(event) ? 'documented' : 'unverified';
       case 'vscode':
-        // VS Code documents PascalCase names and maps the camelCase ones without listing them.
-        return pascal ? 'documented' : 'unverified';
+        // The Local harness documents eight events, by PascalCase name or Copilot alias. The
+        // others may fire, as they do in VS Code's Copilot harness.
+        return VSCODE_LOCAL_EVENTS.has(event) ? 'documented' : 'unverified';
       case 'cloud':
         if (pascal) return 'unverified';
         return CLOUD_EVENTS.has(event) ? 'documented' : 'never';
@@ -1852,9 +1937,22 @@ class CopilotLoader {
       const handlers = hookHandlers(doc, 'claude-code', { includeUnknown: true });
       const ids = hookInventoryIds(path, handlers);
       const inventoryIds = hookInventoryIds(artifact.path, handlers);
+      const disabled = this.#hooksDisabled(undefined);
       handlers.forEach((handler, index) => {
         const id = ids[index] ?? '';
-        if (!COPILOT_EVENTS.has(handler.event)) {
+        if (disabled !== undefined) {
+          this.#skip({
+            id,
+            role: 'hook',
+            path,
+            name: handler.event,
+            code: 'disabled',
+            ...disabled,
+          });
+          return;
+        }
+        const fires = this.#fires(handler.event);
+        if (fires === undefined || fires === 'never') {
           this.#skip({
             id,
             role: 'hook',
@@ -1874,7 +1972,7 @@ class CopilotLoader {
           realPath: artifact.realPath,
           name: handler.event,
           inventoryId: inventoryIds[index] ?? '',
-          certainty: 'documented',
+          certainty: fires,
           evidence,
         });
       });

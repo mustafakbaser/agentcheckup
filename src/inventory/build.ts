@@ -45,6 +45,8 @@ import { codexServerEnabled } from '../platforms/codex-config.js';
 import {
   claudeFrontmatterConfig,
   type FrontmatterReading,
+  frontmatterDocument,
+  hasMergeKey,
 } from '../platforms/frontmatter-config.js';
 import { hookCommandSyntax, resolveScript, scriptCandidate } from '../platforms/hook-command.js';
 import {
@@ -79,7 +81,13 @@ import {
   transportOf,
   urlWithoutType,
 } from '../platforms/mcp.js';
-import { inClaudeFolder, inPayloadFolder, joinPath, projectRootOf } from '../platforms/paths.js';
+import {
+  inClaudeFolder,
+  inPayloadFolder,
+  joinPath,
+  nearestGitRoot,
+  projectRootOf,
+} from '../platforms/paths.js';
 import {
   broadGrant,
   IGNORED_MODES,
@@ -131,6 +139,12 @@ const FRONTMATTER_KINDS: ReadonlySet<ArtifactKind> = new Set([
 
 /** Hooks in frontmatter use the format of Claude Code's settings files (SOURCES.claudeHooks). */
 const FRONTMATTER_HOOKS: HookSource = { platform: 'claude-code', root: 'hooks' };
+
+/**
+ * Hooks in a GitHub Copilot custom agent's frontmatter use Copilot's hook format, an event map of
+ * hook items (SOURCES.copilotHooksReference, "Agent-scoped hooks").
+ */
+const COPILOT_AGENT_HOOKS: HookSource = { platform: 'copilot', root: 'hooks' };
 
 /** Where hooks apply: the agents that run them, the project root their commands name, a scope. */
 interface HookPlacement {
@@ -785,17 +799,40 @@ class InventoryBuilder {
   }
 
   /**
-   * A GitHub Copilot custom agent may declare MCP servers in `mcp-servers`
-   * (SOURCES.copilotCustomAgents, SOURCES.copilotCliAgents), which the inventory does not list
-   * yet: its file is incomplete, so the gate and a policy fail closed.
+   * A GitHub Copilot custom agent. The `hooks` event map of its frontmatter runs "only while that
+   * agent is selected", "in addition to session, user, repository, plugin, and policy hooks", on
+   * the CLI (SOURCES.copilotHooksReference, "Agent-scoped hooks") and in VS Code
+   * (SOURCES.vscodeCustomAgentFile): listed with the subagent scope, its commands resolved from
+   * the repository root. A `hooks` value that is not an event map may hold hooks agentcheckup
+   * cannot read, and the inventory does not list the MCP servers of `mcp-servers` yet
+   * (SOURCES.copilotCustomAgents, SOURCES.copilotCliAgents): either makes its file incomplete,
+   * so the gate and a policy fail closed. So does frontmatter agentcheckup cannot read, as for a
+   * Claude Code subagent: a block that does not parse or is past a parser limit, which Copilot's
+   * reader may still read (src/agents lists the agent as `unknown`), and a `<<` merge key, which
+   * it may merge into `hooks`.
    */
   #addCopilotAgent(artifact: Artifact): void {
     const path = pathAs(artifact, 'copilot-agent');
     if (path === undefined) return;
     const frontmatter = this.#view.frontmatter(artifact);
-    if (frontmatter.kind === 'valid' && Object.hasOwn(frontmatter.data.values, 'mcp-servers')) {
+    if (frontmatter.kind === 'absent') return;
+    if (frontmatter.kind !== 'valid') {
       this.#incomplete.add(path);
+      return;
     }
+    const { values } = frontmatter.data;
+    if (Object.hasOwn(values, 'mcp-servers') || hasMergeKey(values)) this.#incomplete.add(path);
+    if (!Object.hasOwn(values, 'hooks')) return;
+    if (!isTable(values['hooks'])) {
+      this.#incomplete.add(path);
+      return;
+    }
+    const at = path === artifact.path ? artifact : { ...artifact, path };
+    this.#addHooks(at, frontmatterDocument(frontmatter.data), COPILOT_AGENT_HOOKS, {
+      platforms: ['copilot'],
+      root: nearestGitRoot(this.#view.snapshot, dirnamePosix(path)) ?? '',
+      scope: 'subagent',
+    });
   }
 
   /**

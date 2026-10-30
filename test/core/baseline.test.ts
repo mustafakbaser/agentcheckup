@@ -664,6 +664,14 @@ describe('gate: mcp and mcp-unpinned', () => {
     expect(hits(report(), after).find((hit) => hit.id === '.devin/hooks.json')?.summary).toBe(
       'New hooks config .devin/hooks.json is not analyzed, so its hooks cannot be checked',
     );
+    // A Copilot custom agent declares hooks and MCP servers in its frontmatter.
+    const agent = report({ inventory: { incomplete: ['.github/agents/fmt.agent.md'] } });
+    expect(hits(report(), agent, ['hooks']).map((hit) => [hit.class, hit.id])).toEqual([
+      ['hooks', '.github/agents/fmt.agent.md'],
+    ]);
+    // An instruction file holds neither.
+    const rules = report({ inventory: { incomplete: ['.github/copilot-instructions.md'] } });
+    expect(hits(report(), rules)).toEqual([]);
   });
 
   it('never shows credential values from server arguments', () => {

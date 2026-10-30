@@ -941,13 +941,15 @@ function isMcpConfig(entry: string): boolean {
 }
 
 /**
- * Files whose frontmatter can declare hooks: skills, commands and subagents. One in `incomplete`
- * is past a parser limit or was skipped by the walk, and the agent may still read it.
+ * Files whose frontmatter can declare hooks: skills, commands, subagents and Copilot custom
+ * agents. One in `incomplete` is past a parser limit or was skipped by the walk, or declares
+ * hooks agentcheckup cannot read, and the agent may still read it.
  */
 const FRONTMATTER_HOOK_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'skill',
   'claude-command',
   'claude-agent',
+  'copilot-agent',
 ]);
 
 /**

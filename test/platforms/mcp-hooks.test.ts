@@ -5,6 +5,9 @@ import { parseJson } from '../../src/parse/json.js';
 import {
   CODEX_TOML_CONFIG_KEYS,
   COPILOT_EVENTS,
+  COPILOT_REFERENCE_EVENTS,
+  copilotHookItemIssue,
+  copilotHookItems,
   DEVIN_EVENTS,
   failsOpen,
   gateFailsOpen,
@@ -13,6 +16,7 @@ import {
   hookHandlers,
   hookPlatformOf,
   hookSourceOf,
+  VSCODE_LOCAL_EVENTS,
 } from '../../src/platforms/hooks.js';
 import { hookCommandLine, hookCommandLines } from '../../src/platforms/inventory-ids.js';
 import {
@@ -171,5 +175,44 @@ describe('hooks of the new kinds', () => {
     expect(hookCommandLines({ command: 'x' }, 'claude-code')).toEqual([
       { field: 'command', line: 'x' },
     ]);
+  });
+});
+
+describe('Copilot hook items and event names', () => {
+  it('finds what makes a hook item fail validation, and accepts every documented form', () => {
+    for (const item of [
+      { type: 'command', bash: './a.sh' },
+      { command: 'x' },
+      { powershell: 'x' },
+      { exec: 'node', args: ['a.js'] },
+      { linux: './a.sh', windows: 'a.ps1' },
+      { exec: 'node', linux: './a.sh' },
+      { type: 'http', url: 'https://hooks.example.com' },
+      { type: 'prompt', prompt: '/review' },
+    ]) {
+      expect(copilotHookItemIssue(item), JSON.stringify(item)).toBeUndefined();
+    }
+    expect(copilotHookItemIssue('./a.sh')).toBe('not-an-object');
+    expect(copilotHookItemIssue({ type: 'command' })).toBe('no-command');
+    expect(copilotHookItemIssue({ bash: 7 })).toBe('no-command');
+    expect(copilotHookItemIssue({ exec: 'node', bash: 'x' })).toBe('exec-combined');
+    expect(copilotHookItemIssue({ type: 'http' })).toBe('no-url');
+    expect(copilotHookItemIssue({ type: 'prompt' })).toBe('no-prompt');
+    expect(copilotHookItemIssue({ type: 'agent', bash: 'x' })).toBe('unknown-type');
+    expect(copilotHookItems(doc({ hooks: { a: [1, { bash: 'x' }], b: { bash: 'y' } } }))).toEqual([
+      1,
+      { bash: 'x' },
+    ]);
+  });
+
+  it('lists per surface only the names its reference documents', () => {
+    for (const event of [...COPILOT_REFERENCE_EVENTS, ...VSCODE_LOCAL_EVENTS]) {
+      expect(COPILOT_EVENTS, event).toContain(event);
+    }
+    expect(COPILOT_REFERENCE_EVENTS.has('SubagentStart')).toBe(false);
+    expect(COPILOT_REFERENCE_EVENTS.has('Notification')).toBe(false);
+    expect(COPILOT_REFERENCE_EVENTS.has('PermissionRequest')).toBe(true);
+    expect(VSCODE_LOCAL_EVENTS.has('SessionEnd')).toBe(false);
+    expect(VSCODE_LOCAL_EVENTS.has('userPromptSubmitted')).toBe(true);
   });
 });

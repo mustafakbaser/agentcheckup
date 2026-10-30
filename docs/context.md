@@ -817,18 +817,24 @@ that declare the change, as Markdown and GitHub annotations show them.
 ### Items declared in frontmatter
 
 Claude Code reads hooks, MCP servers and permissions from frontmatter and from its `agent`
-setting too, so the inventory lists them next to the ones in configuration files, and the gate
-and a [policy](policy.md) check them the same way:
+setting too, and GitHub Copilot reads hooks from a custom agent's frontmatter, so the inventory
+lists them next to the ones in configuration files, and the gate and a [policy](policy.md) check
+them the same way:
 
 | Where                                              | Fields                                                   | When they apply                                                                                                                                  |
 | -------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | A subagent in `.claude/agents/`                    | `hooks`, `mcpServers` (inline servers), `permissionMode` | Only while the subagent runs. Items have `"scope": "subagent"`. A subagent Claude Code skips runs no hook, starts no server and applies no mode  |
 | A skill (`SKILL.md`) or a `.claude/commands/` file | `hooks`, `allowed-tools`                                 | Hooks from the turn the skill or command is invoked to the end of the session (`"scope": "skill"`); `allowed-tools` for the turn that invokes it |
 | `.claude/settings.json` and `settings.local.json`  | `agent`                                                  | Every session starts as that subagent, with its prompt, tools, model, hooks and MCP servers                                                      |
+| A Copilot custom agent in `.github/agents/`        | `hooks`, in Copilot's hook format                        | Only while the agent is selected, on the Copilot CLI and in VS Code. Items have `"scope": "subagent"` and the platform `copilot`                 |
 
 - A GitHub Copilot custom agent in `.github/agents` may declare MCP servers in `mcp-servers`.
   agentcheckup does not list them yet, so such a file is incomplete: a new one trips `mcp`, and a
-  policy reports `unanalyzed-config`.
+  policy reports `unanalyzed-config`. A `hooks` value that is not an event map makes the file
+  incomplete too, and so does frontmatter agentcheckup cannot read, as for a subagent: YAML that
+  does not parse, a block past its parser limits, or a `<<` merge key. A new incomplete agent file
+  trips `hooks` and `mcp`. Its hook commands resolve from the repository root, and a `Stop` hook
+  runs at `SubagentStop`, as Copilot's hooks reference says.
 - A file that `.claude/agents` reaches through a symlink, such as one in `.github/agents`, is a
   subagent too: its items carry the path Claude Code reads it at.
 - A server a subagent names, such as `- github`, is configured elsewhere and is not listed again.

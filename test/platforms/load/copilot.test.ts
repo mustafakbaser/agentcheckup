@@ -206,7 +206,7 @@ describe('the fixture repository, a session at the root', () => {
       '- rule:.github/instructions/manual.instructions.md manual documented',
       '- hook:.github/hooks/policy.json#SessionStart:113bcac5 on-approval documented',
       '- hook:.github/hooks/policy.json#notification:c532ca1a on-approval unverified',
-      '- hook:.github/hooks/policy.json#preToolUse:c532ca1a on-approval unverified',
+      '- hook:.github/hooks/policy.json#preToolUse:c532ca1a on-approval documented',
       '- mcp-server:.mcp.json#docs on-approval documented',
       '- mcp-server:.mcp.json#shared on-approval documented',
       '- mcp-server:.vscode/mcp.json#browser on-approval documented',
@@ -928,5 +928,125 @@ describe('hooks', () => {
     });
     expect(skips(cli)).toEqual(['hook:.github/hooks/x.json not-read - documented']);
     expect(cli.entries).toEqual([]);
+  });
+
+  const HOOK = (event: string, item = '{ "type": "command", "bash": "./x.sh" }'): string =>
+    `"${event}": [${item}]`;
+
+  it('documents each event name only where the surface lists it', () => {
+    const { cli, vscode } = build({
+      '.github/hooks/h.json': `{ "version": 1, "hooks": { ${[
+        HOOK('SessionStart'),
+        HOOK('SessionEnd'),
+        HOOK('sessionEnd'),
+        HOOK('agentStop'),
+        HOOK('SubagentStart'),
+        HOOK('Notification'),
+      ].join(', ')} } }`,
+    });
+    const certainty = (plan: LoadPlan): string[] =>
+      plan.entries.map((e) => `${e.name ?? ''} ${e.certainty}`);
+    // VS Code's Local harness documents eight events, by PascalCase name or Copilot alias.
+    expect(certainty(vscode)).toEqual([
+      'Notification unverified',
+      'SessionEnd unverified',
+      'SessionStart documented',
+      'SubagentStart documented',
+      'agentStop documented',
+      'sessionEnd unverified',
+    ]);
+    // The Copilot reference gives no PascalCase name for notification and subagentStart.
+    expect(certainty(cli)).toEqual([
+      'Notification unverified',
+      'SessionEnd documented',
+      'SessionStart documented',
+      'SubagentStart unverified',
+      'agentStop documented',
+      'sessionEnd documented',
+    ]);
+  });
+
+  it('drops a malformed item from a hook file, and rejects every inline hook of a settings file with one', () => {
+    const items = [
+      HOOK('sessionStart'),
+      HOOK('preToolUse', '{ "type": "command" }'),
+      HOOK('postToolUse', '{ "type": "http", "url": "https://hooks.example.com" }'),
+    ].join(', ');
+    const built = build({
+      '.github/hooks/h.json': `{ "version": 1, "hooks": { ${items} } }`,
+      '.github/copilot/settings.json': `{ "hooks": { ${items} } }`,
+      '.github/copilot/settings.local.json': `{ "hooks": { ${HOOK('agentStop')} } }`,
+    });
+    const { cli } = built;
+    expect(entries(cli)).toEqual([
+      '- hook:.github/copilot/settings.local.json#agentStop:48733fee on-approval documented',
+      '- hook:.github/hooks/h.json#postToolUse:c23ab4e3 on-approval documented',
+      '- hook:.github/hooks/h.json#sessionStart:48733fee on-approval documented',
+    ]);
+    expect(skips(cli)).toEqual([
+      'hook:.github/copilot/settings.json#postToolUse:c23ab4e3 not-read - documented',
+      'hook:.github/copilot/settings.json#preToolUse:5a56d1e7 not-read - documented',
+      'hook:.github/copilot/settings.json#sessionStart:48733fee not-read - documented',
+      'hook:.github/hooks/h.json#preToolUse:5a56d1e7 not-read - documented',
+    ]);
+    expectSkipsReported(built);
+  });
+
+  it('skips the hooks of a file that sets disableAllHooks, on the CLI and the cloud agent', () => {
+    const { cli, vscode, cloud } = build({
+      '.github/hooks/off.json': `{ "version": 1, "disableAllHooks": true, "hooks": { ${HOOK('sessionStart')} } }`,
+      '.github/hooks/on.json': `{ "version": 1, "disableAllHooks": false, "hooks": { ${HOOK('agentStop')} } }`,
+    });
+    for (const plan of [cli, cloud]) {
+      expect(skips(plan), plan.agent).toEqual([
+        'hook:.github/hooks/off.json#sessionStart:48733fee disabled - documented',
+      ]);
+      expect(plan.entries.map((e) => e.id)).toEqual([
+        'hook:.github/hooks/on.json#agentStop:48733fee',
+      ]);
+    }
+    // VS Code's Local harness does not document the key.
+    expect(entries(vscode)).toEqual([
+      '- hook:.github/hooks/off.json#sessionStart:48733fee on-approval unverified',
+      '- hook:.github/hooks/on.json#agentStop:48733fee on-approval documented',
+    ]);
+  });
+
+  it("the CLI runs no hook when the repository's settings set disableAllHooks", () => {
+    const hooks = {
+      '.github/hooks/h.json': `{ "version": 1, "hooks": { ${HOOK('sessionStart')} } }`,
+      '.claude/settings.json':
+        '{ "hooks": { "PreToolUse": [{ "hooks": [{ "type": "command", "command": "./c.sh" }] }] } }',
+    };
+    const offIds = (files: FileMap): string[] => skips(build({ ...hooks, ...files }).cli);
+    const off = [
+      'hook:.claude/settings.json#PreToolUse:7373da99 disabled - documented',
+      'hook:.github/hooks/h.json#sessionStart:48733fee disabled - documented',
+    ];
+    expect(offIds({ '.github/copilot/settings.json': '{ "disableAllHooks": true }' })).toEqual(off);
+    expect(offIds({ '.claude/settings.local.json': '{ "disableAllHooks": true }' })).toEqual(off);
+    // The local file wins over the shared one; which settings pair wins is not documented.
+    expect(
+      offIds({
+        '.github/copilot/settings.json': '{ "disableAllHooks": true }',
+        '.github/copilot/settings.local.json': '{ "disableAllHooks": false }',
+      }),
+    ).toEqual([]);
+    expect(
+      offIds({
+        '.github/copilot/settings.json': '{ "disableAllHooks": true }',
+        '.claude/settings.json': '{ "disableAllHooks": false }',
+      }),
+    ).toEqual(['hook:.github/hooks/h.json#sessionStart:48733fee disabled - unverified']);
+    expect(offIds({ '.github/copilot/settings.json': '{ "disableAllHooks": "true" }' })).toEqual(
+      [],
+    );
+    // The cloud agent does not load settings.json.
+    const { cloud } = build({
+      ...hooks,
+      '.github/copilot/settings.json': '{ "disableAllHooks": true }',
+    });
+    expect(cloud.skipped).toEqual([]);
+    expect(cloud.entries).toHaveLength(1);
   });
 });

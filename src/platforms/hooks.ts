@@ -145,10 +145,9 @@ export const GEMINI_CONFIG_KEYS: ReadonlySet<string> = new Set([
 /**
  * GitHub Copilot, transcribed 2026-10-17 from the hooks reference (SOURCES.copilotHooksReference,
  * event table) and VS Code's hooks reference (SOURCES.vscodeHooksReference), which read the same
- * `.github/hooks/*.json` files. The CLI and the cloud agent take the camelCase names; a PascalCase
- * name selects the VS Code-compatible payload, and VS Code documents only PascalCase names.
- * `subagentStart` and `userPromptTransformed` have no documented PascalCase name; `SubagentStart`
- * is VS Code's.
+ * `.github/hooks/*.json` files: every name any surface documents. The CLI and the cloud agent take
+ * the camelCase names; a PascalCase name selects the VS Code-compatible payload. Which surface
+ * documents which name is in {@link COPILOT_REFERENCE_EVENTS} and {@link VSCODE_LOCAL_EVENTS}.
  */
 export const COPILOT_EVENTS = [
   'sessionStart',
@@ -179,6 +178,65 @@ export const COPILOT_EVENTS = [
   'Stop',
   'ErrorOccurred',
 ] as const;
+
+/**
+ * The names the Copilot hooks reference documents for the CLI and the cloud agent, transcribed
+ * 2026-10-30 (SOURCES.copilotHooksReference): the event table's camelCase names, and the
+ * PascalCase aliases its payload headings and matcher notes give. It gives none for
+ * `userPromptTransformed`, `subagentStart` and `notification`, so `SubagentStart` and
+ * `Notification` are not documented there.
+ */
+export const COPILOT_REFERENCE_EVENTS: ReadonlySet<string> = new Set([
+  'sessionStart',
+  'sessionEnd',
+  'userPromptSubmitted',
+  'userPromptTransformed',
+  'preToolUse',
+  'postToolUse',
+  'postToolUseFailure',
+  'permissionRequest',
+  'notification',
+  'preCompact',
+  'subagentStart',
+  'subagentStop',
+  'agentStop',
+  'errorOccurred',
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'PreCompact',
+  'SubagentStop',
+  'Stop',
+  'ErrorOccurred',
+]);
+
+/**
+ * The events VS Code's Local harness documents, transcribed 2026-10-30
+ * (SOURCES.vscodeHooksReference): eight PascalCase names, and the Copilot aliases of the same
+ * events, since "Local accepts PascalCase and Copilot event aliases in hook files".
+ */
+export const VSCODE_LOCAL_EVENTS: ReadonlySet<string> = new Set([
+  'PreToolUse',
+  'PostToolUse',
+  'UserPromptSubmit',
+  'SessionStart',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'PreCompact',
+  'preToolUse',
+  'postToolUse',
+  'userPromptSubmitted',
+  'sessionStart',
+  'agentStop',
+  'subagentStart',
+  'subagentStop',
+  'preCompact',
+]);
 
 /**
  * Devin Local (Devin Desktop's default agent, shared with Devin CLI), transcribed 2026-10-17 from
@@ -439,6 +497,48 @@ export function eventHandlers(events: readonly HookEvent[], platform: HookPlatfo
     });
   }
   return out;
+}
+
+/**
+ * What makes a GitHub Copilot hook item fail validation, from the field tables of the hooks
+ * reference (SOURCES.copilotHooksReference): an item that is not an object; a command hook (the
+ * default `type`) with none of `bash`, `powershell` and `command`, nor `exec`, or with `exec`
+ * next to one of them; an HTTP hook without a `url`; a prompt hook without a `prompt`. A `type`
+ * the reference does not list is `unknown-type`: how the CLI validates it is not documented. The
+ * per-platform `linux`, `osx` and `windows` commands of agent-scoped hooks count as commands.
+ */
+export type CopilotHookItemIssue =
+  'not-an-object' | 'no-command' | 'exec-combined' | 'no-url' | 'no-prompt' | 'unknown-type';
+
+/** The fields `exec` must not be combined with. */
+const COPILOT_SHELL_FIELDS = ['bash', 'powershell', 'command'];
+const COPILOT_PLATFORM_FIELDS = ['linux', 'osx', 'windows'];
+
+/** Why Copilot rejects a hook item, or undefined when the item passes {@link CopilotHookItemIssue}. */
+export function copilotHookItemIssue(item: unknown): CopilotHookItemIssue | undefined {
+  if (!isTable(item)) return 'not-an-object';
+  const type = own(item, 'type') ?? 'command';
+  const has = (field: string): boolean => typeof own(item, field) === 'string';
+  switch (type) {
+    case 'command':
+      if (has('exec')) return COPILOT_SHELL_FIELDS.some(has) ? 'exec-combined' : undefined;
+      return [...COPILOT_SHELL_FIELDS, ...COPILOT_PLATFORM_FIELDS].some(has)
+        ? undefined
+        : 'no-command';
+    case 'http':
+      return has('url') ? undefined : 'no-url';
+    case 'prompt':
+      return has('prompt') ? undefined : 'no-prompt';
+    default:
+      return 'unknown-type';
+  }
+}
+
+/** The items under each event of a Copilot hooks object, malformed or not, in document order. */
+export function copilotHookItems(doc: Pick<SpannedDocument, 'value'>): unknown[] {
+  return hookEvents(doc, 'copilot').flatMap((event) =>
+    Array.isArray(event.entries) ? (event.entries as unknown[]) : [],
+  );
 }
 
 /** Keys Codex allows at the top level of `.codex/hooks.json`. */
