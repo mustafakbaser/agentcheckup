@@ -517,15 +517,17 @@ The API is not stable before 1.0. The JSON report follows
 | 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, changes caught by `--gate`, or a `--policy` violation that fails the run           |
 | 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a configuration, baseline or policy file that cannot be read or used; an unusable `--output` |
 | 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                             |
+| 130  | Interrupted by Ctrl+C (SIGINT) while a command writes (`fix`, `--output`, `skill install`); 143 for SIGTERM, 129 for SIGHUP                                                         |
 
 A reader that stops early, as in `agentcheckup | head`, does not change the exit code: what it
 no longer reads is dropped, and the run finishes, `--output` and fixes included.
 
 `fix` exits 0 when a dry run has nothing to change or every selected fix was applied and
 verified, 1 when a dry run would change a file or a selected fix was not applied, 2 on invalid
-arguments such as `--review` without `--write`, and 3 on an internal error. Fixes that need your
-words and manual steps do not change the exit code. `tasks` exits 1 while a task is open, and
-`tasks --check` 0 once the given tasks are done. See [fix](docs/fix.md#exit-codes),
+arguments such as `--review` without `--write`, 3 on an internal error, and 130 (143, 129) when
+Ctrl+C (SIGTERM, SIGHUP) interrupts its writing, which never leaves a fix half applied. Fixes
+that need your words and manual steps do not change the exit code. `tasks` exits 1 while a task
+is open, and `tasks --check` 0 once the given tasks are done. See [fix](docs/fix.md#exit-codes),
 [tasks](docs/tasks.md#exit-codes) and [skill install](docs/skill.md#with-agentcheckup).
 
 ## Configuration

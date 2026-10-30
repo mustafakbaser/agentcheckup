@@ -189,6 +189,7 @@
             "verification-failed",
             "limit",
             "write-failed",
+            "interrupted",
             "declined"
           ]
         }

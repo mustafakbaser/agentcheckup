@@ -322,6 +322,40 @@ describe('agentcheckup fix --write', () => {
     expect(report.files).toEqual([]);
   });
 
+  it('stops after an interrupt: writes no later fix and prints no report', async () => {
+    const files = { 'AGENTS.md': UNFIXED, 'pkg/AGENTS.md': UNFIXED };
+    const root = await repo(files);
+    const controller = new AbortController();
+    const guarded: string[] = [];
+    const io: Captured = {
+      ...capture(root),
+      signal: controller.signal,
+      interruptible: (work) => {
+        guarded.push('work');
+        return work();
+      },
+      // Ctrl+C before the first fix is written.
+      beforeWrite: () => {
+        controller.abort('SIGINT');
+      },
+    };
+    expect((await fix(root, ['--write'], io)).code).toBe(EXIT.findings);
+    expect(io.errors()).toBe(
+      'Interrupted: 0 of 2 fixes applied; run agentcheckup fix again for the rest.\n',
+    );
+    expect(io.output()).toBe('');
+    expect(guarded).toEqual(['work']);
+    expect(await text(root, 'AGENTS.md')).toBe(UNFIXED);
+    expect(await text(root, 'pkg/AGENTS.md')).toBe(UNFIXED);
+
+    // A signal that never aborts changes nothing.
+    const kept = await repo(files);
+    const quiet: Captured = { ...capture(kept), signal: new AbortController().signal };
+    expect((await fix(kept, ['--write'], quiet)).code).toBe(EXIT.ok);
+    expect(quiet.errors()).toBe('');
+    expect(await text(kept, 'pkg/AGENTS.md')).toBe(SAFE_FIXED);
+  });
+
   it('exits 1 when the scan from disk finds a new warning', async () => {
     const root = await repo();
     const io: Captured = {
@@ -436,8 +470,23 @@ describe('agentcheckup fix -i', () => {
       const io = terminal(root, scripted(answers));
       expect(await run(['fix', '-i'], io)).toBe(EXIT.findings);
       expect(io.errors()).toContain('Stopped: no files were changed.');
+      // Ends the question's line, so the message starts on a line of its own.
+      expect(io.out.at(-1)).toBe('\n');
       expect(await text(root, 'AGENTS.md')).toBe(UNFIXED);
     }
+  });
+
+  it('closes the prompt after the last answer, before writing', async () => {
+    const root = await repo();
+    const events: string[] = [];
+    const prompt: Prompt = {
+      ...scripted(['y', 'y']),
+      close: () => events.push('close'),
+    };
+    const io = terminal(root, prompt, { beforeWrite: () => void events.push('write') });
+    expect(await run(['fix', '-i'], io)).toBe(EXIT.ok);
+    expect(events).toEqual(['close', 'write']);
+    expect(await text(root, 'AGENTS.md')).toBe(ALL_FIXED);
   });
 
   it('offers mcp/literal-secret, which is not applied unless accepted', async () => {

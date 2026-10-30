@@ -34,6 +34,11 @@ export interface Prompt {
    * undefined when input ends or the user interrupts it (Ctrl+C).
    */
   readonly ask: (question: string, options?: AskOptions) => Promise<string | undefined>;
+  /**
+   * Ends the questions and gives the terminal back, so that Ctrl+C reaches the process again.
+   * `fix -i` calls it after the last answer, before it writes.
+   */
+  readonly close?: () => void;
 }
 
 export interface Io {
@@ -50,6 +55,21 @@ export interface Io {
    * the window in which a file can change since the scan.
    */
   readonly beforeWrite?: (() => void | Promise<void>) | undefined;
+  /**
+   * Aborted, with the signal's name as its reason, when the user interrupts (Ctrl+C, SIGTERM,
+   * SIGHUP) work run through {@link interruptible}. src/cli/interrupt.ts.
+   */
+  readonly signal?: AbortSignal | undefined;
+  /**
+   * Runs `work` with interrupts turned into an abort of {@link signal}, so that it can finish
+   * what must not be cut short. Without it, `work` simply runs.
+   */
+  readonly interruptible?: (<T>(work: () => Promise<T>) => Promise<T>) | undefined;
+}
+
+/** Runs `work` through {@link Io.interruptible}: an interrupt aborts `io.signal` meanwhile. */
+export function interruptible<T>(io: Io, work: () => Promise<T>): Promise<T> {
+  return io.interruptible === undefined ? work() : io.interruptible(work);
 }
 
 /**
@@ -104,14 +124,18 @@ export function styleFor(options: Pick<SharedCommandOptions, 'output' | 'color'>
   return color ? ansiStyle : plainStyle;
 }
 
-/** Writes the report to stdout, or with `--output` through the safe output writer. */
+/**
+ * Writes the report to stdout, or with `--output` through the safe output writer, which an
+ * interrupt does not cut short.
+ */
 export async function emit(
   report: string,
   options: Pick<SharedCommandOptions, 'output'>,
   io: Io,
 ): Promise<void> {
-  if (options.output === undefined) io.stdout(report);
-  else await writeOutputFile(resolve(io.cwd, options.output), report);
+  const { output } = options;
+  if (output === undefined) io.stdout(report);
+  else await interruptible(io, () => writeOutputFile(resolve(io.cwd, output), report));
 }
 
 export function scanOptionsFor(

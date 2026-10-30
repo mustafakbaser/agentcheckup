@@ -8,7 +8,7 @@ import { safeCopiedText } from '../fix/edits.js';
 import type { Prompt } from './common.js';
 
 export interface TerminalPrompt extends Prompt {
-  /** Releases the input, so the process can exit. */
+  /** Releases the input, so the process can exit. Later questions get undefined. */
   readonly close: () => void;
 }
 
@@ -21,13 +21,26 @@ export function prefillable(text: string): boolean {
   return safeCopiedText(text, Number.MAX_SAFE_INTEGER) !== undefined;
 }
 
+/**
+ * The prompt on `input` and `output`. When `signal` aborts (src/cli/interrupt.ts), the prompt
+ * closes as on Ctrl+C, which gives the terminal its modes back before the process exits.
+ */
 export function terminalPrompt(
   input: Readable & { readonly isTTY?: boolean },
   output: Writable,
+  signal?: AbortSignal,
 ): TerminalPrompt {
   const isTTY = input.isTTY === true;
   let lines: Interface | undefined;
-  let ended = false;
+  let ended = signal?.aborted === true;
+  signal?.addEventListener(
+    'abort',
+    () => {
+      ended = true;
+      lines?.close();
+    },
+    { once: true },
+  );
 
   const open = (): Interface => {
     if (lines !== undefined) return lines;
@@ -63,6 +76,7 @@ export function terminalPrompt(
       });
     },
     close() {
+      ended = true;
       lines?.close();
     },
   };

@@ -85,6 +85,7 @@ Commit .claude/skills/agentcheckup. To update the skill, remove the directory an
 | 1    | Not installed: the skill directory exists, the skill is in the other directory, it would add a finding, you said no, or the write was refused |
 | 2    | Invalid arguments or configuration, `--untrusted`, or no terminal without `--yes`                                                             |
 | 3    | Internal error: a rule crashed, or the packaged skill is missing or broken                                                                    |
+| 130  | Ctrl+C (SIGINT) while the skill is written; 143 for SIGTERM and 129 for SIGHUP, also at the question. Ctrl+C at the question exits 1          |
 
 ### With skills.sh
 

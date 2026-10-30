@@ -697,6 +697,7 @@ export const SKIP_REASON_TEXT: Readonly<Record<FixSkipReason, string>> = {
   'verification-failed': 'a re-scan showed it does not resolve its finding or adds a problem',
   limit: 'past a limit of this run',
   'write-failed': 'writing failed, and its changes were rolled back',
+  interrupted: 'interrupted before it was written; run agentcheckup fix again',
   declined: 'declined',
 };
 

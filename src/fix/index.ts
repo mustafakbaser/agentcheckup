@@ -85,6 +85,8 @@ export type FixStatus = 'planned' | 'applied' | 'skipped';
  *   or a new error or warning appeared.
  * - `limit`: past a bound of ADR 0008 (rounds, fixes per run, bytes per written file).
  * - `write-failed`: writing failed and the fix's completed steps were rolled back.
+ * - `interrupted`: Ctrl+C, SIGTERM or SIGHUP came before the fix was written; running fix again
+ *   applies it.
  * - `declined`: not accepted in `-i`.
  */
 export type FixSkipReason =
@@ -94,6 +96,7 @@ export type FixSkipReason =
   | 'verification-failed'
   | 'limit'
   | 'write-failed'
+  | 'interrupted'
   | 'declined';
 
 interface FixDecision {

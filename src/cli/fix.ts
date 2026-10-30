@@ -86,6 +86,7 @@ import {
   errorMessage,
   EXIT,
   type ExitCode,
+  interruptible,
   type Io,
   loadConfig,
   type Prompt,
@@ -311,7 +312,7 @@ interface WriteOutcome {
 /**
  * Writes `applied` (verified in memory; `files` their combined changes, from the snapshot the
  * walk read), then walks and scans the repository again. Undefined when the root is no longer
- * usable.
+ * usable, or when an interrupt stopped the writing.
  */
 async function writeAndVerify(
   session: Session,
@@ -324,13 +325,17 @@ async function writeAndVerify(
   await io.beforeWrite?.();
   let results: FixWriteResult[];
   try {
+    // An interrupt lets the fix being written finish or roll back, and skips the rest.
     results =
       groups.length === 0
         ? []
-        : await writeFixes(
-            session.root,
-            session.snapshot.files,
-            groups.map((group) => group.write),
+        : await interruptible(io, () =>
+            writeFixes(
+              session.root,
+              session.snapshot.files,
+              groups.map((group) => group.write),
+              { signal: io.signal },
+            ),
           );
   } catch (error) {
     if (!(error instanceof FixWriteError)) throw error;
@@ -354,6 +359,7 @@ async function writeAndVerify(
       return;
     }
     for (const planned of group.fixes) outcome.set(planned, skip(planned, result.reason));
+    if (result.reason === 'interrupted') return;
     const where =
       result.path === undefined ? '' : ` ${forTerminal(withBase(session.base, result.path))}`;
     io.stderr(`Not written${where}: ${forTerminal(result.detail)}\n`);
@@ -365,6 +371,15 @@ async function writeAndVerify(
     }
   });
   const fixes = applied.map((planned) => outcome.get(planned) ?? planned);
+  if (fixes.some((planned) => planned.status === 'skipped' && planned.reason === 'interrupted')) {
+    // Stops here: no scan from disk, no report. What was written is complete.
+    const count = fixes.filter((planned) => planned.status === 'applied').length;
+    io.stderr(
+      `Interrupted: ${count} of ${fixes.length} ${fixes.length === 1 ? 'fix' : 'fixes'} ` +
+        'applied; run agentcheckup fix again for the rest.\n',
+    );
+    return undefined;
+  }
 
   const analysis = analyze(await walk(session.root, session.walkOptions), session.scanOptions);
   const after = runRules(analysis, session.scanOptions);
@@ -425,8 +440,13 @@ async function interactive(
   ruleIds: ReadonlySet<string> | undefined,
 ): Promise<ExitCode> {
   const { io } = session;
-  const answers = await ask(session, prompt, rounds);
+  // SIGTERM or SIGHUP while asking closes the prompt, which gives the terminal back.
+  const answers = await interruptible(io, () => ask(session, prompt, rounds));
+  // Done asking: from here on, Ctrl+C reaches the process and interrupts the writing.
+  prompt.close?.();
   if (answers.aborted) {
+    // The cursor is still on the question's line.
+    if (session.options.output === undefined) io.stdout('\n');
     io.stderr('Stopped: no files were changed.\n');
     return EXIT.findings;
   }

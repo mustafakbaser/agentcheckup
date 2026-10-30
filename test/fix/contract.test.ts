@@ -425,6 +425,7 @@ describe('schemas/fix.schema.json', () => {
       'verification-failed',
       'limit',
       'write-failed',
+      'interrupted',
       'declined',
     ] as const satisfies readonly FixSkipReason[];
     const MODES = [

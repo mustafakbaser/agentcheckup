@@ -115,6 +115,7 @@ Exit codes
      violation fails the run
   2  Invalid arguments, configuration, baseline or policy file
   3  Internal error (a rule or the scanner crashed)
+  130  Ctrl+C while writing --output (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;
 
@@ -163,6 +164,8 @@ Exit codes
   2  Invalid arguments or configuration, an unknown --rule, or -i without a
      terminal
   3  Internal error (a rule or the scanner crashed)
+  130  Ctrl+C while writing (143: SIGTERM, 129: SIGHUP). The fix in progress
+       is finished or undone, the rest skipped
 
 ${FOOTER}`;
 
@@ -202,6 +205,7 @@ Exit codes
   2  Invalid arguments or configuration, an unknown --rule, or --check with
      another option
   3  Internal error (a rule or the scanner crashed)
+  130  Ctrl+C while writing --output (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;
 
@@ -240,6 +244,7 @@ Exit codes
   1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)
+  130  Ctrl+C while writing --output (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;
 
@@ -285,6 +290,7 @@ Exit codes
   1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent, --cwd or baseline
   3  Internal error (a rule or a loader crashed)
+  130  Ctrl+C while writing --output (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;
 
@@ -330,6 +336,7 @@ Exit codes
   1  --gate found changes it gates since --baseline
   2  Invalid arguments, configuration, --agent or baseline
   3  Internal error (a rule crashed)
+  130  Ctrl+C while writing --output (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;
 
@@ -364,5 +371,6 @@ Exit codes
   2  Invalid arguments or configuration, --untrusted, or no terminal without
      --yes
   3  Internal error (a rule crashed, or the packaged skill is missing or broken)
+  130  Ctrl+C while writing the skill (143: SIGTERM, 129: SIGHUP)
 
 ${FOOTER}`;

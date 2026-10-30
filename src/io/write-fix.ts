@@ -26,7 +26,9 @@
  *   are not supported (FAT, some network drives), creates and renames are refused.
  * - Each fix is all or nothing: when a step fails, the fix's completed steps are undone from the
  *   contents held in memory, each only while its file still holds what the fix wrote. Fixes
- *   apply in order; a later fix sees the files as earlier ones left them.
+ *   apply in order; a later fix sees the files as earlier ones left them. An abort (Ctrl+C) is
+ *   seen between fixes, never inside one: the fix in progress is completed or undone, and the
+ *   later ones are skipped as `interrupted`.
  * - Not supported: deletions, directory renames and case-only renames. Nothing is executed.
  *
  * Hard links: a file with more than one link is refused. rename() gives the name a new file, so
@@ -94,12 +96,17 @@ export interface FixWrite {
  *   that is not allowed, a file the scan did not read, or a create or rename target that exists.
  * - `limit`: content over {@link MAX_WRITTEN_FILE_BYTES}, or past {@link MAX_FIXES_PER_RUN}.
  * - `write-failed`: the file system reported an error.
+ * - `interrupted`: {@link WriteFixesOptions.signal} was aborted before the fix began.
  */
-export type FixWriteReason = 'changed-since-scan' | 'refused-path' | 'limit' | 'write-failed';
+export type FixWriteReason =
+  'changed-since-scan' | 'refused-path' | 'limit' | 'write-failed' | 'interrupted';
 
 export interface FixWriteFailure {
   readonly reason: FixWriteReason;
-  /** The root-relative path of the step that failed. Absent past {@link MAX_FIXES_PER_RUN}. */
+  /**
+   * The root-relative path of the step that failed. Absent past {@link MAX_FIXES_PER_RUN} and
+   * when interrupted.
+   */
   readonly path?: string;
   /** A few words, such as `it is a symbolic link`. Never file content, never absolute paths. */
   readonly detail: string;
@@ -136,6 +143,11 @@ export interface WriteFixesOptions {
    * the window that Node.js cannot close.
    */
   readonly beforeCommit?: (point: CommitPoint) => void | Promise<void>;
+  /**
+   * Checked before each fix: once it is aborted, the fixes not begun are skipped as
+   * `interrupted`. The fix in progress is never cut short.
+   */
+  readonly signal?: AbortSignal | undefined;
 }
 
 /** The root itself is unusable: missing, not a directory, or not accessible. */
@@ -159,6 +171,10 @@ export async function writeFixes(
   const writer = new FixWriter(await realRoot(root), files, options.beforeCommit);
   const results: FixWriteResult[] = [];
   for (const [index, fix] of fixes.entries()) {
+    if (options.signal?.aborted === true) {
+      results.push({ id: fix.id, status: 'skipped', reason: 'interrupted', detail: 'interrupted' });
+      continue;
+    }
     results.push(
       index < MAX_FIXES_PER_RUN
         ? await writer.apply(fix)

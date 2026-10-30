@@ -402,6 +402,19 @@ Each file is written to a temporary file in the same directory and then moved in
 file is never left half written. When one step of a fix that changes several files fails, its
 earlier steps are undone.
 
+## Interrupting
+
+Ctrl+C, SIGTERM or SIGHUP while `fix` writes does not leave a fix half applied. The fix being
+written is finished, or undone if one of its steps fails; the fixes after it are skipped as
+`interrupted`. agentcheckup prints how many were applied, such as
+`Interrupted: 228 of 600 fixes applied; run agentcheckup fix again for the rest.`, and exits
+with 128 plus the signal's number: 130 for SIGINT (Ctrl+C), 143 for SIGTERM and 129 for SIGHUP.
+A second signal ends it at once, without that care: the fix being written may be left half
+applied, and its temporary file, `.agentcheckup-<hex>.tmp` next to the file it was writing,
+left behind; delete it. In `-i`, SIGTERM and SIGHUP at a question close the prompt,
+which gives the terminal back, and nothing is written. Before writing starts, and during the
+scan from disk after it, a signal ends `fix` at once: it is not changing anything then.
+
 ## Limits
 
 - At most 3 rounds per run.
@@ -421,6 +434,7 @@ fixes that create or rename a file are refused.
 | 1    | A dry run would change a file; a selected fix was not applied (a conflict, a file that changed since the scan, a refused path, a failed check, a limit, a failed write); the scan from disk still finds what a written fix fixed; or `-i` stopped before writing |
 | 2    | Invalid arguments or configuration: an unknown `--rule`, `--review` without `--write`, `--untrusted` with `--write` or `-i`, `-i` without a terminal, or `-i --format json` without `--output`                                                                   |
 | 3    | Internal error: a rule or the scanner crashed. With `--write` or `-i`, nothing is written when a rule crashed                                                                                                                                                    |
+| 130  | Ctrl+C (SIGINT) while `fix` writes; 143 for SIGTERM and 129 for SIGHUP, also at an `-i` question. Ctrl+C at a question exits 1. See [Interrupting](#interrupting)                                                                                                |
 
 ## JSON output
 
@@ -438,7 +452,7 @@ fixes that create or rename a file are refused.
 | `verification`    | `resolved`, `remaining`, and `introduced[]` with each new finding                                                                                                                                                |
 
 A skipped fix's `reason` is one of `conflict`, `changed-since-scan`, `refused-path`,
-`verification-failed`, `limit`, `write-failed` or `declined`. The fingerprints in `findings[]` are
+`verification-failed`, `limit`, `write-failed`, `interrupted` or `declined`. The fingerprints in `findings[]` are
 those of the scan's JSON report. Paths are never absolute, and credentials are redacted in the
 hunks as in the diff.
 

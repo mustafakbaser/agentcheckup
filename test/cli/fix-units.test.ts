@@ -387,6 +387,31 @@ describe('terminalPrompt', () => {
     expect(await pending).toBeUndefined();
   });
 
+  it('closes when the signal aborts, as after Ctrl+C, and asks nothing after', async () => {
+    const input = Object.assign(new PassThrough(), { isTTY: true });
+    const controller = new AbortController();
+    const prompt = terminalPrompt(input, new PassThrough(), controller.signal);
+    const pending = prompt.ask('Apply? ');
+    controller.abort('SIGHUP');
+    expect(await pending).toBeUndefined();
+    expect(await prompt.ask('Again? ')).toBeUndefined();
+
+    const aborted = new AbortController();
+    aborted.abort('SIGTERM');
+    expect(
+      await terminalPrompt(new PassThrough(), new PassThrough(), aborted.signal).ask('Apply? '),
+    ).toBeUndefined();
+
+    // Not aborted: the question is answered.
+    const kept = new PassThrough();
+    const answered = terminalPrompt(kept, new PassThrough(), new AbortController().signal);
+    const answer = answered.ask('Apply? ');
+    kept.write('y\n');
+    expect(await answer).toBe('y');
+    answered.close();
+    expect(await answered.ask('More? ')).toBeUndefined();
+  });
+
   it('prefills the input line in a terminal with plain text only', async () => {
     const input = Object.assign(new PassThrough(), { isTTY: true });
     const output = new PassThrough();

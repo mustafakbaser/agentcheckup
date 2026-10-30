@@ -881,6 +881,107 @@ describe('writeFixes: changes since the scan', () => {
   );
 });
 
+describe('writeFixes: an abort between fixes', () => {
+  const RULES = { '.cursor/rules/a.md': 'Use tabs.\n', '.cursor/rules/b.md': 'Use spaces.\n' };
+  const FRONTMATTER = '---\nalwaysApply: true\n---\n';
+
+  /** A rename and an edit under the new name, as cursor/md-file-ignored writes them. */
+  function toMdc(name: string, body: string): FixWrite {
+    const to = `.cursor/rules/${name}.mdc`;
+    return {
+      id: name,
+      steps: [
+        { kind: 'rename', from: `.cursor/rules/${name}.md`, to },
+        { kind: 'replace', path: to, bytes: bytes(`${FRONTMATTER}${body}`) },
+      ],
+    };
+  }
+  const fixes = [toMdc('a', RULES['.cursor/rules/a.md']), toMdc('b', RULES['.cursor/rules/b.md'])];
+  const interrupted = {
+    id: 'b',
+    status: 'skipped',
+    reason: 'interrupted',
+    detail: 'interrupted',
+  } as const;
+
+  it('finishes the fix in progress and skips the later ones', async () => {
+    const { root, files } = await scanned(RULES);
+    const controller = new AbortController();
+    const results = await writeFixes(root, files, fixes, {
+      signal: controller.signal,
+      // Ctrl+C between the rename and the edit of the first fix.
+      beforeCommit: when('replace', '.cursor/rules/a.mdc', () => {
+        controller.abort('SIGINT');
+      }),
+    });
+    expect(results).toEqual([{ id: 'a', status: 'applied' }, interrupted]);
+    expect(await listing(root)).toEqual([
+      '.cursor/',
+      '.cursor/rules/',
+      '.cursor/rules/a.mdc',
+      '.cursor/rules/b.md',
+    ]);
+    expect(await text(root, '.cursor/rules/a.mdc')).toBe(`${FRONTMATTER}Use tabs.\n`);
+  });
+
+  it('rolls back the fix in progress when its step fails meanwhile', async () => {
+    const { root, files } = await scanned(RULES);
+    const controller = new AbortController();
+    const results = await writeFixes(root, files, fixes, {
+      signal: controller.signal,
+      beforeCommit: when('replace', '.cursor/rules/a.mdc', () => {
+        controller.abort('SIGTERM');
+        throw new Error('the disk went away');
+      }),
+    });
+    expect(results).toEqual([
+      {
+        id: 'a',
+        status: 'rolled-back',
+        reason: 'write-failed',
+        path: '.cursor/rules/a.mdc',
+        detail: 'writing failed',
+        unrestored: [],
+      },
+      interrupted,
+    ]);
+    // Both rules as they were, and no temporary file.
+    expect(await listing(root)).toEqual([
+      '.cursor/',
+      '.cursor/rules/',
+      '.cursor/rules/a.md',
+      '.cursor/rules/b.md',
+    ]);
+    expect(await text(root, '.cursor/rules/a.md')).toBe('Use tabs.\n');
+  });
+
+  it('writes nothing once aborted, and everything when never aborted', async () => {
+    const aborted = await scanned(RULES);
+    const controller = new AbortController();
+    controller.abort('SIGHUP');
+    const skipped = await writeFixes(aborted.root, aborted.files, fixes, {
+      signal: controller.signal,
+    });
+    expect(skipped).toEqual([{ ...interrupted, id: 'a' }, interrupted]);
+    expect(await listing(aborted.root)).toEqual([
+      '.cursor/',
+      '.cursor/rules/',
+      '.cursor/rules/a.md',
+      '.cursor/rules/b.md',
+    ]);
+
+    const kept = await scanned(RULES);
+    const results = await writeFixes(kept.root, kept.files, fixes, {
+      signal: new AbortController().signal,
+    });
+    expect(results).toEqual([
+      { id: 'a', status: 'applied' },
+      { id: 'b', status: 'applied' },
+    ]);
+    expect(await text(kept.root, '.cursor/rules/b.mdc')).toBe(`${FRONTMATTER}Use spaces.\n`);
+  });
+});
+
 describe('writeFixes: one fix is all or nothing', () => {
   it('restores the files of a fix whose later step fails', async () => {
     const { root, files } = await scanned({ 'AGENTS.md': 'a', 'CLAUDE.md': 'c' });

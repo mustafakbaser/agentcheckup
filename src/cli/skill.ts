@@ -35,7 +35,15 @@ import { SKILL_ROOTS } from '../platforms/skills.js';
 import { forTerminal } from '../report/sanitize.js';
 import { readerList } from '../rules/shared/format.js';
 import { type SkillCommandOptions, type SkillDir, UsageError } from './args.js';
-import { EXIT, type ExitCode, type Io, loadConfig, type Prompt, scanOptionsFor } from './common.js';
+import {
+  EXIT,
+  type ExitCode,
+  interruptible,
+  type Io,
+  loadConfig,
+  type Prompt,
+  scanOptionsFor,
+} from './common.js';
 
 /** The skill's name, and the name of its directory. */
 export const SKILL_NAME = 'agentcheckup';
@@ -182,7 +190,8 @@ export async function skill(
   const tools = allowedTools(files.find((file) => file.path === 'SKILL.md')?.text ?? '');
   io.stdout(planText(files, tools, target, dir, shown));
   if (prompt !== undefined) {
-    const answer = await prompt.ask('Install the skill? [y/N] ');
+    const answer = await interruptible(io, () => prompt.ask('Install the skill? [y/N] '));
+    prompt.close?.();
     if (answer === undefined) {
       io.stdout('\nStopped: nothing was installed.\n');
       return EXIT.findings;
@@ -197,7 +206,10 @@ export async function skill(
   const steps: WriteStep[] = added.map((file) => ({ kind: 'create', ...file }));
   let results: FixWriteResult[];
   try {
-    results = await writeFixes(root, snapshot.files, [{ id: SKILL_NAME, steps }]);
+    // One unit: an interrupt lets it finish or roll back.
+    results = await interruptible(io, () =>
+      writeFixes(root, snapshot.files, [{ id: SKILL_NAME, steps }]),
+    );
   } catch (error) {
     if (!(error instanceof FixWriteError)) throw error;
     io.stderr(`Not installed: ${forTerminal(error.message)}\n`);
