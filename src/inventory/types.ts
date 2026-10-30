@@ -152,6 +152,11 @@ export interface EnvItem extends ItemBase {
   readonly key: string;
   readonly class: 'endpoint' | 'credential' | 'tls' | 'code-exec' | 'other';
   /**
+   * False when the agent drops the override where it is set, such as an OpenTelemetry exporter
+   * variable in Claude Code's project settings. The gate and a policy pass over such items.
+   */
+  readonly effective: boolean;
+  /**
    * For `endpoint`, the URL origin. For `tls`, the value when it is an on/off switch (0, 1, true,
    * false, yes, no). Never set otherwise: other values may be secrets.
    */

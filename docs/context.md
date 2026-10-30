@@ -790,7 +790,7 @@ to have them reviewed too.
 | `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, or one of the Codex settings below. `deny` and `ask` entries never trip it                                                                                                                                                         |
 | `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's hook and plugin folders, or a skill, command or subagent whose frontmatter is past agentcheckup's parser limits. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it |
-| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it, nor do overrides the agent drops where they are set (`"effective": false`)                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `models`       | An agent definition is added or changed, in any agent's format; a definition runs on another model because a setting changed; or a repository setting that picks a model or an effort is set, changed or removed, such as Claude Code's `model` and `env.CLAUDE_CODE_SUBAGENT_MODEL` or Codex's `agents.default_subagent_model`. Unlike the other classes, a removed setting trips it: removing an override changes what runs. Labeled "New agent definition", "Agent definition changed", "Model setting set" or "Model setting changed". See [Agent definitions and models](agents.md)                                                       |
 
@@ -798,9 +798,19 @@ The env classes come from the Claude Code and Node.js documentation. Examples: `
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers
 `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS`; `tls` covers
 `NODE_TLS_REJECT_UNAUTHORIZED` and `NODE_EXTRA_CA_CERTS`; `code-exec` covers `NODE_OPTIONS`,
-`LD_PRELOAD` and Claude Code settings that run a command, such as `apiKeyHelper`. Following the
-digest rules above, a new value for an existing `credential` or `code-exec` override is not a
-change, while a new endpoint origin or TLS switch value is.
+`LD_PRELOAD` and Claude Code settings that run a command, such as `apiKeyHelper` and
+`subagentStatusLine`. Following the digest rules above, a new value for an existing `credential`
+or `code-exec` override is not a change, while a new endpoint origin or TLS switch value is.
+
+Claude Code drops some variables from the `env` of project and local settings: those that choose
+where it writes its files, the OpenTelemetry exporter variables (such as
+`OTEL_EXPORTER_OTLP_ENDPOINT` and the other `OTEL_EXPORTER_OTLP_*` names that end in `_ENDPOINT`,
+`_HEADERS`, `_PROTOCOL`, `_CERTIFICATE`, `_CLIENT_KEY` or `_INSECURE`), `BETA_TRACING_ENDPOINT`,
+and those that change how it starts, such as `CLAUDE_CODE_PROCESS_WRAPPER`. The inventory lists
+such an override in `.claude/settings.json` or `settings.local.json` with `"effective": false`,
+and neither the gate nor a [policy](policy.md) counts it. A value that turns telemetry off, such
+as `none` for `OTEL_TRACES_EXPORTER`, still applies. The same variable in an MCP server's `env`
+reaches the server and counts.
 
 A hook that `disableAllHooks: true` in the repository's own settings turns off is listed with
 `"effective": false`, and it does not meet a policy's
@@ -882,7 +892,11 @@ them the same way:
   runs only the events of its hook reference, in the format of its settings files.
 - A hook in a skill, command or subagent never meets a policy's `hooks.require`, because it does
   not run for the whole session.
-- Plugin directories are not read yet: a plugin's `hooks/hooks.json`, `agents/` and `commands/`.
+- A plugin's inline `hooks` in its `plugin.json` are listed, and so is the `hooks/hooks.json` of a
+  plugin in a `.claude/skills/` folder, the plugins Claude Code loads from the repository. Other
+  plugin directories are not read yet: their `hooks/hooks.json`, `agents/` and `commands/`.
+- An MCP server of `"type": "sdk"` is listed as skipped by Claude Code, which registers such a
+  server only in an SDK host application.
 
 ### Exit codes
 

@@ -133,7 +133,10 @@ A setting `forbid` names is configured. Grants come from the same table the
 | `env-tls`                  | An env override that changes TLS certificate checks, such as `NODE_TLS_REJECT_UNAUTHORIZED` or `NODE_EXTRA_CA_CERTS`.                                                                                                                    |
 | `env-code-exec`            | An env override that can run code, such as `NODE_OPTIONS` or `LD_PRELOAD`, and Claude Code settings that run a command, such as `apiKeyHelper`.                                                                                          |
 
-A setting that has no effect where it is set is still reported, and its message says so.
+A setting that has no effect where it is set is still reported, and its message says so. An env
+override that Claude Code drops from project and local settings, such as
+`OTEL_EXPORTER_OTLP_ENDPOINT` in `.claude/settings.json` (inventory `"effective": false`), is not:
+it reaches no process.
 
 ### `denied-tool`
 

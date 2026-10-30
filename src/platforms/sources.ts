@@ -23,7 +23,10 @@ const AUDIT_CHECKED = '2026-10-30';
 /** GitHub Copilot and VS Code sources read again for the Copilot loaders and inventory. */
 const COPILOT_CHECKED = '2026-10-30';
 
-/** Claude Code sources re-read for the on-demand size limit, settings files and plugins. */
+/**
+ * Claude Code sources re-read for the on-demand size limit, settings files, plugins, MCP variables
+ * and servers, environment overrides and the default model.
+ */
 const CLAUDE_CHECKED = '2026-10-30';
 
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
@@ -66,12 +69,12 @@ export const SOURCES = {
   claudeSettingsReference: verified(
     'Claude Code: All settings',
     'https://code.claude.com/docs/en/settings-reference',
-    '2026-10-15',
+    CLAUDE_CHECKED,
   ),
   claudeEnvVars: verified(
     'Claude Code: Environment variables',
     'https://code.claude.com/docs/en/env-vars',
-    '2026-10-15',
+    CLAUDE_CHECKED,
   ),
   claudeNetworkConfig: verified(
     'Claude Code: Enterprise network configuration',
@@ -478,7 +481,7 @@ export const SOURCES = {
   claudeModelConfig: verified(
     'Claude Code: Model configuration',
     'https://code.claude.com/docs/en/model-config',
-    AGENTS_CHECKED,
+    CLAUDE_CHECKED,
   ),
   codexSubagents: verified(
     'Codex: Subagents and custom agents',

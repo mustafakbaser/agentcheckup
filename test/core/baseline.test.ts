@@ -143,6 +143,7 @@ function env(key: string, cls: EnvItem['class'], overrides: Partial<EnvItem> = {
     digest: `${key}-1`,
     key,
     class: cls,
+    effective: true,
     ...overrides,
   };
 }

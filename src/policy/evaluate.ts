@@ -303,7 +303,8 @@ function collectAll(policy: Policy, subject: PolicySubject, baseline: boolean): 
   }
   for (const item of inventory?.env ?? []) {
     const name = ENV_FORBID[item.class];
-    if (name === undefined || !forbidden.has(name)) continue;
+    // An override the agent drops where it is set: nothing to forbid.
+    if (name === undefined || !forbidden.has(name) || !item.effective) continue;
     out.push({
       id: itemId(`forbidden-setting:${name}`, item),
       check: 'forbidden-setting',

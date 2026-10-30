@@ -4613,7 +4613,8 @@
         "digest": "13305b26e7472a",
         "key": "ANTHROPIC_BASE_URL",
         "class": "endpoint",
-        "shown": "https://llm-gateway.example.com"
+        "shown": "https://llm-gateway.example.com",
+        "effective": true
       },
       {
         "id": "env:.claude/settings.json#DISABLE_TELEMETRY",
@@ -4627,7 +4628,8 @@
         ],
         "digest": "0a4885b61b0920",
         "key": "DISABLE_TELEMETRY",
-        "class": "other"
+        "class": "other",
+        "effective": true
       },
       {
         "id": "env:.mcp.json#mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN",
@@ -4640,7 +4642,8 @@
         ],
         "digest": "18976cac861cc8",
         "key": "mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN",
-        "class": "credential"
+        "class": "credential",
+        "effective": true
       }
     ],
     "incomplete": []

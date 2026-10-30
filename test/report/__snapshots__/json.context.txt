@@ -784,7 +784,8 @@
         "digest": "0000000000002a",
         "key": "ANTHROPIC_BASE_URL",
         "class": "endpoint",
-        "shown": "https://llm-proxy.example.net"
+        "shown": "https://llm-proxy.example.net",
+        "effective": true
       }
     ],
     "incomplete": [

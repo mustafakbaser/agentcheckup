@@ -1524,7 +1524,7 @@
       "description": "One environment override.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "file", "line", "platforms", "digest", "key", "class"],
+      "required": ["id", "file", "line", "platforms", "digest", "key", "class", "effective"],
       "properties": {
         "id": { "description": "`env:<file>#<key>`.", "type": "string", "minLength": 1 },
         "file": {
@@ -1547,6 +1547,10 @@
         "shown": {
           "description": "For `endpoint` only: the URL origin. Never a credential value.",
           "type": "string"
+        },
+        "effective": {
+          "description": "False when the agent drops the override where it is set, such as an OpenTelemetry exporter variable in Claude Code's project settings.",
+          "type": "boolean"
         }
       }
     },

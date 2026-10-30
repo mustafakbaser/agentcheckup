@@ -198,7 +198,13 @@ export function permission(
 }
 
 export function envItem(file: string, key: string, overrides: Partial<EnvItem> = {}): EnvItem {
-  return { ...itemBase(`env:${file}#${key}`, file, 8), key, class: 'other', ...overrides };
+  return {
+    ...itemBase(`env:${file}#${key}`, file, 8),
+    key,
+    class: 'other',
+    effective: true,
+    ...overrides,
+  };
 }
 
 export function inventory(overrides: Partial<Inventory> = {}): Inventory {

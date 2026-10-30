@@ -425,6 +425,7 @@ const ENV_FIELDS = {
   key: 'value',
   class: 'value',
   shown: 'value',
+  effective: 'value',
 } as const satisfies FieldTable<EnvItem>;
 
 /** Item values nest at most two levels (`package.pin`, `status.cursor`). */
@@ -595,7 +596,8 @@ function gateHits(
   }
 
   for (const [id, item] of after.env) {
-    if (item.class === 'other') continue;
+    // An override the agent drops where it is set changes nothing.
+    if (item.class === 'other' || !item.effective) continue;
     const change = changeOf(before.env.get(id), item);
     if (change !== undefined) hit('env', id, change, envSummary(item, change));
   }

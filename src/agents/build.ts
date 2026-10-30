@@ -24,7 +24,7 @@ import { canonicalJson } from '../platforms/inventory-ids.js';
 import type { LoadView } from '../platforms/load/view.js';
 import type { ContextAgent } from '../platforms/load/types.js';
 import { modelForm } from './models.js';
-import { buildModelSettings, isTruthy, isUnsetModel } from './settings.js';
+import { buildModelSettings, isIgnoredDefaultModel, isTruthy, isUnsetModel } from './settings.js';
 import type {
   AgentDefinition,
   AgentsReport,
@@ -260,12 +260,16 @@ function effectiveModel(
     case 'claude-code': {
       // Per call, then the file's `model` (ignored under FORCE), then
       // CLAUDE_CODE_SUBAGENT_MODEL, then the session's model (SOURCES.claudeSubagents): the
-      // ANTHROPIC_MODEL variable, the `model` setting, then the default for new sessions
-      // (SOURCES.claudeModelConfig). CLAUDE_CODE_SUBAGENT_MODEL set to `inherit` is unset.
+      // ANTHROPIC_MODEL variable, the `model` setting, then the default for new sessions, unless
+      // Claude Code ignores its value (SOURCES.claudeModelConfig). CLAUDE_CODE_SUBAGENT_MODEL set
+      // to `inherit` is unset.
+      const defaultModel = context.get('claude-code', 'env.ANTHROPIC_DEFAULT_MODEL');
       const session =
         context.get('claude-code', 'env.ANTHROPIC_MODEL') ??
         context.get('claude-code', 'model') ??
-        context.get('claude-code', 'env.ANTHROPIC_DEFAULT_MODEL');
+        (defaultModel === undefined || isIgnoredDefaultModel(defaultModel.value)
+          ? undefined
+          : defaultModel);
       const setting = context.get('claude-code', 'env.CLAUDE_CODE_SUBAGENT_MODEL');
       const subagents = setting === undefined || isUnsetModel(setting.value) ? undefined : setting;
       const force = context.get('claude-code', 'env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE');

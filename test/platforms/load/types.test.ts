@@ -190,6 +190,7 @@ describe('report additions', () => {
           key: 'ANTHROPIC_BASE_URL',
           class: 'endpoint',
           shown: 'https://llm-proxy.example.net',
+          effective: true,
         },
       ],
       incomplete: [],

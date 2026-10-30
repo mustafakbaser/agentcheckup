@@ -514,6 +514,8 @@ function readEnv(value: unknown, at: string): EnvItem {
     key: string(own(source, 'key'), field(at, 'key')),
     class: oneOf(own(source, 'class'), field(at, 'class'), ENV_CLASSES),
     ...(shown === undefined ? {} : { shown }),
+    // Reports written before the field existed: every override counted.
+    effective: optional(source, 'effective', at, boolean) ?? true,
   };
 }
 

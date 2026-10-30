@@ -77,6 +77,7 @@ import {
   MCP_KINDS,
   type McpServer,
   mcpServers,
+  sdkOnly,
   subagentMcpServers,
   transportOf,
   urlWithoutType,
@@ -113,7 +114,12 @@ import {
 import { checkSubagent, type SubagentCheck } from '../platforms/subagents.js';
 import { isLoopbackHost } from '../rules/mcp/insecure-transport.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
-import { COMMAND_SETTINGS, envClass, type EnvClass } from './env-class.js';
+import {
+  COMMAND_SETTINGS,
+  envClass,
+  type EnvClass,
+  ignoredInRepositorySettings,
+} from './env-class.js';
 import { packageSpec } from './package-spec.js';
 import { redactArgs, redactCommand, redactShown, urlOrigin } from './redact.js';
 import type {
@@ -454,7 +460,7 @@ class InventoryBuilder {
           // A subagent lists its servers by position; its env keys use the server's name, so a
           // server added before another leaves the other's keys as they were.
           const named = scope === 'subagent' ? ['mcpServers', name, 'env', key] : path;
-          this.#pushEnv(artifact, doc, pathKey(named), cls, value, path, undefined, platforms);
+          this.#pushEnv(artifact, doc, pathKey(named), cls, value, path, { platforms });
         }
       }
       // Codex runs this command to get the server's HTTP headers (SOURCES.codexMcp).
@@ -462,16 +468,10 @@ class InventoryBuilder {
       if (artifact.kind === 'codex-config' && typeof helper === 'string') {
         const path = [...server.path, 'http_headers_helper'];
         const command = redactCommand(helper);
-        this.#pushEnv(
-          artifact,
-          doc,
-          pathKey(path),
-          'code-exec',
-          undefined,
-          path,
+        this.#pushEnv(artifact, doc, pathKey(path), 'code-exec', undefined, path, {
           command,
           platforms,
-        );
+        });
       }
       const trust = own(config, 'trust');
       if (artifact.kind === 'gemini-settings' && typeof trust === 'boolean') {
@@ -489,7 +489,8 @@ class InventoryBuilder {
 
   /**
    * What each agent that reads the file does with the server. Claude Code: a `url` without `type`
-   * is skipped (mcp/url-without-type); a project `.mcp.json` server asks first unless the
+   * is skipped (mcp/url-without-type), and so is a `"type": "sdk"` server, which only an SDK host
+   * application registers (SOURCES.claudeMcp); a project `.mcp.json` server asks first unless the
    * project's settings approve or reject it; a plugin's server starts once the user installs and
    * enables the plugin, which is that approval. A `.mcp.json` of another agent's plugin is not
    * Claude Code's. Cursor connects project servers and asks before each tool call; Gemini CLI
@@ -504,7 +505,8 @@ class InventoryBuilder {
     }
     const { snapshot } = this.#view;
     if (!isClaudeMcpConfig(snapshot, artifact)) return {};
-    if (urlWithoutType(server.config)) return { 'claude-code': 'skipped' };
+    if (urlWithoutType(server.config) || sdkOnly(server.config))
+      return { 'claude-code': 'skipped' };
     if (
       artifact.kind === 'claude-plugin-manifest' ||
       pluginRootOf(snapshot, artifact.path) !== undefined
@@ -870,14 +872,20 @@ class InventoryBuilder {
     if (env !== undefined) {
       for (const key of Object.keys(env)) {
         const value = stringOf(env[key]);
-        this.#pushEnv(artifact, doc, key, envClass(key, value), value, ['env', key]);
+        // Claude Code drops some variables from project and local settings.
+        const effective = !ignoredInRepositorySettings(key, value);
+        this.#pushEnv(artifact, doc, key, envClass(key, value), value, ['env', key], {
+          effective,
+        });
       }
     }
     for (const key of COMMAND_SETTINGS) {
       const value = own(root, key);
       const command = isObject(value) ? stringOf(own(value, 'command')) : stringOf(value);
       if (command === undefined) continue;
-      this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], redactCommand(command));
+      this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], {
+        command: redactCommand(command),
+      });
     }
   }
 
@@ -1095,7 +1103,9 @@ class InventoryBuilder {
    * is a changed item. Any other value may be a secret, so it is neither shown nor hashed
    * (decision 10): a changed NODE_OPTIONS value under the same key is not a changed item. A settings key that runs a
    * command passes `command`, its redacted command line, which the digest also covers, as it
-   * covers a hook's command: a changed helper command is a changed item.
+   * covers a hook's command: a changed helper command is a changed item. An override the agent
+   * drops is `effective: false`, which only such items' digests cover, so the digests of the
+   * others stay as they were.
    */
   #pushEnv(
     artifact: Artifact,
@@ -1104,9 +1114,14 @@ class InventoryBuilder {
     cls: EnvClass,
     value: string | undefined,
     path: JsonPath,
-    command?: string,
-    platforms: readonly PlatformId[] = sortedPlatforms(artifact.readers),
+    options: {
+      readonly command?: string;
+      readonly platforms?: readonly PlatformId[];
+      readonly effective?: boolean;
+    } = {},
   ): void {
+    const { command, effective = true } = options;
+    const platforms = options.platforms ?? sortedPlatforms(artifact.readers);
     const shown =
       cls === 'endpoint' ? endpointShown(value) : cls === 'tls' ? switchShown(value) : undefined;
     const fields = { key, class: cls, ...(shown === undefined ? {} : { shown }) };
@@ -1116,7 +1131,8 @@ class InventoryBuilder {
       line: lineOf(artifact, keySpanOf(doc, path)),
       platforms,
       ...fields,
-      digestFields: { ...fields, command },
+      effective,
+      digestFields: { ...fields, command, ...(effective ? {} : { effective }) },
     });
   }
 }

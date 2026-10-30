@@ -56,6 +56,23 @@ export function isUnsetModel(value: string): boolean {
   return text === '' || text === 'inherit';
 }
 
+/**
+ * Values of `ANTHROPIC_DEFAULT_MODEL` that Claude Code ignores, resolving the default model "as
+ * if you hadn't set it" (SOURCES.claudeModelConfig).
+ */
+const IGNORED_DEFAULT_MODELS: ReadonlySet<string> = new Set([
+  'default',
+  'inherit',
+  'opusplan',
+  'haiku',
+]);
+
+/** True when Claude Code ignores `ANTHROPIC_DEFAULT_MODEL` set to `value`, or it is empty. */
+export function isIgnoredDefaultModel(value: string): boolean {
+  const text = value.trim();
+  return text === '' || IGNORED_DEFAULT_MODELS.has(text);
+}
+
 interface Wanted {
   readonly path: JsonPath;
   readonly applies: ModelSetting['applies'];
@@ -63,7 +80,8 @@ interface Wanted {
 
 /**
  * Claude Code settings (SOURCES.claudeModelConfig, SOURCES.claudeSubagents): the session's model
- * (`env.ANTHROPIC_MODEL`, then `model`, then the default `env.ANTHROPIC_DEFAULT_MODEL`), its
+ * (`env.ANTHROPIC_MODEL`, then `model`, then the default `env.ANTHROPIC_DEFAULT_MODEL`, which
+ * Claude Code ignores when it is `default`, `inherit`, `opusplan` or `haiku`), its
  * effort, the subagents' model, the models allowed, and what the `opus`, `sonnet`, `haiku` and
  * `fable` aliases resolve to. `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE` makes Claude Code ignore
  * every subagent's own `model`.
@@ -192,10 +210,14 @@ const MODEL_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * True when `setting` picks a model: `model`, `env.CLAUDE_CODE_SUBAGENT_MODEL`, what an alias
- * resolves to, and the like. `CLAUDE_CODE_SUBAGENT_MODEL` set to `inherit` picks none.
+ * resolves to, and the like. `CLAUDE_CODE_SUBAGENT_MODEL` set to `inherit` picks none, nor does an
+ * `ANTHROPIC_DEFAULT_MODEL` that Claude Code ignores.
  */
 export function isModelChoice(setting: ModelSetting): boolean {
   if (setting.key === 'env.CLAUDE_CODE_SUBAGENT_MODEL' && isUnsetModel(setting.value)) {
+    return false;
+  }
+  if (setting.key === 'env.ANTHROPIC_DEFAULT_MODEL' && isIgnoredDefaultModel(setting.value)) {
     return false;
   }
   return (

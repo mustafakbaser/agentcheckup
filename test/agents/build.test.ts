@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildAgents } from '../../src/agents/build.js';
+import { isModelChoice } from '../../src/agents/settings.js';
 import type { AgentDefinition, AgentsReport } from '../../src/agents/types.js';
 import { analyze } from '../../src/core/engine.js';
 import { type FileMap, snapshotFrom } from '../helpers/lint.js';
@@ -842,6 +843,34 @@ describe('model values and settings', () => {
       source: 'session',
       file: '.claude/settings.json',
     });
+  });
+
+  it('ignores ANTHROPIC_DEFAULT_MODEL set to a value Claude Code ignores', () => {
+    const files = (model: string) => ({
+      '.claude/agents/reviewer.md': subagent('inherit'),
+      '.claude/agents/tester.md': '---\nname: tester\ndescription: Runs tests.\n---\nTest.\n',
+      '.claude/settings.json': json({ env: { ANTHROPIC_DEFAULT_MODEL: model } }),
+    });
+    for (const ignored of ['haiku', 'default', ' inherit ', 'opusplan']) {
+      const report = agentsOf(files(ignored));
+      expect(of(report, '.claude/agents/reviewer.md')['claude-code']?.effective).toEqual({
+        source: 'not-visible',
+      });
+      expect(of(report, '.claude/agents/tester.md')['claude-code']?.effective).toEqual({
+        source: 'not-visible',
+      });
+      // Still listed as the setting it is, but it picks no model.
+      const [setting] = report.settings;
+      expect(setting?.key).toBe('env.ANTHROPIC_DEFAULT_MODEL');
+      expect(isModelChoice(setting!)).toBe(false);
+    }
+    const sonnet = agentsOf(files('sonnet'));
+    expect(of(sonnet, '.claude/agents/reviewer.md')['claude-code']?.effective).toEqual({
+      value: 'sonnet',
+      source: 'session',
+      file: '.claude/settings.json',
+    });
+    expect(isModelChoice(sonnet.settings[0]!)).toBe(true);
   });
 
   it('lists what the aliases resolve to, numbers as text, and never a credential', () => {

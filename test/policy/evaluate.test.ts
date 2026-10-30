@@ -366,6 +366,23 @@ describe('mcp-unpinned', () => {
 // Settings
 // ---------------------------------------------------------------------------------------------
 
+describe('forbidden-setting of env overrides Claude Code drops', () => {
+  it('passes over an override Claude Code drops from repository settings', () => {
+    const report = run(
+      { forbid: ['env-endpoint'] },
+      settings({
+        env: {
+          OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example.com:4318',
+          ANTHROPIC_BASE_URL: 'https://llm-gateway.example.com/v1',
+        },
+      }),
+    );
+    expect(brief(report).map((item) => item.message)).toEqual([
+      'Env override ANTHROPIC_BASE_URL sends traffic to https://llm-gateway.example.com; the policy forbids env-endpoint.',
+    ]);
+  });
+});
+
 describe('forbidden-setting', () => {
   const ALL = {
     forbid: [

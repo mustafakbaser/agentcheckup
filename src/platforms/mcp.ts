@@ -181,6 +181,15 @@ export const REMOTE_EMPTY_EXAMPLES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * True for a `"type": "sdk"` entry, an in-process server that only an SDK host application can
+ * register: Claude Code skips one in `.mcp.json`, `~/.claude.json` or settings and reports
+ * `Skipped — MCP server "<name>" declares type "sdk"` (SOURCES.claudeMcp).
+ */
+export function sdkOnly(config: JsonObject): boolean {
+  return own(config, 'type') === 'sdk';
+}
+
+/**
  * True for a server entry with a `url` but neither `type` nor `command`. Claude Code reads such an
  * entry as a stdio server, reports a configuration error and skips it (mcp/url-without-type).
  */

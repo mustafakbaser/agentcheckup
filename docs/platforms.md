@@ -59,6 +59,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - Skills with the same name: enterprise wins over personal, personal over project. Project skills load from `.claude/skills/` in the working directory and every parent up to the repository root. A nested `.claude/skills/` loads the first time Claude reads or edits a file in that subdirectory. [Skills][cc-skills]
 - Subagents with the same name: managed, then the `--agents` flag, then `.claude/agents/`, then `~/.claude/agents/`, then plugins. [Subagents][cc-subagents]
 - Settings, highest precedence first: managed, `--settings`, `.claude/settings.local.json`, `.claude/settings.json`, `~/.claude/settings.json`. Lists such as `permissions.allow` merge. `permissions.defaultMode` values `auto` and `bypassPermissions` do not take effect from project or local settings (since v2.1.257); agentcheckup reports this. [Settings][cc-settings]
+- `env` in project and local settings cannot set variables "that a checked-out repository shouldn't control": Claude Code drops, among others, `CLAUDE_CONFIG_DIR`, `HOME` and the `XDG_*` variables, the OpenTelemetry exporter variables (`OTEL_EXPORTER_OTLP_*` names ending in `_ENDPOINT`, `_HEADERS`, `_PROTOCOL`, `_CERTIFICATE`, `_CLIENT_KEY` or `_INSECURE`, the exporter selectors, the content switches), `BETA_TRACING_ENDPOINT`, `CLAUDE_CODE_PROCESS_WRAPPER` and `CLAUDE_CODE_PLUGIN_SEED_DIR`, keeping only values that turn telemetry off (v2.1.282+ for the OpenTelemetry group). agentcheckup lists these overrides as not effective. [Settings reference][cc-settings-reference], [Environment variables][cc-env-vars]
 - Which project settings files a session reads: `.claude/settings.json` of the working directory, with no fallback to the directories above it, and `.claude/settings.local.json` of the git repository root, also in a session started in a subdirectory (since v2.1.211). A `.claude/settings.local.json` that an earlier version left in the starting directory is still read; where both local files set a key, the root's value applies. On Windows, outside a git repository, and when the repository root is the home directory or not owned by the user, the local file stays next to `.claude/settings.json`; agentcheckup's plans assume macOS or Linux. [Settings][cc-settings], [Permissions][cc-permissions]
 
 ### Imports
@@ -112,7 +113,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 ### MCP
 
 - Project servers live in `.mcp.json` at the project root, under `mcpServers`. Local and user servers live in `~/.claude.json`. When a server is defined in more than one place, Claude Code uses the whole entry from the highest source: local, project, user, plugin, claude.ai connector. Scopes match by name; plugins and connectors match by endpoint. [MCP][cc-mcp]
-- `type`: `stdio`, `http` (alias `streamable-http`), `sse` (deprecated) or `ws`. An entry with `url` but no `type` is read as a stdio server, reported as a configuration error and skipped. agentcheckup reports this. [MCP][cc-mcp]
+- `type`: `stdio`, `http` (alias `streamable-http`), `sse` (deprecated) or `ws`. An entry with `url` but no `type` is read as a stdio server, reported as a configuration error and skipped. agentcheckup reports this. A `"type": "sdk"` entry is skipped with a message: only an SDK host application can register such a server. [MCP][cc-mcp]
 - Variables: `${VAR}` and `${VAR:-default}` in `command`, `args`, `env`, `url` and `headers`. An unset variable without a default stays as literal text, with a warning. Credential variables such as `ANTHROPIC_API_KEY` read as empty in a remote server's `url` and `headers`. [MCP][cc-mcp]
 - Approval: interactive sessions ask before using servers from `.mcp.json`. `claude -p`, Agent SDK and cloud sessions load them without asking. `enableAllProjectMcpServers` or `enabledMcpjsonServers` in the project's `.claude/settings.json` approve servers only after the folder is trusted. [MCP][cc-mcp]
 
@@ -573,6 +574,7 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [cc-mcp]: https://code.claude.com/docs/en/mcp
 [cc-plugins]: https://code.claude.com/docs/en/plugins-reference
 [cc-plugin-loading]: https://code.claude.com/docs/en/plugins/loading
+[cc-env-vars]: https://code.claude.com/docs/en/env-vars
 [cc-permissions]: https://code.claude.com/docs/en/permissions
 [claude-api-skills]: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
 [codex-agents-md]: https://learn.chatgpt.com/docs/agent-configuration/agents-md

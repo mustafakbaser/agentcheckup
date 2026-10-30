@@ -1017,6 +1017,30 @@ describe('loadClaudeCode: MCP servers and hooks', () => {
     ]);
   });
 
+  it('skips a server of type sdk, which only an SDK host application registers', () => {
+    const result = plan({
+      '.mcp.json': JSON.stringify({
+        mcpServers: {
+          inproc: { type: 'sdk', name: 'inproc' },
+          remote: { type: 'http', url: 'https://example.com/mcp' },
+        },
+      }),
+    });
+    expect(summary(result.entries)).toEqual(['- on-approval mcp-server .mcp.json']);
+    expect(entry(result, 'mcp-server:.mcp.json#remote').certainty).toBe('documented');
+    expect(result.skipped).toEqual([
+      {
+        id: 'mcp-server:.mcp.json#inproc',
+        role: 'mcp-server',
+        path: '.mcp.json',
+        name: 'inproc',
+        code: 'never-active',
+        certainty: 'documented',
+        evidence: ['claudeMcp'],
+      },
+    ]);
+  });
+
   it('marks servers above the working directory as unverified and skips settings there', () => {
     const result = plan(
       {

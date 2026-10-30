@@ -579,6 +579,7 @@ function envItem(value: EnvItem): EnvItem {
     key: value.key,
     class: value.class,
     ...(value.shown === undefined ? {} : { shown: value.shown }),
+    effective: value.effective,
   };
 }
 

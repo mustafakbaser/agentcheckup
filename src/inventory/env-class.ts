@@ -1,7 +1,8 @@
 /**
- * What an environment override does, for the security inventory. Every name below is taken from
- * the cited documentation (checked 2026-10-15); a name that is not listed and does not look like a
- * credential is `other`.
+ * What an environment override does, for the security inventory, and whether Claude Code drops
+ * it from repository settings. Every name below is taken from the cited documentation (checked
+ * 2026-10-15, the Claude Code pages again 2026-10-30); a name that is not listed and does not look
+ * like a credential is `other`.
  *
  * - Claude Code environment variables: https://code.claude.com/docs/en/env-vars
  * - Claude Code network configuration (proxies, CA certificates, mTLS):
@@ -95,7 +96,9 @@ const BY_NAME: ReadonlyMap<string, EnvClass> = new Map([
 
 /**
  * Claude Code settings keys that run a command: the five credential and header helpers take a
- * command line, `statusLine` and `fileSuggestion` an object with a `command`.
+ * command line, `statusLine`, `subagentStatusLine` and `fileSuggestion` an object with a
+ * `command` (SOURCES.claudeSettingsReference: `subagentStatusLine` "lets you run your own command
+ * to rewrite those rows", in any file).
  */
 export const COMMAND_SETTINGS: readonly string[] = [
   'apiKeyHelper',
@@ -104,8 +107,114 @@ export const COMMAND_SETTINGS: readonly string[] = [
   'gcpAuthRefresh',
   'otelHeadersHelper',
   'statusLine',
+  'subagentStatusLine',
   'fileSuggestion',
 ];
+
+/**
+ * Variables Claude Code drops from the `env` of project and local settings, "variables that a
+ * checked-out repository shouldn't control" (SOURCES.claudeSettingsReference, "Variables Claude
+ * Code ignores in `env`", since v2.1.282 for the OpenTelemetry group; SOURCES.claudeEnvVars), and
+ * the ones it ignores from every file. The reference lists them as "They include", so names it
+ * does not give are not here.
+ */
+const DROPPED_FROM_REPOSITORY: ReadonlySet<string> = new Set([
+  // Where Claude Code stores or writes its own files.
+  'CLAUDE_CONFIG_DIR',
+  'CLAUDE_CODE_TMPDIR',
+  'HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  // Windows programs and machine-wide configuration.
+  'SystemRoot',
+  'ComSpec',
+  'ProgramData',
+  'LOCALAPPDATA',
+  'PATHEXT',
+  'PSModulePath',
+  // Session content.
+  'OTEL_LOG_RAW_API_BODIES',
+  'ENABLE_BETA_TRACING_DETAILED',
+  'BETA_TRACING_ENDPOINT',
+  // The OpenTelemetry exporter.
+  'CLAUDE_CODE_ENABLE_TELEMETRY',
+  'CLAUDE_CODE_ENHANCED_TELEMETRY_BETA',
+  'ENABLE_ENHANCED_TELEMETRY_BETA',
+  'OTEL_LOGS_EXPORTER',
+  'OTEL_METRICS_EXPORTER',
+  'OTEL_TRACES_EXPORTER',
+  'OTEL_LOG_USER_PROMPTS',
+  'OTEL_LOG_ASSISTANT_RESPONSES',
+  'OTEL_LOG_TOOL_CONTENT',
+  'OTEL_LOG_TOOL_DETAILS',
+  'OTEL_EXPORTER_PROMETHEUS_HOST',
+  'OTEL_EXPORTER_PROMETHEUS_PORT',
+  // How Claude Code starts or syncs.
+  'CLAUDE_CODE_PROCESS_WRAPPER',
+  'CLAUDE_CODE_SYNC_SKILLS',
+  'CLAUDE_CODE_SYNC_PLUGINS',
+  'CLAUDE_CODE_PLUGIN_CACHE_DIR',
+  'CLAUDE_CODE_PLUGIN_SEED_DIR',
+  // Dialogs and input.
+  'CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS',
+  'CLAUDE_CODE_DISABLE_ATTACHMENTS',
+  'CLAUDE_CODE_DISABLE_FILE_MENTIONS',
+  // Ignored from every file.
+  'CLAUDE_CODE_REMOTE',
+  'CLAUDE_CODE_ACCOUNT_UUID',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  'CLAUDE_CODE_PROJECT_DIR_NAME',
+  'CLAUDE_CODE_RESTRICTED',
+]);
+
+/** Name prefixes of the families the reference drops: `XDG_*`, `ProgramFiles*`, `CLAUDE_AX_*`. */
+const DROPPED_PREFIXES: readonly string[] = ['XDG_', 'ProgramFiles', 'CLAUDE_AX_'];
+
+/** The `OTEL_EXPORTER_OTLP_*` endings the reference drops, generic and per signal. */
+const DROPPED_OTLP_SUFFIXES: readonly string[] = [
+  '_ENDPOINT',
+  '_HEADERS',
+  '_PROTOCOL',
+  '_CERTIFICATE',
+  '_CLIENT_KEY',
+  '_INSECURE',
+];
+
+/** The exporter selectors, which still apply from the repository when they turn telemetry off. */
+const EXPORTER_SELECTORS: ReadonlySet<string> = new Set([
+  'OTEL_LOGS_EXPORTER',
+  'OTEL_METRICS_EXPORTER',
+  'OTEL_TRACES_EXPORTER',
+]);
+
+/** Content switches that still apply from the repository when they are off. */
+const CONTENT_SWITCHES: ReadonlySet<string> = new Set([
+  'OTEL_LOG_USER_PROMPTS',
+  'OTEL_LOG_TOOL_CONTENT',
+  'OTEL_LOG_TOOL_DETAILS',
+]);
+
+const OFF_VALUES: ReadonlySet<string> = new Set(['0', 'false', 'no', 'off']);
+
+/**
+ * True when Claude Code drops `name` from the `env` of project and local settings, with the
+ * value it has there: "Only these values still apply from project and local settings, because
+ * they turn something off: `none` for the three exporter selectors, and an off value such as `0`"
+ * for three content switches. Names are case-sensitive.
+ */
+export function ignoredInRepositorySettings(name: string, value: string | undefined): boolean {
+  const text = value?.trim().toLowerCase();
+  if (EXPORTER_SELECTORS.has(name) && text === 'none') return false;
+  if (CONTENT_SWITCHES.has(name) && text !== undefined && OFF_VALUES.has(text)) return false;
+  if (DROPPED_FROM_REPOSITORY.has(name)) return true;
+  if (DROPPED_PREFIXES.some((prefix) => name.startsWith(prefix))) return true;
+  // `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` alike.
+  return (
+    name.startsWith(OTLP_PREFIX) && DROPPED_OTLP_SUFFIXES.some((suffix) => name.endsWith(suffix))
+  );
+}
 
 /** Evidence for the classes above. */
 export const ENV_CLASS_SOURCES: readonly RuleSource[] = [

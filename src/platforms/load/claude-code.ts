@@ -62,7 +62,7 @@ import {
 } from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
-import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
+import { isClaudeMcpConfig, mcpServers, sdkOnly, urlWithoutType } from '../mcp.js';
 import {
   inClaudeFolder,
   inPayloadFolder,
@@ -1172,6 +1172,11 @@ class ClaudeLoader {
           certainty,
           evidence,
         });
+        return;
+      }
+      // Only an SDK host application registers it: never active in a Claude Code session.
+      if (sdkOnly(config)) {
+        this.#skip({ role: 'mcp-server', path, name, code: 'never-active', certainty, evidence });
         return;
       }
       if (disabled) {

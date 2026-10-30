@@ -24,7 +24,7 @@ Set a value the agent documents, or remove `model` to use the default.
 ## Evidence
 
 - [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-14
-- [Claude Code: Model configuration](https://code.claude.com/docs/en/model-config), verified, checked 2026-10-26
+- [Claude Code: Model configuration](https://code.claude.com/docs/en/model-config), verified, checked 2026-10-30
 - [Codex: Subagents and custom agents](https://learn.chatgpt.com/docs/agent-configuration/subagents), verified, checked 2026-10-26
 - [Cursor: Subagents](https://cursor.com/docs/subagents), verified, checked 2026-10-26
 - [Gemini CLI: Subagents](https://geminicli.com/docs/core/subagents/), verified, checked 2026-10-26
