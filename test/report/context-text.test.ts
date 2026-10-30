@@ -128,6 +128,27 @@ describe('formatContextText content', () => {
     ]);
   });
 
+  it('marks where a limit cuts a file that loads on demand', () => {
+    const output = formatContextText({
+      ...result,
+      context: contextReport([
+        plan('claude-code', {
+          entries: [
+            entry('instructions', 'pkg/CLAUDE.md', {
+              trigger: 'on-path',
+              patterns: ['pkg/**'],
+              size: size(48_000, 40_000),
+              truncated: { atByte: 40_000, line: 401 },
+            }),
+          ],
+        }),
+      ]),
+    });
+    expect(section(output, 'On demand')).toEqual([
+      '  pkg/CLAUDE.md (cut at byte 40,000, line 401)  48,000 bytes ≈ 10,000, when Claude opens pkg/**',
+    ]);
+  });
+
   it('counts the files the configuration ignores in one line, and is silent without any', () => {
     const ignoring = (ignored: number | undefined): string =>
       formatContextText({

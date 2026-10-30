@@ -788,6 +788,67 @@ describe('hook-missing', () => {
       'claude-code PreToolUse',
     ]);
   });
+
+  it('does not count a hook the repository turns off with disableAllHooks', () => {
+    const requirement = { agent: 'claude-code', event: 'PreToolUse', matcher: 'Bash' };
+    const shared = {
+      hooks: {
+        PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: './guard.sh' }] }],
+      },
+    };
+    const off = run(
+      { hooks: { require: [requirement] } },
+      { '.claude/settings.json': json({ disableAllHooks: true, ...shared }) },
+    );
+    expect(brief(off)).toEqual([
+      {
+        check: 'hook-missing',
+        entry: 'claude-code PreToolUse matcher "Bash"',
+        message: `The policy requires a Claude Code PreToolUse hook with matcher "Bash", and disableAllHooks turns off every one configured. ${HOOKS_NOT_ENFORCED}`,
+      },
+    ]);
+    // The same id as a hook that is missing, so a baseline matches it either way.
+    expect(off.violations[0]?.id).toBe(
+      run({ hooks: { require: [requirement] } }, {}).violations[0]?.id,
+    );
+    // The local file turns them off for the shared file's hooks too.
+    const local = run(
+      { hooks: { require: [requirement] } },
+      { ...claudeHook, '.claude/settings.local.json': json({ disableAllHooks: true }) },
+    );
+    expect(local.violations.map((violation) => violation.check)).toEqual(['hook-missing']);
+    // The last file that sets it wins.
+    const on = run(
+      { hooks: { require: [requirement] } },
+      {
+        '.claude/settings.json': json({ disableAllHooks: true, ...shared }),
+        '.claude/settings.local.json': json({ disableAllHooks: false }),
+      },
+    );
+    expect(on.violations).toEqual([]);
+
+    const copilot = (files: FileMap): string[] =>
+      run(
+        { hooks: { require: [{ agent: 'copilot', event: 'preToolUse' }] } },
+        files,
+      ).violations.map((violation) => violation.entry);
+    const guard = { version: 1, hooks: { preToolUse: [{ type: 'command', bash: './guard.sh' }] } };
+    // A hooks file that turns its own hooks off; the CLI's settings do not stop the cloud agent.
+    expect(
+      copilot({ '.github/hooks/guard.json': json({ disableAllHooks: true, ...guard }) }),
+    ).toEqual(['copilot preToolUse']);
+    expect(
+      copilot({
+        '.github/hooks/guard.json': json(guard),
+        '.github/copilot/settings.json': json({ disableAllHooks: true }),
+      }),
+    ).toEqual([]);
+    // Only the CLI runs the inline hooks of its settings, and its settings turn them off.
+    expect(
+      copilot({ '.github/copilot/settings.json': json({ disableAllHooks: true, ...guard }) }),
+    ).toEqual(['copilot preToolUse']);
+    expect(copilot({ '.github/copilot/settings.json': json(guard) })).toEqual([]);
+  });
 });
 
 describe('frontmatter of skills, commands and subagents', () => {

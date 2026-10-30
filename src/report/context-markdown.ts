@@ -149,7 +149,11 @@ function onDemandSection(view: PlanView, maxRows: number): string[] {
       const size = row.size === undefined ? '' : `${row.body ? 'body ' : ''}${sizeText(row.size)}`;
       const importer = row.importedBy === undefined ? '' : `, imported by ${path(row.importedBy)}`;
       const when = `${text(row.when)}${importer}${row.unverified ? ' ?' : ''}`;
-      return `| ${path(row.path)} | ${size} | ${when} |`;
+      const cut =
+        row.truncated === undefined
+          ? ''
+          : ` **(cut at byte ${formatInteger(row.truncated.atByte)}, line ${formatInteger(row.truncated.line)})**`;
+      return `| ${path(row.path)}${cut} | ${size} | ${when} |`;
     },
     maxRows,
     MAX_TABLE_BYTES,

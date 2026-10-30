@@ -1733,7 +1733,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1809,7 +1809,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1825,7 +1825,7 @@
     {
       "id": "instr/claude-md-too-long",
       "title": "CLAUDE.md is longer than 200 lines",
-      "rationale": "Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. The file still loads in full (up to 4 MiB), so this is information only.\n\nMoving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.",
+      "rationale": "Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. A file that loads at launch still loads in full (up to 4 MiB), so this is information only.\n\nA `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.\n\nMoving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.",
       "category": "budget",
       "severity": "info",
       "appliesTo": [
@@ -1839,7 +1839,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1861,7 +1861,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1965,7 +1965,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2078,7 +2078,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2123,7 +2123,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2186,7 +2186,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2243,7 +2243,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2352,7 +2352,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2403,7 +2403,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2448,6 +2448,7 @@
       "appliesTo": [
         "claude-settings",
         "claude-plugin-manifest",
+        "claude-plugin-hooks",
         "cursor-hooks",
         "cursor-mcp",
         "gemini-settings",
@@ -2529,7 +2530,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2620,9 +2621,9 @@
           "status": "verified"
         },
         {
-          "title": "Claude Code: Plugins reference",
+          "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2685,9 +2686,9 @@
       ],
       "sources": [
         {
-          "title": "Claude Code: Plugins reference",
+          "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2732,6 +2733,7 @@
       "appliesTo": [
         "claude-settings",
         "claude-plugin-manifest",
+        "claude-plugin-hooks",
         "cursor-hooks",
         "cursor-mcp",
         "gemini-settings",
@@ -2763,9 +2765,9 @@
           "status": "verified"
         },
         {
-          "title": "Claude Code: Plugins reference",
+          "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2924,9 +2926,9 @@
           "status": "verified"
         },
         {
-          "title": "Claude Code: Plugins reference",
+          "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -2982,7 +2984,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3044,6 +3046,7 @@
         "imported-file",
         "claude-settings",
         "claude-plugin-manifest",
+        "claude-plugin-hooks",
         "cursor-hooks",
         "cursor-mcp",
         "gemini-settings",
@@ -3188,7 +3191,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3222,7 +3225,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3256,7 +3259,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3303,13 +3306,13 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude Code: Configure permissions",
           "url": "https://code.claude.com/docs/en/permissions",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3355,7 +3358,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3419,7 +3422,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3501,7 +3504,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3553,7 +3556,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3581,7 +3584,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3653,7 +3656,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3770,7 +3773,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3830,7 +3833,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3916,7 +3919,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3997,7 +4000,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -4066,7 +4069,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4124,7 +4127,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -4152,7 +4155,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4222,13 +4225,13 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude Code: Configure permissions",
           "url": "https://code.claude.com/docs/en/permissions",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -4488,7 +4491,8 @@
         "type": "command",
         "command": "pnpm lint",
         "failsOpen": false,
-        "remoteScript": false
+        "remoteScript": false,
+        "effective": true
       },
       {
         "id": "hook:.claude/settings.json#PreToolUse:733d584e",
@@ -4508,7 +4512,8 @@
         "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/guard.sh",
         "script": "scripts/guard.sh",
         "failsOpen": true,
-        "remoteScript": false
+        "remoteScript": false,
+        "effective": true
       },
       {
         "id": "hook:.cursor/hooks.json#beforeShellExecution:447fbfea",
@@ -4524,7 +4529,8 @@
         "command": "./scripts/guard.sh",
         "script": "scripts/guard.sh",
         "failsOpen": true,
-        "remoteScript": false
+        "remoteScript": false,
+        "effective": true
       }
     ],
     "permissions": [

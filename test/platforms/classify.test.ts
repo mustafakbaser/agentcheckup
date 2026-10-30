@@ -22,6 +22,8 @@ describe('classify', () => {
     ['.claude/settings.json', 'claude-settings'],
     ['.claude/settings.local.json', 'claude-settings'],
     ['.claude-plugin/plugin.json', 'claude-plugin-manifest'],
+    ['.claude/skills/deploy/hooks/hooks.json', 'claude-plugin-hooks'],
+    ['pkg/.claude/skills/deploy/hooks/hooks.json', 'claude-plugin-hooks'],
     ['.mcp.json', 'mcp-json'],
     ['.claude/skills/deploy/SKILL.md', 'skill'],
     ['.agents/skills/pdf/SKILL.md', 'skill'],
@@ -54,6 +56,8 @@ describe('classify', () => {
     'src/agents.ts',
     'AGENTS.md.bak',
     'NOTAGENTS.md',
+    'plugins/deploy/hooks/hooks.json',
+    '.claude/skills/deploy/sub/hooks/hooks.json',
     '.cursor/rules',
   ])('ignores %s', (path) => {
     expect(classify(path)).toBeUndefined();

@@ -23,8 +23,8 @@ Review these commands before you invoke the skill, or set `disableSkillShellExec
 
 ## Evidence
 
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
-- [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
+- [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-30
 
 ## Fix
 

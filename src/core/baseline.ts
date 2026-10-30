@@ -409,6 +409,7 @@ const HOOK_FIELDS = {
   failsOpen: 'value',
   remoteScript: 'value',
   scope: 'value',
+  effective: 'value',
 } as const satisfies FieldTable<HookItem>;
 
 const PERMISSION_FIELDS = {
@@ -969,14 +970,22 @@ const INERT_WHEN_INVALID: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
  * it could not analyze, unless its agent is known to ignore such a file ({@link
  * INERT_WHEN_INVALID}). That covers Copilot's and Devin Local's hook and settings files, whose
  * readers' parsers are not documented (VS Code reads its own settings as JSONC), and a
- * `.codex/config.toml`, which declares hooks next to MCP servers. Also Cascade's
- * `.devin/hooks.json`, the files in Cline's hook and plugin folders, which have no documented
- * format, and a skill, command or subagent whose frontmatter could not be read.
+ * `.codex/config.toml`, which declares hooks next to MCP servers, and a Claude Code plugin's
+ * manifest and `hooks/hooks.json`. Also Cascade's `.devin/hooks.json`, the files in Cline's hook
+ * and plugin folders, which have no documented format, and a skill, command or subagent whose
+ * frontmatter could not be read.
  */
 function isHookConfig(entry: string): boolean {
   const { path, invalid } = incompletePath(entry);
   const kind = classify(path)?.kind;
-  if (kind === 'codex-config' || kind === 'devin-hooks') return true;
+  if (
+    kind === 'codex-config' ||
+    kind === 'devin-hooks' ||
+    kind === 'claude-plugin-hooks' ||
+    kind === 'claude-plugin-manifest'
+  ) {
+    return true;
+  }
   if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) return true;
   if (kind !== undefined && hookSourceOf({ kind, path }) !== undefined) {
     return invalid === undefined || !INERT_WHEN_INVALID.has(kind);

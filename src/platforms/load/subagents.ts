@@ -795,8 +795,9 @@ function memoryOf(
 }
 
 /**
- * Whether the working directory's `.claude/settings.json` and `.claude/settings.local.json`, the
- * local file winning on a key, turn auto memory off: `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY` when
+ * Whether the settings the session reads (`claudeSettingsFiles` in ../root-settings.ts: the
+ * working directory's `.claude/settings.json`, the repository root's `.claude/settings.local.json`),
+ * the local file winning on a key, turn auto memory off: `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY` when
  * set to a true or false value, which "takes precedence over this key for one session, in either
  * direction", else `autoMemoryEnabled: false` (SOURCES.claudeSettingsReference).
  */

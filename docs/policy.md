@@ -166,7 +166,12 @@ A hook in `hooks.require` is not configured. Each requirement names:
 
 A hook in the frontmatter of a skill, command or subagent never meets a requirement: it runs only
 once the skill is invoked, or only while the subagent runs, so it does not guard the whole
-session.
+session. Nor does a hook that the repository's own settings turn off with `disableAllHooks: true`
+(inventory `"effective": false`). In Claude Code's project settings, the key turns off the
+settings and plugin hooks of a session started where the hook's file is; in the Copilot CLI's
+repository settings, or in Claude Code's, the inline hooks of `.github/copilot/settings.json`; at
+the top of a `.github/hooks/*.json` file, that file's hooks. The Copilot cloud agent does not read
+the CLI's settings, so those leave the hooks of `.github/hooks/` on.
 
 **Configured, not enforced.** The check proves only that the hook is configured. Hooks fail open
 on errors and timeouts, and user settings can turn them off, so a hook is not a control the

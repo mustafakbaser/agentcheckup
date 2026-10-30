@@ -23,7 +23,7 @@ Move instructions you intend into visible text, or delete them.
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
 - [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
 - [AGENTS.md open format](https://agents.md/), verified, checked 2026-10-14
 - [Cursor: Rules (does not say whether HTML comments reach the model)](https://cursor.com/docs/rules), unverified, checked 2026-10-14

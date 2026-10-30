@@ -172,6 +172,10 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   { key: 'claude-code.session', phrase: (value) => `${valueText(value)} session` },
   { key: 'claude-code.workspace_trusted', phrase: (value) => trusted(value, 'workspace') },
   {
+    key: 'claude-code.os',
+    phrase: (value) => (value === 'macos-or-linux' ? 'macOS or Linux' : valueText(value)),
+  },
+  {
     key: 'claude-code.memory_file_lines',
     phrase: (value) => `memory files advised under ${valueText(value)} lines`,
     setting: true,
@@ -368,6 +372,8 @@ export interface ServiceRow {
 export interface OnDemandRow {
   readonly path: string;
   readonly size?: Size;
+  /** Set when a limit cuts the file, as on {@link StartupRow}. */
+  readonly truncated?: { readonly atByte: number; readonly line: number };
   /** True when `size` is a skill body rather than the whole entry. */
   readonly body: boolean;
   readonly when: string;
@@ -888,6 +894,7 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     onDemand.push({
       path: entry.path,
       ...(size === undefined ? {} : { size }),
+      ...(entry.truncated === undefined ? {} : { truncated: entry.truncated }),
       body: entry.role === 'skill' && entry.deferred !== undefined,
       when: whenText(entry, plan.agent),
       ...(importer === undefined ? {} : { importedBy: importer }),

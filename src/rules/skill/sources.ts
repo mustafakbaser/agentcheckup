@@ -19,10 +19,8 @@ const verified = (title: string, url: string, checked = CHECKED): RuleSource => 
 });
 
 export const SKILL_SOURCES = {
-  claudePermissions: verified(
-    'Claude Code: Configure permissions',
-    'https://code.claude.com/docs/en/permissions',
-  ),
+  // Shared with the Claude Code load plan, which cites it for the settings files it reads.
+  claudePermissions: SOURCES.claudePermissions,
   claudeSkillsApiGuide: verified(
     'Claude API: Using Agent Skills with the API',
     'https://platform.claude.com/docs/en/build-with-claude/skills-guide',

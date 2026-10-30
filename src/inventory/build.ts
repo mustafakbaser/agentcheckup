@@ -96,6 +96,20 @@ import {
   SUBAGENT_PERMISSION_MODES,
 } from '../platforms/permissions.js';
 import { placement, skillLocation } from '../platforms/skills.js';
+import {
+  PLUGIN_HOOKS_FILE,
+  type SkillsDirPlugin,
+  skillsDirPlugin,
+  skillsDirPluginOf,
+  unreadPluginFiles,
+} from '../platforms/skills-dir-plugins.js';
+import {
+  claudeHooksOff,
+  claudeProjectSettings,
+  COPILOT_CLI_SETTINGS,
+  copilotCliHooksOff,
+  settingAt,
+} from '../platforms/root-settings.js';
 import { checkSubagent, type SubagentCheck } from '../platforms/subagents.js';
 import { isLoopbackHost } from '../rules/mcp/insecure-transport.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
@@ -119,6 +133,7 @@ import type {
 const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   ...[...MCP_KINDS].filter((kind) => !TOML_KINDS.has(kind)),
   'claude-settings',
+  'claude-plugin-hooks',
   'codex-hooks',
   'cursor-hooks',
   'copilot-hooks',
@@ -146,12 +161,23 @@ const FRONTMATTER_HOOKS: HookSource = { platform: 'claude-code', root: 'hooks' }
  */
 const COPILOT_AGENT_HOOKS: HookSource = { platform: 'copilot', root: 'hooks' };
 
-/** Where hooks apply: the agents that run them, the project root their commands name, a scope. */
+/**
+ * A plugin's `hooks/hooks.json` wraps its events in `hooks`, and so does the manifest, whose
+ * `hooks` object is the event map itself (SOURCES.claudePlugins).
+ */
+const PLUGIN_HOOKS: HookSource = { platform: 'claude-code', root: 'hooks' };
+
+/**
+ * Where hooks apply: the agents that run them, the project root their commands name, a scope,
+ * and whether the repository's settings leave them on ({@link HookItem.effective}; unless set,
+ * as the file's settings say).
+ */
 interface HookPlacement {
   readonly platforms: readonly PlatformId[];
   /** The directory `$CLAUDE_PROJECT_DIR` names; undefined when it cannot be told. */
   readonly root: string | undefined;
   readonly scope?: HookItem['scope'];
+  readonly effective?: boolean;
 }
 
 /** What each agent does with one MCP server ({@link McpServerItem.status}). */
@@ -298,6 +324,12 @@ class InventoryBuilder {
       return;
     }
     if (!JSON_KINDS.has(artifact.kind)) return;
+    // A `hooks/hooks.json` in a skill folder without a plugin manifest is not configuration.
+    const plugin =
+      artifact.kind === 'claude-plugin-hooks'
+        ? skillsDirPluginOf(this.#view.snapshot, artifact.path, PLUGIN_HOOKS_FILE)
+        : undefined;
+    if (artifact.kind === 'claude-plugin-hooks' && plugin === undefined) return;
     // `.vscode/mcp.json` is read as JSONC, as VS Code reads it (src/core/engine.ts).
     const doc = this.#view.json(artifact);
     if (!doc.ok) {
@@ -305,6 +337,9 @@ class InventoryBuilder {
       return;
     }
     if (MCP_KINDS.has(artifact.kind)) this.#addServers(artifact, doc);
+    if (artifact.kind === 'claude-plugin-hooks' || artifact.kind === 'claude-plugin-manifest') {
+      this.#addPluginHooks(artifact, doc, plugin);
+    }
     const hooks = hookSourceOf(artifact);
     if (hooks !== undefined) this.#addHooks(artifact, doc, hooks);
     // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
@@ -526,7 +561,7 @@ class InventoryBuilder {
     },
   ): void {
     const { platform } = source;
-    const { platforms, root, scope } = where;
+    const { platforms, root, scope, effective = this.#hooksOn(artifact, doc) } = where;
     const syntax = hookCommandSyntax(this.#view.snapshot, platform, root ?? '');
     const hooks = hookHandlers(doc, platform, { includeUnknown: true, root: source.root });
     const ids = hookInventoryIds(artifact.path, hooks, platform);
@@ -560,13 +595,88 @@ class InventoryBuilder {
         line: lineOf(artifact, spanOf(doc, [...hook.path, 'command']) ?? keySpanOf(doc, hook.path)),
         platforms,
         ...fields,
+        effective,
+        // Only a hook that is off has `effective` in its digest, so the others keep theirs.
         digestFields: {
           ...fields,
           ...(target === undefined ? {} : { target }),
           ...(variants.length > 1 ? { commands: variants } : {}),
+          ...(effective ? {} : { effective }),
         },
       });
     });
+  }
+
+  /**
+   * The hooks of a Claude Code plugin: those of `hooks/hooks.json` in a plugin of a skills folder,
+   * and the inline `hooks` object of any manifest. Claude Code runs them once the plugin is on;
+   * `$CLAUDE_PROJECT_DIR` names the directory that holds the skills folder. Inline hooks in a list
+   * are not analyzed, nor are the files a manifest names ({@link #addPluginFiles}), so the
+   * manifest is incomplete.
+   */
+  #addPluginHooks(
+    artifact: Artifact,
+    doc: SpannedDocument,
+    plugin: SkillsDirPlugin | undefined,
+  ): void {
+    const owner = plugin?.owner ?? skillsDirPlugin(artifact.path)?.owner;
+    if (artifact.kind === 'claude-plugin-manifest') {
+      this.#addPluginFiles(artifact, doc);
+      const inline = isTable(doc.value) ? own(doc.value, 'hooks') : undefined;
+      if (Array.isArray(inline) && inline.some(isTable)) this.#incomplete.add(artifact.path);
+      if (!isTable(inline)) return;
+    }
+    this.#addHooks(artifact, doc, PLUGIN_HOOKS, {
+      platforms: ['claude-code'],
+      root: owner,
+      // `disableAllHooks` in the session's settings turns plugin hooks off too.
+      effective: owner === undefined || !claudeHooksOff(this.#view, owner),
+    });
+  }
+
+  /**
+   * Whether the repository's own settings leave the hooks of a hook or settings file on, for the
+   * agent whose hook configuration it is:
+   * - Claude Code: `disableAllHooks: true` in the settings that a session started where the file
+   *   is reads ({@link claudeHooksOff}) turns off its project and local hooks;
+   * - Copilot CLI: `disableAllHooks: true` in its repository settings, or in Claude Code's, skips
+   *   every hook, and only the CLI runs the inline hooks of its settings files
+   *   ({@link copilotCliHooksOff});
+   * - Copilot: `disableAllHooks: true` at the top of a `.github/hooks/*.json` file skips "only the
+   *   hooks declared in that file" on the CLI and the cloud agent (SOURCES.copilotHooksReference).
+   *   The cloud agent does not read the CLI's settings, so those leave such a file's hooks on.
+   */
+  #hooksOn(artifact: Artifact, doc: SpannedDocument): boolean {
+    if (artifact.kind === 'claude-settings') {
+      return !claudeHooksOff(this.#view, projectRootOf(artifact));
+    }
+    if (artifact.kind === 'copilot-hooks') return settingAt(doc, ['disableAllHooks']) !== true;
+    if (artifact.kind !== 'copilot-settings') return true;
+    // `<root>/.github/copilot/settings.json`
+    const root = dirnamePosix(projectRootOf(artifact));
+    const settings = COPILOT_CLI_SETTINGS.flatMap((name) => {
+      const file = this.#view.index.get(joinPath(root, name));
+      if (file?.kind !== 'copilot-settings') return [];
+      const parsed = this.#view.json(file);
+      return parsed.ok ? [parsed] : [];
+    });
+    return copilotCliHooksOff(settings, claudeProjectSettings(this.#view, root)) === undefined;
+  }
+
+  /**
+   * The files a skills-folder plugin's manifest names in `hooks` and `mcpServers`, such as
+   * `"hooks": "./config/hooks.json"`: Claude Code loads their hooks and servers with the plugin's
+   * own `hooks/hooks.json` and `.mcp.json` (SOURCES.claudePlugins). The inventory does not read
+   * them, so the manifest is incomplete, and both gates fail closed on it.
+   */
+  #addPluginFiles(artifact: Artifact, doc: SpannedDocument): void {
+    const plugin = skillsDirPlugin(artifact.path);
+    if (plugin === undefined) return;
+    const { snapshot } = this.#view;
+    const unread = (['hooks', 'mcpServers'] as const).some(
+      (key) => unreadPluginFiles(snapshot, doc, key, plugin.folder).length > 0,
+    );
+    if (unread) this.#incomplete.add(artifact.path);
   }
 
   // Codex config.toml -------------------------------------------------------------------------

@@ -155,6 +155,25 @@ describe('formatContextMarkdown', () => {
     );
   });
 
+  it('marks where a limit cuts a file that loads on demand', () => {
+    const output = formatContextMarkdown({
+      ...result,
+      context: contextReport([
+        plan('claude-code', {
+          entries: [
+            entry('instructions', 'pkg/CLAUDE.md', {
+              trigger: 'on-path',
+              patterns: ['pkg/**'],
+              size: size(48_000, 40_000),
+              truncated: { atByte: 40_000, line: 401 },
+            }),
+          ],
+        }),
+      ]),
+    });
+    expect(output).toContain('| pkg/CLAUDE\\.md **(cut at byte 40,000, line 401)** |');
+  });
+
   it('counts the files the configuration ignores, after the plan', () => {
     const output = formatContextMarkdown({
       ...result,

@@ -26,7 +26,7 @@ Rename the key to an event the agent fires.
 ## Evidence
 
 - [Claude Code: Hooks](https://code.claude.com/docs/en/hooks), verified, checked 2026-10-14
-- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-14
+- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-30
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
 - [Codex source: hook_config.rs (hooks.json top level: description and hooks only)](https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs), verified, checked 2026-10-30
 - [Codex source: hooks/src/lib.rs (HOOK_EVENT_NAMES, and the events whose matcher is used)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs), verified, checked 2026-10-30

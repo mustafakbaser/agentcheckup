@@ -23,8 +23,8 @@ Add `CLAUDE.local.md` to `.gitignore`. If it is already committed, also run `git
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
-- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-14
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
+- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-30
 
 ## Fix
 

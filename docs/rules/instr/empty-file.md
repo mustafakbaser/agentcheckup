@@ -27,7 +27,7 @@ Add the instructions or delete the file.
 
 - [Codex: AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), verified, checked 2026-10-14
 - [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
 - [Cline: Rules](https://docs.cline.bot/customization/cline-rules), verified, checked 2026-10-14
 - [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-30
 

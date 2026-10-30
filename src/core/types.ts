@@ -59,6 +59,7 @@ export const ARTIFACT_KINDS = [
   'claude-command',
   'claude-settings',
   'claude-plugin-manifest',
+  'claude-plugin-hooks',
   'skill',
   'cursor-rule',
   'cursor-rule-md',

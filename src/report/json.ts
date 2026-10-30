@@ -551,6 +551,7 @@ function hook(value: HookItem): HookItem {
     failsOpen: value.failsOpen,
     remoteScript: value.remoteScript,
     ...(value.scope === undefined ? {} : { scope: value.scope }),
+    effective: value.effective,
   };
 }
 

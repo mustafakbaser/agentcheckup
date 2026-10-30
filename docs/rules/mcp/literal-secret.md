@@ -4,14 +4,14 @@
 
 Configuration file contains a literal credential.
 
-|            |                                                                                                                                                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `error`                                                                                                                                                                                                                                               |
-| Category   | `risk`                                                                                                                                                                                                                                                |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                                                            |
-| Applies to | `claude-settings`, `claude-plugin-manifest`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks`, `codex-config` |
-| Fixable    | Yes, `review`                                                                                                                                                                                                                                         |
-| Since      | 2026.10                                                                                                                                                                                                                                               |
+|            |                                                                                                                                                                                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `error`                                                                                                                                                                                                                                                                      |
+| Category   | `risk`                                                                                                                                                                                                                                                                       |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                                                                                   |
+| Applies to | `claude-settings`, `claude-plugin-manifest`, `claude-plugin-hooks`, `cursor-hooks`, `cursor-mcp`, `gemini-settings`, `mcp-json`, `codex-hooks`, `copilot-hooks`, `copilot-mcp`, `copilot-settings`, `vscode-mcp`, `devin-config`, `devin-mcp`, `devin-hooks`, `codex-config` |
+| Fixable    | Yes, `review`                                                                                                                                                                                                                                                                |
+| Since      | 2026.10                                                                                                                                                                                                                                                                      |
 
 ## Why
 
@@ -24,7 +24,7 @@ Revoke and rotate the credential; deleting it from the file does not remove it f
 ## Evidence
 
 - [Orca Security: 2023 Honeypotting in the Cloud Report (exposed keys used within two minutes)](https://orca.security/resources/press-releases/orca-security-2023-honeypotting-in-the-cloud-report/), verified, checked 2026-10-14
-- [Claude Code: Plugins reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-14
+- [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14

@@ -108,6 +108,7 @@ function hook(event: string, overrides: Partial<HookItem> = {}): HookItem {
     script: 'scripts/hooks/guard.sh',
     failsOpen: false,
     remoteScript: false,
+    effective: true,
     ...overrides,
   };
 }
@@ -591,6 +592,13 @@ describe('gate: mcp and mcp-unpinned', () => {
     ]);
     const gemini = report({ inventory: { incomplete: ['invalid-json:.gemini/settings.json'] } });
     expect(hits(report(), gemini)).toHaveLength(1);
+    // A plugin manifest declares both, inline or in the files it names.
+    const manifest = '.claude/skills/deploy/.claude-plugin/plugin.json';
+    const plugin = report({ inventory: { incomplete: [manifest] } });
+    expect(hits(report(), plugin).map((hit) => [hit.class, hit.id])).toEqual([
+      ['hooks', manifest],
+      ['mcp', manifest],
+    ]);
   });
 
   it('reports a new Codex config that is not valid TOML', () => {
@@ -1981,6 +1989,19 @@ describe('validateBaseline', () => {
       'skill',
     ]);
     first['scope'] = 7;
+    expect(invalid(report).reason).toBe('invalid');
+  });
+
+  it('reads a hook without effective, from a report written before the field, as on', () => {
+    const report = json(full) as { inventory: { hooks: Record<string, unknown>[] } };
+    for (const item of report.inventory.hooks) delete item['effective'];
+    const result = validateBaseline(report);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.baseline.inventory?.hooks.map((item) => item.effective)).toEqual([true, true]);
+    const [first] = report.inventory.hooks;
+    if (first === undefined) throw new Error('expected a hook');
+    first['effective'] = 'no';
     expect(invalid(report).reason).toBe('invalid');
   });
 

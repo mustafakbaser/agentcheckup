@@ -19,8 +19,9 @@ export interface Inventory {
    * Config files that could not be analyzed, so items may be missing: files in Cline's
    * `.clinerules/hooks/`, `.cline/hooks/` and `.cline/plugins/` (no documented format),
    * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, a
-   * skill, command or subagent whose frontmatter is past a parser limit, files the walk skipped,
-   * `invalid-json:<path>` and `invalid-toml:<path>`.
+   * skill, command or subagent whose frontmatter is past a parser limit, a Claude Code plugin
+   * manifest with inline hooks in a list or naming other hook or MCP files, files the walk
+   * skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
    */
   readonly incomplete: readonly string[];
 }
@@ -110,6 +111,13 @@ export interface HookItem extends ItemBase {
    * hook in a configuration file, which applies to every session.
    */
   readonly scope?: 'subagent' | 'skill';
+  /**
+   * False when `disableAllHooks` in the repository's own settings turns the hook off: Claude
+   * Code's project settings for its settings and plugin hooks, the Copilot CLI's repository
+   * settings for the inline hooks of its settings files, a `.github/hooks/*.json` file for its own
+   * hooks. Such a hook does not meet a policy's hook requirement.
+   */
+  readonly effective: boolean;
 }
 
 /**

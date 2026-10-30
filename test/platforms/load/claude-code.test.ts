@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { compareStrings } from '../../../src/core/compare.js';
 import { resolveConfig } from '../../../src/core/config.js';
 import {
   type Analysis,
@@ -115,6 +116,11 @@ function skips(result: LoadPlan): string[] {
   return result.skipped.map((skip: SkippedLoad) =>
     [skip.id, skip.code, skip.ruleId ?? '-'].join(' '),
   );
+}
+
+/** The id of a hook's entry, and of its skip when it is turned off. */
+function hookId(path: string, event: string, command: string): string {
+  return `hook:${path}#${event}:${hash53(command).slice(-8)}`;
 }
 
 function limit(result: LoadPlan, key: string) {
@@ -484,6 +490,102 @@ describe('loadClaudeCode: imports', () => {
       via: ['pkg/CLAUDE.md'],
     });
     expect(entry(result, 'import:pkg/notes.instructions.md').position).toBeUndefined();
+  });
+});
+
+describe('loadClaudeCode: the size limit of files that load on demand', () => {
+  /** `chars` characters of text in lines of 100, the last one shorter. */
+  const text = (chars: number): string => {
+    const lines: string[] = [];
+    for (let left = chars; left > 0; left -= 100) {
+      lines.push(left >= 100 ? `${'x'.repeat(99)}\n` : 'y'.repeat(left));
+    }
+    return lines.join('');
+  };
+
+  it('cuts a nested CLAUDE.md past 40,000 characters, and not one at the limit', () => {
+    const result = plan({
+      'CLAUDE.md': text(60_000),
+      'pkg/CLAUDE.md': text(40_001),
+      'lib/CLAUDE.md': text(40_000),
+    });
+    expect(entry(result, 'instructions:pkg/CLAUDE.md')).toMatchObject({
+      trigger: 'on-path',
+      size: { bytes: 40_001, chars: 40_000, tokens: 10_000 },
+      truncated: { atByte: 40_000, line: 401 },
+    });
+    expect(entry(result, 'instructions:lib/CLAUDE.md').truncated).toBeUndefined();
+    expect(entry(result, 'instructions:lib/CLAUDE.md').size?.chars).toBe(40_000);
+    // The root CLAUDE.md loads at launch, in full.
+    expect(entry(result, 'instructions:CLAUDE.md')).toMatchObject({
+      trigger: 'startup',
+      size: { chars: 60_000 },
+    });
+    expect(entry(result, 'instructions:CLAUDE.md').truncated).toBeUndefined();
+    expect(limit(result, 'claude-code.on_demand_file_max_chars')).toEqual({
+      key: 'claude-code.on_demand_file_max_chars',
+      unit: 'chars',
+      limit: 40_000,
+      used: 40_001,
+      subject: 'pkg/CLAUDE.md',
+      effect: 'shortens',
+      evidence: ['claudeMemory'],
+    });
+    // The on-demand total counts what Claude receives.
+    expect(result.totals.onDemand.chars).toBe(80_000);
+  });
+
+  it('cuts a path-scoped rule and the imports of a nested CLAUDE.md, not a rule at launch', () => {
+    const result = plan({
+      '.claude/rules/scoped.md': `---\npaths: "src/**"\n---\n${text(50_000)}`,
+      '.claude/rules/always.md': text(50_000),
+      'pkg/CLAUDE.md': '@notes.instructions.md\n',
+      'pkg/notes.instructions.md': text(45_000),
+      'pkg/.claude/rules/nested.md': text(41_000),
+    });
+    expect(entry(result, 'rule:.claude/rules/scoped.md')).toMatchObject({
+      trigger: 'on-path',
+      size: { chars: 40_000 },
+      truncated: { line: 403 },
+    });
+    expect(entry(result, 'rule:.claude/rules/always.md')).toMatchObject({
+      trigger: 'startup',
+      size: { chars: 50_000 },
+    });
+    expect(entry(result, 'rule:.claude/rules/always.md').truncated).toBeUndefined();
+    expect(entry(result, 'import:pkg/notes.instructions.md').size?.chars).toBe(40_000);
+    expect(entry(result, 'rule:pkg/.claude/rules/nested.md').size?.chars).toBe(40_000);
+    expect(limit(result, 'claude-code.on_demand_file_max_chars')).toMatchObject({
+      used: 50_024,
+      subject: '.claude/rules/scoped.md',
+    });
+  });
+
+  it('takes 150,000 characters with a 1M context window, and leaves AGENTS.md alone', () => {
+    const files = { 'pkg/CLAUDE.md': text(160_000) };
+    const wide = plan(files, { contextWindow: 1_000_000 });
+    expect(entry(wide, 'instructions:pkg/CLAUDE.md').size?.chars).toBe(150_000);
+    expect(limit(wide, 'claude-code.on_demand_file_max_chars')?.limit).toBe(150_000);
+    expect(
+      limit(plan(files, { contextWindow: 500_000 }), 'claude-code.on_demand_file_max_chars')?.limit,
+    ).toBe(40_000);
+    // A nested AGENTS.md, read when no CLAUDE file is on its path: the documentation names
+    // CLAUDE files and rules only.
+    const agents = plan({ 'lib/AGENTS.md': text(50_000) });
+    expect(entry(agents, 'instructions:lib/AGENTS.md').size?.chars).toBe(50_000);
+    expect(limit(agents, 'claude-code.on_demand_file_max_chars')).toBeUndefined();
+  });
+
+  it('counts characters, not bytes, and what is left after comments', () => {
+    const result = plan({
+      'pkg/CLAUDE.md': `<!-- note -->\n${'\u00e9'.repeat(40_000)}`,
+    });
+    // 14 characters of comment and line break, then 39,986 of the others: what is kept of the
+    // first 40,000, less the comment.
+    expect(entry(result, 'instructions:pkg/CLAUDE.md')).toMatchObject({
+      size: { chars: 39_987 },
+      truncated: { atByte: 14 + 39_986 * 2, line: 2 },
+    });
   });
 });
 
@@ -915,7 +1017,7 @@ describe('loadClaudeCode: MCP servers and hooks', () => {
     ]);
   });
 
-  it('marks servers and hooks above the working directory as unverified', () => {
+  it('marks servers above the working directory as unverified and skips settings there', () => {
     const result = plan(
       {
         '.mcp.json': mcp,
@@ -928,13 +1030,150 @@ describe('loadClaudeCode: MCP servers and hooks', () => {
       { cwd: 'pkg' },
     );
     expect(entry(result, 'mcp-server:.mcp.json#local').certainty).toBe('unverified');
-    expect(result.entries.filter((e) => e.role === 'hook').map((e) => e.certainty)).toEqual([
-      'unverified',
-    ]);
+    // "No parent-directory fallback": the root's .claude/settings.json is not read from pkg.
+    expect(result.entries.filter((e) => e.role === 'hook')).toEqual([]);
+    expect(result.skipped).toContainEqual({
+      id: 'hook:.claude/settings.json',
+      role: 'hook',
+      path: '.claude/settings.json',
+      code: 'not-read',
+      certainty: 'documented',
+      evidence: ['claudePermissions', 'claudeSettings'],
+    });
     expect(result.outOfScope).toEqual([
       { path: 'pkg/sub/.claude/settings.json', because: 'below-start-dir' },
       { path: 'pkg/sub/.mcp.json', because: 'below-start-dir' },
     ]);
+  });
+
+  describe('settings files of a session in a subdirectory', () => {
+    const hook = (command: string): string =>
+      JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command }] }] } });
+    const files = {
+      '.claude/settings.json': hook('echo root-shared'),
+      '.claude/settings.local.json': hook('echo root-local'),
+      'pkg/.claude/settings.json': hook('echo pkg-shared'),
+    };
+    const hooks = (result: LoadPlan): string[] =>
+      result.entries
+        .filter((e) => e.role === 'hook')
+        .map((e) => `${e.path} ${e.certainty} ${e.evidence.join(',')}`);
+
+    it("reads the working directory's settings.json and the repository root's local file", () => {
+      const result = plan(files, { cwd: 'pkg' });
+      expect(hooks(result)).toEqual([
+        '.claude/settings.local.json documented claudeHooks,claudePermissions,claudeSettings',
+        'pkg/.claude/settings.json documented claudeHooks,claudeSettings',
+      ]);
+      expect(skips(result)).toEqual(['hook:.claude/settings.json not-read -']);
+    });
+
+    it('plans a session at the root as before', () => {
+      const result = plan(files);
+      expect(hooks(result)).toEqual([
+        '.claude/settings.json documented claudeHooks,claudeSettings',
+        '.claude/settings.local.json documented claudeHooks,claudeSettings',
+      ]);
+      expect(result.skipped).toEqual([]);
+      expect(result.outOfScope).toEqual([
+        { path: 'pkg/.claude/settings.json', because: 'below-start-dir' },
+      ]);
+    });
+
+    it("still reads a local file in the working directory, unverified where the root's sets hooks", () => {
+      const legacy = { ...files, 'pkg/.claude/settings.local.json': hook('echo pkg-local') };
+      expect(hooks(plan(legacy, { cwd: 'pkg' }))).toEqual([
+        '.claude/settings.local.json documented claudeHooks,claudePermissions,claudeSettings',
+        'pkg/.claude/settings.json documented claudeHooks,claudeSettings',
+        'pkg/.claude/settings.local.json unverified claudeHooks,claudeSettings',
+      ]);
+      const alone = { ...legacy, '.claude/settings.local.json': '{}' };
+      expect(hooks(plan(alone, { cwd: 'pkg' }))).toContain(
+        'pkg/.claude/settings.local.json documented claudeHooks,claudeSettings',
+      );
+    });
+
+    it('reads the local file of the nearest repository root', () => {
+      const result = plan(
+        { ...files, 'pkg/.claude/settings.local.json': hook('echo pkg-local') },
+        { cwd: 'pkg', paths: ['pkg/.git/HEAD'] },
+      );
+      expect(hooks(result)).toEqual([
+        'pkg/.claude/settings.json documented claudeHooks,claudeSettings',
+        'pkg/.claude/settings.local.json documented claudeHooks,claudeSettings',
+      ]);
+      expect(skips(result)).toEqual([
+        'hook:.claude/settings.json not-read -',
+        'hook:.claude/settings.local.json not-read -',
+      ]);
+    });
+
+    it('applies skillOverrides and disableAllHooks from the files the session reads', () => {
+      const result = plan(
+        {
+          'pkg/.claude/skills/a/SKILL.md': '---\ndescription: Alpha.\n---\nA.\n',
+          '.claude/settings.json': JSON.stringify({ skillOverrides: { a: 'name-only' } }),
+          '.claude/settings.local.json': JSON.stringify({ skillOverrides: { a: 'off' } }),
+          'pkg/.claude/settings.json': hook('echo pkg-shared'),
+        },
+        { cwd: 'pkg' },
+      );
+      expect(skips(result)).toContain('skill:pkg/.claude/skills/a/SKILL.md#a disabled -');
+
+      const shared = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo pkg' }] }] } };
+      const disabled = plan(
+        {
+          ...files,
+          'pkg/.claude/settings.json': JSON.stringify({ disableAllHooks: true, ...shared }),
+        },
+        { cwd: 'pkg' },
+      );
+      expect(hooks(disabled)).toEqual([]);
+      expect(skips(disabled)).toEqual([
+        'hook:.claude/settings.json not-read -',
+        `${hookId('.claude/settings.local.json', 'Stop', 'echo root-local')} disabled -`,
+        `${hookId('pkg/.claude/settings.json', 'Stop', 'echo pkg')} disabled -`,
+      ]);
+      // The root's local file wins over the working directory's shared one.
+      const enabled = plan(
+        {
+          ...files,
+          '.claude/settings.local.json': JSON.stringify({ disableAllHooks: false }),
+          'pkg/.claude/settings.json': JSON.stringify({ disableAllHooks: true, ...shared }),
+        },
+        { cwd: 'pkg' },
+      );
+      expect(hooks(enabled)).toEqual([
+        'pkg/.claude/settings.json documented claudeHooks,claudeSettings',
+      ]);
+    });
+  });
+
+  it('skips each handler that disableAllHooks turns off on its own', () => {
+    const handlers = (command: string, matcher: string) => ({
+      matcher,
+      hooks: [{ type: 'command', command }],
+    });
+    const settings = {
+      hooks: { PreToolUse: [handlers('./a.sh', 'Bash'), handlers('./b.sh', 'Edit')] },
+    };
+    const off = plan({
+      '.claude/settings.json': JSON.stringify({ disableAllHooks: true, ...settings }),
+    });
+    const ids = [
+      hookId('.claude/settings.json', 'PreToolUse', './a.sh'),
+      hookId('.claude/settings.json', 'PreToolUse', './b.sh'),
+    ].sort(compareStrings);
+    expect(skips(off)).toEqual(ids.map((id) => `${id} disabled -`));
+    // On, the same handlers are entries under the same ids.
+    const on = plan({ '.claude/settings.json': JSON.stringify(settings) });
+    expect(
+      on.entries
+        .filter((e) => e.role === 'hook')
+        .map((e) => e.id)
+        .sort(compareStrings),
+    ).toEqual(ids);
+    expect(on.skipped).toEqual([]);
   });
 
   it("leaves another agent's plugin out and skips a file that does not parse", () => {
@@ -994,6 +1233,173 @@ describe('loadClaudeCode: MCP servers and hooks', () => {
   });
 });
 
+describe('loadClaudeCode: plugins in the skills folder', () => {
+  const events = {
+    PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo plug' }] }],
+  };
+  const hooks = JSON.stringify({ hooks: events });
+  const plugin = (base: string, manifest: object = { name: 'deploy' }): FileMap => ({
+    [`${base}/SKILL.md`]:
+      '---\nname: deploy\ndescription: Deploy. Use when deploying.\n---\nDeploy.\n',
+    [`${base}/.claude-plugin/plugin.json`]: JSON.stringify(manifest),
+    [`${base}/.mcp.json`]: JSON.stringify({
+      mcpServers: { evil: { command: 'npx', args: ['-y', 'evil-mcp'] } },
+    }),
+    [`${base}/hooks/hooks.json`]: hooks,
+  });
+  const items = (result: LoadPlan): string[] =>
+    result.entries
+      .filter((e) => e.role !== 'skill')
+      .map((e) => `${e.trigger} ${e.role} ${e.path}${e.name === undefined ? '' : `#${e.name}`}`);
+
+  it("lists the MCP servers, hooks and agents of a plugin in the working directory's skills folder", () => {
+    const result = plan({
+      ...plugin('.claude/skills/deploy', {
+        name: 'deploy',
+        mcpServers: {
+          inline: { type: 'http', url: 'https://mcp.example.com' },
+        },
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo stop' }] }] },
+      }),
+      '.claude/skills/deploy/agents/reviewer.md': '---\nname: reviewer\n---\nReview.\n',
+      '.claude/skills/deploy/hooks/hooks.json': JSON.stringify({
+        hooks: {
+          ...events,
+          preToolUse: [{ hooks: [{ type: 'command', command: 'x' }] }],
+        },
+      }),
+    });
+    expect(items(result)).toEqual([
+      'startup subagent .claude/skills/deploy/agents/reviewer.md',
+      'on-approval hook .claude/skills/deploy/.claude-plugin/plugin.json#Stop',
+      'on-approval mcp-server .claude/skills/deploy/.claude-plugin/plugin.json#inline',
+      'on-approval mcp-server .claude/skills/deploy/.mcp.json#evil',
+      'on-approval hook .claude/skills/deploy/hooks/hooks.json#PreToolUse',
+    ]);
+    expect(entry(result, 'mcp-server:.claude/skills/deploy/.mcp.json#evil')).toMatchObject({
+      inventoryId: 'mcp:.claude/skills/deploy/.mcp.json#evil',
+      certainty: 'documented',
+      evidence: ['claudeMcp', 'claudePluginLoading', 'claudePlugins', 'claudeSkills'],
+    });
+    expect(
+      result.entries.find((e) => e.path === '.claude/skills/deploy/hooks/hooks.json'),
+    ).toMatchObject({
+      id: `hook:.claude/skills/deploy/hooks/hooks.json#PreToolUse:${hash53('echo plug').slice(-8)}`,
+      certainty: 'documented',
+    });
+    // An unknown event never runs; hooks/unknown-event judges settings files only.
+    expect(result.skipped).toEqual([]);
+    // The scan does not read plugin agents: listed without a size.
+    expect(result.incomplete).toContain('unread:.claude/skills/deploy/agents/reviewer.md');
+    expect(result.outOfScope).toEqual([]);
+    // The folder's SKILL.md is still a skill.
+    expect(entry(result, 'skill:.claude/skills/deploy/SKILL.md').trigger).toBe('startup');
+  });
+
+  it('adds nothing for a plugin that is off, by its manifest or by the settings', () => {
+    const off = plan(plugin('.claude/skills/deploy', { name: 'deploy', defaultEnabled: false }));
+    expect(items(off)).toEqual([]);
+    expect(skips(off)).toEqual([
+      'mcp-server:.claude/skills/deploy/.mcp.json#evil disabled -',
+      `${hookId('.claude/skills/deploy/hooks/hooks.json', 'PreToolUse', 'echo plug')} disabled -`,
+    ]);
+    // The plugin is off, not every hook: the skip cites the plugin's sources.
+    expect(off.skipped.find((skip) => skip.role === 'hook')?.evidence).toEqual([
+      'claudeHooks',
+      'claudePluginLoading',
+      'claudePlugins',
+      'claudeSkills',
+    ]);
+
+    const settings = (enabled: boolean): FileMap => ({
+      '.claude/settings.json': JSON.stringify({ enabledPlugins: { 'deploy@skills-dir': enabled } }),
+    });
+    const disabled = plan({ ...plugin('.claude/skills/deploy'), ...settings(false) });
+    expect(items(disabled)).toEqual([]);
+    const enabled = plan({
+      ...plugin('.claude/skills/deploy', { name: 'deploy', defaultEnabled: false }),
+      ...settings(true),
+    });
+    expect(items(enabled)).toEqual([
+      'on-approval mcp-server .claude/skills/deploy/.mcp.json#evil',
+      'on-approval hook .claude/skills/deploy/hooks/hooks.json#PreToolUse',
+    ]);
+  });
+
+  it('does not look in the skills folders of other directories', () => {
+    const below = plan(plugin('pkg/.claude/skills/deploy'));
+    expect(items(below)).toEqual([]);
+    expect(below.outOfScope).toEqual([
+      { path: 'pkg/.claude/skills/deploy/.claude-plugin/plugin.json', because: 'below-start-dir' },
+      { path: 'pkg/.claude/skills/deploy/.mcp.json', because: 'below-start-dir' },
+      { path: 'pkg/.claude/skills/deploy/hooks/hooks.json', because: 'below-start-dir' },
+    ]);
+    // "Doesn't search parent directories for plugins".
+    const above = plan(plugin('.claude/skills/deploy'), { cwd: 'pkg' });
+    expect(items(above)).toEqual([]);
+    // Started in pkg, the plugin is the session's own.
+    expect(items(plan(plugin('pkg/.claude/skills/deploy'), { cwd: 'pkg' }))).toEqual([
+      'on-approval mcp-server pkg/.claude/skills/deploy/.mcp.json#evil',
+      'on-approval hook pkg/.claude/skills/deploy/hooks/hooks.json#PreToolUse',
+    ]);
+  });
+
+  it('skips MCP bundles and files outside the plugin, and needs a manifest', () => {
+    const result = plan({
+      ...plugin('.claude/skills/deploy', {
+        name: 'deploy',
+        mcpServers: ['./server.mcpb', '../shared/mcp.json', './mcp/extra.json'],
+      }),
+      '.claude/skills/deploy/mcp/extra.json': '{}',
+    });
+    expect(skips(result)).toEqual([
+      'mcp-server:.claude/skills/deploy/.claude-plugin/plugin.json#../shared/mcp.json not-read -',
+      'mcp-server:.claude/skills/deploy/.claude-plugin/plugin.json#./server.mcpb not-read -',
+    ]);
+    expect(result.incomplete).toContain('unread:.claude/skills/deploy/mcp/extra.json');
+
+    // Hook files the manifest names load with hooks/hooks.json; the scan does not read them.
+    const named = plan({
+      ...plugin('.claude/skills/deploy', {
+        name: 'deploy',
+        hooks: ['./hooks/hooks.json', './config/hooks.json', './missing.json'],
+      }),
+      '.claude/skills/deploy/config/hooks.json': hooks,
+    });
+    expect(named.incomplete.filter((item) => item.includes('/deploy/'))).toEqual([
+      'unread:.claude/skills/deploy/config/hooks.json',
+    ]);
+
+    // Without a manifest the folder is a skill, and its other files are not configuration.
+    const files = Object.fromEntries(
+      Object.entries(plugin('.claude/skills/deploy')).filter(
+        ([path]) => !path.endsWith('/plugin.json'),
+      ),
+    );
+    expect(items(plan(files))).toEqual([]);
+  });
+
+  it('turns plugin hooks off with disableAllHooks, and skips a manifest that does not parse', () => {
+    const result = plan({
+      ...plugin('.claude/skills/deploy'),
+      '.claude/settings.json': JSON.stringify({ disableAllHooks: true }),
+    });
+    expect(items(result)).toEqual(['on-approval mcp-server .claude/skills/deploy/.mcp.json#evil']);
+    expect(skips(result)).toEqual([
+      `${hookId('.claude/skills/deploy/hooks/hooks.json', 'PreToolUse', 'echo plug')} disabled -`,
+    ]);
+    expect(result.skipped[0]?.evidence).toEqual(['claudeHooks', 'claudeSettingsReference']);
+    const broken = plan({
+      ...plugin('.claude/skills/deploy'),
+      '.claude/skills/deploy/.claude-plugin/plugin.json': '{ "name": ',
+    });
+    expect(items(broken)).toEqual([]);
+    expect(skips(broken)).toEqual([
+      'mcp-server:.claude/skills/deploy/.claude-plugin/plugin.json invalid-json json/invalid-syntax',
+    ]);
+  });
+});
+
 describe('loadClaudeCode: plan', () => {
   it('states its assumptions, the scopes it cannot see and its sources', () => {
     const result = plan({ 'CLAUDE.md': 'x\n' });
@@ -1004,7 +1410,8 @@ describe('loadClaudeCode: plan', () => {
         key: 'claude-code.instructions_mode',
         value: 'claude-md-or-agents-md',
       }),
-      expect.objectContaining({ key: 'claude-code.min_version', value: '2.1.277' }),
+      expect.objectContaining({ key: 'claude-code.min_version', value: '2.1.309' }),
+      expect.objectContaining({ key: 'claude-code.os', value: 'macos-or-linux' }),
       expect.objectContaining({ key: 'claude-code.session', value: 'interactive' }),
       expect.objectContaining({ key: 'claude-code.workspace_trusted', value: true }),
     ]);

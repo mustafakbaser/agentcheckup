@@ -29,7 +29,7 @@ Rename the directory or change `name` so that they match.
 - [Cline: Skills](https://docs.cline.bot/customization/skills), verified, checked 2026-10-17
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [Claude API: Using Agent Skills with the API](https://platform.claude.com/docs/en/build-with-claude/skills-guide), verified, checked 2026-10-14
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
 
 ## Fix
 

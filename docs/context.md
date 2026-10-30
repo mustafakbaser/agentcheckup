@@ -75,8 +75,8 @@ Run "agentcheckup context --help" for usage.
 ```text
 $ npx agentcheckup context --agent claude-code
 Claude Code context · ./
-Assumes instructions mode claude-md-or-agents-md (default), Claude Code 2.1.277 or later,
-  interactive session, trusted workspace
+Assumes instructions mode claude-md-or-agents-md (default), Claude Code 2.1.309 or later,
+  interactive session, trusted workspace, macOS or Linux (assumed)
 Not visible: managed settings, user settings (~/.claude, ~/.claude.json), claude.ai connectors,
   installed plugins
 
@@ -293,14 +293,20 @@ the JSON plans.
 For a skill, the session-start size is its listing entry (name and description). The body loads
 when the model uses the skill and is shown as `body ... bytes ≈ ...` under On demand. A file that
 a limit cuts shows where: `services/billing/ledger/AGENTS.md (cut at byte 6,316, line 97)`.
+Claude Code gives Claude only the first 40,000 characters of a file that loads on demand, such as
+a subdirectory's `CLAUDE.md` or a path-scoped rule (150,000 with `--context-window` of 1,000,000
+or more), so On demand counts that part and marks the cut the same way.
 
 Claude Code's listing follows its skills documentation: every listed skill counts its name and
 its description. A skill with `disable-model-invocation: true` (or `yes`, `on` or `1`, in any
 letter case, as Claude Code reads boolean fields) is not listed, since its "description [is] not
 in context": it loads only when you run `/name`, under On demand.
-`skillOverrides` in the working directory's `.claude/settings.json` or
-`.claude/settings.local.json` (the local file wins per skill) lists a skill by `name-only`, hides
-it from the model (`user-invocable-only`, then it is manual), or turns it `off`, which skips it.
+`skillOverrides` in the settings files the session reads (the local file wins per skill) lists a
+skill by `name-only`, hides it from the model (`user-invocable-only`, then it is manual), or turns
+it `off`, which skips it. Those files are the working directory's `.claude/settings.json` and the
+repository root's `.claude/settings.local.json`, plus a `.claude/settings.local.json` an earlier
+version left in the working directory. A `.claude/settings.json` above the working directory is
+not read, and the plan lists it under Not read; hooks and other settings follow the same files.
 
 A subagent's listing entry, its name and description, is in the session-start total as well: the
 model picks a subagent by it. The plan shows the listing as one row,
@@ -383,7 +389,11 @@ it assumed, and where the value came from:
 Today's assumptions:
 
 - **Claude Code:** the default instructions mode (`AGENTS.md` only when no `CLAUDE.md` is on the
-  path), Claude Code 2.1.277 or later, an interactive session, a trusted workspace.
+  path), Claude Code 2.1.309 or later (`AGENTS.md` support came in 2.1.277, the size limit for
+  files that load on demand in 2.1.309), an interactive session, a trusted workspace, and macOS
+  or Linux, where a session in a subdirectory reads the repository root's
+  `.claude/settings.local.json`. No source gives an operating system as the default, so that
+  one is `assumed`.
 - **Codex:** the 32,768-byte `project_doc_max_bytes` and no fallback file names, unless a
   `.codex/config.toml` on the path sets them; `.git` as the project root marker; a trusted
   project; an unknown context window unless you pass one.
@@ -791,6 +801,12 @@ covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `creden
 `LD_PRELOAD` and Claude Code settings that run a command, such as `apiKeyHelper`. Following the
 digest rules above, a new value for an existing `credential` or `code-exec` override is not a
 change, while a new endpoint origin or TLS switch value is.
+
+A hook that `disableAllHooks: true` in the repository's own settings turns off is listed with
+`"effective": false`, and it does not meet a policy's
+[hook requirement](policy.md#hook-missing). It still trips `hooks` when it is added or changed:
+the setting is one line away from turning it on, and turning it on changes the hook's digest, so
+that trips the gate too.
 
 A narrow entry such as `Bash(curl:*)` trips `permissions` like a broad one: the reviewer should
 see every command an agent may now run without asking. The summary marks the broad ones, which

@@ -176,6 +176,7 @@ export function hookItem(file: string, event: string, overrides: Partial<HookIte
     known: true,
     failsOpen: false,
     remoteScript: false,
+    effective: true,
     ...overrides,
   };
 }

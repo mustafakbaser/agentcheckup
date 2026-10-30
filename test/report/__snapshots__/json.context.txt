@@ -738,7 +738,8 @@
         "command": "bash scripts/hooks/guard.sh",
         "script": "scripts/hooks/guard.sh",
         "failsOpen": true,
-        "remoteScript": false
+        "remoteScript": false,
+        "effective": true
       },
       {
         "id": "hook:.codex/hooks.json#Stop:00000000000002",
@@ -753,7 +754,8 @@
         "type": "command",
         "command": "node scripts/notify.js",
         "failsOpen": false,
-        "remoteScript": false
+        "remoteScript": false,
+        "effective": true
       }
     ],
     "permissions": [

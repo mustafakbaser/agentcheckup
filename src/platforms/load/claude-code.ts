@@ -10,12 +10,17 @@
  *   works with a file in their directory.
  * - `.claude/rules/` files without `paths` load at launch, with `paths` when Claude works with a
  *   matching file. YAML that does not parse loads the rule as if it had no `paths`.
+ * - Of a file that loads on demand, a nested CLAUDE file and its imports or a rule with `paths` or
+ *   in another directory's `.claude/rules/`, Claude gets the first 40,000 characters (150,000 in
+ *   a 1M context window) since v2.1.309.
  * - Skills in `.claude/skills/<name>/SKILL.md` from the working directory up to the repository
  *   root are listed at launch, each listing entry cut at 1,536 characters; nested skills folders
  *   load on demand. Commands load when invoked. Subagents are listed by ./subagents.ts, which
  *   every agent's plan shares.
- * - `.mcp.json` servers load after the user approves them; hooks in `.claude/settings.json` and
- *   `.claude/settings.local.json` run once the workspace is trusted.
+ * - `.mcp.json` servers load after the user approves them; hooks in the working directory's
+ *   `.claude/settings.json` and the repository root's `.claude/settings.local.json` run once the
+ *   workspace is trusted. A plugin in the working directory's `.claude/skills/` adds its MCP
+ *   servers, hooks and agents.
  *
  * Every decision a rule also makes goes through the function that rule uses, and a skip carries
  * the rule's id only when that rule reports the same file. Behavior the sources do not state is
@@ -32,16 +37,29 @@ import {
   CHARS_PER_TOKEN,
 } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
+import { positionAt } from '../../core/text.js';
 import type { Artifact } from '../../core/types.js';
-import { issueKind, isTable } from '../../parse/json-access.js';
+import {
+  issueKind,
+  isTable,
+  own,
+  type ParsedJson,
+  type SpannedDocument,
+} from '../../parse/json-access.js';
 import type {
   FrontmatterResult,
   ImportReference,
+  JsonDocument,
   MarkdownDocument,
   ParseIssue,
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
-import { claudeProjectSettings, settingAt } from '../root-settings.js';
+import {
+  claudeHooksOff,
+  claudeProjectSettings,
+  claudeSettingsFiles,
+  settingAt,
+} from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isClaudeMcpConfig, mcpServers, urlWithoutType } from '../mcp.js';
@@ -58,6 +76,16 @@ import {
   claudeSkillListing,
   skillLocation,
 } from '../skills.js';
+import {
+  PLUGIN_HOOKS_FILE,
+  PLUGIN_MCP_FILE,
+  pluginEnabled,
+  pluginName,
+  pluginPaths,
+  skillsDirPlugin,
+  skillsDirPluginOf,
+  unreadPluginFiles,
+} from '../skills-dir-plugins.js';
 import type { SOURCES } from '../sources.js';
 import { yamlSyntaxError } from '../yaml.js';
 import { agentsMdShadowedByClaude, rulesByOwner } from './agents-md-shadow.js';
@@ -112,6 +140,23 @@ export const CLAUDE_MAX_FILE_BYTES = 4 * 1024 * 1024;
 /** Lines per CLAUDE.md that Claude Code's documentation recommends staying under. */
 export const CLAUDE_ADVISED_LINES = 200;
 
+/**
+ * Characters Claude Code gives the model of a file that loads on demand, in a 200K context
+ * window: a subdirectory's CLAUDE.md or CLAUDE.local.md and the files it imports, the rules of a
+ * subdirectory's `.claude/rules/`, and path-scoped rules. "Claude receives only the start of it",
+ * with a note to read the rest (SOURCES.claudeMemory, since v2.1.309).
+ */
+export const CLAUDE_ON_DEMAND_MAX_CHARS = 40_000;
+
+/**
+ * The same limit in a 1M context window: 200,000 characters on Claude Opus 4.6 and Sonnet 4.6,
+ * 150,000 on later models. The model is not known, so plans take the smaller one.
+ */
+export const CLAUDE_ON_DEMAND_MAX_CHARS_1M = 150_000;
+
+/** The smallest context window, in tokens, that has the 1M limit. */
+const ONE_MILLION = 1_000_000;
+
 /** Share of the context window the skill listing may use (`skillListingBudgetFraction`). */
 const LISTING_BUDGET_FRACTION = 0.01;
 
@@ -132,6 +177,20 @@ const SKILLS: Evidence = ['claudeSkills'];
 const SKILL_OVERRIDES: Evidence = ['claudeSkills', 'claudeSettings'];
 const MCP: Evidence = ['claudeMcp'];
 const HOOKS: Evidence = ['claudeHooks', 'claudeSettings'];
+/** The repository root's `.claude/settings.local.json`, read from a session in a subdirectory. */
+const LOCAL_HOOKS: Evidence = ['claudeHooks', 'claudePermissions', 'claudeSettings'];
+/** Which `.claude/settings.json` a session reads: its working directory's, no other. */
+const SETTINGS_FILES: Evidence = ['claudePermissions', 'claudeSettings'];
+const DISABLED_HOOKS: Evidence = ['claudeHooks', 'claudeSettingsReference'];
+/** A plugin in the working directory's skills folder, and its MCP servers and hooks. */
+const PLUGIN: Evidence = ['claudePluginLoading', 'claudePlugins', 'claudeSkills'];
+const PLUGIN_MCP: Evidence = ['claudeMcp', 'claudePluginLoading', 'claudePlugins', 'claudeSkills'];
+const PLUGIN_HOOKS: Evidence = [
+  'claudeHooks',
+  'claudePluginLoading',
+  'claudePlugins',
+  'claudeSkills',
+];
 
 /** Scopes outside the repository that add to what Claude Code loads. Listed, never read. */
 const HIDDEN: readonly HiddenScope[] = [
@@ -202,17 +261,42 @@ function skippedSize(artifact: Artifact): Size {
   return size(artifact.decoded.text, artifact.file.bytes.length);
 }
 
-/** The text Claude Code receives: block HTML comments removed (see `inHtmlComment`). */
-function withoutComments(text: string, doc: MarkdownDocument): string {
-  if (doc.htmlComments.length === 0) return text;
+/**
+ * The text Claude Code receives of the first `end` characters of a file: block HTML comments
+ * removed (see `inHtmlComment`). A comment the end cuts loses its start up to there.
+ */
+function withoutComments(text: string, doc: MarkdownDocument, end = text.length): string {
+  if (doc.htmlComments.length === 0) return text.slice(0, end);
   let kept = '';
   let from = 0;
   for (const comment of doc.htmlComments) {
     if (comment.span.offset < from) continue;
+    if (comment.span.offset >= end) break;
     kept += text.slice(from, comment.span.offset);
     from = comment.span.offset + comment.span.length;
   }
-  return kept + text.slice(from);
+  return from >= end ? kept : kept + text.slice(from, end);
+}
+
+/** The offset in `text` after its first `chars` code points, or undefined when it has no more. */
+function offsetAfter(text: string, chars: number): number | undefined {
+  let count = 0;
+  let offset = 0;
+  for (const char of text) {
+    if (count === chars) return offset;
+    count++;
+    offset += char.length;
+  }
+  return undefined;
+}
+
+/** The file's byte offset of `offset` in its decoded text, the byte order mark counted. */
+function byteOffset(artifact: Artifact, offset: number): number {
+  const { encoding, hasBom, text } = artifact.decoded;
+  const prefix = text.slice(0, offset);
+  return encoding === 'utf-8'
+    ? (hasBom ? 3 : 0) + utf8ByteLength(prefix)
+    : (hasBom ? 2 : 0) + prefix.length * 2;
 }
 
 /**
@@ -310,6 +394,12 @@ interface Root {
   readonly trigger: 'startup' | 'on-path';
   readonly patterns?: readonly string[];
   readonly certainty: Certainty;
+  /**
+   * Claude Code cuts it at {@link CLAUDE_ON_DEMAND_MAX_CHARS}: a nested CLAUDE file, whose imports
+   * it cuts too, or a rule that loads on demand. Not a nested AGENTS.md, which the documentation
+   * does not name.
+   */
+  readonly capped?: boolean;
 }
 
 interface Frame {
@@ -370,14 +460,18 @@ class ClaudeLoader {
   readonly #bytes: Measured[] = [];
   readonly #lines: Measured[] = [];
   readonly #hops: Measured[] = [];
+  /** Characters of each file that loads on demand, which the per-file limit cuts. */
+  readonly #onDemand: Measured[] = [];
   /** Uncut listing text of every skill. */
   readonly #listing: Measured[] = [];
   /** Skills in the listing at launch, and its characters after each entry's cut. */
   #listedSkills = 0;
   #listed = 0;
 
-  /** `skillOverrides` of the working directory's settings, on first use. */
+  /** `skillOverrides` of the session's settings, on first use. */
   #overrides: ReadonlyMap<string, SkillOverride> | undefined;
+  /** Whether the session's settings set `disableAllHooks`, on first use. */
+  #disableAllHooks: boolean | undefined;
 
   // What the rules report, computed the way they compute it, on first use.
   #followed: ReadonlySet<Artifact> | undefined;
@@ -406,6 +500,7 @@ class ClaudeLoader {
     this.#commands();
     this.#mcpServers();
     this.#hooks();
+    this.#skillsDirPlugins();
     return this.#plan();
   }
 
@@ -452,7 +547,7 @@ class ClaudeLoader {
         const { patterns, certainty } = rulePatterns(this.#view.frontmatter(artifact));
         const base = { path: artifact.path, artifact, role: 'rule', certainty } as const;
         if (patterns === undefined) ruleRoots.push({ ...base, trigger: 'startup' });
-        else later.push({ ...base, trigger: 'on-path', patterns });
+        else later.push({ ...base, trigger: 'on-path', patterns, capped: true });
       }
       const local =
         this.#mode === 'agents'
@@ -542,6 +637,7 @@ class ClaudeLoader {
         trigger: 'on-path',
         patterns: [`${directory}/**`],
         certainty: onDemandCertainty(scope),
+        capped: claude,
       });
     }
     for (const [owner, list] of rules) {
@@ -561,6 +657,7 @@ class ClaudeLoader {
           trigger: 'on-path',
           patterns: patterns ?? [`${owner}/**`],
           certainty: 'unverified',
+          capped: true,
         });
       }
     }
@@ -621,7 +718,14 @@ class ClaudeLoader {
     via: readonly string[] | undefined,
     hop: number,
   ): void {
-    const text = withoutComments(artifact.decoded.text, this.#markdown(artifact));
+    const raw = artifact.decoded.text;
+    const doc = this.#markdown(artifact);
+    // A rule's imports: whether the limit cuts them is not documented.
+    const capped = root.capped === true && (role !== 'import' || root.role === 'instructions');
+    const limit = this.#onDemandLimit();
+    const end = capped ? offsetAfter(raw, limit) : undefined;
+    if (capped) this.#onDemand.push({ path, value: codePointLength(raw) });
+    const text = withoutComments(raw, doc, end);
     const entry: LoadEntry = {
       id: `${role}:${path}`,
       role,
@@ -632,6 +736,14 @@ class ClaudeLoader {
       ...(via === undefined ? {} : { via }),
       ...(root.patterns === undefined ? {} : { patterns: root.patterns }),
       size: size(text, artifact.file.bytes.length),
+      ...(end === undefined
+        ? {}
+        : {
+            truncated: {
+              atByte: byteOffset(artifact, end),
+              line: positionAt(artifact.decoded, end).line,
+            },
+          }),
       certainty: root.certainty,
       evidence: MEMORY,
     };
@@ -1022,98 +1134,340 @@ class ClaudeLoader {
         this.#invalidJson(artifact, doc.errors, 'mcp-server', false, MCP);
         continue;
       }
-      const servers = mcpServers(artifact, doc);
-      const inventoryIds = mcpInventoryIds(artifact.path, servers);
-      servers.forEach(({ name, config }, index) => {
-        if (urlWithoutType(config)) {
-          this.#skip({
-            role: 'mcp-server',
-            path: artifact.path,
-            name,
-            code: 'url-without-type',
-            ruleId: 'mcp/url-without-type',
-            certainty,
-            evidence: MCP,
-          });
-          return;
-        }
-        this.#add({
-          id: `mcp-server:${path}#${name}`,
-          role: 'mcp-server',
-          trigger: 'on-approval',
-          path,
-          realPath: artifact.realPath,
-          name,
-          inventoryId: inventoryIds[index] ?? '',
-          certainty,
-          evidence: MCP,
-        });
-      });
+      this.#serverEntries(path, artifact, doc, { certainty, evidence: MCP, disabled: false });
     }
     for (const artifact of this.#view.artifacts) {
       if (artifact.kind !== 'mcp-json') continue;
       if (scopeOf(dirnamePosix(artifact.path), cwd) !== 'below') continue;
-      const plugin = !isClaudeMcpConfig(this.#view.snapshot, artifact);
-      this.#out(artifact.path, plugin ? 'other-agent-plugin' : 'below-start-dir');
+      // A plugin in the working directory's skills folder: see #skillsDirPlugins.
+      const plugin = skillsDirPluginOf(this.#view.snapshot, artifact.path, PLUGIN_MCP_FILE);
+      if (plugin?.owner === cwd) continue;
+      const other = !isClaudeMcpConfig(this.#view.snapshot, artifact);
+      this.#out(artifact.path, other ? 'other-agent-plugin' : 'below-start-dir');
+    }
+  }
+
+  /** The servers of one MCP file or plugin manifest: entries, or skips. */
+  #serverEntries(
+    path: string,
+    artifact: Artifact,
+    doc: ParsedJson,
+    options: {
+      readonly certainty: Certainty;
+      readonly evidence: Evidence;
+      readonly disabled: boolean;
+    },
+  ): void {
+    const { certainty, evidence, disabled } = options;
+    const servers = mcpServers(artifact, doc);
+    const inventoryIds = mcpInventoryIds(artifact.path, servers);
+    servers.forEach(({ name, config }, index) => {
+      if (urlWithoutType(config)) {
+        this.#skip({
+          role: 'mcp-server',
+          path: artifact.path,
+          name,
+          code: 'url-without-type',
+          ruleId: 'mcp/url-without-type',
+          certainty,
+          evidence,
+        });
+        return;
+      }
+      if (disabled) {
+        this.#skip({ role: 'mcp-server', path, name, code: 'disabled', certainty, evidence });
+        return;
+      }
+      this.#add({
+        id: `mcp-server:${path}#${name}`,
+        role: 'mcp-server',
+        trigger: 'on-approval',
+        path,
+        realPath: artifact.realPath,
+        name,
+        inventoryId: inventoryIds[index] ?? '',
+        certainty,
+        evidence,
+      });
+    });
+  }
+
+  /**
+   * Plugins in the working directory's `.claude/skills/` (./skills-dir-plugins.ts): what a
+   * plugin that is on adds once the workspace is trusted. Its MCP servers, from its `.mcp.json`
+   * and the manifest's `mcpServers`, go through "the same per-server approval as a project
+   * `.mcp.json`"; an MCP bundle and a file outside the plugin folder are skipped. Its hooks, from
+   * `hooks/hooks.json` and the manifest's `hooks`, run like the settings' hooks. Its agents, from
+   * `agents/` or the files the manifest's `agents` names, are listed with the subagents; the scan
+   * does not read them. A plugin that is off adds nothing (SOURCES.claudePluginLoading,
+   * SOURCES.claudePlugins). Claude Code does not look for plugins in the skills folders of the
+   * directories above.
+   */
+  #skillsDirPlugins(): void {
+    const cwd = this.#cwd;
+    const { snapshot } = this.#view;
+    const settings = claudeProjectSettings(this.#view, cwd);
+    for (const artifact of this.#view.artifacts) {
+      if (artifact.kind !== 'claude-plugin-manifest') continue;
+      const plugin = skillsDirPlugin(artifact.path);
+      if (plugin === undefined) continue;
+      const scope = scopeOf(plugin.owner, cwd);
+      if (scope === 'below') {
+        this.#out(artifact.path, 'below-start-dir');
+        continue;
+      }
+      if (plugin.owner !== cwd) continue;
+      const doc = this.#view.json(artifact);
+      if (!doc.ok) {
+        this.#invalidJson(artifact, doc.errors, 'mcp-server', true, PLUGIN);
+        continue;
+      }
+      const name = pluginName(doc);
+      const disabled = !pluginEnabled(doc, name, settings);
+      // Without a name the manifest fails Claude Code's validation (settings/plugin-manifest).
+      const certainty: Certainty = name === undefined ? 'unverified' : 'documented';
+      const { folder } = plugin;
+
+      // MCP servers: the plugin's .mcp.json first, then what the manifest declares.
+      const mcpFile = this.#configAt(joinPath(folder, PLUGIN_MCP_FILE), 'mcp-json');
+      if (mcpFile !== undefined) {
+        const mcp = this.#view.json(mcpFile);
+        if (mcp.ok) {
+          this.#serverEntries(mcpFile.path, mcpFile, mcp, {
+            certainty,
+            evidence: PLUGIN_MCP,
+            disabled,
+          });
+        } else this.#invalidJson(mcpFile, mcp.errors, 'mcp-server', false, PLUGIN_MCP);
+      }
+      this.#serverEntries(artifact.path, artifact, doc, {
+        certainty,
+        evidence: PLUGIN_MCP,
+        disabled,
+      });
+      this.#pluginPaths(doc, 'mcpServers', folder, 'mcp-server', certainty);
+
+      // Hooks: hooks/hooks.json, then the manifest's inline hooks and hooks files.
+      // A plugin that is off cites the plugin's sources; `disableAllHooks`, the hooks docs.
+      const hooksOff = disabled ? PLUGIN_HOOKS : this.#hooksDisabled() ? DISABLED_HOOKS : undefined;
+      const hooksFile = this.#configAt(joinPath(folder, PLUGIN_HOOKS_FILE), 'claude-plugin-hooks');
+      if (hooksFile !== undefined) {
+        const hooks = this.#view.json(hooksFile);
+        if (hooks.ok) {
+          this.#settingsHooks(hooksFile.path, hooksFile, hooks, {
+            certainty,
+            evidence: PLUGIN_HOOKS,
+            disabled: hooksOff,
+            plugin: true,
+          });
+        } else this.#incomplete.add(`unparsed:${hooksFile.path}`);
+      }
+      const inline = isTable(doc.value) ? own(doc.value, 'hooks') : undefined;
+      if (isTable(inline)) {
+        this.#settingsHooks(artifact.path, artifact, doc, {
+          certainty,
+          evidence: PLUGIN_HOOKS,
+          disabled: hooksOff,
+          plugin: true,
+        });
+      } else if (Array.isArray(inline) && inline.some(isTable)) {
+        // Inline hooks in a list: not analyzed.
+        this.#incomplete.add(`unparsed:${artifact.path}`);
+      }
+      this.#pluginPaths(doc, 'hooks', folder, 'hook', certainty);
+
+      // Agents: the files the manifest names, which replace the agents/ folder.
+      const named = pluginPaths(doc, 'agents', folder).flatMap((item) =>
+        item.kind === 'file' ? [item.path] : [],
+      );
+      const agents =
+        isTable(doc.value) && own(doc.value, 'agents') !== undefined
+          ? named
+          : [...snapshot.paths].filter(
+              (path) => path.startsWith(`${folder}/agents/`) && path.endsWith('.md'),
+            );
+      for (const path of agents.sort(compareStrings)) {
+        if (pathStatus(snapshot, path) === 'missing') continue;
+        if (disabled) {
+          this.#skip({ role: 'subagent', path, code: 'disabled', certainty, evidence: PLUGIN });
+          continue;
+        }
+        // In the listing from the start; the scan does not read plugin agents.
+        this.#add({
+          id: `subagent:${path}`,
+          role: 'subagent',
+          trigger: 'startup',
+          path,
+          realPath: path,
+          certainty,
+          evidence: PLUGIN,
+        });
+        this.#incomplete.add(`unread:${path}`);
+      }
+    }
+    for (const artifact of this.#view.artifacts) {
+      if (artifact.kind !== 'claude-plugin-hooks') continue;
+      const plugin = skillsDirPluginOf(snapshot, artifact.path, PLUGIN_HOOKS_FILE);
+      if (plugin !== undefined && scopeOf(plugin.owner, cwd) === 'below') {
+        this.#out(artifact.path, 'below-start-dir');
+      }
     }
   }
 
   /**
-   * Hooks from the project's `.claude/settings.json` and `.claude/settings.local.json`. That
-   * Claude Code also reads settings in a directory above the working directory is not documented.
+   * Files a manifest key names besides the plugin's default file: an MCP bundle and a file
+   * outside the plugin are skipped; another file is not read by the scan, so the plan is
+   * incomplete ({@link unreadPluginFiles}).
+   */
+  #pluginPaths(
+    doc: SpannedDocument,
+    key: 'mcpServers' | 'hooks',
+    folder: string,
+    role: 'mcp-server' | 'hook',
+    certainty: Certainty,
+  ): void {
+    for (const path of unreadPluginFiles(this.#view.snapshot, doc, key, folder)) {
+      this.#incomplete.add(`unread:${path}`);
+    }
+    const manifest = joinPath(folder, '.claude-plugin/plugin.json');
+    for (const item of pluginPaths(doc, key, folder)) {
+      if (item.kind === 'file') continue;
+      // Bundles only declare servers; a hooks path outside the plugin is skipped too.
+      this.#skip({
+        role,
+        path: manifest,
+        name: item.value,
+        code: 'not-read',
+        certainty: role === 'mcp-server' ? certainty : 'unverified',
+        evidence: role === 'mcp-server' ? PLUGIN_MCP : PLUGIN_HOOKS,
+      });
+    }
+  }
+
+  /**
+   * Hooks from the settings files the session reads ({@link claudeSettingsFiles}): the working
+   * directory's `.claude/settings.json` and the repository root's `.claude/settings.local.json`,
+   * and a working directory's own `.claude/settings.local.json`, which Claude Code still reads
+   * below the root. Where that file and the root's both set `hooks`, "the root's value applies":
+   * whether the two lists merge, as hooks of different scopes do, is not documented. Settings
+   * files in the directories above the working directory are not read: "no parent-directory
+   * fallback" (SOURCES.claudePermissions).
    */
   #hooks(): void {
     const cwd = this.#cwd;
-    const known: ReadonlySet<string> = new Set(HOOK_EVENTS['claude-code']);
-    for (const directory of selfAndAncestors(cwd).reverse()) {
-      for (const name of ['.claude/settings.json', '.claude/settings.local.json']) {
-        const path = joinPath(directory, name);
-        const artifact = this.#configAt(path, 'claude-settings');
-        if (artifact === undefined) continue;
-        const certainty = directory === cwd ? 'documented' : 'unverified';
-        const doc = this.#view.json(artifact);
-        if (!doc.ok) {
-          this.#invalidJson(artifact, doc.errors, 'hook', true, HOOKS);
-          continue;
-        }
-        for (const event of hookEvents(doc, 'claude-code')) {
-          if (known.has(event.name)) continue;
-          this.#skip({
-            role: 'hook',
-            path: artifact.path,
-            name: event.name,
-            code: 'unknown-event',
-            ruleId: 'hooks/unknown-event',
-            certainty,
-            evidence: HOOKS,
-          });
-        }
-        // Ids over every handler, as the inventory numbers them; unknown events are skipped above.
-        const handlers = hookHandlers(doc, 'claude-code', { includeUnknown: true });
-        const ids = hookInventoryIds(path, handlers);
-        const inventoryIds = hookInventoryIds(artifact.path, handlers);
-        handlers.forEach((handler, index) => {
-          if (!handler.known) return;
-          this.#add({
-            id: ids[index] ?? '',
-            role: 'hook',
-            trigger: 'on-approval',
-            path,
-            realPath: artifact.realPath,
-            name: handler.event,
-            inventoryId: inventoryIds[index] ?? '',
-            certainty,
-            evidence: HOOKS,
-          });
-        });
+    const files = claudeSettingsFiles(this.#view.snapshot, cwd);
+    const read = new Set(files.map((file) => file.path));
+    const docs = new Map<string, { artifact: Artifact; doc: JsonDocument }>();
+    for (const { path } of files) {
+      const artifact = this.#configAt(path, 'claude-settings');
+      if (artifact !== undefined) docs.set(path, { artifact, doc: this.#view.json(artifact) });
+    }
+    const local = files.find((file) => file.role === 'local');
+    const localDoc = local === undefined ? undefined : docs.get(local.path)?.doc;
+    const localHooks = localDoc?.ok === true && settingAt(localDoc, ['hooks']) !== undefined;
+    const disabled = this.#hooksDisabled() ? DISABLED_HOOKS : undefined;
+    for (const file of files) {
+      const found = docs.get(file.path);
+      if (found === undefined) continue;
+      const { artifact, doc } = found;
+      if (!doc.ok) {
+        this.#invalidJson(artifact, doc.errors, 'hook', true, HOOKS);
+        continue;
       }
+      // A local file at the repository root, above the working directory, is read from there.
+      const atRoot = dirnamePosix(dirnamePosix(file.path)) !== cwd;
+      this.#settingsHooks(file.path, artifact, doc, {
+        certainty: file.role === 'legacy' && localHooks ? 'unverified' : 'documented',
+        evidence: atRoot ? LOCAL_HOOKS : HOOKS,
+        disabled,
+      });
     }
     for (const artifact of this.#view.artifacts) {
       if (artifact.kind !== 'claude-settings') continue;
       // `<owner>/.claude/settings.json`
       const owner = dirnamePosix(dirnamePosix(artifact.path));
-      if (scopeOf(owner, cwd) === 'below') this.#out(artifact.path, 'below-start-dir');
+      const scope = scopeOf(owner, cwd);
+      if (scope === 'below') this.#out(artifact.path, 'below-start-dir');
+      else if (scope === 'path' && !read.has(artifact.path)) {
+        this.#skip({
+          role: 'hook',
+          path: artifact.path,
+          code: 'not-read',
+          certainty: 'documented',
+          evidence: SETTINGS_FILES,
+        });
+      }
     }
+  }
+
+  /** Whether the settings the session reads turn its hooks off ({@link claudeHooksOff}). */
+  #hooksDisabled(): boolean {
+    this.#disableAllHooks ??= claudeHooksOff(this.#view, this.#cwd);
+    return this.#disableAllHooks;
+  }
+
+  /**
+   * The hooks of one settings or hooks file: entries, or skips for unknown events. hooks/unknown-event
+   * judges settings files only, so a plugin's hooks with an unknown event are left out unnamed:
+   * they never run, and the inventory marks them so. `disabled` is the evidence of what turns
+   * the file's hooks off, if anything does.
+   */
+  #settingsHooks(
+    path: string,
+    artifact: Artifact,
+    doc: SpannedDocument,
+    options: {
+      readonly certainty: Certainty;
+      readonly evidence: Evidence;
+      readonly disabled: Evidence | undefined;
+      readonly plugin?: boolean;
+    },
+  ): void {
+    const { certainty, evidence, disabled } = options;
+    const known: ReadonlySet<string> = new Set(HOOK_EVENTS['claude-code']);
+    for (const event of hookEvents(doc, 'claude-code')) {
+      if (known.has(event.name) || options.plugin === true) continue;
+      this.#skip({
+        role: 'hook',
+        path: artifact.path,
+        name: event.name,
+        code: 'unknown-event',
+        ruleId: 'hooks/unknown-event',
+        certainty,
+        evidence,
+      });
+    }
+    // Ids over every handler, as the inventory numbers them; unknown events are skipped above.
+    const handlers = hookHandlers(doc, 'claude-code', { includeUnknown: true });
+    const ids = hookInventoryIds(path, handlers);
+    const inventoryIds = hookInventoryIds(artifact.path, handlers);
+    handlers.forEach((handler, index) => {
+      if (!handler.known) return;
+      if (disabled !== undefined) {
+        // One skip per handler, under the id its entry would have.
+        this.#skip({
+          id: ids[index] ?? '',
+          role: 'hook',
+          path,
+          name: handler.event,
+          code: 'disabled',
+          certainty,
+          evidence: disabled,
+        });
+        return;
+      }
+      this.#add({
+        id: ids[index] ?? '',
+        role: 'hook',
+        trigger: 'on-approval',
+        path,
+        realPath: artifact.realPath,
+        name: handler.event,
+        inventoryId: inventoryIds[index] ?? '',
+        certainty,
+        evidence,
+      });
+    });
   }
 
   /** The config artifact at `path`, flagging a file that exists but was not read. */
@@ -1199,12 +1553,13 @@ class ClaudeLoader {
     if (!this.#entries.has(entry.id)) this.#entries.set(entry.id, entry);
   }
 
-  #skip(skip: Omit<SkippedLoad, 'id'>): void {
+  #skip(skip: Omit<SkippedLoad, 'id'> & { readonly id?: string }): void {
     const id =
-      skip.name === undefined
+      skip.id ??
+      (skip.name === undefined
         ? `${skip.role}:${skip.path}`
-        : `${skip.role}:${skip.path}#${skip.name}`;
-    if (!this.#skipped.has(id)) this.#skipped.set(id, { id, ...skip });
+        : `${skip.role}:${skip.path}#${skip.name}`);
+    if (!this.#skipped.has(id)) this.#skipped.set(id, { ...skip, id });
   }
 
   #out(path: string, because: OutOfScope['because']): void {
@@ -1240,6 +1595,13 @@ class ClaudeLoader {
       effect: 'advice',
       evidence: MEMORY,
     });
+    add(largest(this.#onDemand), {
+      key: 'claude-code.on_demand_file_max_chars',
+      unit: 'chars',
+      limit: this.#onDemandLimit(),
+      effect: 'shortens',
+      evidence: MEMORY,
+    });
     add(largest(this.#hops), {
       key: 'claude-code.import_max_hops',
       unit: 'hops',
@@ -1269,6 +1631,18 @@ class ClaudeLoader {
     return limits.sort((a, b) => compareStrings(a.key, b.key));
   }
 
+  /**
+   * The per-file limit for files that load on demand: 40,000 characters, 150,000 with a 1M
+   * context window ({@link CLAUDE_ON_DEMAND_MAX_CHARS_1M}). Windows the documentation does not
+   * name take the 200K limit.
+   */
+  #onDemandLimit(): number {
+    const window = this.#contextWindow;
+    return window !== undefined && window >= ONE_MILLION
+      ? CLAUDE_ON_DEMAND_MAX_CHARS_1M
+      : CLAUDE_ON_DEMAND_MAX_CHARS;
+  }
+
   #advisedLines(): { readonly value: number; readonly configured: boolean } {
     const value = this.#config.ruleSetting(LINES_RULE, '')?.options?.['maxLines'];
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
@@ -1284,7 +1658,17 @@ class ClaudeLoader {
         origin: 'default',
         evidence: MEMORY,
       },
-      { key: 'claude-code.min_version', value: '2.1.277', origin: 'default', evidence: MEMORY },
+      // AGENTS.md support came in v2.1.277, the size limit for files that load on demand in
+      // v2.1.309.
+      { key: 'claude-code.min_version', value: '2.1.309', origin: 'default', evidence: MEMORY },
+      // On Windows the repository root's `.claude/settings.local.json` is not read; the one next
+      // to `.claude/settings.json` is. No source names a default operating system.
+      {
+        key: 'claude-code.os',
+        value: 'macos-or-linux',
+        origin: 'assumed',
+        evidence: SETTINGS_FILES,
+      },
       {
         key: 'claude-code.session',
         value: 'interactive',

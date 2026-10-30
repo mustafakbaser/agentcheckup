@@ -707,6 +707,23 @@ describe('what a subagent starts with when it runs', () => {
     ).toMatchObject({ scope: 'project' });
     // Not a documented scope: no memory.
     expect(memoryOf({ '.claude/agents/keeper.md': agent('team') })).toBeUndefined();
+
+    // A session in pkg reads the root's local file, not the root's shared one.
+    const inPkg = (files: Record<string, string>): unknown =>
+      subagent(
+        planOf(plansOf(files, { cwd: 'pkg' }), 'claude-code'),
+        'subagent:pkg/.claude/agents/keeper.md',
+      ).ownContext?.memory;
+    const keeper = { 'pkg/.claude/agents/keeper.md': agent('project') };
+    expect(
+      inPkg({
+        ...keeper,
+        '.claude/settings.local.json': JSON.stringify({ autoMemoryEnabled: false }),
+      }),
+    ).toBeUndefined();
+    expect(
+      inPkg({ ...keeper, '.claude/settings.json': JSON.stringify({ autoMemoryEnabled: false }) }),
+    ).toMatchObject({ scope: 'project' });
   });
 
   it('measures the first 200 lines or 25 KB of the memory file, and none it did not read', () => {

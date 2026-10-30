@@ -23,8 +23,8 @@ Scope each rule to the commands the skill needs, such as `Bash(git status *)`, o
 
 ## Evidence
 
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
-- [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-14
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
+- [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-30
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-14
 
 ## Fix

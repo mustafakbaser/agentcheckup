@@ -66,4 +66,12 @@ describe('json/duplicate-key', () => {
     expect(run(files, ['gemini'])).toEqual([]);
     expect(run(files, ['codex'])).toHaveLength(1);
   });
+
+  it("reads a skill folder's hooks/hooks.json only next to a plugin manifest", () => {
+    const hooks = { '.claude/skills/x/hooks/hooks.json': '{"hooks": {}, "hooks": {}}' };
+    // Without a manifest the folder is a skill, and the file is not configuration.
+    expect(run({ ...hooks, '.claude/skills/x/SKILL.md': '---\nname: x\n---\nX.\n' })).toEqual([]);
+    const plugin = run({ ...hooks, '.claude/skills/x/.claude-plugin/plugin.json': '{"name":"x"}' });
+    expect(plugin.map((finding) => finding.path)).toEqual(['.claude/skills/x/hooks/hooks.json']);
+  });
 });

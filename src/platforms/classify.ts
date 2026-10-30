@@ -38,6 +38,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-plugin-manifest': ['claude-code'],
+  // `hooks/hooks.json` of a plugin in a skills folder (SOURCES.claudeSkills, "Skill folder as a
+  // plugin"); Claude Code runs its hooks only when a `.claude-plugin/plugin.json` is next to it.
+  'claude-plugin-hooks': ['claude-code'],
   skill: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
   // Devin Local (Windsurf) reads .cursor/rules/*.md and *.mdc; Cursor itself ignores .md there.
   'cursor-rule': ['cursor', 'windsurf'],
@@ -162,6 +165,12 @@ const MATCHERS: readonly Matcher[] = [
   {
     kind: 'claude-plugin-manifest',
     pattern: /(?:^|\/)\.claude-plugin\/plugin\.json$/,
+    canonical: keepPath,
+  },
+  // Only in a skills folder: other plugins' hooks load once installed, which plans do not model.
+  {
+    kind: 'claude-plugin-hooks',
+    pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/hooks\/hooks\.json$/,
     canonical: keepPath,
   },
   { kind: 'mcp-json', pattern: /(?:^|\/)\.mcp\.json$/, canonical: keepPath },

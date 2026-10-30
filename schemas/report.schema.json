@@ -216,6 +216,7 @@
         "claude-command",
         "claude-settings",
         "claude-plugin-manifest",
+        "claude-plugin-hooks",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -1424,7 +1425,8 @@
         "event",
         "known",
         "failsOpen",
-        "remoteScript"
+        "remoteScript",
+        "effective"
       ],
       "properties": {
         "id": {
@@ -1470,6 +1472,10 @@
         "scope": {
           "description": "Where a hook declared in frontmatter applies. `subagent`: only while that subagent runs. `skill`: from the turn a skill or command is invoked to the end of the session. Absent for a hook in a configuration file, which applies to every session.",
           "enum": ["subagent", "skill"]
+        },
+        "effective": {
+          "description": "False when `disableAllHooks` in the repository's own settings turns the hook off, such as in Claude Code's project settings. Such a hook does not meet a policy's hook requirement.",
+          "type": "boolean"
         }
       }
     },

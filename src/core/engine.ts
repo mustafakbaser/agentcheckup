@@ -36,6 +36,7 @@ import {
 } from '../platforms/load/directories.js';
 import { buildMatrix, matrixPlans } from '../platforms/load/matrix.js';
 import type { ContextAgent, ContextReport } from '../platforms/load/types.js';
+import { PLUGIN_HOOKS_FILE, skillsDirPluginOf } from '../platforms/skills-dir-plugins.js';
 import type { PolicyReport } from '../policy/types.js';
 import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
@@ -272,6 +273,8 @@ interface PendingFinding {
  * Classifies and decodes the snapshot's files. A file reached through a symlink whose real file
  * is also in the snapshot is folded into that artifact as an alias, so it is linted and scored
  * once. Example: `.claude/skills -> ../.agents/skills` makes every shared skill visible twice.
+ * A skill folder's `hooks/hooks.json` is an artifact only when the folder has a
+ * `.claude-plugin/plugin.json`, as Claude Code reads it (src/platforms/skills-dir-plugins.ts).
  * With `cache`, a file whose bytes it already decoded is not decoded again.
  */
 export function buildArtifacts(
@@ -297,6 +300,13 @@ export function buildArtifacts(
     if (config.isIgnored(file.path)) continue;
     const classification = classifyFile(file);
     if (!classification) continue;
+    // A skill folder's `hooks/hooks.json` is configuration only next to a plugin manifest.
+    if (
+      classification.kind === 'claude-plugin-hooks' &&
+      skillsDirPluginOf(snapshot, file.path, PLUGIN_HOOKS_FILE) === undefined
+    ) {
+      continue;
+    }
     artifacts.push({
       path: file.path,
       realPath: file.symlinkTarget ?? file.path,

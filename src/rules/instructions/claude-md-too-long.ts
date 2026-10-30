@@ -24,7 +24,8 @@ export const claudeMdTooLongRule = defineRule<ClaudeMdTooLongOptions>({
     id: 'instr/claude-md-too-long',
     title: 'CLAUDE.md is longer than 200 lines',
     rationale: [
-      'Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. The file still loads in full (up to 4 MiB), so this is information only.',
+      'Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. A file that loads at launch still loads in full (up to 4 MiB), so this is information only.',
+      'A `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.',
       'Moving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.',
     ].join('\n\n'),
     category: 'budget',

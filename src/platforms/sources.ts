@@ -23,6 +23,9 @@ const AUDIT_CHECKED = '2026-10-30';
 /** GitHub Copilot and VS Code sources read again for the Copilot loaders and inventory. */
 const COPILOT_CHECKED = '2026-10-30';
 
+/** Claude Code sources re-read for the on-demand size limit, settings files and plugins. */
+const CLAUDE_CHECKED = '2026-10-30';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -39,7 +42,7 @@ export const SOURCES = {
   claudeSkills: verified(
     'Claude Code: Skills',
     'https://code.claude.com/docs/en/skills',
-    '2026-10-17',
+    CLAUDE_CHECKED,
   ),
   claudeApiSkills: verified(
     'Claude API: Agent Skills overview',
@@ -48,8 +51,18 @@ export const SOURCES = {
   claudeMemory: verified(
     'Claude Code: Memory (CLAUDE.md)',
     'https://code.claude.com/docs/en/memory',
+    CLAUDE_CHECKED,
   ),
-  claudeSettings: verified('Claude Code: Settings', 'https://code.claude.com/docs/en/settings'),
+  claudeSettings: verified(
+    'Claude Code: Settings',
+    'https://code.claude.com/docs/en/settings',
+    CLAUDE_CHECKED,
+  ),
+  claudePermissions: verified(
+    'Claude Code: Configure permissions',
+    'https://code.claude.com/docs/en/permissions',
+    CLAUDE_CHECKED,
+  ),
   claudeSettingsReference: verified(
     'Claude Code: All settings',
     'https://code.claude.com/docs/en/settings-reference',
@@ -69,8 +82,14 @@ export const SOURCES = {
   claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp'),
   claudeSubagents: verified('Claude Code: Subagents', 'https://code.claude.com/docs/en/sub-agents'),
   claudePlugins: verified(
-    'Claude Code: Plugins reference',
+    'Claude Code: Plugin manifest reference',
     'https://code.claude.com/docs/en/plugins-reference',
+    CLAUDE_CHECKED,
+  ),
+  claudePluginLoading: verified(
+    'Claude Code: Plugin loading reference',
+    'https://code.claude.com/docs/en/plugins/loading',
+    CLAUDE_CHECKED,
   ),
   codexAgentsMd: verified(
     'Codex: AGENTS.md',

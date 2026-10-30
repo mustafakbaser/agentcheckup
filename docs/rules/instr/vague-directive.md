@@ -23,7 +23,7 @@ Replace it with the specific command, convention or path you mean, or delete it.
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
 - [Devin Desktop (Windsurf): Memories and rules](https://docs.devin.ai/desktop/cascade/memories), verified, checked 2026-10-14
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-14
 - [Agentic AI Foundation: Writing an effective AGENTS.md](https://aaif.io/blog/writing-an-effective-agents-md), verified, checked 2026-10-14

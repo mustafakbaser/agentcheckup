@@ -48,7 +48,7 @@ Largest subagent calls, each in a context window of its own
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | At start  | What is in the agent's context from the first message: instruction files, rules without paths, imports, and the listings. `?` marks a plan with unverified rows |
 | Listings  | Of At start: the names and descriptions of the skills and subagents the model picks from                                                                        |
-| On demand | The most other triggers can add: skill bodies, rules for matching files, nested instruction files                                                               |
+| On demand | The most other triggers can add: skill bodies, rules for matching files, nested instruction files, as far as a limit such as Claude Code's per-file one lets in |
 | Subagents | The subagents the agent loads or may load, picked from the listing or run by name only                                                                          |
 
 **Largest subagent calls** lists what each subagent starts with when the model calls it, largest

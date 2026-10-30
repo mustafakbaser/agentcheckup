@@ -24,7 +24,7 @@ Add a `description` that says what the skill does and when to use it.
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
 - [Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-30
 - [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-30
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14

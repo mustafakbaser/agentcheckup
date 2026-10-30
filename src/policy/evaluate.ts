@@ -316,9 +316,12 @@ function collectAll(policy: Policy, subject: PolicySubject, baseline: boolean): 
   }
 
   for (const requirement of policy.requireHooks) {
-    const hooks = inventory?.hooks ?? [];
-    if (hooks.some((hook) => satisfies(hook, requirement, stripPath(hook.file, base)))) continue;
-    out.push(hookMissing(requirement));
+    const matching = (inventory?.hooks ?? []).filter((hook) =>
+      satisfies(hook, requirement, stripPath(hook.file, base)),
+    );
+    // A hook the repository's settings turn off configures nothing.
+    if (matching.some((hook) => hook.effective)) continue;
+    out.push(hookMissing(requirement, matching.length > 0));
   }
 
   for (const budget of policy.budgets) {
@@ -636,7 +639,8 @@ function satisfies(hook: HookItem, requirement: HookRequirement, rootFile: strin
   );
 }
 
-function hookMissing(requirement: HookRequirement): Found {
+/** `off`: the hooks that match are all turned off by `disableAllHooks` (HookItem.effective). */
+function hookMissing(requirement: HookRequirement, off: boolean): Found {
   const { agent, event, matcher, script, command } = requirement;
   const parts = [agent, event];
   let hook = `${readerName(agent)} ${event} hook`;
@@ -652,12 +656,13 @@ function hookMissing(requirement: HookRequirement): Found {
     parts.push(`command ${quote(command)}`);
     hook += ` with command ${quote(command)}`;
   }
+  const missing = off ? 'disableAllHooks turns off every one configured' : 'none is configured';
   return {
     id: `hook-missing:${canonicalJson(requirement)}`,
     check: 'hook-missing',
     entry: parts.join(' '),
     ...agentField(isContextAgent(agent) ? agent : undefined),
-    message: `The policy requires a ${hook}, and none is configured. ${HOOKS_NOT_ENFORCED}`,
+    message: `The policy requires a ${hook}, and ${missing}. ${HOOKS_NOT_ENFORCED}`,
   };
 }
 

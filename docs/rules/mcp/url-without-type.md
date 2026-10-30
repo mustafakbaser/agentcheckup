@@ -22,7 +22,7 @@ Add `"type": "http"`, or `"sse"` or `"ws"` to match the server.
 ## Evidence
 
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
-- [Claude Code: Plugins reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-14
+- [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
 
 ## Fix
 

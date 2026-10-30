@@ -104,7 +104,12 @@ import {
   nearestGitRoot,
   selfAndAncestors,
 } from '../paths.js';
-import { claudeProjectSettings, settingAt } from '../root-settings.js';
+import {
+  claudeProjectSettings,
+  COPILOT_CLI_SETTINGS,
+  copilotCliHooksOff,
+  settingAt,
+} from '../root-settings.js';
 import { bodyOffset, normalizeName, pluginReaders, readersAt, skillLocation } from '../skills.js';
 import type { SOURCES } from '../sources.js';
 import { isBlank } from './codex-text.js';
@@ -265,12 +270,6 @@ const COPILOT_EVENTS: ReadonlySet<string> = new Set(HOOK_EVENTS.copilot);
 
 /** The CLI's skill folders of one directory, in its order of precedence. */
 const CLI_SKILL_FOLDERS: readonly string[] = ['.github/skills', '.agents/skills', '.claude/skills'];
-
-/** The CLI's repository settings files at the repository root, the shared one first. */
-const CLI_SETTINGS_FILES: readonly string[] = [
-  '.github/copilot/settings.json',
-  '.github/copilot/settings.local.json',
-];
 
 /** Directory names whose unlisted contents may hold configuration Copilot reads. */
 const CONFIG_DIRECTORIES: ReadonlySet<string> = new Set([
@@ -1695,7 +1694,7 @@ class CopilotLoader {
   #cliSettings(): readonly ParsedJson[] {
     if (this.#settings === undefined) {
       const docs: ParsedJson[] = [];
-      for (const name of CLI_SETTINGS_FILES) {
+      for (const name of COPILOT_CLI_SETTINGS) {
         const path = joinPath(this.#root, name);
         const artifact = this.#configAt(path, 'copilot-settings');
         if (artifact === undefined) continue;
@@ -1768,26 +1767,12 @@ class CopilotLoader {
 
   /**
    * CLI: `disableAllHooks: true` at the top level of the repository's settings skips "every hook
-   * from every source" (SOURCES.copilotHooksReference). The CLI reads it in
-   * `.github/copilot/settings.json` and `.github/copilot/settings.local.json`, the local file
-   * winning, and in Claude Code's `.claude/settings.json` and `.claude/settings.local.json`
-   * (SOURCES.copilotCliConfigDir). Which of the two pairs wins, and the order within Claude
-   * Code's, are not documented: a value set both ways makes the result unverified.
+   * from every source" ({@link copilotCliHooksOff}), read from the CLI's settings files and Claude
+   * Code's `.claude/settings.json` and `.claude/settings.local.json`.
    */
   #repositoryHooksOff(): Certainty | undefined {
     if (this.#surface !== 'cli') return undefined;
-    const values = (docs: readonly ParsedJson[] | readonly SpannedDocument[]): boolean[] =>
-      docs.flatMap((doc) => {
-        const value = settingAt(doc, ['disableAllHooks']);
-        return typeof value === 'boolean' ? [value] : [];
-      });
-    const copilot = values(this.#cliSettings());
-    const claude = values(claudeProjectSettings(this.#view, this.#root));
-    const copilotValue = copilot.at(-1);
-    const claudeValue = claude.at(-1);
-    if (copilotValue !== true && claudeValue !== true) return undefined;
-    const conflict = copilotValue === false || claudeValue === false || new Set(claude).size > 1;
-    return conflict ? 'unverified' : 'documented';
+    return copilotCliHooksOff(this.#cliSettings(), claudeProjectSettings(this.#view, this.#root));
   }
 
   /**

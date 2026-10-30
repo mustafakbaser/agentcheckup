@@ -23,7 +23,7 @@ Rename `globs` or `applyTo` to `paths`, fix the YAML, and escape a literal brack
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
 
 ## Fix
 

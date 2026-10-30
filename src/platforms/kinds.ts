@@ -50,6 +50,7 @@ export const EMPTY_FILE_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>
 export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-settings',
   'claude-plugin-manifest',
+  'claude-plugin-hooks',
   'cursor-hooks',
   'cursor-mcp',
   'gemini-settings',

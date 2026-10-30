@@ -21,7 +21,7 @@ Set the mode in `~/.claude/settings.json` or managed settings, or pass `--permis
 
 ## Evidence
 
-- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-14
+- [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-30
 
 ## Fix
 

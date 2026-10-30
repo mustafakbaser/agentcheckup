@@ -507,6 +507,184 @@ describe('hooks', () => {
       { event: 'BeforeTool', matcher: 'run_shell_command', failsOpen: true, script: undefined },
     ]);
   });
+
+  it('marks the hooks that disableAllHooks turns off, and only their digests change', () => {
+    const stop = { Stop: [{ hooks: [{ type: 'command', command: './a.sh' }] }] };
+    const copilot = { version: 1, hooks: { preToolUse: [{ type: 'command', bash: './g.sh' }] } };
+    const plugin = {
+      '.claude/skills/deploy/.claude-plugin/plugin.json': json({ name: 'deploy', hooks: stop }),
+    };
+    const files: FileMap = {
+      '.claude/settings.json': json({ hooks: stop }),
+      'pkg/.claude/settings.json': json({ hooks: stop }),
+      '.codex/hooks.json': json({ hooks: stop }),
+      '.github/hooks/guard.json': json(copilot),
+      '.github/copilot/settings.json': json({ hooks: copilot.hooks }),
+      ...plugin,
+    };
+    const effective = (inventory: Inventory): Record<string, boolean> =>
+      Object.fromEntries(inventory.hooks.map((hook) => [hook.file, hook.effective]));
+    const before = inventoryOf(files);
+    expect(Object.values(effective(before)).every(Boolean)).toBe(true);
+
+    // The root's settings: its own hooks and the plugin's are off, a subdirectory's are not.
+    const claudeOff = inventoryOf({
+      ...files,
+      '.claude/settings.json': json({ disableAllHooks: true, hooks: stop }),
+    });
+    expect(effective(claudeOff)).toEqual({
+      '.claude/settings.json': false,
+      '.claude/skills/deploy/.claude-plugin/plugin.json': false,
+      '.codex/hooks.json': true,
+      // The Copilot CLI reads Claude Code's setting for the inline hooks only it runs.
+      '.github/copilot/settings.json': false,
+      // The cloud agent runs .github/hooks without the CLI's settings.
+      '.github/hooks/guard.json': true,
+      'pkg/.claude/settings.json': true,
+    });
+    const digests = (inventory: Inventory): Record<string, string> =>
+      Object.fromEntries(inventory.hooks.map((hook) => [hook.id, hook.digest]));
+    const changed = Object.keys(digests(before)).filter(
+      (id) => digests(before)[id] !== digests(claudeOff)[id],
+    );
+    expect(changed.map((id) => id.slice(0, id.indexOf('#')))).toEqual([
+      'hook:.claude/settings.json',
+      'hook:.claude/skills/deploy/.claude-plugin/plugin.json',
+      'hook:.github/copilot/settings.json',
+    ]);
+    // A session in a subdirectory reads the root's local file too.
+    const localOff = inventoryOf({
+      ...files,
+      '.claude/settings.local.json': json({ disableAllHooks: true }),
+    });
+    expect(effective(localOff)['pkg/.claude/settings.json']).toBe(false);
+
+    // A Copilot hooks file that turns its own hooks off, and a subdirectory's settings.
+    const own = inventoryOf({
+      ...files,
+      '.github/hooks/guard.json': json({ ...copilot, disableAllHooks: true }),
+      'pkg/.claude/settings.json': json({ disableAllHooks: true, hooks: stop }),
+    });
+    expect(effective(own)).toMatchObject({
+      '.claude/settings.json': true,
+      '.github/hooks/guard.json': false,
+      'pkg/.claude/settings.json': false,
+    });
+    // The last file that sets it wins.
+    const on = inventoryOf({
+      ...files,
+      '.claude/settings.json': json({ disableAllHooks: true, hooks: stop }),
+      '.claude/settings.local.json': json({ disableAllHooks: false }),
+    });
+    expect(Object.values(effective(on)).every(Boolean)).toBe(true);
+  });
+});
+
+describe('plugin hooks', () => {
+  const hooks = {
+    hooks: {
+      PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo plug' }] }],
+    },
+  };
+
+  it("lists a skills-folder plugin's hooks/hooks.json and a manifest's inline hooks", () => {
+    const inventory = inventoryOf({
+      '.claude/skills/deploy/.claude-plugin/plugin.json': json({
+        name: 'deploy',
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo stop' }] }] },
+      }),
+      '.claude/skills/deploy/hooks/hooks.json': json(hooks),
+      'plugins/other/.claude-plugin/plugin.json': json({ name: 'other', hooks: './x.json' }),
+    });
+    expect(inventory.hooks.map((item) => [item.id, item.platforms, item.event])).toEqual([
+      [
+        commandId('.claude/skills/deploy/.claude-plugin/plugin.json', 'Stop', 'echo stop'),
+        ['claude-code'],
+        'Stop',
+      ],
+      [
+        commandId('.claude/skills/deploy/hooks/hooks.json', 'PreToolUse', 'echo plug'),
+        ['claude-code'],
+        'PreToolUse',
+      ],
+    ]);
+    expect(inventory.incomplete).toEqual([]);
+  });
+
+  it('leaves out a hooks/hooks.json in a skill folder without a manifest', () => {
+    const inventory = inventoryOf({
+      '.claude/skills/deploy/SKILL.md': '---\nname: deploy\ndescription: Deploy.\n---\n',
+      '.claude/skills/deploy/hooks/hooks.json': '{ "hooks": ',
+    });
+    expect(inventory.hooks).toEqual([]);
+    expect(inventory.incomplete).toEqual([]);
+  });
+
+  it('marks a plugin hooks file that does not parse, and inline hooks in a list, incomplete', () => {
+    const inventory = inventoryOf({
+      '.claude/skills/deploy/.claude-plugin/plugin.json': json({
+        name: 'deploy',
+        hooks: ['./more.json', { Stop: [] }],
+      }),
+      '.claude/skills/deploy/hooks/hooks.json': '{ "hooks": ',
+    });
+    expect(inventory.incomplete).toEqual([
+      '.claude/skills/deploy/.claude-plugin/plugin.json',
+      'invalid-json:.claude/skills/deploy/hooks/hooks.json',
+    ]);
+  });
+
+  it('marks a manifest that names other hook or MCP files incomplete', () => {
+    const files = (manifest: object): FileMap => ({
+      '.claude/skills/deploy/.claude-plugin/plugin.json': json({ name: 'deploy', ...manifest }),
+      '.claude/skills/deploy/hooks/hooks.json': json(hooks),
+      '.claude/skills/deploy/.mcp.json': json({ mcpServers: { m: { command: 'node' } } }),
+      '.claude/skills/deploy/config/hooks.json': json(hooks),
+      '.claude/skills/deploy/config/mcp.json': json({
+        mcpServers: { evil: { command: 'npx', args: ['evil-mcp@latest'] } },
+      }),
+    });
+    const manifest = '.claude/skills/deploy/.claude-plugin/plugin.json';
+    // The files these name hold hooks and servers the inventory does not read.
+    for (const named of [
+      { hooks: './config/hooks.json', mcpServers: './config/mcp.json' },
+      { hooks: './config/hooks.json' },
+      { mcpServers: ['./config/mcp.json'] },
+      { hooks: ['./hooks/hooks.json', './config/hooks.json'] },
+    ]) {
+      expect(inventoryOf(files(named)).incomplete, JSON.stringify(named)).toEqual([manifest]);
+    }
+    // Inline objects are listed, and the plugin's own files are read, so nothing is missing.
+    const inline = inventoryOf(
+      files({
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo stop' }] }] },
+        mcpServers: { inl: { command: 'npx', args: ['-y', 'x@1.0.0'] } },
+      }),
+    );
+    expect(inline.incomplete).toEqual([]);
+    expect(inline.hooks.map((item) => [item.file, item.event])).toEqual([
+      [manifest, 'Stop'],
+      ['.claude/skills/deploy/hooks/hooks.json', 'PreToolUse'],
+    ]);
+    expect(inline.mcpServers.map((item) => item.id)).toEqual([
+      `mcp:${manifest}#inl`,
+      'mcp:.claude/skills/deploy/.mcp.json#m',
+    ]);
+    for (const named of [
+      { hooks: './hooks/hooks.json', mcpServers: './.mcp.json' },
+      // A missing file, a bundle and a path outside the plugin hold nothing Claude Code loads.
+      { hooks: './missing.json', mcpServers: ['./server.mcpb', '../shared/mcp.json'] },
+    ]) {
+      expect(inventoryOf(files(named)).incomplete, JSON.stringify(named)).toEqual([]);
+    }
+    // A plugin elsewhere is not a skills-folder plugin: its files are not modeled.
+    expect(
+      inventoryOf({
+        'plugins/p/.claude-plugin/plugin.json': json({ name: 'p', hooks: './config/hooks.json' }),
+        'plugins/p/config/hooks.json': json(hooks),
+      }).incomplete,
+    ).toEqual([]);
+  });
 });
 
 describe('Copilot, VS Code and Devin Local files', () => {

@@ -284,8 +284,12 @@ function renderOnDemand(view: PlanView, context: Context): string[] {
     const importer =
       row.importedBy === undefined ? '' : `, imported by ${cleanPath(row.importedBy, context)}`;
     const when = `${clean(row.when, context)}${importer}${row.unverified ? ' ?' : ''}`;
+    const cut =
+      row.truncated === undefined
+        ? ''
+        : ` (cut at byte ${formatInteger(row.truncated.atByte)}, line ${formatInteger(row.truncated.line)})`;
     return {
-      path: cleanPath(row.path, context),
+      path: `${cleanPath(row.path, context)}${cut}`,
       detail: size === undefined ? when : `${size}, ${when}`,
     };
   });

@@ -490,6 +490,8 @@ function readHook(value: unknown, at: string): HookItem {
     failsOpen: boolean(own(source, 'failsOpen'), field(at, 'failsOpen')),
     remoteScript: boolean(own(source, 'remoteScript'), field(at, 'remoteScript')),
     ...(scope === undefined ? {} : { scope }),
+    // Reports written before the field existed: every hook counted.
+    effective: optional(source, 'effective', at, boolean) ?? true,
   };
 }
 
