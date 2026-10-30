@@ -26,10 +26,12 @@ export const JSON_SOURCES = {
   geminiSettingsLoader: verified(
     'Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts',
+    AUDIT_CHECKED,
   ),
   ecmaJsonParse: verified(
     'ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)',
     'https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON',
+    AUDIT_CHECKED,
   ),
   rfc8259Objects: verified(
     'RFC 8259, section 4: names within an object SHOULD be unique',

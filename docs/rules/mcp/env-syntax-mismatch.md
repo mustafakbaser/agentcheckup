@@ -29,8 +29,8 @@ Rewrite the reference in the syntax of the agent that reads the file.
 - [Claude Code: Plugins reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-14
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
-- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-14
-- [Gemini CLI: Configuration (environment variables in settings)](https://geminicli.com/docs/reference/configuration/), verified, checked 2026-10-14
+- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-30
+- [Gemini CLI: Configuration (environment variables in settings)](https://geminicli.com/docs/reference/configuration/), verified, checked 2026-10-30
 - [Gemini CLI source: envVarResolver.ts](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/utils/envVarResolver.ts), verified, checked 2026-10-14
 
 ## Fix

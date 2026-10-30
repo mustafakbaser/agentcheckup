@@ -8,10 +8,13 @@ import { SOURCES } from '../../platforms/sources.js';
  */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -75,6 +78,7 @@ export const INSTRUCTION_SOURCES = {
   evaluatingAgentsMd: verified(
     'Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)',
     'https://arxiv.org/abs/2602.11988',
+    AUDIT_CHECKED,
   ),
   aaifEffectiveAgentsMd: verified(
     'Agentic AI Foundation: Writing an effective AGENTS.md',

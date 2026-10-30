@@ -92,8 +92,9 @@ export const SOURCES = {
   codexConfigAdvanced: verified(
     'Codex: Advanced configuration',
     'https://learn.chatgpt.com/docs/config-file/config-advanced',
+    AUDIT_CHECKED,
   ),
-  codexMcp: verified('Codex: MCP', 'https://learn.chatgpt.com/docs/extend/mcp'),
+  codexMcp: verified('Codex: MCP', 'https://learn.chatgpt.com/docs/extend/mcp', AUDIT_CHECKED),
   codexSkills: verified('Codex: Build skills', 'https://learn.chatgpt.com/docs/build-skills'),
   codexSkillParser: verified(
     'Codex source: SKILL.md frontmatter parser (parser.rs)',
@@ -114,6 +115,7 @@ export const SOURCES = {
   codexSkillRoots: verified(
     'Codex source: skill roots (.agents/skills up to the project root, project config folders)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs',
+    AUDIT_CHECKED,
   ),
   codexReadFileText: verified(
     'Codex source: read_file_text decodes UTF-8 without removing a byte order mark',
@@ -144,12 +146,12 @@ export const SOURCES = {
   codexMcpTypes: verified(
     'Codex source: mcp_types.rs (transport from command or url, startup timeouts)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   codexConfigLoader: verified(
     'Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   codexHookState: verified(
     'Codex source: config_rules.rs (hooks.state only from user and session layers)',
@@ -302,22 +304,22 @@ export const SOURCES = {
   geminiConfiguration: verified(
     'Gemini CLI: Configuration',
     'https://geminicli.com/docs/reference/configuration/',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   geminiAntigravity: verified(
     'Google for Developers: Transitioning Gemini CLI to Antigravity CLI',
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   geminiCliConfigSource: verified(
     'Gemini CLI source: cli/src/config/config.ts (context.fileName sets the context file names)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/config.ts',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   geminiSettingsSource: verified(
     'Gemini CLI source: settings.ts (workspace settings of the working directory)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   geminiMemoryToolSource: verified(
     'Gemini CLI source: memoryTool.ts (GEMINI.md is the default context file name)',
@@ -434,7 +436,7 @@ export const SOURCES = {
   nodeCliEnv: verified(
     'Node.js: Command-line API, environment variables',
     'https://nodejs.org/api/cli.html',
-    '2026-10-15',
+    AUDIT_CHECKED,
   ),
   ldSo: verified(
     'ld.so(8): Linux manual page',

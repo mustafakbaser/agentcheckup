@@ -23,9 +23,9 @@ Move each key to its nested place, for example `"context": { "fileName": "AGENTS
 
 ## Evidence
 
-- [Gemini CLI: Configuration](https://geminicli.com/docs/reference/configuration/), verified, checked 2026-10-17
-- [Gemini CLI source: cli/src/config/config.ts (context.fileName sets the context file names)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/config.ts), verified, checked 2026-10-17
-- [Gemini CLI source: settings.ts (workspace settings of the working directory)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts), verified, checked 2026-10-17
+- [Gemini CLI: Configuration](https://geminicli.com/docs/reference/configuration/), verified, checked 2026-10-30
+- [Gemini CLI source: cli/src/config/config.ts (context.fileName sets the context file names)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/config.ts), verified, checked 2026-10-30
+- [Gemini CLI source: settings.ts (workspace settings of the working directory)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts), verified, checked 2026-10-30
 - [Gemini CLI source: settings-validation.ts (unknown top-level settings keys are kept, not read)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings-validation.ts), verified, checked 2026-10-17
 - [Gemini CLI 0.23.0 source: settings.ts (MIGRATION_MAP, the last release that moved top-level keys)](https://github.com/google-gemini/gemini-cli/blob/v0.23.0/packages/cli/src/config/settings.ts), verified, checked 2026-10-17
 

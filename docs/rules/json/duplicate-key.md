@@ -21,9 +21,9 @@ The finding points at the earlier key, the one that is ignored. Merge the two en
 
 ## Evidence
 
-- [ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)](https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON), verified, checked 2026-10-14
+- [ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)](https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON), verified, checked 2026-10-30
 - [RFC 8259, section 4: names within an object SHOULD be unique](https://www.rfc-editor.org/rfc/rfc8259#section-4), verified, checked 2026-10-14
-- [Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts), verified, checked 2026-10-14
+- [Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts), verified, checked 2026-10-30
 
 ## Fix
 

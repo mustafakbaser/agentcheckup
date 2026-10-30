@@ -24,7 +24,7 @@ Delete the characters. If they came from copy and paste, retype the affected tex
 ## Evidence
 
 - [Embrace The Red: ASCII Smuggler, hiding text in Unicode tag characters](https://embracethered.com/blog/posts/2024/hiding-and-finding-text-with-unicode-tags/), verified, checked 2026-10-14
-- [Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities" (USENIX Security 2023)](https://arxiv.org/abs/2111.00169), verified, checked 2026-10-14
+- [Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities" (USENIX Security 2023)](https://arxiv.org/abs/2111.00169), verified, checked 2026-10-30
 - [Unicode Technical Standard #39: Security mechanisms](https://www.unicode.org/reports/tr39/), verified, checked 2026-10-14
 - [Unicode Technical Standard #51: Unicode Emoji (emoji tag sequences, Annex C)](https://www.unicode.org/reports/tr51/), verified, checked 2026-10-14
 - [Paul Butler: Smuggling arbitrary data through an emoji](https://paulbutler.org/2025/smuggling-arbitrary-data-through-an-emoji/), verified, checked 2026-10-14

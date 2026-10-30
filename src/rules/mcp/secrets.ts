@@ -9,12 +9,17 @@
  * - OpenAI: sk-, sk-proj-, sk-svcacct-, sk-admin- keys contain the marker `T3BlbkFJ`
  *   (base64 of "OpenAI"); marker and lengths from gitleaks.
  * - Anthropic: sk-ant-apiNN- and sk-ant-adminNN- (prefixes documented; length from gitleaks).
- * - Slack: xoxb-, xoxp-, xoxa-, xoxr-, xoxs-, xoxe-, xoxe.xoxb-, xoxe.xoxp-, xapp-.
+ *   Claude Enterprise admin keys start with sk-ant-api01- too (checked 2026-10-30), so the prefix
+ *   cannot tell them from API keys: both are labeled "Anthropic API key".
+ * - Slack: xoxb-, xoxp-, xoxa-, xoxr-, xoxs-, xoxe-, xoxe.xoxb-, xoxe.xoxp-, xapp-, rotating
+ *   app-level tokens xoxe.xapp- (checked 2026-10-30; the match starts at `xoxe`, not at the
+ *   `xapp-` inside it), and workflow tokens xwfp-.
  * - AWS access key IDs: AKIA / ASIA + 16 base32 characters.
  * - GitLab: glpat- + 20 characters, or the routable format ending in `.vv.` + 9 base36.
  * - Stripe live secret and restricted keys: sk_live_, rk_live_.
  * - Google API keys: AIza + 35 characters. npm: npm_ + 36 base62. Hugging Face: hf_ + 34
- *   letters. PyPI: pypi-AgEIcHlwaS5vcmc… DigitalOcean: dop_v1_/doo_v1_/dor_v1_ + 64 hex.
+ *   letters. PyPI: pypi- + a base64 macaroon, AgEIcHlwaS5vcmc… for pypi.org (checked
+ *   2026-10-30). DigitalOcean: dop_v1_/doo_v1_/dor_v1_ + 64 hex.
  *   Shopify: shpat_/shppa_/shpca_/shpss_ + 32 hex. Doppler: dp.pt./dp.st./… + 40–44.
  */
 
@@ -176,6 +181,7 @@ export const SECRET_PATTERNS: readonly Pattern[] = [
     prefixes: [
       'xoxe.xoxb-',
       'xoxe.xoxp-',
+      'xoxe.xapp-',
       'xoxb-',
       'xoxp-',
       'xoxa-',
@@ -183,6 +189,7 @@ export const SECRET_PATTERNS: readonly Pattern[] = [
       'xoxs-',
       'xoxe-',
       'xapp-',
+      'xwfp-',
     ],
     body: isSlack,
     min: 20,

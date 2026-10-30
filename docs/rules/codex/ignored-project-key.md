@@ -23,7 +23,7 @@ Move the setting to your user configuration (`~/.codex/config.toml`), or delete 
 
 ## Evidence
 
-- [Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)](https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs), verified, checked 2026-10-17
+- [Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)](https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs), verified, checked 2026-10-30
 - [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
 - [Codex source: config_rules.rs (hooks.state only from user and session layers)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/config_rules.rs), verified, checked 2026-10-17
 - [Codex: Config basics](https://learn.chatgpt.com/docs/config-file/config-basic), verified, checked 2026-10-14

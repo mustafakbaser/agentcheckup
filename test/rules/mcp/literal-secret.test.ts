@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { literalSecretRule, MAX_SECRET_FINDINGS } from '../../../src/rules/mcp/literal-secret.js';
 import { findSecret, looksLikePlaceholder } from '../../../src/rules/mcp/secrets.js';
-import { findings, lint } from '../../helpers/lint.js';
+import { applyChanges, textOf } from '../../fix/helpers.js';
+import { findings, lint, snapshotFrom } from '../../helpers/lint.js';
 import { json, noise, rangeOf } from '../json/helpers.js';
 
 const ID = 'mcp/literal-secret';
@@ -33,6 +34,9 @@ const TOKENS = {
   anthropic: 'sk-' + 'ant-api03-' + noise(93, 13, URLSAFE) + 'AA',
   anthropicAdmin: 'sk-' + 'ant-admin01-' + noise(93, 14, URLSAFE) + 'AA',
   slack: 'xo' + 'xb-' + '123456789012-1234567890123-' + noise(24, 15),
+  slackRotatingApp:
+    'xo' + 'xe.' + 'xa' + 'pp-' + '1-A0K3Q8ZP1RT-9876543210123-' + noise(64, 30, HEX),
+  slackWorkflow: 'xw' + 'fp-' + '7364829105-8291037465-1928374650-' + noise(32, 31, HEX),
   aws: 'AK' + 'IA' + noise(16, 16, BASE32),
   gitlab: 'gl' + 'pat-' + noise(20, 17, URLSAFE),
   gitlabRoutable:
@@ -211,6 +215,8 @@ describe('findSecret', () => {
 
   it('names the vendor', () => {
     expect(findSecret(TOKENS.slack)?.vendor).toBe('Slack token');
+    expect(findSecret(TOKENS.slackRotatingApp)?.vendor).toBe('Slack token');
+    expect(findSecret(TOKENS.slackWorkflow)?.vendor).toBe('Slack token');
     expect(findSecret(TOKENS.githubAppJwt)?.vendor).toBe('GitHub App installation token');
     expect(findSecret(TOKENS.openaiLegacy)?.vendor).toBe('OpenAI API key');
     expect(findSecret(TOKENS.anthropicAdmin)?.vendor).toBe('Anthropic Admin API key');
@@ -235,6 +241,55 @@ describe('findSecret', () => {
     const started = performance.now();
     expect(findSecret(hostile)).toBeUndefined();
     expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe('mcp/literal-secret with Slack app-level and workflow tokens', () => {
+  it('reports a rotating app-level token from the start of "xoxe", and fixes the whole token', () => {
+    const text = json({
+      mcpServers: {
+        slack: {
+          command: 'npx',
+          args: ['-y', 'slack-mcp'],
+          env: { SLACK_APP_TOKEN: TOKENS.slackRotatingApp, SLACK_WF_TOKEN: TOKENS.slackWorkflow },
+        },
+      },
+    });
+    const result = lint({ '.mcp.json': text }, { rules });
+    const found = result.findings.filter((finding) => finding.ruleId === ID);
+    expect(found.map(({ severity, range, message }) => [severity, range, message])).toEqual([
+      [
+        'error',
+        rangeOf(text, `"${TOKENS.slackRotatingApp}"`),
+        `mcpServers.slack.env.SLACK_APP_TOKEN holds a literal Slack token ("xoxe…", ${String(TOKENS.slackRotatingApp.length)} characters) that anyone who can read this file can copy. Revoke and rotate it, then reference it as "\${SLACK_APP_TOKEN}".`,
+      ],
+      [
+        'error',
+        rangeOf(text, `"${TOKENS.slackWorkflow}"`),
+        `mcpServers.slack.env.SLACK_WF_TOKEN holds a literal Slack token ("xwfp…", ${String(TOKENS.slackWorkflow.length)} characters) that anyone who can read this file can copy. Revoke and rotate it, then reference it as "\${SLACK_WF_TOKEN}".`,
+      ],
+    ]);
+    const fix = found[0]?.fix;
+    if (fix === undefined) throw new Error('No fix.');
+    const fixed = textOf(
+      applyChanges(snapshotFrom({ '.mcp.json': text }), ...fix.changes),
+      '.mcp.json',
+    );
+    expect(fixed).toBe(text.replace(TOKENS.slackRotatingApp, '${SLACK_APP_TOKEN}'));
+    expect(fixed).toContain('"SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"');
+    expect(fixed).not.toContain('xoxe.');
+  });
+
+  it('does not report placeholders in these formats', () => {
+    const placeholders = [
+      ['xo', 'xe.', 'xa', 'pp-', '1-', 'x'.repeat(40)].join(''),
+      ['xo', 'xe.', 'xa', 'pp-', 'your-app-token-goes-here-1234'].join(''),
+      ['xw', 'fp-', '1234-', 'x'.repeat(30)].join(''),
+    ];
+    for (const value of placeholders) {
+      expect(run({ '.mcp.json': json({ mcpServers: { s: { env: { T: value } } } }) })).toEqual([]);
+      expect(findSecret(value)).toBeUndefined();
+    }
   });
 });
 

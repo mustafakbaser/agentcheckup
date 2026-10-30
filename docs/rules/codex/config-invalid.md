@@ -23,10 +23,10 @@ Fix the syntax at the position the message gives, or the server entry.
 
 ## Evidence
 
-- [Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)](https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs), verified, checked 2026-10-17
+- [Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)](https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs), verified, checked 2026-10-30
 - [Codex source: read_file_text decodes UTF-8 without removing a byte order mark](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs), verified, checked 2026-10-30
-- [Codex source: mcp_types.rs (transport from command or url, startup timeouts)](https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs), verified, checked 2026-10-17
-- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-14
+- [Codex source: mcp_types.rs (transport from command or url, startup timeouts)](https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs), verified, checked 2026-10-30
+- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-30
 - [Codex: Config basics](https://learn.chatgpt.com/docs/config-file/config-basic), verified, checked 2026-10-14
 - [Codex source: Cargo.lock at ce0323f (toml 0.9.11+spec-1.1.0, toml_parser 1.1.3+spec-1.1.0)](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/Cargo.lock), verified, checked 2026-10-17
 - [TOML v1.1.0](https://toml.io/en/v1.1.0), verified, checked 2026-10-17

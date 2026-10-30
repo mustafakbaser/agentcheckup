@@ -27,7 +27,7 @@ Replace it with the specific command, convention or path you mean, or delete it.
 - [Devin Desktop (Windsurf): Memories and rules](https://docs.devin.ai/desktop/cascade/memories), verified, checked 2026-10-14
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-14
 - [Agentic AI Foundation: Writing an effective AGENTS.md](https://aaif.io/blog/writing-an-effective-agents-md), verified, checked 2026-10-14
-- [Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)](https://arxiv.org/abs/2602.11988), verified, checked 2026-10-14
+- [Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)](https://arxiv.org/abs/2602.11988), verified, checked 2026-10-30
 - [Augment Code: How to write good AGENTS.md files](https://www.augmentcode.com/blog/how-to-write-good-agents-dot-md-files), verified, checked 2026-10-14
 
 ## Fix

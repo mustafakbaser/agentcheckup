@@ -3,12 +3,15 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the risk family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
 export const RISK_SOURCES = {
   trojanSource: {
     title:
       'Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities" (USENIX Security 2023)',
     url: 'https://arxiv.org/abs/2111.00169',
-    checked: CHECKED,
+    checked: AUDIT_CHECKED,
     status: 'verified',
   },
   asciiSmuggling: {

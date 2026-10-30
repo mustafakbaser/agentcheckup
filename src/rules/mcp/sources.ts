@@ -3,10 +3,13 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the mcp family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -14,6 +17,7 @@ export const MCP_SOURCES = {
   geminiConfiguration: verified(
     'Gemini CLI: Configuration (environment variables in settings)',
     'https://geminicli.com/docs/reference/configuration/',
+    AUDIT_CHECKED,
   ),
   geminiEnvResolver: verified(
     'Gemini CLI source: envVarResolver.ts',
@@ -30,6 +34,7 @@ export const MCP_SOURCES = {
   githubTokenFormats: verified(
     'GitHub: About authentication to GitHub (token prefixes)',
     'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github',
+    AUDIT_CHECKED,
   ),
   githubTokenBlog: verified(
     "GitHub blog: Behind GitHub's new authentication token formats",
@@ -42,12 +47,18 @@ export const MCP_SOURCES = {
   anthropicKeys: verified(
     'Claude API: Get an API key (sk-ant- prefix)',
     'https://platform.claude.com/docs/en/get-api-key',
+    AUDIT_CHECKED,
   ),
   anthropicAdminKeys: verified(
-    'Claude API: Admin API keys (sk-ant-admin01- prefix)',
+    'Claude API: Admin API keys (sk-ant-admin01- for Claude Console; Claude Enterprise keys start with sk-ant-api01-, like API keys)',
     'https://platform.claude.com/docs/en/manage-claude/admin-api-keys',
+    AUDIT_CHECKED,
   ),
-  slackTokens: verified('Slack: Tokens', 'https://docs.slack.dev/authentication/tokens'),
+  slackTokens: verified(
+    'Slack: Tokens (xoxb-, xoxp-, xapp-, rotating xoxe.xapp-, workflow xwfp-)',
+    'https://docs.slack.dev/authentication/tokens',
+    AUDIT_CHECKED,
+  ),
   awsIdentifiers: verified(
     'AWS IAM: Unique identifier prefixes (AKIA, ASIA)',
     'https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html',
@@ -57,6 +68,7 @@ export const MCP_SOURCES = {
   googleApiKeys: verified(
     'Google Cloud: API keys',
     'https://docs.cloud.google.com/docs/authentication/api-keys',
+    AUDIT_CHECKED,
   ),
   npmTokens: verified(
     "GitHub blog: npm's new access token format",
@@ -66,7 +78,11 @@ export const MCP_SOURCES = {
     'Hugging Face: User access tokens',
     'https://huggingface.co/docs/hub/security-tokens',
   ),
-  pypiTokens: verified('PyPI: API tokens', 'https://pypi.org/help/'),
+  pypiTokens: verified(
+    'PyPI: Secret reporting API (an API token is pypi- and a base64-serialized macaroon)',
+    'https://docs.pypi.org/api/secrets/',
+    AUDIT_CHECKED,
+  ),
   digitalOceanTokens: verified(
     'DigitalOcean: API token format',
     'https://docs.digitalocean.com/notes/2022/api-token-format',
@@ -74,6 +90,7 @@ export const MCP_SOURCES = {
   shopifyTokens: verified(
     'Shopify: Access tokens',
     'https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens',
+    AUDIT_CHECKED,
   ),
   dopplerTokens: verified(
     'Doppler: Auth token formats',
