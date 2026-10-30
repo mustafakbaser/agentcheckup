@@ -214,7 +214,8 @@ describe('the fixture repository, a session at the root', () => {
     ]);
     expect(skips(vscode)).toEqual([
       'skill:.agents/skills/notes/SKILL.md#release-notes invalid-frontmatter skill/name-dir-mismatch unverified',
-      'hook:.claude/settings.json not-read - documented',
+      // The Local harness reads it only with chat.useClaudeHooks, whose default is not given.
+      'hook:.claude/settings.json not-read - unverified',
       'hook:.github/hooks/broken.json invalid-json json/invalid-syntax documented',
       'hook:.github/hooks/future.json not-read - documented',
       'hook:.github/hooks/policy.json#beforeCommit:c532ca1a not-read - unverified',
@@ -303,16 +304,21 @@ describe('the fixture repository, a session at the root', () => {
       'copilot.surface=cli',
       'copilot-cli.trusted_folder=true',
     ]);
-    expect(vscode.assumptions.map((a) => `${a.key}=${String(a.value)}`)).toEqual([
-      'copilot.surface=vscode',
-      'vscode.agent_harness=local',
-      'vscode.chat.useAgentsMdFile=true',
-      'vscode.chat.useClaudeHooks=false',
-      'vscode.chat.useClaudeMdFile=true',
-      'vscode.chat.useNestedAgentsMdFiles=false',
-      'vscode.github.copilot.chat.codeGeneration.useInstructionFiles=true',
-      'vscode.workspace_trusted=true',
+    expect(vscode.assumptions.map((a) => `${a.key}=${String(a.value)} ${a.origin}`)).toEqual([
+      'copilot.surface=vscode default',
+      // VS Code's default is the Copilot harness; the plan models the Local one.
+      'vscode.agent_harness=local assumed',
+      'vscode.chat.useAgentsMdFile=true default',
+      'vscode.chat.useClaudeHooks=false assumed',
+      'vscode.chat.useClaudeMdFile=true assumed',
+      'vscode.chat.useNestedAgentsMdFiles=false default',
+      'vscode.default_agent_harness=copilot default',
+      'vscode.github.copilot.chat.codeGeneration.useInstructionFiles=true assumed',
+      'vscode.workspace_trusted=true default',
     ]);
+    expect(vscode.assumptions.find((a) => a.key === 'vscode.agent_harness')?.evidence).toContain(
+      'vscodeHarnesses',
+    );
     expect(cloud.assumptions.map((a) => `${a.key}=${String(a.value)}`)).toEqual([
       'copilot.surface=cloud-agent',
     ]);
@@ -918,6 +924,22 @@ describe('hooks', () => {
     // The cloud agent reads neither settings file.
     expect(built.cloud.incomplete).toEqual([]);
     expectSkipsReported(built);
+  });
+
+  it("VS Code's plan does not claim the Local harness documents skipping Claude Code hooks", () => {
+    const built = build({
+      '.claude/settings.json':
+        '{ "hooks": { "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "./guard.sh" }] }] } }',
+    });
+    expect(skips(built.vscode)).toEqual(['hook:.claude/settings.json not-read - unverified']);
+    expect(built.vscode.skipped[0]?.evidence).toEqual(['vscodeHooks', 'vscodeHarnesses']);
+    expect(built.vscode.entries).toEqual([]);
+    // The CLI runs them.
+    expect(entries(built.cli)).toEqual([
+      expect.stringMatching(
+        /^- hook:\.claude\/settings\.json#PreToolUse:\w+ on-approval documented$/,
+      ),
+    ]);
   });
 
   it('rejects a file whose event list is not an array, and finds no hooks in other shapes', () => {

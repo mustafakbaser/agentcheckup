@@ -316,9 +316,19 @@ function effectiveModel(
       return session === undefined ? NOT_VISIBLE : fromSetting(session, 'session');
     }
     case 'copilot-cli': {
+      const session = context.get('copilot-cli', 'model');
+      // "When the session model is set to `Auto` (server-selected), subagents always inherit the
+      // resolved session model regardless of this field" (SOURCES.copilotCliAgents).
+      if (session?.value.trim().toLowerCase() === 'auto') {
+        return declared === undefined && !unseen
+          ? fromSetting(session, 'session')
+          : {
+              ...fromSetting(session, 'session'),
+              overridden: { key: session.key, file: session.file },
+            };
+      }
       if (unseen) return NOT_VISIBLE;
       if (ownModel !== undefined) return ownModel;
-      const session = context.get('copilot-cli', 'model');
       return session === undefined ? NOT_VISIBLE : fromSetting(session, 'session');
     }
     case 'cursor':

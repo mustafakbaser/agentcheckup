@@ -143,6 +143,7 @@ export const MATRIX_LEGEND: readonly { readonly cell: MatrixCell; readonly text:
 
 const ORIGIN_LABELS: Readonly<Record<Assumption['origin'], string>> = {
   default: 'default',
+  assumed: 'assumed',
   'rule-option': 'rule option',
   repository: 'from the repository',
   flag: 'from a flag',
@@ -207,6 +208,13 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   {
     key: 'vscode.agent_harness',
     phrase: (value) => (value === 'local' ? 'Local agent harness' : `${valueText(value)} harness`),
+  },
+  {
+    key: 'vscode.default_agent_harness',
+    phrase: (value) =>
+      value === 'copilot'
+        ? "VS Code's default Copilot harness not modeled"
+        : `default harness ${valueText(value)}`,
   },
   {
     key: 'vscode.github.copilot.chat.codeGeneration.useInstructionFiles',

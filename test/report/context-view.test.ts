@@ -109,13 +109,15 @@ describe('assumption phrases', () => {
       for (const text of texts) expect(`${agent}: ${text}`).not.toContain(' = ');
     }
     expect(defaults.get('copilot-cli')).toEqual(['trusted folder']);
+    // VS Code's default harness is Copilot; the plan models the Local one.
     expect(defaults.get('copilot-vscode')).toEqual([
-      'Local agent harness',
-      'instruction files on (default)',
+      'Local agent harness (assumed)',
+      "VS Code's default Copilot harness not modeled",
+      'instruction files on (assumed)',
       'AGENTS.md on (default)',
       'nested AGENTS.md files off (default)',
-      'CLAUDE.md on (default)',
-      'Claude Code hooks off (default)',
+      'CLAUDE.md on (assumed)',
+      'Claude Code hooks off (assumed)',
       'trusted workspace',
     ]);
     // The heading names the surface already.

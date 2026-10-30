@@ -969,7 +969,7 @@
       "properties": {
         "key": { "type": "string", "minLength": 1 },
         "value": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] },
-        "origin": { "enum": ["default", "rule-option", "repository", "flag"] },
+        "origin": { "enum": ["default", "assumed", "rule-option", "repository", "flag"] },
         "evidence": { "$ref": "#/$defs/sourceKeys" }
       }
     },

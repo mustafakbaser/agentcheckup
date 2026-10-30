@@ -1,6 +1,6 @@
 # What coding agents read
 
-Last verified: 2026-10-30 for the Copilot CLI's rules, commands, skills and repository settings, and for Copilot hooks; 2026-10-27 for what a Claude Code subagent starts with and Claude Code's skill listing; 2026-10-26 for custom agents and subagents; 2026-10-17 for GitHub Copilot, Gemini CLI, Devin Desktop, Cline and Codex `config.toml`; 2026-10-14 for the rest
+Last verified: 2026-10-30 for the Copilot CLI's rules, commands, skills and repository settings, Copilot hooks and VS Code's agent harnesses; 2026-10-27 for what a Claude Code subagent starts with and Claude Code's skill listing; 2026-10-26 for custom agents and subagents; 2026-10-17 for GitHub Copilot, Gemini CLI, Devin Desktop, Cline and Codex `config.toml`; 2026-10-14 for the rest
 
 This page lists the configuration files that seven coding agents read, where each agent looks for them, in what order, and which limits apply. Every fact links to the vendor documentation or source code it comes from. Anything we could not confirm is marked **Unverified**.
 
@@ -260,6 +260,10 @@ For a setup that shares one configuration across all seven agents, see [One conf
 
 Copilot reads different files on different surfaces. This section covers Copilot on GitHub.com (Chat, cloud agent and code review), Copilot CLI and VS Code. agentcheckup plans three of them as separate agents: Copilot CLI (`copilot-cli`), Copilot in VS Code with the Local agent harness (`copilot-vscode`) and the Copilot cloud agent (`copilot-cloud`). Chat and code review on GitHub.com are not planned.
 
+VS Code now starts with the Copilot harness: "Start with the Copilot harness for day-to-day coding and agent tasks", and Local appears only with experimental settings such as `"chat.defaultToCopilotHarness": false`, or when an organization keeps it as the default. The VS Code plan still models the Local harness, as an assumption with origin `assumed`, because that is the harness the VS Code pages below describe setting by setting. The Copilot harness shares the runtime of the Copilot CLI and reads more: inline `hooks` in `.github/copilot/settings.json` and `.github/copilot/settings.local.json`, the repository's `.claude/settings.json` and `.claude/settings.local.json`, and MCP servers VS Code forwards to it, except those that need interactive input such as `${input:...}`. So the VS Code plan does not claim that VS Code skips `.claude/settings.json`: that skip is **Unverified**. [Agent harnesses][vscode-harnesses], [VS Code hooks][vscode-hooks], [VS Code MCP][vscode-mcp-ref]
+
+**Next:** plan VS Code's Copilot harness, from the Copilot CLI's model and what VS Code forwards to it, which needs a decision record of its own: whether it becomes a fourth Copilot agent or replaces the Local plan.
+
 ### Files and locations
 
 | File                                        | Where Copilot reads it                                                                                                                                                                                                                                                                       | Source                                                                                                                                |
@@ -286,7 +290,8 @@ Copilot reads different files on different surfaces. This section covers Copilot
 - CLI skills: of two skills with the same name, the first found wins, in this order: `.github/skills/`, `.agents/skills/`, `.claude/skills/`, then a parent directory's `.github/skills/` ("monorepo parent directory support"). agentcheckup takes the project folders to be those of the working directory and ranks parents closest first, which is **Unverified**; a parent's `.agents/skills/` and `.claude/skills/` are not in the list, so their skills are **Unverified**. Two skills of one name in the same folder are both listed. [CLI reference][gh-cli-ref]
 - CLI commands: each `.claude/commands/*.md` file is "an alternative to skills", named after the file, with `argument-hint`, `description`, `allowed-tools` and `disable-model-invocation`. A skill with the same name wins. Which directories' `.claude/commands/` the CLI reads, and whether it reads subfolders, is **Unverified**; agentcheckup lists those of the directories from the root to the working directory, as for skills. [CLI reference][gh-cli-ref]
 - CLI repository settings: `disabledSkills` and `disabledMcpServers` in `.github/copilot/settings.json` or `.github/copilot/settings.local.json` name skills that are "discovered but not loaded" and MCP servers that are "configured but not started"; repository lists add to the user's. Whether `disabledSkills` turns off a command is **Unverified**. [CLI configuration][gh-cli-config]
-- VS Code: what loads depends on the selected agent harness (Copilot, Claude, Codex or Local). In the Local harness, nested `AGENTS.md` support (`chat.useNestedAgentsMdFiles`) is off by default. `chat.useAgentsMdFile` and `chat.useClaudeMdFile` turn the root `AGENTS.md` and the `CLAUDE.md` files on or off, and `github.copilot.chat.codeGeneration.useInstructionFiles` the `.github/copilot-instructions.md` file. agentcheckup assumes all three are on; their defaults are **Unverified**. [VS Code instructions][vscode-instructions]
+- VS Code: what loads depends on the selected agent harness (Copilot, Claude, Codex or Local). In the Local harness, nested `AGENTS.md` support (`chat.useNestedAgentsMdFiles`) is off by default, and `chat.useAgentsMdFile`, which turns the root `AGENTS.md` on or off, "is enabled by default". `chat.useClaudeMdFile` turns the `CLAUDE.md` files on or off, and `github.copilot.chat.codeGeneration.useInstructionFiles` the `.github/copilot-instructions.md` file. agentcheckup assumes both are on; their defaults are **Unverified**. [VS Code instructions][vscode-instructions]
+- VS Code searches `.github/instructions` and `.claude/rules` recursively, so a rule in a subfolder of `.claude/rules` is read too. [VS Code instructions][vscode-instructions]
 - VS Code applies an instructions file through `applyTo`; one with only a `description` when the model finds it relevant; one with neither only when you attach it. [VS Code instructions][vscode-instructions]
 - Cloud agent: a path-specific file without a valid `applyTo` is never applied, and `excludeAgent: "cloud-agent"` excludes a file. [Repository instructions][gh-repo-instructions]
 - Order: no surface documents the order of instruction files. The CLI combines them without precedence. agentcheckup lists them per directory from the root down, then the skills listing, and marks every position **Unverified**. [CLI instructions][gh-cli-instructions], [VS Code instructions][vscode-instructions]
@@ -319,7 +324,7 @@ Copilot reads different files on different surfaces. This section covers Copilot
 - Failure: for most events, non-zero exits and timeouts are logged and execution continues. `preToolUse` command hooks fail closed: exit 2, a crash or any other non-zero exit denies the tool call, even if stdout says `allow`. Timeouts always fail open. HTTP `preToolUse` hooks fail open. A hook registered under the PascalCase name `PreToolUse` uses the VS Code-compatible format, and VS Code continues after any exit code other than 2, so agentcheckup treats it as failing open. [Hooks reference][gh-hooks-ref], [VS Code hooks reference][vscode-hooks-ref]
 - A malformed hook item is dropped and its siblings still load. Invalid JSON, a bad `version` or an event list that is not an array rejects the whole file. Inline `hooks` in a settings file "remain strict": one malformed item rejects the whole `hooks` field. agentcheckup counts as malformed what the field tables require: an item that is not an object, a command hook without `bash`, `powershell`, `command` or `exec` (or with `exec` next to one of the others), an HTTP hook without `url`, a prompt hook without `prompt`; a `type` the reference does not list is **Unverified**. [Hooks reference][gh-hooks-ref]
 - Cloud agent: only `.github/hooks/*.json` from the cloned repository is read, and a subset of events fires. [Hooks reference][gh-hooks-ref]
-- VS Code Local harness: `.github/hooks/*.json` and `~/.copilot/hooks/*.json`. Claude Code settings files load only with `chat.useClaudeHooks` (off by default), and their matcher values are ignored, so every command for the event runs. Timeout in seconds, default 30. Exit 2 blocks; other exit codes show a warning and processing continues. [VS Code hooks][vscode-hooks], [VS Code hooks reference][vscode-hooks-ref]
+- VS Code Local harness: `.github/hooks/*.json` and `~/.copilot/hooks/*.json`. Claude Code settings files load only with `chat.useClaudeHooks`, whose default the page no longer gives (agentcheckup assumes it off, **Unverified**), and their matcher values are ignored, so every command for the event runs. Timeout in seconds, default 30. Exit 2 blocks; other exit codes show a warning and processing continues. [VS Code hooks][vscode-hooks], [VS Code hooks reference][vscode-hooks-ref]
 - VS Code Local harness events: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop` and `PreCompact`; "Local accepts PascalCase and Copilot event aliases", such as `preToolUse` and `agentStop`. Other events, such as `SessionEnd`, are **Unverified** there. [VS Code hooks reference][vscode-hooks-ref]
 
 ### MCP
@@ -603,9 +608,9 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [gh-instructions-support]: https://docs.github.com/en/copilot/reference/custom-instructions-support
 [gh-cli-instructions]: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions
 [gh-code-review-tutorial]: https://docs.github.com/en/copilot/tutorials/customize-code-review
-[gh-skills]: https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
+[gh-skills]: https://docs.github.com/en/copilot/concepts/customizations/agent-skills
 [gh-skills-howto]: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
-[gh-hooks]: https://docs.github.com/en/copilot/concepts/agents/hooks
+[gh-hooks]: https://docs.github.com/en/copilot/concepts/customizations/hooks
 [gh-hooks-ref]: https://docs.github.com/en/copilot/reference/hooks-reference
 [gh-cloud-mcp]: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers
 [gh-cli-mcp]: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers
@@ -616,6 +621,7 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [vscode-hooks]: https://code.visualstudio.com/docs/agent-customization/hooks
 [vscode-hooks-ref]: https://code.visualstudio.com/docs/agents/reference/hooks-reference
 [vscode-mcp-ref]: https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+[vscode-harnesses]: https://code.visualstudio.com/docs/agents/run/agent-harnesses
 [vscode-src-config]: https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/configuration/common/configuration.ts
 [vscode-src-config-models]: https://github.com/microsoft/vscode/blob/main/src/vs/platform/configuration/common/configurationModels.ts
 [vscode-src-json]: https://github.com/microsoft/vscode/blob/main/src/vs/base/common/json.ts

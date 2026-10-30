@@ -888,6 +888,55 @@ describe('GitHub Copilot fields', () => {
     });
   });
 
+  it('does not skip a file meant for GitHub Copilot in VS Code, whose target only picks a schema', () => {
+    const report = agentsOf({
+      '.github/agents/gh.agent.md': '---\ndescription: d\ntarget: github-copilot\n---\n',
+      '.github/agents/both.agent.md': '---\ndescription: d\n---\n',
+    });
+    const gh = of(report, '.github/agents/gh.agent.md');
+    expect(gh['copilot-vscode']).toMatchObject({
+      status: 'unknown',
+      reason: 'its target is github-copilot',
+      certainty: 'unverified',
+      evidence: ['copilotCustomAgents', 'vscodeCustomAgentFile'],
+    });
+    expect(gh['copilot-cli']?.status).toBe('loads');
+    expect(gh['copilot-cloud']?.status).toBe('loads');
+    // Without a target every surface loads it.
+    expect(
+      Object.values(of(report, '.github/agents/both.agent.md')).map(({ status }) => status),
+    ).toEqual(['loads', 'loads', 'loads']);
+  });
+
+  it("runs every Copilot CLI subagent on the session's model when it is auto", () => {
+    const files = (model: string): FileMap => ({
+      '.github/agents/r.agent.md': '---\ndescription: d\nmodel: claude-sonnet-5\n---\n',
+      '.github/agents/plain.agent.md': '---\ndescription: d\n---\n',
+      '.github/copilot/settings.json': json({ model }),
+    });
+    const auto = agentsOf(files('Auto'));
+    expect(of(auto, '.github/agents/r.agent.md')['copilot-cli']?.effective).toEqual({
+      value: 'Auto',
+      source: 'session',
+      file: '.github/copilot/settings.json',
+      overridden: { key: 'model', file: '.github/copilot/settings.json' },
+    });
+    expect(of(auto, '.github/agents/plain.agent.md')['copilot-cli']?.effective).toEqual({
+      value: 'Auto',
+      source: 'session',
+      file: '.github/copilot/settings.json',
+    });
+    // VS Code does not read the CLI's settings.
+    expect(of(auto, '.github/agents/r.agent.md')['copilot-vscode']?.effective).toEqual({
+      value: 'claude-sonnet-5',
+      source: 'definition',
+    });
+    // Another session model leaves the definition's own.
+    expect(
+      of(agentsOf(files('gpt-5')), '.github/agents/r.agent.md')['copilot-cli']?.effective,
+    ).toEqual({ value: 'claude-sonnet-5', source: 'definition' });
+  });
+
   it("reads Claude Code's aliases as models VS Code maps but the Copilot CLI does not document", () => {
     const forms = (model: string) =>
       Object.fromEntries(

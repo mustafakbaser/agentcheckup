@@ -204,8 +204,9 @@ export const SOURCES = {
     'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions',
   ),
   copilotSkills: verified(
-    'GitHub Copilot: About agent skills',
-    'https://docs.github.com/en/copilot/concepts/agents/about-agent-skills',
+    'GitHub Copilot: Agent skills',
+    'https://docs.github.com/en/copilot/concepts/customizations/agent-skills',
+    COPILOT_CHECKED,
   ),
   copilotInstructionsSupport: verified(
     'GitHub Copilot: Support for different types of custom instructions',
@@ -228,9 +229,9 @@ export const SOURCES = {
     COVERAGE_CHECKED,
   ),
   copilotHooks: verified(
-    'GitHub Copilot: About hooks',
-    'https://docs.github.com/en/copilot/concepts/agents/hooks',
-    COVERAGE_CHECKED,
+    'GitHub Copilot: Hooks',
+    'https://docs.github.com/en/copilot/concepts/customizations/hooks',
+    COPILOT_CHECKED,
   ),
   copilotHooksReference: verified(
     'GitHub Copilot: Hooks reference',
@@ -265,6 +266,11 @@ export const SOURCES = {
   vscodeHooksReference: verified(
     'VS Code: Legacy Local hooks reference',
     'https://code.visualstudio.com/docs/agents/reference/hooks-reference',
+    COPILOT_CHECKED,
+  ),
+  vscodeHarnesses: verified(
+    'VS Code: Agent harnesses (the Copilot harness is the default; Local is the older one)',
+    'https://code.visualstudio.com/docs/agents/run/agent-harnesses',
     COPILOT_CHECKED,
   ),
   vscodeMcp: verified(
@@ -503,7 +509,7 @@ export const SOURCES = {
   copilotCustomAgents: verified(
     'GitHub Copilot: Custom agents configuration',
     'https://docs.github.com/en/copilot/reference/custom-agents-configuration',
-    AGENTS_CHECKED,
+    COPILOT_CHECKED,
   ),
   devinSubagents: verified(
     'Devin CLI: Subagents',

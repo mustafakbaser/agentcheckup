@@ -45,7 +45,8 @@ export interface EffectiveModel {
   readonly file?: string;
   /**
    * The setting that makes the agent ignore the definition's own model, when it has one: Claude
-   * Code's `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, or a Gemini CLI per-agent override.
+   * Code's `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, a Gemini CLI per-agent override, or the
+   * Copilot CLI's session `model` set to `auto`.
    */
   readonly overridden?: { readonly key: string; readonly file: string };
 }

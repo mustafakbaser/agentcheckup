@@ -38,9 +38,11 @@ Only definitions an agent reads from the repository are listed. User folders suc
 | Devin Local         | `.devin/agents/<name>.md`, or `<name>/` with `AGENT.md`, `AGENTS.md`, `agent.md` or `agents.md`, the first of them; the same under `.agents/agents` (experimental) | a name other than `subagent_explore` and `subagent_general`; a file without frontmatter loads, unverified                                                                 | `name`, or the file or directory name             |
 
 An `AGENTS.md` or `GEMINI.md` directly in one of these folders documents it, and is read as the
-instruction file it is. A Copilot file whose `target` is `vscode` is not the cloud agent's, and one
-whose `target` is `github-copilot` is not VS Code's. The Copilot CLI's `models`, a list it tries
-in order, wins over `model`.
+instruction file it is. A Copilot file whose `target` is `vscode` is not the cloud agent's. One
+whose `target` is `github-copilot` is `unknown` in VS Code: VS Code reads `target` as the schema it
+interprets the file with, which "doesn't switch the session's harness", while GitHub's reference
+calls it the environment the agent is for. The Copilot CLI's `models`, a list it tries in order,
+wins over `model`.
 
 Each definition has a status, which the JSON report writes as `loads`, `skipped`, `shadowed` and
 `unknown`:
@@ -119,7 +121,7 @@ and `.github/copilot/settings.json`.
 | Claude Code                                       | The model a call passes (not visible); the definition's `model`, where `inherit` means the main conversation's model; `env.CLAUDE_CODE_SUBAGENT_MODEL`, unless it is `inherit`; the main conversation's model: `env.ANTHROPIC_MODEL`, then `model`, then the default for new sessions, `env.ANTHROPIC_DEFAULT_MODEL` |
 | Codex                                             | The definition's `model`; `agents.default_subagent_model`; the session's `model`                                                                                                                                                                                                                                     |
 | Gemini CLI                                        | `agents.overrides.<name>.modelConfig.model`; the definition's `model`; `model.name`                                                                                                                                                                                                                                  |
-| Copilot CLI                                       | The definition's `models` or `model`, unless it is `inherit` or a model the CLI cannot use, where `modelPolicy` is not `required`; the repository's `model` setting                                                                                                                                                  |
+| Copilot CLI                                       | The repository's `model` setting when it is `auto` (any letter case), which every subagent inherits "regardless of" its own; the definition's `models` or `model`, unless it is `inherit` or a model the CLI cannot use, where `modelPolicy` is not `required`; the repository's `model` setting                     |
 | Cursor, Copilot in VS Code and cloud, Devin Local | The definition's `model`; otherwise the model you pick, which the repository does not set                                                                                                                                                                                                                            |
 
 While Claude Code's `env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores every

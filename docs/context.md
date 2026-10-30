@@ -29,17 +29,17 @@ a `.github/copilot-instructions.md`, a `.codex/config.toml` with one MCP server,
 
 ## Agents
 
-| Agent               | Id               | Platform      | The working directory is                                   |
-| ------------------- | ---------------- | ------------- | ---------------------------------------------------------- |
-| Claude Code         | `claude-code`    | `claude-code` | where the session starts                                   |
-| Codex               | `codex`          | `codex`       | where the session starts                                   |
-| Cursor              | `cursor`         | `cursor`      | the folder opened in Cursor                                |
-| Copilot CLI         | `copilot-cli`    | `copilot`     | where the session starts                                   |
-| Copilot in VS Code  | `copilot-vscode` | `copilot`     | the folder opened in VS Code, with the Local agent harness |
-| Copilot cloud agent | `copilot-cloud`  | `copilot`     | the directory the agent works in                           |
-| Gemini CLI          | `gemini`         | `gemini`      | where the session starts                                   |
-| Devin Local         | `windsurf`       | `windsurf`    | the folder opened in Devin Desktop                         |
-| Cline               | `cline`          | `cline`       | the folder opened in VS Code                               |
+| Agent               | Id               | Platform      | The working directory is                                                                         |
+| ------------------- | ---------------- | ------------- | ------------------------------------------------------------------------------------------------ |
+| Claude Code         | `claude-code`    | `claude-code` | where the session starts                                                                         |
+| Codex               | `codex`          | `codex`       | where the session starts                                                                         |
+| Cursor              | `cursor`         | `cursor`      | the folder opened in Cursor                                                                      |
+| Copilot CLI         | `copilot-cli`    | `copilot`     | where the session starts                                                                         |
+| Copilot in VS Code  | `copilot-vscode` | `copilot`     | the folder opened in VS Code, with the Local agent harness, which is no longer VS Code's default |
+| Copilot cloud agent | `copilot-cloud`  | `copilot`     | the directory the agent works in                                                                 |
+| Gemini CLI          | `gemini`         | `gemini`      | where the session starts                                                                         |
+| Devin Local         | `windsurf`       | `windsurf`    | the folder opened in Devin Desktop                                                               |
+| Cline               | `cline`          | `cline`       | the folder opened in VS Code                                                                     |
 
 - **Copilot is three agents.** Copilot CLI, Copilot in VS Code and the Copilot cloud agent on
   GitHub.com read different files from the same repository, so each has a plan of its own. They
@@ -375,6 +375,7 @@ it assumed, and where the value came from:
 | Origin        | Meaning                                                                                           |
 | ------------- | ------------------------------------------------------------------------------------------------- |
 | `default`     | The agent's documented default                                                                    |
+| `assumed`     | A value the plan models although no source gives it as the default                                |
 | `rule-option` | An agentcheckup rule option, such as `maxBytes` of `instr/codex-size-budget`                      |
 | `repository`  | A value read from a file in the repository, such as `context.fileName` in `.gemini/settings.json` |
 | `flag`        | A command-line flag, such as `--context-window`                                                   |
@@ -388,10 +389,12 @@ Today's assumptions:
   project; an unknown context window unless you pass one.
 - **Cursor:** Agent mode, third-party configs turned on, a trusted workspace.
 - **Copilot CLI:** a trusted folder.
-- **Copilot in VS Code:** the Local agent harness; the settings that read
-  `.github/copilot-instructions.md`, `AGENTS.md` and `CLAUDE.md` files on; nested `AGENTS.md`
-  files and Claude Code hooks off; a trusted workspace. VS Code documents that the last two are
-  off by default; the defaults of the first three are not confirmed.
+- **Copilot in VS Code:** the Local agent harness, an assumption with origin `assumed`: VS Code
+  now starts with the Copilot harness, which reads more files, such as `.claude/settings.json`,
+  and the plan does not model it yet; the settings that read `.github/copilot-instructions.md`,
+  `AGENTS.md` and `CLAUDE.md` files on; nested `AGENTS.md` files and Claude Code hooks off; a
+  trusted workspace. VS Code documents that `AGENTS.md` is on and nested `AGENTS.md` files are
+  off by default; the other defaults are not given, so those three are `assumed`.
 - **Copilot cloud agent:** nothing beyond the surface itself.
 - **Gemini CLI:** the context file names from `context.fileName` in the working directory's
   `.gemini/settings.json`, plus `GEMINI.md`; folder trust off; access through a paid API key or

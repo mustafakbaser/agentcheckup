@@ -566,13 +566,20 @@ const REQUIRED: Readonly<Partial<Record<ContextAgent, readonly string[]>>> = {
 const GEMINI_NAME = /^[\d_a-z-]+$/;
 
 /**
- * The `target` that keeps a Copilot surface from reading a file: the CLI reads both
- * (SOURCES.copilotCustomAgents: unset means both environments).
+ * The `target` that keeps a Copilot surface from reading a file: `vscode` keeps the cloud agent
+ * from it, and the CLI reads both (SOURCES.copilotCustomAgents: unset means both environments).
  */
 const OTHER_TARGET: Readonly<Partial<Record<ContextAgent, string>>> = {
-  'copilot-vscode': 'github-copilot',
   'copilot-cloud': 'vscode',
 };
+
+/**
+ * VS Code reads `target: github-copilot` as the harness that interprets the file in the editor,
+ * which "doesn't switch the session's harness" (SOURCES.vscodeCustomAgentFile); GitHub's reference
+ * still names it an environment (SOURCES.copilotCustomAgents). Whether VS Code then loads the
+ * file is not documented.
+ */
+const VSCODE_OTHER_TARGET = 'github-copilot';
 
 const EVIDENCE: Readonly<Record<ContextAgent, readonly SourceKey[]>> = {
   'claude-code': ['claudeSubagents'],
@@ -763,6 +770,25 @@ function markdownFile(
         ...(description === undefined ? {} : { description }),
         ...placeOf(agent, path, named, place?.folder),
         opaque: opaqueOf(artifact),
+        source: { kind: 'frontmatter', artifact, fields, claudeFormat },
+      });
+      continue;
+    }
+    if (
+      agent === 'copilot-vscode' &&
+      reason === undefined &&
+      stringField(fields, 'target')?.trim() === VSCODE_OTHER_TARGET
+    ) {
+      files.push({
+        ...base,
+        line: lineOf(artifact, fields.keySpan('name')),
+        name: named,
+        status: 'unknown',
+        reason: `its target is ${VSCODE_OTHER_TARGET}`,
+        certainty: 'unverified',
+        evidence: ['copilotCustomAgents', 'vscodeCustomAgentFile'],
+        ...(description === undefined ? {} : { description }),
+        ...placeOf(agent, path, named, place?.folder),
         source: { kind: 'frontmatter', artifact, fields, claudeFormat },
       });
       continue;

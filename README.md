@@ -640,7 +640,9 @@ as described in [SECURITY.md](SECURITY.md).
   options or flags such as `--context-window`.
 - **Not every surface has a plan.** Copilot Chat and code review on GitHub.com, VS Code's other
   agent harnesses, Devin Desktop's older Cascade agent and Antigravity CLI are covered by rules
-  only. Copilot, Devin and Cursor do not document the order of their instructions, and the plans
+  only. The Copilot in VS Code plan models the Local harness, which VS Code no longer picks by
+  default; its default Copilot harness, which reads `.claude/settings.json` hooks too, is not
+  planned yet, and the plan says so. Copilot, Devin and Cursor do not document the order of their instructions, and the plans
   say so.
 - **Token counts are estimates:** characters divided by 4, shown with "≈". They are rough for
   code and non-Latin text.

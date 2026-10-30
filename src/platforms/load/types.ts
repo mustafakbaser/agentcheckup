@@ -403,6 +403,8 @@ export interface OutOfScope {
 /**
  * A setting the repository cannot show, stated so the reader can check it. Origin:
  * - `default`: the agent's documented default.
+ * - `assumed`: a value the plan models although no source gives it as the default, such as
+ *   VS Code's Local agent harness, which VS Code no longer picks by default.
  * - `rule-option`: an agentcheckup rule option, such as `maxBytes` of instr/codex-size-budget.
  * - `repository`: read from a file in the repository.
  * - `flag`: a command-line flag, such as `--context-window`.
@@ -411,7 +413,7 @@ export interface Assumption {
   /** For example `codex.project_doc_max_bytes`. */
   readonly key: string;
   readonly value: string | number | boolean;
-  readonly origin: 'default' | 'rule-option' | 'repository' | 'flag';
+  readonly origin: 'default' | 'assumed' | 'rule-option' | 'repository' | 'flag';
   readonly evidence: readonly SourceKey[];
 }
 

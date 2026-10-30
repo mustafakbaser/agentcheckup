@@ -35,7 +35,7 @@
  *   name (`disabledSkills`, `disabledMcpServers`).
  * - Hooks in `.github/hooks/*.json` on every surface; the CLI also reads `hooks` in
  *   `.github/copilot/settings(.local).json` and Claude Code's `.claude/settings(.local).json`,
- *   which VS Code reads only with `chat.useClaudeHooks` (off by default). A malformed item drops
+ *   which VS Code's Local harness reads only with `chat.useClaudeHooks`. A malformed item drops
  *   out of a hook file and rejects every inline hook of a settings file. `disableAllHooks` turns
  *   off the hooks of its file, or on the CLI, in the repository's settings, every hook. Which
  *   event names count as documented depends on the surface (src/platforms/hooks.ts).
@@ -44,6 +44,10 @@
  * order of the listing above (per directory from the repository root down, then the skills) and
  * every startup entry is unverified. Limits are advice, except VS Code's skill name rules.
  * User, account and plugin scopes are listed in `hidden`, never read.
+ *
+ * VS Code: the plan models the Local harness, an assumption (`vscode.agent_harness`). VS Code's
+ * default is now the Copilot harness, which shares the CLI's runtime (SOURCES.vscodeHarnesses);
+ * it is not modeled yet.
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
@@ -310,11 +314,13 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
       origin: 'default',
       evidence: ['copilotInstructionsSupport'],
     },
+    // The plan models the Local harness, which VS Code no longer picks by default: "Start with
+    // the Copilot harness", and Local shows only with experimental settings (vscodeHarnesses).
     {
       key: 'vscode.agent_harness',
       value: 'local',
-      origin: 'default',
-      evidence: ['vscodeInstructions'],
+      origin: 'assumed',
+      evidence: ['vscodeHarnesses', 'vscodeInstructions'],
     },
     {
       key: 'vscode.chat.useAgentsMdFile',
@@ -322,16 +328,17 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
       origin: 'default',
       evidence: ['vscodeInstructions'],
     },
+    // Neither page says whether these three are on by default.
     {
       key: 'vscode.chat.useClaudeHooks',
       value: false,
-      origin: 'default',
+      origin: 'assumed',
       evidence: ['vscodeHooks'],
     },
     {
       key: 'vscode.chat.useClaudeMdFile',
       value: true,
-      origin: 'default',
+      origin: 'assumed',
       evidence: ['vscodeInstructions'],
     },
     {
@@ -341,9 +348,15 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
       evidence: ['vscodeInstructions'],
     },
     {
+      key: 'vscode.default_agent_harness',
+      value: 'copilot',
+      origin: 'default',
+      evidence: ['vscodeHarnesses'],
+    },
+    {
       key: 'vscode.github.copilot.chat.codeGeneration.useInstructionFiles',
       value: true,
-      origin: 'default',
+      origin: 'assumed',
       evidence: ['vscodeInstructions'],
     },
     {
@@ -1916,7 +1929,9 @@ class CopilotLoader {
 
   /**
    * Claude Code's `.claude/settings.json` and `.claude/settings.local.json`: the CLI runs their
-   * hooks for the events it knows; VS Code reads them only with `chat.useClaudeHooks`.
+   * hooks for the events it knows. VS Code's Local harness reads them only with
+   * `chat.useClaudeHooks`, whose default its pages do not give, and its Copilot harness, the
+   * default, reads them (SOURCES.vscodeHooks): the plan's skip is unverified.
    */
   #claudeHooks(): void {
     const evidence = HOOKS[this.#surface];
@@ -1925,7 +1940,13 @@ class CopilotLoader {
       const artifact = this.#configAt(path, 'claude-settings');
       if (artifact === undefined) continue;
       if (this.#surface === 'vscode') {
-        this.#skip({ role: 'hook', path, code: 'not-read', certainty: 'documented', evidence });
+        this.#skip({
+          role: 'hook',
+          path,
+          code: 'not-read',
+          certainty: 'unverified',
+          evidence: ['vscodeHooks', 'vscodeHarnesses'],
+        });
         continue;
       }
       const doc = this.#view.json(artifact);

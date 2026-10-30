@@ -202,7 +202,7 @@ Run `npx agentcheckup` in the repository to check these files. [Known gotchas](p
 [cursor-mcp]: https://cursor.com/docs/mcp
 [gh-repo-instructions]: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions
 [gh-cli-instructions]: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions
-[gh-skills]: https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
+[gh-skills]: https://docs.github.com/en/copilot/concepts/customizations/agent-skills
 [gh-skills-howto]: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
 [gh-cli-skills]: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills
 [gh-hooks-ref]: https://docs.github.com/en/copilot/reference/hooks-reference
