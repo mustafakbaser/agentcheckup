@@ -112,11 +112,11 @@ function frontmatterModel(
   agent: ContextAgent,
   claudeFormat: boolean,
 ): ModelValue | undefined {
-  // The Copilot CLI tries `models` in order, and it overrides `model` (SOURCES.copilotCliAgents).
-  const models =
-    agent === 'copilot-cli' && !claudeFormat ? stringList(own(fields.values, 'models')) : undefined;
+  // The Copilot CLI tries `models` in order, and it overrides `model`, in `.claude/agents` too
+  // (SOURCES.copilotCliAgents).
+  const models = agent === 'copilot-cli' ? stringList(own(fields.values, 'models')) : undefined;
   if (models !== undefined) {
-    return modelValue(agent, models, false, lineOf(artifact, fields.span('models')));
+    return modelValue(agent, models, claudeFormat, lineOf(artifact, fields.span('models')));
   }
   if (!Object.hasOwn(fields.values, 'model')) return undefined;
   const value = own(fields.values, 'model');

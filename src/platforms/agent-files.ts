@@ -20,7 +20,7 @@
  *   on the CLI subfolders too, as the cloud agent the root folder's `*.agent.md`. The CLI knows an
  *   agent by its path below `agents` (`team--reviewer`) and loads `.github/agents` before
  *   `.claude/agents`, the first of an id winning. VS Code and the CLI read `.claude/agents` as
- *   well, in Claude's format.
+ *   well: VS Code in Claude's format, the CLI as its own, `models` included.
  * - Devin Local reads `.devin/agents` and `.agents/agents` (experimental); of the files of one
  *   `agents/<name>/` directory it reads `AGENT.md`, then `AGENTS.md`, `agent.md`, `agents.md`, and
  *   it skips a profile named like a built-in one.

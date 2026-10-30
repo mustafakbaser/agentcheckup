@@ -24,7 +24,7 @@ const CLAUDE_ALIASES: ReadonlySet<string> = new Set([
   'default',
 ]);
 
-/** The aliases of Claude's agent file format, as GitHub Copilot reads `.claude/agents` files. */
+/** The aliases of Claude's agent format, which Copilot in VS Code maps in `.claude/agents`. */
 const CLAUDE_FORMAT_ALIASES: ReadonlySet<string> = new Set(['sonnet', 'opus', 'haiku']);
 
 /** One word of letters, digits and `._:/@-`, as model ids are written. */
@@ -83,7 +83,7 @@ export function geminiModelForm(value: string): ModelForm {
 
 /**
  * GitHub Copilot's own agent files: a model id or the name the model picker shows, such as
- * `Claude Sonnet 4.5` or `GPT-5 (copilot)` (SOURCES.vscodeCustomAgents).
+ * `Claude Sonnet 4.5` or `GPT-5 (copilot)` (SOURCES.vscodeCustomAgentFile).
  */
 export function copilotModelForm(value: string): ModelForm {
   if (value.trim() === '') return 'not-documented';
@@ -91,12 +91,28 @@ export function copilotModelForm(value: string): ModelForm {
 }
 
 /**
- * GitHub Copilot reading a `.claude/agents` file: Claude's format, where `model` is `sonnet`,
- * `opus`, `haiku` or `inherit` (SOURCES.vscodeCustomAgents).
+ * GitHub Copilot in VS Code reading a `.claude/agents` file: Claude's agent format, where `model`
+ * is `sonnet`, `opus`, `haiku` or `inherit`, which it maps to its own models
+ * (SOURCES.vscodeCustomAgentFile).
  */
 export function copilotClaudeFormatModelForm(value: string): ModelForm {
   if (value === 'inherit') return 'inherit';
   return CLAUDE_FORMAT_ALIASES.has(value) ? 'alias' : 'not-documented';
+}
+
+/**
+ * The Copilot CLI, in its own files and in `.claude/agents`: a model, as in its own files. It
+ * documents no mapping of Claude Code's aliases, in any case, so in `.claude/agents` an alias is
+ * not a value it documents. A model it cannot use runs the subagent on the session's model,
+ * unless the definition sets `modelPolicy: "required"`, which refuses the call; that is what
+ * `inherit` asks for, in either folder (SOURCES.copilotCliAgents).
+ */
+export function copilotCliModelForm(value: string, claudeFormat: boolean): ModelForm {
+  if (value === 'inherit') return 'inherit';
+  if (claudeFormat && CLAUDE_ALIASES.has(withoutOneM(value).toLowerCase())) {
+    return 'not-documented';
+  }
+  return copilotModelForm(value);
 }
 
 /**
@@ -119,6 +135,7 @@ export function modelForm(agent: ContextAgent, value: string, claudeFormat: bool
     case 'gemini':
       return geminiModelForm(value);
     case 'copilot-cli':
+      return copilotCliModelForm(value, claudeFormat);
     case 'copilot-vscode':
     case 'copilot-cloud':
       return claudeFormat ? copilotClaudeFormatModelForm(value) : copilotModelForm(value);

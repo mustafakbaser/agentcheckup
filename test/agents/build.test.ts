@@ -888,6 +888,58 @@ describe('GitHub Copilot fields', () => {
     });
   });
 
+  it("reads Claude Code's aliases as models VS Code maps but the Copilot CLI does not document", () => {
+    const forms = (model: string) =>
+      Object.fromEntries(
+        Object.entries(
+          of(agentsOf({ '.claude/agents/r.md': subagent(model) }), '.claude/agents/r.md'),
+        ).map(([agent, definition]) => [agent, definition.model?.form]),
+      );
+    expect(forms('opus')).toEqual({
+      'claude-code': 'alias',
+      'copilot-cli': 'not-documented',
+      'copilot-vscode': 'alias',
+      cursor: 'not-documented',
+    });
+    expect(forms('sonnet[1m]')['copilot-cli']).toBe('not-documented');
+    expect(forms('Opus')['copilot-cli']).toBe('not-documented');
+    // A model id is one the Copilot CLI takes, as in its own files, and `inherit` runs on the
+    // session's model, as one it cannot use does.
+    expect(forms('claude-opus-5.5')['copilot-cli']).toBe('id');
+    expect(forms('inherit')['copilot-cli']).toBe('inherit');
+    const inherits = agentsOf({
+      '.claude/agents/r.md': subagent('inherit'),
+      '.github/copilot/settings.json': json({ model: 'gpt-5' }),
+    });
+    expect(of(inherits, '.claude/agents/r.md')['copilot-cli']?.effective).toEqual({
+      value: 'gpt-5',
+      source: 'session',
+      file: '.github/copilot/settings.json',
+    });
+    // The same in its own folder, where `inherit` is no model it can use either.
+    const own = agentsOf({
+      '.github/agents/r.agent.md':
+        '---\ndescription: Reviews code.\nmodel: inherit\n---\nReview.\n',
+      '.github/copilot/settings.json': json({ model: 'gpt-5' }),
+    });
+    expect(of(own, '.github/agents/r.agent.md')['copilot-cli']?.effective).toEqual({
+      value: 'gpt-5',
+      source: 'session',
+      file: '.github/copilot/settings.json',
+    });
+    expect(of(own, '.github/agents/r.agent.md')['copilot-vscode']?.model?.form).toBe('id');
+    // Its `models` list wins over `model` in Claude's folder too.
+    const listed = of(
+      agentsOf({ '.claude/agents/r.md': subagent('sonnet', 'models: [gpt-5, opus]\n') }),
+      '.claude/agents/r.md',
+    );
+    expect(listed['copilot-cli']?.model).toMatchObject({
+      value: ['gpt-5', 'opus'],
+      form: 'not-documented',
+    });
+    expect(listed['claude-code']?.model).toMatchObject({ value: 'sonnet', form: 'alias' });
+  });
+
   it('reads a file without a header as a VS Code agent only', () => {
     const report = agentsOf({ '.github/agents/plain.agent.md': 'You review code.\n' });
     expect(report.definitions.map(({ agent, status }) => `${agent} ${status}`)).toEqual([

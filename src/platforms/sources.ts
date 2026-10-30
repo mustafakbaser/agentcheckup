@@ -468,6 +468,11 @@ export const SOURCES = {
     'https://code.visualstudio.com/docs/agent-customization/custom-agents',
     AGENTS_CHECKED,
   ),
+  vscodeCustomAgentFile: verified(
+    'VS Code: Custom agent file reference',
+    'https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference',
+    '2026-10-30',
+  ),
   copilotCliAgents: verified(
     'GitHub Copilot CLI: Custom agents reference',
     'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',

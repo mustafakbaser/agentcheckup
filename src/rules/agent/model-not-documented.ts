@@ -65,7 +65,7 @@ export const modelNotDocumentedRule = defineRule({
     title: 'Agent definition sets a model value the agent does not document',
     rationale: [
       'Each agent documents the values its agent files take for `model`. Claude Code takes an alias (`sonnet`, `opus`, `haiku`, `fable`), a full model id or `inherit`; Cursor takes `inherit` or one of its model ids; Gemini CLI takes `inherit` or a model id; Codex takes a model id; GitHub Copilot takes a model id or the name its model picker shows; Devin Local takes the values of its `--model` flag. A value outside them, such as `Claude Sonnet 4` for Claude Code, may run the agent on another model than the one you meant, or none: what the agent does with it is not documented.',
-      "The rule judges a file by the agent whose format it is. Cursor and GitHub Copilot read Claude Code's `.claude/agents` too, where a Claude alias is not a value they document; `agentcheckup agents` shows that, and the file is right for Claude Code, so it is not reported. A file `.claude/agents` reaches through a symlink is judged as Claude Code's too.",
+      "The rule judges a file by the agent whose format it is. Cursor and the Copilot CLI read Claude Code's `.claude/agents` too, where a Claude alias is not a value they document, though Copilot in VS Code maps it; `agentcheckup agents` shows that, and the file is right for Claude Code, so it is not reported. A file `.claude/agents` reaches through a symlink is judged as Claude Code's too.",
       'Set a value the agent documents, or remove `model` to use the default.',
     ].join('\n\n'),
     category: 'correctness',
@@ -86,6 +86,7 @@ export const modelNotDocumentedRule = defineRule({
       SOURCES.cursorSubagents,
       SOURCES.geminiSubagents,
       SOURCES.vscodeCustomAgents,
+      SOURCES.vscodeCustomAgentFile,
       SOURCES.copilotCliAgents,
       SOURCES.devinSubagents,
     ],
