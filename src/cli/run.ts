@@ -35,7 +35,7 @@ import { formatTokensJson } from '../report/tokens-view.js';
 import { fixLabels } from '../report/feedback.js';
 import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
-import { forTerminal } from '../report/sanitize.js';
+import { forTerminal, guardWorkflowCommands } from '../report/sanitize.js';
 import {
   type AgentsCommandOptions,
   commandName,
@@ -88,7 +88,16 @@ const HELP_TOPICS = {
 } as const;
 
 /** Entry point with injected I/O, so the whole CLI is testable without spawning processes. */
-export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
+export async function run(argv: readonly string[], unguarded: Io): Promise<ExitCode> {
+  // Warnings and errors quote repository text, and the Actions runner reads stderr as it reads
+  // stdout: no line may read as a workflow command. Reports guard their own output, since the
+  // github format writes commands on purpose.
+  const io: Io = {
+    ...unguarded,
+    stderr: (text) => {
+      unguarded.stderr(guardWorkflowCommands(text));
+    },
+  };
   try {
     const command = parseCommand(argv);
     switch (command.kind) {

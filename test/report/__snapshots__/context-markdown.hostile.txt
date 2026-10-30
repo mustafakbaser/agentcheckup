@@ -1,4 +1,4 @@
-## Claude Code context · \:\:error\:\:cwd&lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared
+## Claude Code context · \:\:error\:\:cwd&lt;U\+001B&gt;\[2J&lt;U\+001B&gt;\[Hcleared a \#\#\[error file=x;line=1\]f \#\#\[add\-mask\]m \#\#\[stop\-commands\]t
 
 **Assumes:** &lt;U\+001B&gt;\]8;;https\://evil\.example&lt;U\+001B&gt;\\click&lt;U\+001B&gt;\]8;;&lt;U\+001B&gt;\\ = x⏎\:\:add\-mask\:\:secret⏎\:\:set\-output name=a\:\:b \(rule option\)
 

@@ -18,15 +18,17 @@ import {
   withHostileContext,
 } from '../helpers/context.js';
 import { emptyResult, richResult } from './fixtures.js';
-import { ansiStyle, hasEscOrBel, stripKnownSgr, tagStyle, unsafeCodePoints } from './safety.js';
+import {
+  ansiStyle,
+  commandLines,
+  hasEscOrBel,
+  stripKnownSgr,
+  tagStyle,
+  unsafeCodePoints,
+} from './safety.js';
 
 const result = withContext(richResult);
 const hostile = withHostileContext(richResult);
-
-/** Lines the GitHub Actions runner would parse as workflow commands. */
-function commandLines(output: string): string[] {
-  return output.split('\n').filter((line) => line.trimStart().startsWith('::'));
-}
 
 function section(output: string, title: string): string[] {
   const lines = output.split('\n');

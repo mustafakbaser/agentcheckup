@@ -73,6 +73,7 @@ export const hostileText: fc.Arbitrary<string> = fc.string({
       '\r\n',
       '\u001b',
       '::',
+      '##[',
       '%',
       ':',
       ',',
@@ -87,6 +88,18 @@ export const hostileText: fc.Arbitrary<string> = fc.string({
   ),
   maxLength: 40,
 });
+
+/**
+ * The lines of `text` the Actions runner reads as workflow commands: those whose first non-blank
+ * characters are `::` (ActionCommand.TryParseV2), and those with `##[` anywhere, the older
+ * syntax `##[name k=v;k=v]data` (ActionCommand.TryParse).
+ * https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommand.cs
+ */
+export function commandLines(text: string): string[] {
+  return text
+    .split(/\r\n?|\n/)
+    .filter((line) => line.trimStart().startsWith('::') || line.includes('##['));
+}
 
 /**
  * Parses one workflow command line the way the Actions runner does (ActionCommand.TryParseV2):
@@ -159,3 +172,43 @@ export const tagStyle = {
   underline: (text: string) => `<u>${text}</u>`,
   gray: (text: string) => `<gray>${text}</gray>`,
 };
+
+/**
+ * tsc's problem matcher, which actions/setup-node registers too:
+ * `^([^\s].*)[(:](\d+)[,:](\d+)(?:\):\s+|\s+-\s+)(error|warning|info)\s+TS(\d+)\s*:\s*(.*)$`.
+ * Without its backtracking: a line matches it exactly when it starts with a character other than
+ * white space and has {@link TSC_POSITION} after that character.
+ * https://github.com/actions/setup-node/blob/main/.github/tsc.json
+ */
+const TSC_POSITION = /[(:]\d+[,:]\d+(?:\):\s+|\s+-\s+)(?:error|warning|info)\s+TS\d+\s*:/;
+/**
+ * The start of eslint-compact's problem matcher, which actions/setup-node registers too:
+ * `^(.+):\sline\s(\d+),\scol\s(\d+),\s([Ee]rror|[Ww]arning|[Ii]nfo)\s-\s(.+)\s\((.+)\)$`.
+ * https://github.com/actions/setup-node/blob/main/.github/eslint-compact.json
+ */
+const ESLINT_COMPACT_POSITION = /:\sline\s\d+,\scol\s\d+,\s(?:[Ee]rror|[Ww]arning|[Ii]nfo)\s-\s/g;
+
+/** True when `rest` matches `^(.+)\s\((.+)\)$`, the end of eslint-compact's matcher. */
+function endsAsCompact(rest: string): boolean {
+  if (!rest.endsWith(')')) return false;
+  for (let index = 1; index + 3 < rest.length; index++) {
+    if (/\s/.test(rest.charAt(index)) && rest.charAt(index + 1) === '(') return true;
+  }
+  return false;
+}
+
+/**
+ * The annotations the tsc and eslint-compact matchers make from `output`, one per line they
+ * match, as `matcher: line`. The runner applies each to every line, after removing colors.
+ */
+export function singleLineMatcherAnnotations(output: string): string[] {
+  const found: string[] = [];
+  for (const line of stripKnownSgr(output).split('\n')) {
+    if (/^\S/.test(line) && TSC_POSITION.test(line.slice(1))) found.push(`tsc: ${line}`);
+    const compact = [...line.matchAll(ESLINT_COMPACT_POSITION)].some(
+      (match) => match.index > 0 && endsAsCompact(line.slice(match.index + match[0].length)),
+    );
+    if (compact) found.push(`eslint-compact: ${line}`);
+  }
+  return found;
+}

@@ -31,7 +31,14 @@ import {
   skipped,
   writtenRun,
 } from './fix-fixtures.js';
-import { ansiStyle, hasEscOrBel, stripKnownSgr, tagStyle, unsafeCodePoints } from './safety.js';
+import {
+  ansiStyle,
+  commandLines,
+  hasEscOrBel,
+  stripKnownSgr,
+  tagStyle,
+  unsafeCodePoints,
+} from './safety.js';
 
 interface TextLine {
   text: string;
@@ -587,8 +594,7 @@ describe('formatFixDiff safety', () => {
   it('starts no line with a workflow command', () => {
     for (const run of runs) {
       for (const output of [plain(run), formatFixSummary(run)]) {
-        const commands = output.split('\n').filter((line) => line.trimStart().startsWith('::'));
-        expect(commands).toEqual([]);
+        expect(commandLines(output)).toEqual([]);
       }
     }
     expect(plain(hostileRun)).toContain(' <U+003A>:stop-commands::x');

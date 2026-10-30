@@ -19,6 +19,7 @@ import {
   secretRun,
   writtenRun,
 } from './fix-fixtures.js';
+import { commandLines } from './safety.js';
 
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 const schema = JSON.parse(
@@ -186,6 +187,8 @@ describe('toFixReport', () => {
     expect(json).not.toContain('\u001b');
     expect(json).not.toContain('\u202e');
     expect(json).toContain('\\u001b');
+    expect(commandLines(json)).toEqual([]);
+    expect(json).toContain('##\\u005berror');
     const parsed = JSON.parse(json) as FixReport;
     expect(parsed.files[0]!.path).toBe(hostileRun.files[0]!.path);
     expect(parsed.files[0]!.hunks[0]!.lines).toContain(' ::stop-commands::x');

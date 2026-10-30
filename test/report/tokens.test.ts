@@ -14,7 +14,7 @@ import { formatTokensText, MAX_TOKEN_ROWS } from '../../src/report/tokens-text.j
 import { formatTokensJson, tokenSummary } from '../../src/report/tokens-view.js';
 import { contextReport, entry, plan, size, skip } from '../helpers/context.js';
 import { emptyResult } from './fixtures.js';
-import { hasEscOrBel, unsafeCodePoints } from './safety.js';
+import { commandLines, hasEscOrBel, unsafeCodePoints } from './safety.js';
 
 const schema: unknown = JSON.parse(
   readFileSync(new URL('../../schemas/report.schema.json', import.meta.url), 'utf8'),
@@ -274,7 +274,7 @@ describe('tokenSummary', () => {
 });
 
 describe('formatTokensText and formatTokensMarkdown', () => {
-  const hostile = 'evil\u001b[31m|`x`\nname‮';
+  const hostile = 'evil\u001b[31m|`x`\nname‮ ##[stop-commands]t';
   const many = plan('claude-code', {
     entries: [
       ...Array.from({ length: MAX_TOKEN_ROWS + 2 }, (_, i) =>
@@ -288,6 +288,10 @@ describe('formatTokensText and formatTokensMarkdown', () => {
     const text = formatTokensText(result([many]));
     expect(unsafeCodePoints(text, { newline: true })).toEqual([]);
     expect(hasEscOrBel(text)).toBe(false);
+    expect(commandLines(text)).toEqual([]);
+    const json = formatTokensJson(result([many]));
+    expect(commandLines(json)).toEqual([]);
+    expect(json).toContain('\\u202e ##\\u005bstop-commands]t');
     const lines = text.split('\n');
     const first = lines.findIndex((line) => line.includes('.claude/agents/hostile.md'));
     expect(lines[first - 1]).toMatch(/≈tokens +Agent +Subagent +Model +File$/);

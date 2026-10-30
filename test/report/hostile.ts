@@ -15,6 +15,7 @@ export const HOSTILE = {
   stopCommands: 'line one\n::stop-commands::x',
   fakeError: 'line one\r\n::error::fake annotation',
   addMask: 'x\n::add-mask::secret\n::set-output name=a::b',
+  legacyCommand: 'a ##[error file=x;line=1]f ##[add-mask]m ##[stop-commands]t',
   bidiOverride: 'invoice\u202Etxt.exe and \u202Aembed\u202C \u200E\u200F\u061C',
   bidiIsolates: '\u2066isolated\u2069 \u2067rtl\u2069 \u2068fs\u2069',
   zeroWidth: 'zero\u200Bwidth\u200Cnon\u200Djoiner\u2060word\uFEFFbom',

@@ -24,7 +24,7 @@ import {
 } from './fixtures.js';
 import { NEW_FINGERPRINTS, withContext, withHostileContext } from '../helpers/context.js';
 import { hostileResult } from './hostile.js';
-import { unsafeCodePoints } from './safety.js';
+import { commandLines, unsafeCodePoints } from './safety.js';
 
 const sarifSchema = JSON.parse(
   readFileSync(new URL('../schemas/sarif-2.1.0.json', import.meta.url), 'utf8'),
@@ -382,6 +382,12 @@ describe('hostile input', () => {
 
   it('contains no raw control or invisible characters', () => {
     expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
+  });
+
+  it('contains no line the Actions runner reads as a workflow command', () => {
+    expect(commandLines(output)).toEqual([]);
+    // Messages escape brackets anyway, so no embedded link can form (SARIF 2.1.0 §3.11.6).
+    expect(output).toContain('a ##\\\\[error file=x;line=1\\\\]f');
   });
 
   it('neutralizes message text and encodes URIs', () => {

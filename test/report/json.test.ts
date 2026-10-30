@@ -47,7 +47,7 @@ import {
 } from '../helpers/context.js';
 import { cleanResult, emptyResult, richResult } from './fixtures.js';
 import { hostileResult } from './hostile.js';
-import { unsafeCodePoints } from './safety.js';
+import { commandLines, unsafeCodePoints } from './safety.js';
 
 /** `true` when `Listed` covers every member of `All`. */
 type Exhaustive<All, Listed> = [Exclude<All, Listed>] extends [never] ? true : false;
@@ -117,6 +117,13 @@ describe('formatJson', () => {
     expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
     expect(output).toContain('docs/AGENTS\\u202edm.md');
     expect(output).toContain('copy\\u001b]52;c;');
+    // The Actions runner reads `##[` anywhere in a line; the escape decodes to the same text.
+    for (const report of [hostileResult, hostileContextResult]) {
+      const json = formatJson(report);
+      expect(commandLines(json)).toEqual([]);
+      expect(json).toContain('a ##\\u005berror file=x;line=1]f');
+      expect(JSON.parse(json)).toEqual(toJsonReport(report));
+    }
   });
 
   it('matches the snapshot', async () => {

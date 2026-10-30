@@ -184,16 +184,27 @@ export function forTerminal(text: string, options: TerminalTextOptions = {}): st
 }
 
 /**
+ * The prefix of the runner's older command syntax, `##[name k=v;k=v]data`, which it still reads
+ * anywhere in a line (ActionCommand.TryParse looks for the first `##[`).
+ */
+const LEGACY_COMMAND = /##\[/g;
+
+/**
  * Terminal output is also read by the GitHub Actions runner, which treats every log line whose
  * first non-blank characters are `::` as a workflow command (it trims leading white space before
- * parsing). A scanned path printed at the start of a line could therefore fake an annotation or
- * switch command processing off with `::stop-commands::`. This renders the first colon of such
- * a line as `<U+003A>`. Apply it to the whole output, after {@link forTerminal}: line breaks in
- * untrusted text are already markers, so every `\n` here is one the formatter wrote.
+ * parsing), and every line that contains `##[` as one in the older syntax. A scanned path printed
+ * at the start of a line, or a skill or MCP server name anywhere in one, could therefore fake an
+ * annotation, mask a word or switch command processing off with `::stop-commands::` or
+ * `##[stop-commands]`. This renders the first colon of such a line as `<U+003A>` and the bracket
+ * of each `##[` as `<U+005B>`. Apply it to the whole output, after {@link forTerminal}: line
+ * breaks in untrusted text are already markers, so every `\n` here is one the formatter wrote.
+ * It also breaks the lines that a problem matcher would annotate ({@link guardProblemMatchers}).
  * https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommandManager.cs
+ * https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommand.cs
  */
-export function guardWorkflowCommands(text: string): string {
-  if (!text.includes('::')) return text;
+export function guardWorkflowCommands(output: string): string {
+  const text = guardProblemMatchers(output);
+  if (!text.includes('::') && !text.includes('##[')) return text;
   return text
     .split('\n')
     .map((line) => {
@@ -201,7 +212,86 @@ export function guardWorkflowCommands(text: string): string {
       if (!line.startsWith('::', start)) return line;
       return `${line.slice(0, start)}${codePointLabel(0x3a)}${line.slice(start + 1)}`;
     })
-    .join('\n');
+    .join('\n')
+    .replace(LEGACY_COMMAND, `##${codePointLabel(0x5b)}`);
+}
+
+/** The start of an SGR sequence, `ESC [ 1;31 m`: a color or style, which formatters add. */
+const ESC_BRACKET = '\u001b[';
+const SGR_PARAMETER: ReadonlySet<string> = new Set('0123456789;');
+/**
+ * The colon tsc's problem matcher needs after the error code:
+ * `^([^\s].*)[(:](\d+)[,:](\d+)(?:\):\s+|\s+-\s+)(error|warning|info)\s+TS(\d+)\s*:\s*(.*)$`.
+ * The matchers are case-sensitive. These patterns run on one line at a time, and their `\s` is
+ * more than the runner's, which applies matchers with RegexOptions.ECMAScript (IssueMatcher.cs).
+ */
+const TSC_PROBLEM = /(?:error|warning|info)\s+TS\d+\s*:/g;
+/**
+ * The colon eslint-compact's problem matcher needs before the position:
+ * `^(.+):\sline\s(\d+),\scol\s(\d+),\s([Ee]rror|[Ww]arning|[Ii]nfo)\s-\s(.+)\s\((.+)\)$`.
+ */
+const ESLINT_COMPACT_PROBLEM =
+  /:(?=\sline\s\d+,\scol\s\d+,\s(?:[Ee]rror|[Ww]arning|[Ii]nfo)\s-\s)/g;
+
+/**
+ * actions/setup-node registers problem matchers for tsc and eslint-compact in every job that
+ * runs it, and the runner turns each line of a step's output that one matches into an
+ * annotation. A scanned path or name in a line could therefore fake an error such as
+ * `x(1,1): error TS2: Security review passed`. This renders the colon each matcher needs as
+ * `<U+003A>`: the one after `TS<code>` and the one before `line <n>, col <n>,`. agentcheckup
+ * writes neither shape itself.
+ * The shapes are matched as if without colors, which the runner means to remove first.
+ * https://github.com/actions/setup-node/tree/main/.github
+ * https://github.com/actions/runner/blob/main/src/Runner.Worker/Handlers/OutputManager.cs
+ */
+function guardProblemMatchers(text: string): string {
+  return text.split('\n').map(guardProblemLine).join('\n');
+}
+
+function guardProblemLine(line: string): string {
+  const colors = sgrSequences(line);
+  let plain = line;
+  if (colors.length > 0) {
+    plain = '';
+    let from = 0;
+    for (const { index, length } of colors) {
+      plain += line.slice(from, index);
+      from = index + length;
+    }
+    plain += line.slice(from);
+  }
+  const colons: number[] = [];
+  for (const match of plain.matchAll(TSC_PROBLEM)) colons.push(match.index + match[0].length - 1);
+  for (const match of plain.matchAll(ESLINT_COMPACT_PROBLEM)) colons.push(match.index);
+  if (colons.length === 0) return line;
+  colons.sort((a, b) => a - b);
+  let out = '';
+  let from = 0;
+  // Offsets in `plain` move by the length of the color sequences before them in `line`.
+  let shift = 0;
+  let next = 0;
+  for (const colon of colons) {
+    for (let color = colors[next]; color && color.index - shift <= colon; color = colors[++next]) {
+      shift += color.length;
+    }
+    const at = colon + shift;
+    if (at < from) continue;
+    out += `${line.slice(from, at)}${codePointLabel(0x3a)}`;
+    from = at + 1;
+  }
+  return out + line.slice(from);
+}
+
+/** Where `text` has an SGR sequence. */
+function sgrSequences(text: string): { readonly index: number; readonly length: number }[] {
+  const found: { index: number; length: number }[] = [];
+  for (let index = text.indexOf(ESC_BRACKET); index !== -1;) {
+    let end = index + ESC_BRACKET.length;
+    while (end < text.length && SGR_PARAMETER.has(text.charAt(end))) end++;
+    if (text.charAt(end) === 'm') found.push({ index, length: end + 1 - index });
+    index = text.indexOf(ESC_BRACKET, end);
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -368,10 +458,18 @@ function jsonUnicodeEscape(text: string): string {
  * raw, and people `cat` reports. This rewrites them as `\uXXXX` escapes: lossless, because every
  * JSON parser decodes them back to the same string. Outside string literals JSON.stringify
  * output is pure ASCII, so only string contents are touched.
+ *
+ * JSON printed in GitHub Actions is read by the runner too, which finds commands of the older
+ * syntax anywhere in a line (see {@link guardWorkflowCommands}): the bracket of each `##[`
+ * becomes the escape `\u005b`. Lossless as well: `##[` only occurs inside string literals,
+ * where `[` is never part of an escape. No line can start with `::`: after its indentation,
+ * every line of JSON.stringify output starts with a quote, a bracket, a brace or a literal.
  */
 export function forJsonOutput(json: string): string {
-  return json.replace(/[^\n\x20-\x7e]/gu, (ch) => {
-    const cp = ch.codePointAt(0) ?? 0;
-    return isControl(cp) || isSurrogate(cp) || isInvisible(cp) ? jsonUnicodeEscape(ch) : ch;
-  });
+  return json
+    .replace(/[^\n\x20-\x7e]/gu, (ch) => {
+      const cp = ch.codePointAt(0) ?? 0;
+      return isControl(cp) || isSurrogate(cp) || isInvisible(cp) ? jsonUnicodeEscape(ch) : ch;
+    })
+    .replace(LEGACY_COMMAND, '##\\u005b');
 }

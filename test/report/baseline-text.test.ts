@@ -13,7 +13,7 @@ import {
 } from '../helpers/context.js';
 import { hostileResult } from './hostile.js';
 import { richResult } from './fixtures.js';
-import { unsafeCodePoints } from './safety.js';
+import { commandLines, unsafeCodePoints } from './safety.js';
 
 const result = withContext(richResult);
 
@@ -154,10 +154,15 @@ describe('formatBaselineText', () => {
       ...hostile,
       baseline: {
         ...hostile.baseline!,
-        against: { version: 'x', ruleset: '\u001b[2J::error::x', sameRuleset: false, newRules: [] },
+        against: {
+          version: 'x',
+          ruleset: '\u001b[2J::error::x ##[add-mask]y',
+          sameRuleset: false,
+          newRules: [],
+        },
       },
     });
     expect(unsafeCodePoints(text, { tab: true, newline: true })).toEqual([]);
-    for (const line of text.split('\n')) expect(line.trimStart().startsWith('::')).toBe(false);
+    expect(commandLines(text)).toEqual([]);
   });
 });

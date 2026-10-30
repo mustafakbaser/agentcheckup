@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { formatTasksJson } from '../../src/report/tasks-json.js';
 import { formatTasksMarkdown } from '../../src/report/tasks-markdown.js';
 import { buildTasks } from '../../src/tasks/index.js';
+import { commandLines } from '../report/safety.js';
 import { GITHUB_TOKEN, hiddenCharacters, linesOutsideUntrusted, scanOf } from './fixture.js';
 
 const RLO = '‮';
@@ -24,6 +25,7 @@ const HOSTILE_REPO = {
   [`.claude/skills/esc${ESC}[31mred/SKILL.md`]: skill('esc-red', PLAIN),
   [`.claude/skills/${GITHUB_TOKEN}/SKILL.md`]: skill('token', PLAIN),
   '.claude/skills/a``b~~~~c/SKILL.md': skill('ticks', PLAIN),
+  '.claude/skills/##[error]x/SKILL.md': skill('legacy', `${PLAIN} ##[add-mask]m`),
 };
 
 const list = buildTasks(scanOf(HOSTILE_REPO), { version: '0.5.0' });
@@ -33,7 +35,7 @@ const json = formatTasksJson(list);
 describe('a hostile repository', () => {
   it('still yields its tasks', () => {
     const descriptions = list.tasks.filter((task) => task.ruleId === 'skill/description-quality');
-    expect(descriptions).toHaveLength(5);
+    expect(descriptions).toHaveLength(6);
   });
 
   it('keeps text that asks for commands inside untrusted blocks', () => {
@@ -61,6 +63,14 @@ describe('a hostile repository', () => {
   it('shows a line break or an ESC in a path visibly, in a code span', () => {
     expect(markdown).toContain('File: `.claude/skills/bad⏎name/SKILL.md` line 3');
     expect(markdown).toContain('File: `.claude/skills/esc<U+001B>[31mred/SKILL.md` line 3');
+  });
+
+  it('writes no line the Actions runner reads as a workflow command, and JSON keeps the path', () => {
+    expect(commandLines(markdown)).toEqual([]);
+    expect(commandLines(json)).toEqual([]);
+    expect(markdown).toContain('File: `.claude/skills/##<U+005B>error]x/SKILL.md` line 3');
+    const parsed = JSON.parse(json) as { tasks: { path: string }[] };
+    expect(parsed.tasks.map((task) => task.path)).toContain('.claude/skills/##[error]x/SKILL.md');
   });
 
   it('delimits a path with backticks by a longer backtick run', () => {

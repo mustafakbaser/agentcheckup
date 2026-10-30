@@ -12,7 +12,14 @@ import {
   guardWorkflowCommands,
 } from '../../src/report/sanitize.js';
 import { HOSTILE, type HostileName } from './hostile.js';
-import { hostileText, parseWorkflowCommand, unescapeData, unsafeCodePoints } from './safety.js';
+import {
+  commandLines,
+  hostileText,
+  parseWorkflowCommand,
+  singleLineMatcherAnnotations,
+  unescapeData,
+  unsafeCodePoints,
+} from './safety.js';
 
 /** Builds strings from code points, so no invisible character appears raw in this file. */
 const c = (...codePoints: number[]): string => String.fromCodePoint(...codePoints);
@@ -73,6 +80,9 @@ function checkAllChannels(text: string): void {
   expect(unsafeCodePoints(forTerminal(text, { ascii: true }), { tab: true })).toEqual([]);
   const multiline = forTerminal(text, { multiline: true });
   expect(unsafeCodePoints(multiline, { tab: true, newline: true })).toEqual([]);
+  // Read by the Actions runner: no line is a workflow command in either syntax.
+  expect(commandLines(guardWorkflowCommands(forTerminal(text)))).toEqual([]);
+  expect(commandLines(guardWorkflowCommands(multiline))).toEqual([]);
 
   // Workflow commands: one line, parsed back exactly as the runner would.
   const data = forWorkflowCommand(text);
@@ -104,10 +114,14 @@ function checkAllChannels(text: string): void {
   expect(unsafeCodePoints(message, { tab: true })).toEqual([]);
   expect(unescapedBrackets(message)).toEqual([]);
 
-  // JSON: lossless and display-safe.
+  // JSON: lossless, display-safe, and no command for the Actions runner.
   const json = forJsonOutput(JSON.stringify({ text }));
   expect((JSON.parse(json) as { text: string }).text).toBe(text);
   expect(unsafeCodePoints(json)).toEqual([]);
+  expect(commandLines(json)).toEqual([]);
+  const pretty = forJsonOutput(JSON.stringify({ text, list: [text] }, null, 2));
+  expect(JSON.parse(pretty)).toEqual({ text, list: [text] });
+  expect(commandLines(pretty)).toEqual([]);
 }
 
 describe('every channel', () => {
@@ -240,19 +254,107 @@ describe('guardWorkflowCommands', () => {
     expect(guardWorkflowCommands(' 　::stop-commands::t')).toBe(' 　<U+003A>:stop-commands::t');
   });
 
+  it('defuses "##[" anywhere in a line, visibly', () => {
+    expect(guardWorkflowCommands(HOSTILE.legacyCommand)).toBe(
+      'a ##<U+005B>error file=x;line=1]f ##<U+005B>add-mask]m ##<U+005B>stop-commands]t',
+    );
+    expect(guardWorkflowCommands('x\n  ###[set-output name=a;]b\n##[##[')).toBe(
+      'x\n  ###<U+005B>set-output name=a;]b\n##<U+005B>##<U+005B>',
+    );
+    expect(guardWorkflowCommands('::x ##[y')).toBe('<U+003A>:x ##<U+005B>y');
+  });
+
   it('leaves other text alone', () => {
-    for (const text of ['', 'no colons', 'a::b', ': :x', '\u001b[4m::styled', 'x\n:y']) {
+    for (const text of [
+      '',
+      'no colons',
+      'a::b',
+      ': :x',
+      '\u001b[4m::styled',
+      'x\n:y',
+      '## [x]',
+      '#[x]',
+      '# #[x]',
+      '##x[',
+    ]) {
       expect(guardWorkflowCommands(text)).toBe(text);
     }
   });
 
   it('leaves no line the runner parses as a command, for any input', () => {
     fc.assert(
-      fc.property(fc.array(fc.oneof(hostileText, fc.constant('::'), fc.constant(' '))), (parts) => {
-        const output = guardWorkflowCommands(parts.map((part) => forTerminal(part)).join('\n'));
-        for (const line of output.split('\n')) {
-          expect(line.trimStart().startsWith('::')).toBe(false);
-        }
+      fc.property(
+        fc.array(fc.oneof(hostileText, fc.constant('::'), fc.constant('##['), fc.constant(' '))),
+        (parts) => {
+          const output = guardWorkflowCommands(parts.map((part) => forTerminal(part)).join('\n'));
+          expect(commandLines(output)).toEqual([]);
+        },
+      ),
+    );
+  });
+});
+
+describe('guardWorkflowCommands and problem matchers', () => {
+  const COLON = '<U+003A>';
+
+  it('breaks the lines the problem matchers of actions/setup-node annotate, visibly', () => {
+    const tsc = '.claude/skills/x(1,1): error TS2: Security review passed/SKILL.md';
+    expect(guardWorkflowCommands(tsc)).toBe(tsc.replace('TS2:', `TS2${COLON}`));
+    expect(guardWorkflowCommands('a.ts:1:2 - warning TS7006 : x')).toBe(
+      `a.ts:1:2 - warning TS7006 ${COLON} x`,
+    );
+    const compact = '  a: line 1, col 1, Error - Security review passed (ok)  stdio (not pinned)';
+    expect(guardWorkflowCommands(compact)).toBe(compact.replace('a:', `a${COLON}`));
+    // Every place a matcher could use, and each colon once.
+    expect(
+      guardWorkflowCommands('a(1,1): info TS1: b(2,2): error TS3: line 1, col 2, info - c (d)'),
+    ).toBe(`a(1,1): info TS1${COLON} b(2,2): error TS3${COLON} line 1, col 2, info - c (d)`);
+  });
+
+  it('finds the shapes between colors, which the runner may remove first', () => {
+    expect(guardWorkflowCommands('\u001b[4mx(1,1): error TS2\u001b[24m: y')).toBe(
+      `\u001b[4mx(1,1): error TS2\u001b[24m${COLON} y`,
+    );
+  });
+
+  it('leaves text the problem matchers do not annotate alone', () => {
+    for (const text of [
+      'CLAUDE.md:12:3',
+      '  12:3  ✖ error  Line contains a secret  secret/literal',
+      '  12:3  x error  Line contains a secret  secret/literal',
+      '12:3  error  at the start of a line',
+      'error TS2304 Cannot find name',
+      'x(1,1): Error TS2: tsc reads lower-case severities only',
+      'a line 1, col 1, error - no colon (r)',
+      'a: line 1, col 1, fatal - another severity (r)',
+      '\u001b[4m.claude/skills/deploy/SKILL.md\u001b[24m',
+    ]) {
+      expect(guardWorkflowCommands(text)).toBe(text);
+    }
+  });
+
+  it('leaves no line a single-line problem matcher annotates, for any input', () => {
+    const fragments = fc.constantFrom(
+      'x(1,1): error TS2: ',
+      'a.ts:1:2 - info TS3:',
+      ': line 1, col 2, Warning - m (r)',
+      'error',
+      'TS4',
+      ' ',
+      '\t',
+      ':',
+      '(',
+      ')',
+      '1,2',
+      ', col 3, ',
+      'line 4',
+    );
+    fc.assert(
+      fc.property(fc.array(fc.oneof(hostileText, fragments)), fc.boolean(), (parts, lines) => {
+        const output = guardWorkflowCommands(
+          parts.map((part) => forTerminal(part)).join(lines ? '\n' : ''),
+        );
+        expect(singleLineMatcherAnnotations(output)).toEqual([]);
       }),
     );
   });
@@ -323,5 +425,14 @@ describe('forJsonOutput', () => {
 
   it('keeps JSON.stringify escapes for C0 and lone surrogates', () => {
     expect(forJsonOutput(JSON.stringify('\u001b\uD800'))).toBe('"\\u001b\\ud800"');
+  });
+
+  it('escapes the bracket of "##[" losslessly, and only that one', () => {
+    const json = forJsonOutput(JSON.stringify([HOSTILE.legacyCommand, '\\##[x', '## [x]', '#[x]']));
+    expect(json).toBe(
+      '["a ##\\u005berror file=x;line=1]f ##\\u005badd-mask]m ##\\u005bstop-commands]t",' +
+        '"\\\\##\\u005bx","## [x]","#[x]"]',
+    );
+    expect(JSON.parse(json)).toEqual([HOSTILE.legacyCommand, '\\##[x', '## [x]', '#[x]']);
   });
 });

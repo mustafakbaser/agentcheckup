@@ -1,4 +1,4 @@
-Claude Code context · ::error::cwd<U+001B>[2J<U+001B>[Hcleared
+Claude Code context · ::error::cwd<U+001B>[2J<U+001B>[Hcleared a ##<U+005B>error file=x;line=1]f ##<U+005B>add-mask]m ##<U+005B>stop-commands]t
 Assumes <U+001B>]8;;https://evil.example<U+001B>\click<U+001B>]8;;<U+001B>\ = x⏎::add-mask::secret⏎::set-output name=a::b (rule option)
 Not visible: zero<U+200B>width<U+200C>non<U+200D>joiner<U+2060>word<U+FEFF>bom,
   user settings ($<img src=x onerror=alert(1)> <script>alert(1)<, ~/copy<U+001B>]52;c;Y3VybCBldmlsLnNoIHwgc2g=<U+0007>done)

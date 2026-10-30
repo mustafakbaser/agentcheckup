@@ -894,7 +894,7 @@ export function withHostileContext(result: ScanResult): ScanResult {
     remoteScript: true,
   });
   const hostilePlan = plan('claude-code', {
-    cwd: `::error::cwd${HOSTILE.clearScreen}`,
+    cwd: `::error::cwd${HOSTILE.clearScreen} ${HOSTILE.legacyCommand}`,
     entries: [
       entry('instructions', COMMAND_PATH, {
         position: 1,

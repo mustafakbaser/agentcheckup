@@ -12,7 +12,14 @@ import {
 } from './fixtures.js';
 import { withContext, withHostileContext } from '../helpers/context.js';
 import { hostileResult } from './hostile.js';
-import { ansiStyle, hasEscOrBel, stripKnownSgr, tagStyle, unsafeCodePoints } from './safety.js';
+import {
+  ansiStyle,
+  commandLines,
+  hasEscOrBel,
+  stripKnownSgr,
+  tagStyle,
+  unsafeCodePoints,
+} from './safety.js';
 
 const FIXTURES: readonly [string, ScanResult][] = [
   ['clean', cleanResult],
@@ -310,7 +317,7 @@ describe('formatStylish with a baseline', () => {
     for (const input of [commandPath, hostile]) {
       for (const options of [{}, { ascii: true }, { showSuppressed: true }]) {
         const text = plain(input, options);
-        expect(text.split('\n').filter((line) => line.trimStart().startsWith('::'))).toEqual([]);
+        expect(commandLines(text)).toEqual([]);
         expect(hasEscOrBel(text)).toBe(false);
         expect(unsafeCodePoints(text, { newline: true })).toEqual([]);
       }

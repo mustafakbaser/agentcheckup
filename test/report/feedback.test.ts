@@ -42,6 +42,7 @@ import { at, finding, makeResult, richResult, rule } from './fixtures.js';
 import { HOSTILE_ALL, hostileResult } from './hostile.js';
 import {
   ansiStyle,
+  commandLines,
   hasEscOrBel,
   parseWorkflowCommand,
   stripKnownSgr,
@@ -512,9 +513,7 @@ describe('hostile text in fixes, guidance and plans', () => {
           const output = plain(result, { level, ascii, showSuppressed: true });
           expect(hasEscOrBel(output)).toBe(false);
           expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
-          expect(output.split('\n').filter((line) => line.trimStart().startsWith('::'))).toEqual(
-            [],
-          );
+          expect(commandLines(output)).toEqual([]);
         }
       }
     }
@@ -857,7 +856,7 @@ describe('context output: fixable skips', () => {
     const text = formatContextText(hostileDemoResult);
     expect(hasEscOrBel(text)).toBe(false);
     expect(unsafeCodePoints(text, { newline: true })).toEqual([]);
-    expect(text.split('\n').filter((line) => line.trimStart().startsWith('::'))).toEqual([]);
+    expect(commandLines(text)).toEqual([]);
     const markdown = formatContextMarkdown(hostileDemoResult);
     expect(markdown).not.toContain('<');
     expect(markdown).not.toMatch(/@[\p{L}\p{N}]/u);

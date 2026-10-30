@@ -18,7 +18,13 @@ import { formatStylish, plainStyle } from '../../src/report/stylish.js';
 import { withContext } from '../helpers/context.js';
 import { richResult } from './fixtures.js';
 import { HOSTILE, HOSTILE_ALL, hostileResult } from './hostile.js';
-import { hasEscOrBel, parseWorkflowCommand, tagStyle, unsafeCodePoints } from './safety.js';
+import {
+  commandLines,
+  hasEscOrBel,
+  parseWorkflowCommand,
+  tagStyle,
+  unsafeCodePoints,
+} from './safety.js';
 
 // ---------------------------------------------------------------------------------------------
 // Fixtures
@@ -315,7 +321,7 @@ describe('stylish', () => {
     const output = formatStylish(result, { style: plainStyle });
     expect(hasEscOrBel(output)).toBe(false);
     expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
-    for (const line of output.split('\n')) expect(line.trimStart().startsWith('::')).toBe(false);
+    expect(commandLines(output)).toEqual([]);
   });
 });
 

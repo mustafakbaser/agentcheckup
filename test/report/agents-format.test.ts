@@ -7,7 +7,14 @@ import { formatAgentsMarkdown } from '../../src/report/agents-markdown.js';
 import { formatAgentsText } from '../../src/report/agents-text.js';
 import { cleanResult } from './fixtures.js';
 import { HOSTILE, HOSTILE_ALL } from './hostile.js';
-import { ansiStyle, hasEscOrBel, hostileText, stripKnownSgr, unsafeCodePoints } from './safety.js';
+import {
+  ansiStyle,
+  commandLines,
+  hasEscOrBel,
+  hostileText,
+  stripKnownSgr,
+  unsafeCodePoints,
+} from './safety.js';
 
 function definition(
   file: string,
@@ -228,7 +235,7 @@ describe('agents output safety', () => {
       expect(hasEscOrBel(plain)).toBe(false);
       expect(unsafeCodePoints(plain, { newline: true })).toEqual([]);
       expect(plain).not.toMatch(/[ \t]$/m);
-      expect(plain.split('\n').filter((line) => line.trimStart().startsWith('::'))).toEqual([]);
+      expect(commandLines(plain)).toEqual([]);
     }
   });
 
@@ -260,7 +267,7 @@ describe('agents output safety', () => {
         const output = formatAgentsText(input);
         expect(hasEscOrBel(output)).toBe(false);
         expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
-        expect(output.split('\n').some((line) => line.trimStart().startsWith('::'))).toBe(false);
+        expect(commandLines(output)).toEqual([]);
         const markdown = formatAgentsMarkdown(input);
         expect(unsafeCodePoints(markdown, { newline: true })).toEqual([]);
       }),
