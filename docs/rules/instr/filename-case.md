@@ -27,7 +27,7 @@ Rename the file to the exact name if it holds agent instructions, or to a differ
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-14
 - [Gemini CLI: GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), verified, checked 2026-10-14
 - [Devin Desktop (Cascade): AGENTS.md ("Both AGENTS.md and agents.md are recognized")](https://docs.devin.ai/desktop/cascade/agents-md), verified, checked 2026-10-14
-- [Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules)](https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/instructions/user-instructions/cline-rules.ts), verified, checked 2026-10-17
+- [Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules; rule toggles live in frontmatter; nested rule files never reach the model)](https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/instructions/user-instructions/cline-rules.ts), verified, checked 2026-10-30
 
 ## Fix
 

@@ -227,7 +227,9 @@ Each skip has a code, shown in text and Markdown as a short reason and in JSON a
 | `not-read`                                                       | not read by this agent                               | Listed under "Not read by" in text output                                                                                                                              |
 
 The plans of Copilot, Devin Local, Cline and Codex's `config.toml` added `wrong-location`,
-`no-apply-to`, `shadowed-by-preferred`, `disabled`, `never-active` and `invalid-toml`.
+`no-apply-to`, `shadowed-by-preferred`, `disabled`, `never-active` and `invalid-toml`. A Cline
+rule, workflow or skill whose frontmatter turns it off (`disabled: true`, or `enabled: false`) is
+`disabled` too.
 
 ### Certainty and "?"
 
@@ -397,7 +399,9 @@ Today's assumptions:
   modeled.
 - **Devin Local:** Devin Local, not Cascade; Restricted Mode off; every other agent's files that
   `read_config_from` covers imported, unless `.devin/config.json` turns a source off.
-- **Cline:** the VS Code extension, with every rule toggle in the Rules panel on.
+- **Cline:** the VS Code extension, with the rule toggles of the Rules panel read from each
+  rule's frontmatter, where the extension writes them. Toggles that older versions kept in
+  extension state are not visible.
 
 A value from the repository wins. A Codex plan reads `project_doc_max_bytes` and
 `project_doc_fallback_filenames` from the closest `.codex/config.toml`:

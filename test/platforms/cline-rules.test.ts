@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { parseFrontmatter } from '../../src/parse/frontmatter.js';
-import { clineActivation, clinePlace, isClineRuleFile } from '../../src/platforms/cline-rules.js';
+import {
+  clineActivation,
+  clineDisabled,
+  clineFlagTypeError,
+  clinePlace,
+  isClineRuleFile,
+} from '../../src/platforms/cline-rules.js';
 
 describe('clinePlace', () => {
   it.each([
@@ -82,5 +88,45 @@ describe('clineActivation', () => {
       mode: 'unknown',
       documented: false,
     });
+  });
+});
+
+describe('clineDisabled', () => {
+  const disabled = (text: string) => clineDisabled(parseFrontmatter(text));
+
+  it('turns a file off with disabled: true, or enabled: false when disabled is not set', () => {
+    expect(disabled('---\ndisabled: true\n---\nBody.\n')).toBe(true);
+    expect(disabled('---\nenabled: false\n---\nBody.\n')).toBe(true);
+    expect(disabled('---\ndisabled: ~\nenabled: false\n---\nBody.\n')).toBe(true);
+    expect(disabled('---\r\ndisabled: true\r\npaths: [src/**]\r\n---\r\nBody.\r\n')).toBe(true);
+  });
+
+  it('keeps a file on otherwise: a boolean disabled wins over enabled', () => {
+    expect(disabled('---\ndisabled: false\nenabled: false\n---\nBody.\n')).toBe(false);
+    expect(disabled('---\nenabled: true\n---\nBody.\n')).toBe(false);
+    expect(disabled('---\npaths: [src/**]\n---\nBody.\n')).toBe(false);
+    expect(disabled('No frontmatter. disabled: true\n')).toBe(false);
+    expect(disabled('')).toBe(false);
+    // Text is not a boolean: clineFlagTypeError's case.
+    expect(disabled('---\ndisabled: "true"\n---\nBody.\n')).toBe(false);
+    // Frontmatter that does not parse, or is a list, has no flags.
+    expect(disabled('---\ndisabled: true\npaths: [a\n---\nBody.\n')).toBe(false);
+    expect(disabled('---\n- disabled: true\n---\nBody.\n')).toBe(false);
+  });
+});
+
+describe('clineFlagTypeError', () => {
+  it('names the toggle field the SDK rejects', () => {
+    expect(clineFlagTypeError({ disabled: 'yes' })).toBe('disabled');
+    expect(clineFlagTypeError({ disabled: 1, enabled: 'no' })).toBe('disabled');
+    expect(clineFlagTypeError({ enabled: 'no' })).toBe('enabled');
+    expect(clineFlagTypeError({ disabled: null, enabled: [] })).toBe('enabled');
+  });
+
+  it('accepts booleans and missing flags, and ignores enabled next to a boolean disabled', () => {
+    expect(clineFlagTypeError({})).toBeUndefined();
+    expect(clineFlagTypeError({ disabled: true, enabled: 'no' })).toBeUndefined();
+    expect(clineFlagTypeError({ disabled: null, enabled: null })).toBeUndefined();
+    expect(clineFlagTypeError({ enabled: false })).toBeUndefined();
   });
 });

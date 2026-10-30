@@ -113,6 +113,39 @@ describe('Cline allowances', () => {
     ]);
   });
 
+  it('skip-without-rule: Cline drops a rule whose disabled is not a boolean', () => {
+    const files = {
+      '.clinerules/flag.md': '---\ndisabled: "yes"\n---\nRule.\n',
+      '.clinerules/off.md': '---\ndisabled: true\n---\nRule.\n',
+      '.cline/skills/s/SKILL.md':
+        '---\nname: s\ndescription: Does s.\nenabled: false\n---\nBody.\n',
+    };
+    const allowed = check(files);
+    expect(brief(allowed.report.mismatches)).toEqual([]);
+    expect(allowed.report.allowed['skip-without-rule']).toBe(1);
+    // A file its frontmatter turns off needs no rule.
+    expect(clinePlan(allowed)?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
+      ['.cline/skills/s/SKILL.md', 'disabled', undefined],
+      ['.clinerules/flag.md', 'invalid-frontmatter', undefined],
+      ['.clinerules/off.md', 'disabled', undefined],
+    ]);
+    expect(brief(check(files, ['skip-without-rule']).report.mismatches)).toEqual([
+      'skip-without-rule - cline .clinerules/flag.md',
+    ]);
+  });
+
+  it(`${ALLOWANCES.firstSkipReason}: Cline never reads a blank rule file in a subfolder`, () => {
+    const files = { '.clinerules/top.md': 'Top.\n', '.clinerules/sub/blank.md': '' };
+    const allowed = check(files);
+    expect(brief(allowed.report.mismatches)).toEqual([]);
+    expect(clinePlan(allowed)?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
+      ['.clinerules/sub/blank.md', 'not-read', undefined],
+    ]);
+    expect(brief(check(files, [ALLOWANCES.firstSkipReason]).report.mismatches)).toEqual([
+      'finding-without-skip instr/empty-file cline .clinerules/sub/blank.md',
+    ]);
+  });
+
   it('cites the skill rule of the first problem Cline meets in a skill', () => {
     const { plans, report } = check({
       'AGENTS.md': 'Rules.\n',

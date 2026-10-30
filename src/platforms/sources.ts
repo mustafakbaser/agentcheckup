@@ -404,25 +404,21 @@ export const SOURCES = {
     'https://docs.cline.bot/customization/hooks',
     COVERAGE_CHECKED,
   ),
-  clinePlugins: verified(
-    'Cline SDK: Plugins',
-    'https://docs.cline.bot/sdk/plugins',
-    COVERAGE_CHECKED,
-  ),
+  clinePlugins: verified('Cline SDK: Plugins', 'https://docs.cline.bot/sdk/plugins', AUDIT_CHECKED),
   clineMcp: verified(
     'Cline: MCP overview',
     'https://docs.cline.bot/mcp/mcp-overview',
     COVERAGE_CHECKED,
   ),
   clineRulesSource: verified(
-    'Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules)',
+    'Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules; rule toggles live in frontmatter; nested rule files never reach the model)',
     'https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/instructions/user-instructions/cline-rules.ts',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   clineInstructionLoaderSource: verified(
-    'Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)',
+    'Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)',
     'https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   clinePathsSource: verified(
     'Cline source: storage/paths.ts (rule folders, root AGENTS.md, workflow folders)',

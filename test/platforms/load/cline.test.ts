@@ -107,17 +107,15 @@ describe('loadCline: the workspace fixture', () => {
       '1 instructions:AGENTS.md startup documented',
       // Invalid YAML: the docs say Cline fails open, the SDK drops the rule.
       '2 rule:.clinerules/broken.md startup unverified',
-      // A subfolder: the SDK reads only the folder itself.
-      '3 rule:.clinerules/frontend/react.md startup unverified',
-      '4 rule:.clinerules/general.md startup documented',
-      '5 rule:.cline/rules/db.md startup documented',
-      '6 instructions:.cursorrules startup documented',
-      '7 instructions:.windsurfrules startup documented',
+      '3 rule:.clinerules/general.md startup documented',
+      '4 rule:.cline/rules/db.md startup documented',
+      '5 instructions:.cursorrules startup documented',
+      '6 instructions:.windsurfrules startup documented',
       // The skills listing; a skill without a description is listed by the SDK, not the docs.
-      '8 skill:.agents/skills/notes/SKILL.md startup unverified',
-      '9 skill:.claude/skills/deploy/SKILL.md startup source-code',
-      '10 skill:.cline/skills/review/SKILL.md startup documented',
-      '11 skill:.clinerules/skills/lint/SKILL.md startup source-code',
+      '7 skill:.agents/skills/notes/SKILL.md startup unverified',
+      '8 skill:.claude/skills/deploy/SKILL.md startup source-code',
+      '9 skill:.cline/skills/review/SKILL.md startup documented',
+      '10 skill:.clinerules/skills/lint/SKILL.md startup source-code',
       '- rule:.clinerules/testing.md on-path documented',
       '- command:.cline/workflows/hotfix.md manual source-code',
       '- command:.clinerules/workflows/deploy.md manual source-code',
@@ -136,6 +134,8 @@ describe('loadCline: the workspace fixture', () => {
       '.agents/skills/team/deep/SKILL.md not-read - source-code',
       '.cline/skills/broken/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
       '.clinerules/blank.md blank-file instr/empty-file source-code',
+      // A subfolder: the SDK reads only the folder itself.
+      '.clinerules/frontend/react.md not-read - source-code',
       '.clinerules/never.md never-active - documented',
       'packages/api/AGENTS.md not-read - source-code',
     ]);
@@ -185,7 +185,7 @@ describe('loadCline: the workspace fixture', () => {
   it('states its assumptions and the scopes it cannot see', async () => {
     const { plan } = await fixture('workspace');
     expect(plan.assumptions.map((a) => `${a.key}=${String(a.value)} ${a.origin}`)).toEqual([
-      'cline.ruleToggles=all on default',
+      'cline.ruleToggles=frontmatter default',
       'cline.surface=vscode default',
     ]);
     const hidden = plan.hidden.flatMap((scope) => scope.locations);
@@ -307,6 +307,96 @@ describe('loadCline: rules', () => {
       '.clinerules/CLAUDE.md blank-file instr/empty-file source-code',
     ]);
     expectSkipsReported(built);
+  });
+
+  it('does not read rule files in subfolders of a rules folder', () => {
+    const built = build(
+      {
+        '.clinerules/top.md': 'Top.\n',
+        '.clinerules/frontend/react.md': 'Nested.\n',
+        '.clinerules/a/b/deep.md': '',
+        '.cline/rules/db.md': 'Direct.\n',
+        '.cline/rules/sub/more.md': 'Nested.\n',
+      },
+      { paths: ['.clinerules/frontend/notes.txt', '.cline/rules/other.txt'] },
+    );
+    expect(summary(built.plan)).toEqual([
+      '1 rule:.clinerules/top.md startup documented',
+      '2 rule:.cline/rules/db.md startup documented',
+    ]);
+    expect(skips(built.plan)).toEqual([
+      '.cline/rules/sub/more.md not-read - source-code',
+      '.clinerules/a/b/deep.md not-read - source-code',
+      '.clinerules/frontend/react.md not-read - source-code',
+    ]);
+    expect(built.plan.skipped.map((skip) => skip.evidence)).toEqual([
+      ['clineInstructionLoaderSource', 'clineRulesSource'],
+      ['clineInstructionLoaderSource', 'clineRulesSource'],
+      ['clineInstructionLoaderSource', 'clineRulesSource'],
+    ]);
+    // A nested file the scan did not read leaves the plan complete.
+    expect(built.plan.incomplete).toEqual(['unread:.cline/rules/other.txt']);
+    expectSkipsReported(built);
+  });
+
+  it('skips rules, workflows and skills whose frontmatter turns them off', () => {
+    const built = build({
+      '.clinerules/disabled.md': FRONTMATTER('disabled: true'),
+      '.clinerules/enabled-false.md': FRONTMATTER('enabled: false'),
+      '.clinerules/disabled-wins.md': FRONTMATTER('disabled: false\nenabled: false'),
+      '.clinerules/null-disabled.md': FRONTMATTER('disabled: null\nenabled: false'),
+      '.clinerules/scoped-off.md': FRONTMATTER('paths: [src/**]\ndisabled: true'),
+      '.clinerules/plain.md': 'No frontmatter.\n',
+      '.cline/rules/on.md': FRONTMATTER('enabled: true'),
+      '.clinerules/workflows/paused.md': FRONTMATTER('disabled: true'),
+      '.cline/workflows/ship.md': FRONTMATTER('enabled: true'),
+      '.cline/skills/paused/SKILL.md': FRONTMATTER(
+        'name: paused\ndescription: Does paused.\nenabled: false',
+      ),
+      '.cline/skills/active/SKILL.md': FRONTMATTER(
+        'name: active\ndescription: Does active.\ndisabled: false',
+      ),
+    });
+    expect(skips(built.plan)).toEqual([
+      '.cline/skills/paused/SKILL.md disabled - source-code',
+      '.clinerules/disabled.md disabled - source-code',
+      '.clinerules/enabled-false.md disabled - source-code',
+      '.clinerules/null-disabled.md disabled - source-code',
+      '.clinerules/scoped-off.md disabled - source-code',
+      '.clinerules/workflows/paused.md disabled - source-code',
+    ]);
+    expect(
+      built.plan.skipped.every(
+        (skip) =>
+          skip.evidence.join() === 'clineInstructionLoaderSource,clineRulesSource' &&
+          skip.size !== undefined,
+      ),
+    ).toBe(true);
+    expect(summary(built.plan)).toEqual([
+      '1 rule:.clinerules/disabled-wins.md startup documented',
+      '2 rule:.clinerules/plain.md startup documented',
+      '3 rule:.cline/rules/on.md startup documented',
+      '4 skill:.cline/skills/active/SKILL.md startup documented',
+      '- command:.cline/workflows/ship.md manual source-code',
+    ]);
+    expect(built.plan.totals.startup.chars).toBeGreaterThan(0);
+    expectSkipsReported(built);
+  });
+
+  it('drops a rule whose disabled or enabled is not a boolean', () => {
+    const built = build({
+      '.clinerules/text.md': FRONTMATTER('disabled: "yes"'),
+      '.clinerules/enabled-text.md': FRONTMATTER('enabled: "no"'),
+      // A boolean `disabled` wins, so the SDK never reads `enabled`.
+      '.clinerules/enabled-ignored.md': FRONTMATTER('disabled: false\nenabled: 3'),
+    });
+    expect(skips(built.plan)).toEqual([
+      '.clinerules/enabled-text.md invalid-frontmatter - source-code',
+      '.clinerules/text.md invalid-frontmatter - source-code',
+    ]);
+    expect(summary(built.plan)).toEqual([
+      '1 rule:.clinerules/enabled-ignored.md startup documented',
+    ]);
   });
 
   it('lists rule files the scan did not read: other extensions, too large, ignored', () => {

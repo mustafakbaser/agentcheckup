@@ -1,12 +1,13 @@
 /**
- * Cline's project layout and when it applies a rule, shared by the classifier, the security
- * inventory and the Cline load plans.
+ * Cline's project layout, when it applies a rule and when a file turns itself off, shared by the
+ * classifier, the security inventory, the skill rules and the Cline load plans.
  *
  * Cline reads project configuration from `.cline/` (`rules/`, `workflows/`, `skills/`, `hooks/`,
  * `agents/`, `plugins/`) and from the legacy `.clinerules/`, whose files are rules except those
  * in its `workflows/`, `hooks/` and `skills/` folders (SOURCES.clineConfig,
  * SOURCES.clineRulesSource: `CLINERULES_EXCLUDED_SUBDIRECTORIES`). A rule applies always, or only
- * to the files its `paths` globs match (SOURCES.clineRules).
+ * to the files its `paths` globs match (SOURCES.clineRules). A rule, workflow or skill whose
+ * frontmatter turns it off is not loaded ({@link clineDisabled}).
  */
 import type { FrontmatterResult } from '../parse/types.js';
 
@@ -134,4 +135,42 @@ export function clineActivation(frontmatter: FrontmatterResult): ClineActivation
   // Only blank globs: they match nothing, but no source says how Cline reads them.
   if (paths.length === 0) return { mode: 'never', paths, documented: false };
   return { mode: 'paths', paths, documented: true };
+}
+
+/** A toggle field of the wrong type, which makes the SDK drop the file. */
+export type ClineFlagField = 'disabled' | 'enabled';
+
+/**
+ * The toggle field whose value makes the SDK throw, and drop the rule, workflow or skill:
+ * `disabled` when it is set and not a boolean, else `enabled` when it is set and not a boolean.
+ * The SDK reads `enabled` only when `disabled` is not set (`parseBooleanField(data.disabled) ??
+ * ...`, SOURCES.clineInstructionLoaderSource). Null counts as not set.
+ */
+export function clineFlagTypeError(
+  fields: Readonly<Record<string, unknown>>,
+): ClineFlagField | undefined {
+  const disabled = fields['disabled'];
+  if (disabled !== undefined && disabled !== null) {
+    return typeof disabled === 'boolean' ? undefined : 'disabled';
+  }
+  const enabled = fields['enabled'];
+  return enabled === undefined || enabled === null || typeof enabled === 'boolean'
+    ? undefined
+    : 'enabled';
+}
+
+/**
+ * True when the frontmatter turns the rule, workflow or skill off, so Cline does not load it: a
+ * boolean `disabled` wins, and `enabled: false` counts only when `disabled` is not set. The SDK
+ * reads the flag from the file (SOURCES.clineInstructionLoaderSource), and the extension writes a
+ * rule's toggle in the Rules panel there (SOURCES.clineRulesSource). Frontmatter that does not
+ * parse, or that is a list or a scalar, has no flags. A flag of the wrong type is
+ * {@link clineFlagTypeError}'s case, not this one.
+ */
+export function clineDisabled(frontmatter: FrontmatterResult): boolean {
+  if (frontmatter.kind !== 'valid') return false;
+  const { values } = frontmatter.data;
+  const disabled = values['disabled'];
+  if (disabled !== undefined && disabled !== null) return disabled === true;
+  return values['enabled'] === false;
 }

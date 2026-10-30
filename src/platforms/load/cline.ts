@@ -1,26 +1,31 @@
 /**
  * What Cline loads for a workspace, from docs/platforms.md ("Cline") and the Cline source read at
- * a42df8c. The plan treats `cwd` as the workspace folder opened in VS Code: Cline reads project
+ * a42df8c, with the extension's cline-rules.ts at 41e75ef (rule toggles in frontmatter, nested
+ * rule files). The plan treats `cwd` as the workspace folder opened in VS Code: Cline reads project
  * configuration from that folder only, so files outside it do not appear and files in deeper
  * folders are left to a session opened there (`below-start-dir`).
  *
  * At session start, in the order of the SDK's rule search paths (SOURCES.clinePathsSource):
  * 1. The workspace's AGENTS.md. Cline reads no other AGENTS.md: a nested one is `not-read`.
- * 2. Rule files in `.clinerules/`, then in `.cline/rules/`, except the `workflows/`, `hooks/` and
- *    `skills/` folders of `.clinerules` (`clinePlace`, shared with the classifier). A rule without
- *    `paths` applies always, and so does one whose frontmatter does not parse: the docs say Cline
- *    fails open, while the SDK drops such a rule, so that case is unverified. A rule with `paths`
- *    loads on path; `paths: []` never applies (`never-active`). Files in subfolders are
- *    unverified: the SDK reads only the folder itself, and the extension does not document it.
+ * 2. Rule files directly in `.clinerules/`, then in `.cline/rules/`, except the `workflows/`,
+ *    `hooks/` and `skills/` folders of `.clinerules` (`clinePlace`, shared with the classifier).
+ *    Files in subfolders are `not-read`: the SDK reads only the folder itself, and the extension
+ *    says nested files never reach the model. A rule without `paths` applies always, and so does
+ *    one whose frontmatter does not parse: the docs say Cline fails open, while the SDK drops such
+ *    a rule, so that case is unverified. A rule with `paths` loads on path; `paths: []` never
+ *    applies (`never-active`).
  * 3. `.cursorrules` and `.windsurfrules`. The SDK also reads a legacy single-file `.clinerules`.
  * 4. The skills listing: a SKILL.md in `.clinerules/skills`, `.cline/skills`, `.claude/skills` or
  *    `.agents/skills`, in the root or in one folder of it (src/platforms/skills.ts). The body
  *    loads when the model uses the skill.
  *
  * Workflows in `.clinerules/workflows/` and `.cline/workflows/` run as commands (`manual`). The
- * SDK drops a rule, workflow or skill without a body, and a workflow or skill whose frontmatter
- * does not parse or has a field of the wrong type (src/platforms/cline-skills.ts, shared with the
- * skill rules and instr/empty-file, whose findings the skips cite). Hook scripts in
+ * SDK drops a rule, workflow or skill without a body or with a `disabled` or `enabled` that is not
+ * a boolean, and a workflow or skill whose frontmatter does not parse or has another field of the
+ * wrong type (src/platforms/cline-skills.ts, shared with the skill rules and instr/empty-file,
+ * whose findings the skips cite). It does not load one whose frontmatter turns it off
+ * (`disabled`, `clineDisabled`): the extension writes the Rules panel's toggle there. Hook
+ * scripts in
  * `.clinerules/hooks/` and `.cline/hooks/`, and JavaScript or TypeScript plugins in
  * `.cline/plugins/`, have no documented file format: the plan lists them as incomplete. Cline
  * reads no MCP server file from the repository.
@@ -40,6 +45,8 @@ import type { FrontmatterResult } from '../../parse/types.js';
 import { classify } from '../classify.js';
 import {
   clineActivation,
+  clineDisabled,
+  clineFlagTypeError,
   type ClineRuleMode,
   clinePlace,
   isClineRuleFile,
@@ -78,8 +85,14 @@ export interface ClineLoadOptions {
 export const CLINE_SKILL_DESCRIPTION_CHARS = 1024;
 
 const ASSUMPTIONS: readonly Assumption[] = [
-  // Each rule has a toggle in the Rules panel; a new rule is on.
-  { key: 'cline.ruleToggles', value: 'all on', origin: 'default', evidence: ['clineRules'] },
+  // The Rules panel writes each toggle into the rule's frontmatter, which the plan reads. Toggles
+  // that older versions kept in extension state are not in the repository.
+  {
+    key: 'cline.ruleToggles',
+    value: 'frontmatter',
+    origin: 'default',
+    evidence: ['clineRulesSource', 'clineRules'],
+  },
   // The VS Code extension; the CLI and the SDK read the same project folders.
   {
     key: 'cline.surface',
@@ -159,6 +172,8 @@ const SKILL_SEGMENTS: ReadonlySet<string> = new Set(
 
 const RULE_EVIDENCE: readonly SourceKey[] = ['clinePathsSource', 'clineRules'];
 const LOADER_EVIDENCE: readonly SourceKey[] = ['clineInstructionLoaderSource'];
+/** The SDK reads the toggle, and the files of a rules folder, as the extension says. */
+const TOGGLE_EVIDENCE: readonly SourceKey[] = ['clineInstructionLoaderSource', 'clineRulesSource'];
 
 function sizeOf(bytes: number, chars: number): Size {
   return { bytes, chars, tokens: tokensOf(chars) };
@@ -341,19 +356,41 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
 
   const rule = (path: string, artifact: Artifact, folder: string): void => {
     const where = local(path);
-    const nested = depthIn(where, folder, 'rule') > 0;
+    const whole = receivedSize(artifact, artifact.decoded.text);
+    if (depthIn(where, folder, 'rule') > 0) {
+      // Nested files never reach the model.
+      skip({ role: 'rule', path, code: 'not-read', size: whole }, 'source-code', TOGGLE_EVIDENCE);
+      return;
+    }
     const clinerules = folder.toLowerCase() === '.clinerules';
     const evidence: readonly SourceKey[] = clinerules
       ? [...RULE_EVIDENCE, 'clineRulesSource']
       : RULE_EVIDENCE;
     const frontmatter = view.frontmatter(artifact);
     if (isEmpty(artifact, frontmatter)) {
-      blankSkip('rule', path, artifact, nested ? 'unverified' : 'source-code', LOADER_EVIDENCE);
+      blankSkip('rule', path, artifact, 'source-code', LOADER_EVIDENCE);
+      return;
+    }
+    const received = clineBody(artifact.decoded.text, frontmatter);
+    if (frontmatter.kind === 'valid' && clineFlagTypeError(frontmatter.data.values) !== undefined) {
+      // No rule judges a rule's frontmatter.
+      skip(
+        { role: 'rule', path, code: 'invalid-frontmatter', size: whole },
+        'source-code',
+        LOADER_EVIDENCE,
+      );
+      return;
+    }
+    if (clineDisabled(frontmatter)) {
+      skip(
+        { role: 'rule', path, code: 'disabled', size: receivedSize(artifact, received) },
+        'source-code',
+        TOGGLE_EVIDENCE,
+      );
       return;
     }
     const activation = clineActivation(frontmatter);
-    const certainty: Certainty = activation.documented && !nested ? 'documented' : 'unverified';
-    const received = clineBody(artifact.decoded.text, frontmatter);
+    const certainty: Certainty = activation.documented ? 'documented' : 'unverified';
     if (activation.mode === 'never') {
       skip(
         { role: 'rule', path, code: 'never-active', size: receivedSize(artifact, received) },
@@ -404,6 +441,14 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
         },
         certainty,
         LOADER_EVIDENCE,
+      );
+      return;
+    }
+    if (clineDisabled(view.frontmatter(artifact))) {
+      skip(
+        { role: 'command', path, code: 'disabled', size: receivedSize(artifact, parsed.body) },
+        certainty,
+        TOGGLE_EVIDENCE,
       );
       return;
     }
@@ -518,6 +563,11 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
       );
       return;
     }
+    if (clineDisabled(view.frontmatter(artifact))) {
+      // A disabled skill is left out of the listing, and using it is an error.
+      skip({ ...base, code: 'disabled', size: whole }, 'source-code', TOGGLE_EVIDENCE);
+      return;
+    }
     const { body, fields } = parsed;
     // Without `name`, the SDK names the skill after its folder.
     const name = textField(fields, 'name') ?? basename(dirnamePosix(path));
@@ -613,7 +663,9 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
     }
     const place = clinePlace(where);
     if (place?.root === '' && (place.role === 'rule' || place.role === 'workflow')) {
-      return isClineRuleFile(basename(where));
+      // Cline never reads a rule file in a subfolder.
+      const nested = place.role === 'rule' && depthIn(where, place.folder, 'rule') > 0;
+      return !nested && isClineRuleFile(basename(where));
     }
     if (basename(where) !== 'SKILL.md') return false;
     const location = skillLocation(path);

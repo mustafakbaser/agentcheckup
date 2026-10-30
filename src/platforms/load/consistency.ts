@@ -378,7 +378,7 @@ export const ALLOWANCES = {
       agent: 'cline',
       code: 'invalid-frontmatter',
       reason:
-        'Cline drops a workflow whose frontmatter does not parse or has a field of the wrong type, and no rule judges workflows. The skill rules report the same for skills, but leave alone a skill bundled in another one or in a template or example folder.',
+        'Cline drops a workflow whose frontmatter does not parse or has a field of the wrong type, and a rule whose `disabled` or `enabled` is not a boolean; no rule judges the frontmatter of workflows or rules. The skill rules report the same for skills, but leave alone a skill bundled in another one or in a template or example folder.',
     },
     {
       agent: 'gemini',

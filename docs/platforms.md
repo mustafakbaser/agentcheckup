@@ -457,10 +457,11 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 ### Discovery and precedence
 
 - Cline combines the files in both rules folders. When workspace and global rules conflict, workspace rules win. Each rule can be turned off in the Rules panel. [Rules][cline-rules]
+- The Rules panel writes its toggle into the rule's frontmatter, and the SDK reads it from there: `disabled: true` turns a rule, workflow or skill off, and so does `enabled: false` when `disabled` is not set. A disabled skill is left out of the listing. Toggles that older versions kept in extension state are not in the repository, and the SDK does not read them. [source][cline-src-rules], [loader][cline-src-loader]
 - The SDK searches, in this order: the workspace's `AGENTS.md`, `.clinerules/`, `.cline/rules/`, then the legacy single files. Within a folder it lists files in file-system order. [source][cline-src-paths]
 - The SDK reads only the `AGENTS.md` at the workspace root, and the docs mention only the project root. A nested `AGENTS.md` is not read. [source][cline-src-paths], [Config][cline-config]
-- Rule files in subfolders of a rules folder: **Unverified**. The SDK reads only the folder itself, and the extension does not document subfolders. [loader][cline-src-loader]
-- The SDK drops a rule, workflow or skill without a body, and a workflow or skill whose frontmatter does not parse. [loader][cline-src-loader]
+- Rule files in subfolders of a rules folder are not read: the SDK reads only the files directly in the folder, and the extension says nested files never reach the model. [loader][cline-src-loader], [source][cline-src-rules]
+- The SDK drops a rule, workflow or skill without a body or with a `disabled` or `enabled` that is not a boolean, and a workflow or skill whose frontmatter does not parse. [loader][cline-src-loader]
 - Skills with the same name: the global skill wins over the project skill. [Skills][cline-skills]
 
 ### Imports
@@ -473,7 +474,8 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 
 ### Frontmatter fields
 
-- Rules: `paths` is the only field, a list of globs. A rule without frontmatter is always active; `paths: []` is never active. If the YAML does not parse, Cline fails open: the rule is active and its raw content is visible. [Rules][cline-rules]
+- Rules: `paths` is the only documented field, a list of globs. A rule without frontmatter is always active; `paths: []` is never active. If the YAML does not parse, Cline fails open: the rule is active and its raw content is visible. [Rules][cline-rules]
+- The SDK also reads `disabled` and `enabled` from rules, workflows and skills (see above). [loader][cline-src-loader]
 - The SDK drops such a rule instead, so the sources disagree on invalid YAML (**Unverified**). [loader][cline-src-loader]
 - `SKILL.md`: `name`, which must exactly match the directory name, and `description` (at most 1,024 characters). [Skills][cline-skills]
 

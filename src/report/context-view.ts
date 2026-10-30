@@ -275,7 +275,9 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   {
     key: 'cline.ruleToggles',
     phrase: (value) =>
-      value === 'all on' ? 'every rule toggle on' : `rule toggles ${valueText(value)}`,
+      value === 'frontmatter'
+        ? 'rule toggles from frontmatter, none in extension state'
+        : `rule toggles ${valueText(value)}`,
     setting: true,
   },
 ];

@@ -134,7 +134,10 @@ describe('assumption phrases', () => {
       'Cursor files imported (default)',
       'Windsurf files imported (default)',
     ]);
-    expect(defaults.get('cline')).toEqual(['VS Code extension', 'every rule toggle on (default)']);
+    expect(defaults.get('cline')).toEqual([
+      'VS Code extension',
+      'rule toggles from frontmatter, none in extension state (default)',
+    ]);
 
     const configured = phrases({
       'AGENTS.md': 'Rules.\n',

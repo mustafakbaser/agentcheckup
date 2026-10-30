@@ -22,6 +22,7 @@
  * closed, or that is not YAML, is part of the body.
  */
 import type { FrontmatterResult } from '../parse/types.js';
+import { type ClineFlagField, clineFlagTypeError } from './cline-rules.js';
 import { invalidCause } from './codex-skills.js';
 import { isBlank } from './load/codex-text.js';
 
@@ -30,7 +31,7 @@ export type ClineSkipReason =
   'invalid-yaml' | 'no-body' | 'name-type' | 'description-type' | 'flag-type';
 
 /** A field of the wrong type that makes Cline drop the file. */
-export type ClineTypedField = 'name' | 'description' | 'disabled' | 'enabled';
+export type ClineTypedField = 'name' | 'description' | ClineFlagField;
 
 /**
  * What Cline makes of a SKILL.md or workflow:
@@ -55,7 +56,6 @@ function wrongType(value: unknown, test: (value: unknown) => boolean): boolean {
 }
 
 const isText = (value: unknown): boolean => typeof value === 'string';
-const isBoolean = (value: unknown): boolean => typeof value === 'boolean';
 
 interface Parsed {
   readonly kind: 'parsed';
@@ -116,12 +116,8 @@ export function clineRead(
   if (role === 'skill' && wrongType(fields['description'], isText)) {
     return skipped('description-type', 'description');
   }
-  const disabled = fields['disabled'];
-  if (wrongType(disabled, isBoolean)) return skipped('flag-type', 'disabled');
-  // The SDK reads `enabled` only when `disabled` is not set (`disabled ?? enabled`).
-  if ((disabled === undefined || disabled === null) && wrongType(fields['enabled'], isBoolean)) {
-    return skipped('flag-type', 'enabled');
-  }
+  const flag = clineFlagTypeError(fields);
+  if (flag !== undefined) return skipped('flag-type', flag);
   return { kind: 'read', fields, body };
 }
 

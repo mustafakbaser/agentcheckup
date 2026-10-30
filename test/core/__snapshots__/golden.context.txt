@@ -1973,9 +1973,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)",
           "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -2092,9 +2092,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules)",
+          "title": "Cline source: cline-rules.ts (workflows, hooks and skills in .clinerules are not rules; rule toggles live in frontmatter; nested rule files never reach the model)",
           "url": "https://github.com/cline/cline/blob/main/apps/vscode/src/core/context/instructions/user-instructions/cline-rules.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3409,9 +3409,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)",
           "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3661,9 +3661,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)",
           "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3784,9 +3784,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)",
           "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3963,9 +3963,9 @@
           "status": "verified"
         },
         {
-          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)",
+          "title": "Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)",
           "url": "https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

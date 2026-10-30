@@ -24,7 +24,7 @@ Use the types from the specification, and quote values that YAML would read as n
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
-- [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-17
+- [Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts), verified, checked 2026-10-30
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 

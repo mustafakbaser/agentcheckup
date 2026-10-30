@@ -636,8 +636,8 @@ as described in [SECURITY.md](SECURITY.md).
   repository's settings on GitHub.com. Each plan lists them.
 - **Assumptions are stated.** Each plan says what it assumed: the instructions mode, a minimum
   version, a trusted workspace, Codex's byte limit, VS Code settings, Devin Desktop outside
-  Restricted Mode, every Cline rule toggle on. Some can be changed with rule options or flags
-  such as `--context-window`.
+  Restricted Mode, Cline rule toggles read from frontmatter. Some can be changed with rule
+  options or flags such as `--context-window`.
 - **Not every surface has a plan.** Copilot Chat and code review on GitHub.com, VS Code's other
   agent harnesses, Devin Desktop's older Cascade agent and Antigravity CLI are covered by rules
   only. Copilot, Devin and Cursor do not document the order of their instructions, and the plans
