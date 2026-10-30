@@ -79,7 +79,7 @@ export const SOURCES = {
     '2026-10-15',
   ),
   claudeHooks: verified('Claude Code: Hooks', 'https://code.claude.com/docs/en/hooks'),
-  claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp'),
+  claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp', CLAUDE_CHECKED),
   claudeSubagents: verified('Claude Code: Subagents', 'https://code.claude.com/docs/en/sub-agents'),
   claudePlugins: verified(
     'Claude Code: Plugin manifest reference',

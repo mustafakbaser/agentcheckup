@@ -25,7 +25,7 @@ Rewrite the reference in the syntax of the agent that reads the file.
 
 ## Evidence
 
-- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
+- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
 - [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14

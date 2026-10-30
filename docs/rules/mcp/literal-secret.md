@@ -21,11 +21,13 @@ The rule reports only tokens with a known vendor prefix and shape (GitHub, OpenA
 
 Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`. Codex's `.codex/config.toml` expands no variables: forward one with `env_vars`, or name it in `env_http_headers` or `bearer_token_env_var`; the rule offers no fix there.
 
+In a remote server's `url` and `headers`, Claude Code reads credential variables such as `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK` and `NPM_TOKEN` as empty, set or not, so `Bearer ${NPM_TOKEN}` sends `Bearer `. There the fix references a variable named after the server, such as `REGISTRY_NPM_TOKEN` for a server named `registry`.
+
 ## Evidence
 
 - [Orca Security: 2023 Honeypotting in the Cloud Report (exposed keys used within two minutes)](https://orca.security/resources/press-releases/orca-security-2023-honeypotting-in-the-cloud-report/), verified, checked 2026-10-14
 - [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
-- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
+- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
 - [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-30
@@ -51,7 +53,7 @@ Revoke and rotate the credential; deleting it from the file does not remove it f
 
 Classes: `review` ([fix classes](../../fix.md#safe-review-and-manual)).
 
-Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.
+Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, with a name of the server's own in a remote server's url and headers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.
 
 Preview the fix with `agentcheckup fix --rule mcp/literal-secret`.
 

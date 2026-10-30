@@ -22,7 +22,7 @@ List the servers you trust by name in `enabledMcpjsonServers` instead.
 ## Evidence
 
 - [Claude Code: Settings](https://code.claude.com/docs/en/settings), verified, checked 2026-10-30
-- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-14
+- [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
 
 ## Fix
 

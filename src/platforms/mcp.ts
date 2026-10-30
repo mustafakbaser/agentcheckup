@@ -166,6 +166,21 @@ export function isClaudeMcpConfig(snapshot: Snapshot, artifact: Artifact): boole
 }
 
 /**
+ * Variables Claude Code reads as empty in a remote server's `url` and `headers`, set or not, and
+ * whatever `:-default` follows them: the names its MCP documentation gives as examples of its own
+ * credentials, the cloud provider's and others the environment carries (SOURCES.claudeMcp,
+ * "Credential variables that read as empty"). The documentation names examples, not the whole
+ * set.
+ */
+export const REMOTE_EMPTY_EXAMPLES: ReadonlySet<string> = new Set([
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'AWS_BEARER_TOKEN_BEDROCK',
+  'HTTPS_PROXY',
+  'NPM_TOKEN',
+]);
+
+/**
  * True for a server entry with a `url` but neither `type` nor `command`. Claude Code reads such an
  * entry as a stdio server, reports a configuration error and skips it (mcp/url-without-type).
  */

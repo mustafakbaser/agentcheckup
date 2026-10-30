@@ -32,6 +32,7 @@ const ROOT = fileURLToPath(new URL('../../fixtures/fix/', import.meta.url));
 /** Fake credentials, assembled at run time so the source never contains a contiguous token. */
 export const SECRETS: Readonly<Record<string, string>> = {
   github: 'gh' + 'p_' + noise(36, 101),
+  npm: 'np' + 'm_' + noise(36, 104),
   openai:
     'sk-' +
     'proj-' +

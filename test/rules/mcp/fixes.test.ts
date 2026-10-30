@@ -6,7 +6,11 @@ import { envSyntaxMismatchRule } from '../../../src/rules/mcp/env-syntax-mismatc
 import { geminiServerNameRule } from '../../../src/rules/mcp/gemini-server-name.js';
 import { geminiTrustRule } from '../../../src/rules/mcp/gemini-trust.js';
 import { insecureTransportRule } from '../../../src/rules/mcp/insecure-transport.js';
-import { literalSecretRule, ROTATION_WARNING } from '../../../src/rules/mcp/literal-secret.js';
+import {
+  literalSecretRule,
+  ROTATION_WARNING,
+  serverVariable,
+} from '../../../src/rules/mcp/literal-secret.js';
 import { inferServerType, urlWithoutTypeRule } from '../../../src/rules/mcp/url-without-type.js';
 import {
   applied,
@@ -22,6 +26,7 @@ import {
 import { json } from '../json/helpers.js';
 
 const GITHUB = SECRETS['github']!;
+const NPM = SECRETS['npm']!;
 const SHARED = { symlinks: { '.cursor/mcp.json': '.mcp.json' } };
 
 describe('mcp/url-without-type fixes', () => {
@@ -129,6 +134,66 @@ describe('mcp/literal-secret fixes', () => {
     expect(output).not.toContain(GITHUB);
   });
 
+  it("names a remote server's variable after the server, and keeps a stdio env key", () => {
+    const files = {
+      '.mcp.json': json({
+        mcpServers: {
+          registry: {
+            type: 'http',
+            url: 'https://registry.example.org/mcp',
+            headers: { Authorization: `Bearer ${NPM}` },
+          },
+          publish: { command: 'npx', env: { NPM_TOKEN: NPM } },
+        },
+      }),
+    };
+    const [remote, stdio] = findingsOf(files, rules, ID);
+    expect(remote?.message).toContain('reference it as "${REGISTRY_NPM_TOKEN}"');
+    expect(remote?.fix?.title).toBe(
+      'Replace the literal npm access token with ${REGISTRY_NPM_TOKEN}',
+    );
+    expect(remote?.fix?.notes).toEqual([
+      'Set REGISTRY_NPM_TOKEN in the environment of everyone who uses this configuration.',
+      "Claude Code reads credential variables such as ANTHROPIC_API_KEY and NPM_TOKEN as empty in a remote server's url and headers, so the reference uses a name of this server's own rather than NPM_TOKEN.",
+      'Claude Code keeps an unset "${REGISTRY_NPM_TOKEN}" as literal text and warns in "claude mcp list"; write "${REGISTRY_NPM_TOKEN:-}" to send an empty value.',
+    ]);
+    expect(stdio?.fix?.title).toBe('Replace the literal npm access token with ${NPM_TOKEN}');
+    expect(stdio?.fix?.notes).toEqual([
+      'Set NPM_TOKEN in the environment of everyone who uses this configuration.',
+      'Claude Code keeps an unset "${NPM_TOKEN}" as literal text and warns in "claude mcp list"; write "${NPM_TOKEN:-}" to send an empty value.',
+    ]);
+    // In a plugin manifest's inline servers too; Cursor reads every variable.
+    const manifest = {
+      '.claude-plugin/plugin.json': json({
+        name: 'p',
+        mcpServers: [{ api: { type: 'sse', url: `https://a.dev/mcp?key=${GITHUB}` } }],
+      }),
+    };
+    expect(fixesOf(manifest, rules, ID)[0]?.title).toBe(
+      'Replace the literal GitHub personal access token with ${API_GITHUB_TOKEN}',
+    );
+    const cursor = {
+      '.cursor/mcp.json': json({
+        mcpServers: { registry: { url: 'https://r.dev', headers: { A: `Bearer ${NPM}` } } },
+      }),
+    };
+    expect(fixesOf(cursor, rules, ID)[0]?.title).toBe(
+      'Replace the literal npm access token with ${env:NPM_TOKEN}',
+    );
+  });
+
+  it('derives a variable name from any server name', () => {
+    expect(serverVariable('registry', 'NPM_TOKEN')).toBe('REGISTRY_NPM_TOKEN');
+    expect(serverVariable('npm', 'NPM_TOKEN')).toBe('NPM_MCP_TOKEN');
+    expect(serverVariable('my-registry.v2', 'NPM_TOKEN')).toBe('MY_REGISTRY_V2_NPM_TOKEN');
+    expect(serverVariable('9lives', 'NPM_TOKEN')).toBe('MCP_9LIVES_NPM_TOKEN');
+    expect(serverVariable('---', 'NPM_TOKEN')).toBe('MCP_NPM_TOKEN');
+    expect(serverVariable('\u00fcber', 'NPM_TOKEN')).toBe('BER_NPM_TOKEN');
+    const long = serverVariable('x'.repeat(100), 'NPM_TOKEN');
+    expect(long).toHaveLength(64);
+    expect(long.endsWith('_NPM_TOKEN')).toBe(true);
+  });
+
   it('applies only when the user opts in', () => {
     const files = {
       '.mcp.json': json({ mcpServers: { gh: { command: 'x', env: { GH_TOKEN: GITHUB } } } }),
@@ -208,6 +273,27 @@ describe('mcp/env-syntax-mismatch fixes', () => {
     expect(applied({ '.mcp.json': text }, fix, '.mcp.json')).toContain(
       '"A": "Bearer ${TOKEN} ${ORG} ${TEAM}"',
     );
+  });
+
+  it('says what Claude Code does with an unset variable, and leaves a name it empties to the user', () => {
+    const text = json({
+      mcpServers: {
+        a: { type: 'http', url: 'https://x.dev', headers: { A: 'Bearer ${env:TEAM_TOKEN}' } },
+        b: { type: 'http', url: 'https://x.dev', headers: { A: 'Bearer ${env:NPM_TOKEN}' } },
+        c: { command: 'x', env: { NPM_TOKEN: '${env:NPM_TOKEN}' } },
+      },
+    });
+    const [a, b, c] = findingsOf({ '.mcp.json': text }, rules, ID);
+    expect(a?.fix?.notes).toEqual([
+      'Claude Code keeps an unset "${NAME}" as literal text and warns in "claude mcp list"; write "${NAME:-}" to send an empty value.',
+    ]);
+    // `Bearer ${NPM_TOKEN}` sends `Bearer ` to a remote server.
+    expect(b?.fix).toBeUndefined();
+    expect(b?.guidance).toBe(
+      'Claude Code reads NPM_TOKEN as empty in a remote server\'s url and headers: copy it into a variable with a name of your own and write that name as "${NAME}"',
+    );
+    // A stdio server's env gets the value.
+    expect(c?.fix).toBeDefined();
   });
 
   it('leaves Cursor built-ins to the user, with a manual step', () => {

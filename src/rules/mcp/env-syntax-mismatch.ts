@@ -7,7 +7,7 @@ import { at, collectStrings, FileFindings, spanOf, type StringValue } from '../j
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
 import { plural, quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
-import { isClaudeMcpConfig, mcpPlatform, mcpServers } from './servers.js';
+import { isClaudeMcpConfig, mcpPlatform, mcpServers, REMOTE_EMPTY_EXAMPLES } from './servers.js';
 import { MCP_SOURCES } from './sources.js';
 
 const ID = 'mcp/env-syntax-mismatch';
@@ -37,6 +37,8 @@ const CODEX_LITERAL_FIELDS: ReadonlySet<string> = new Set(['env', 'url', 'http_h
 const CLAUDE_FIELDS: ReadonlySet<string> = new Set(['command', 'args', 'env', 'url', 'headers']);
 /** Fields that never pass through a shell, where `$NAME` and `%NAME%` stay literal. */
 const LITERAL_FIELDS: ReadonlySet<string> = new Set(['env', 'url', 'headers']);
+/** A remote server's fields, where Claude Code reads some credential variables as empty. */
+const REMOTE_FIELDS: ReadonlySet<string> = new Set(['url', 'headers']);
 
 interface Mismatch {
   readonly reference: string;
@@ -190,6 +192,20 @@ function rewriteAll(
   return names.length === 0 ? undefined : { value: out + value.slice(position), names };
 }
 
+/**
+ * The first variable a rewrite of `value` would reference that Claude Code reads as empty in a
+ * remote server's `url` and `headers` (REMOTE_EMPTY_EXAMPLES).
+ */
+function emptyInRemote(value: string, unbraced: boolean): string | undefined {
+  let count = 0;
+  for (let found = findMismatch(value, unbraced); found !== undefined;) {
+    if (REMOTE_EMPTY_EXAMPLES.has(found.name)) return found.name;
+    if (++count === MAX_REWRITES) return undefined;
+    found = findMismatch(value, unbraced, found.index + found.reference.length);
+  }
+  return undefined;
+}
+
 function fixFor(
   artifact: Artifact,
   item: StringValue,
@@ -210,7 +226,7 @@ function fixFor(
     platform === 'gemini'
       ? []
       : [
-          'Claude Code does not load the server configuration when a referenced variable is not set and has no default; write "${NAME:-}" to allow an empty value.',
+          'Claude Code keeps an unset "${NAME}" as literal text and warns in "claude mcp list"; write "${NAME:-}" to send an empty value.',
         ];
   return {
     id: `${ID}#${platform === 'gemini' ? 'gemini' : 'claude'}`,
@@ -341,12 +357,23 @@ export const envSyntaxMismatchRule = defineRule({
             const mismatch =
               findBraced(item.value) ?? (unbraced ? findUnbraced(item.value) : undefined);
             if (mismatch === undefined) continue;
-            const fix = canEdit ? fixFor(artifact, item, platform, unbraced) : undefined;
+            // In a remote server's url and headers Claude Code reads such a variable as empty, so
+            // the rewritten reference would send nothing.
+            const empty =
+              platform === 'claude-code' && REMOTE_FIELDS.has(field)
+                ? emptyInRemote(item.value, unbraced)
+                : undefined;
+            const fix =
+              canEdit && empty === undefined
+                ? fixFor(artifact, item, platform, unbraced)
+                : undefined;
             const guidance = !canEdit
               ? sharedFileGuidance(artifact)
               : mismatch.kind === 'cursor-builtin'
                 ? builtinGuidance(platform, mismatch)
-                : undefined;
+                : empty !== undefined
+                  ? `Claude Code reads ${empty} as empty in a remote server's url and headers: copy it into a variable with a name of your own and write that name as "\${NAME}"`
+                  : undefined;
             findings.report({
               artifact,
               ...at(spanOf(doc, item.path)),

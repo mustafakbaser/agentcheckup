@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "registry": {
+      "type": "http",
+      "url": "https://registry.example.org/mcp",
+      "headers": { "Authorization": "Bearer {{SECRET:npm}}" }
+    },
+    "publish": {
+      "command": "npx",
+      "args": ["-y", "publish-mcp@1.0.0"],
+      "env": { "NPM_TOKEN": "{{SECRET:npm}}" }
+    }
+  }
+}

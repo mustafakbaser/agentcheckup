@@ -41,14 +41,84 @@ function variableName(path: JsonPath, fallback: string): string {
 const EXPANDED_FIELDS: ReadonlySet<string> = new Set(['command', 'args', 'env', 'url', 'headers']);
 
 /**
- * The field of an inline MCP server entry that `path` lies in, or undefined outside one:
- * `mcpServers.<name>.<field>…`, and `mcpServers[i].<name>.<field>…` in a plugin manifest.
+ * The fields of a remote server in which Claude Code reads credential variables as empty
+ * (`REMOTE_EMPTY_EXAMPLES` in src/platforms/mcp.ts).
  */
-function serverField(artifact: Artifact, path: JsonPath): string | undefined {
+const REMOTE_FIELDS: ReadonlySet<string> = new Set(['url', 'headers']);
+
+/**
+ * The server name and field of an inline MCP server entry that `path` lies in, or undefined
+ * outside one: `mcpServers.<name>.<field>…`, and `mcpServers[i].<name>.<field>…` in a plugin
+ * manifest.
+ */
+function serverAt(
+  artifact: Artifact,
+  path: JsonPath,
+): { readonly name: string; readonly field: string } | undefined {
   if (path[0] !== 'mcpServers') return undefined;
-  const field =
-    artifact.kind === 'claude-plugin-manifest' && typeof path[1] === 'number' ? path[3] : path[2];
-  return typeof field === 'string' ? field : undefined;
+  const indexed = artifact.kind === 'claude-plugin-manifest' && typeof path[1] === 'number';
+  const name = indexed ? path[2] : path[1];
+  const field = indexed ? path[3] : path[2];
+  return typeof name === 'string' && typeof field === 'string' ? { name, field } : undefined;
+}
+
+function serverField(artifact: Artifact, path: JsonPath): string | undefined {
+  return serverAt(artifact, path)?.field;
+}
+
+/** Longest variable name the fix writes, as {@link ENV_NAME} allows. */
+const MAX_NAME = 64;
+
+/**
+ * A variable name of the server's own for `variable`: the server's name in upper case, letters
+ * and digits kept and every other run of characters made one `_`, then the variable.
+ * `registry` and `NPM_TOKEN` give `REGISTRY_NPM_TOKEN`; `npm` and `NPM_TOKEN` give
+ * `NPM_MCP_TOKEN`.
+ */
+export function serverVariable(server: string, variable: string): string {
+  let prefix = '';
+  for (let i = 0; i < server.length; i++) {
+    const code = server.charCodeAt(i);
+    if (code >= 0x61 && code <= 0x7a) prefix += String.fromCharCode(code - 0x20);
+    else if ((code >= 0x41 && code <= 0x5a) || (code >= 0x30 && code <= 0x39)) {
+      prefix += server.charAt(i);
+    } else if (prefix !== '' && !prefix.endsWith('_')) prefix += '_';
+  }
+  while (prefix.endsWith('_')) prefix = prefix.slice(0, -1);
+  const first = prefix.charCodeAt(0);
+  if (prefix === '' || (first >= 0x30 && first <= 0x39))
+    prefix = `MCP${prefix === '' ? '' : '_'}${prefix}`;
+  const rest = variable.startsWith(`${prefix}_`)
+    ? `MCP_${variable.slice(prefix.length + 1)}`
+    : variable;
+  const room = Math.max(1, MAX_NAME - rest.length - 1);
+  let cut = prefix.slice(0, room);
+  while (cut.endsWith('_')) cut = cut.slice(0, -1);
+  return `${cut}_${rest}`.slice(0, MAX_NAME);
+}
+
+/**
+ * The variable the fix references: the `env` key a token sits under, else the vendor's usual
+ * name. In a remote server's `url` and `headers` Claude Code reads credential variables as
+ * empty, whether or not they are set, and names only examples of them (SOURCES.claudeMcp), so
+ * there the name is the server's own ({@link serverVariable}), as the documentation advises:
+ * "copy it into a variable with a name of your own".
+ */
+function fixVariable(
+  artifact: Artifact,
+  path: JsonPath,
+  fallback: string,
+): {
+  readonly name: string;
+  readonly remote: boolean;
+} {
+  const name = variableName(path, fallback);
+  const server = serverAt(artifact, path);
+  const claude = artifact.kind === 'mcp-json' || artifact.kind === 'claude-plugin-manifest';
+  if (!claude || server === undefined || !REMOTE_FIELDS.has(server.field)) {
+    return { name, remote: false };
+  }
+  return { name: serverVariable(server.name, name), remote: true };
 }
 
 /**
@@ -79,6 +149,15 @@ function remedy(artifact: Artifact, path: JsonPath, name: string): string {
   if (artifact.kind === 'claude-settings')
     return 'set it in your shell environment instead of this file';
   return 'read it from the environment';
+}
+
+/**
+ * What Claude Code does with a reference to a variable that is not set: the configuration still
+ * loads, and the server gets the text as written (SOURCES.claudeMcp, "Unset variables without a
+ * default").
+ */
+export function unsetNote(name: string): string {
+  return `Claude Code keeps an unset "\${${name}}" as literal text and warns in "claude mcp list"; write "\${${name}:-}" to send an empty value.`;
 }
 
 function isNameChar(code: number): boolean {
@@ -138,14 +217,17 @@ function fixFor(
   if (text.slice(offset, offset + secret.length) !== value.slice(secret.start, end)) {
     return undefined;
   }
-  const name = variableName(path, secret.variable);
+  const { name, remote } = fixVariable(artifact, path, secret.variable);
   const replacement = reference(artifact, path, name, value.charCodeAt(end));
   if (replacement === undefined) return undefined;
   const notes = [`Set ${name} in the environment of everyone who uses this configuration.`];
-  if (artifact.kind === 'mcp-json' || artifact.kind === 'claude-plugin-manifest') {
+  if (remote) {
     notes.push(
-      `Claude Code does not load the server configuration when ${name} is not set; write "\${${name}:-}" to allow an empty value.`,
+      `Claude Code reads credential variables such as ANTHROPIC_API_KEY and NPM_TOKEN as empty in a remote server's url and headers, so the reference uses a name of this server's own rather than ${variableName(path, secret.variable)}.`,
     );
+  }
+  if (artifact.kind === 'mcp-json' || artifact.kind === 'claude-plugin-manifest') {
+    notes.push(unsetNote(name));
   }
   return {
     id: `${ID}#reference`,
@@ -165,6 +247,7 @@ export const literalSecretRule = defineRule({
       'MCP configurations, settings and hook files are committed with the project, so a token written into one is readable by everyone who can read the repository, its forks and its history. Keys exposed in public GitHub repositories have been used within two minutes. `claude plugin validate` also warns about header values that look like literal credentials.',
       "The rule reports only tokens with a known vendor prefix and shape (GitHub, OpenAI, Anthropic, Slack, AWS access key IDs, GitLab, Stripe live keys, Google API keys, npm, Hugging Face, PyPI, DigitalOcean, Shopify, Doppler). Slack's rotating app-level tokens (`xoxe.xapp-`) and workflow tokens (`xwfp-`) count, and a Claude Enterprise admin key, which starts with `sk-ant-api01-` like an API key, is reported as an Anthropic API key: the prefix cannot tell them apart. It skips placeholders such as `ghp_xxxx…` and AWS's `…EXAMPLE` keys, and never reports variable references. The message shows only the first four characters and the length. An AWS access key ID is a warning rather than an error: without its secret access key it grants no access, but it identifies the account and the secret is often committed next to it.",
       "Revoke and rotate the credential; deleting it from the file does not remove it from git history. Then read it from the environment: `${VAR}` in `.mcp.json`, `${env:VAR}` in `.cursor/mcp.json`, `$VAR` in `.gemini/settings.json`. Codex's `.codex/config.toml` expands no variables: forward one with `env_vars`, or name it in `env_http_headers` or `bearer_token_env_var`; the rule offers no fix there.",
+      "In a remote server's `url` and `headers`, Claude Code reads credential variables such as `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK` and `NPM_TOKEN` as empty, set or not, so `Bearer ${NPM_TOKEN}` sends `Bearer `. There the fix references a variable named after the server, such as `REGISTRY_NPM_TOKEN` for a server named `registry`.",
     ].join('\n\n'),
     category: 'risk',
     severity: 'error',
@@ -199,7 +282,7 @@ export const literalSecretRule = defineRule({
     fix: {
       classes: ['review'],
       summary:
-        'Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.',
+        'Replaces only the token with a variable reference in the syntax of the agent that reads the file: "${NAME}" in .mcp.json and plugin servers, with a name of the server\'s own in a remote server\'s url and headers, "${env:NAME}" in .cursor/mcp.json, "$NAME" in .gemini/settings.json. Applied only when you name the rule or accept the fix, always with a warning to rotate the credential.',
     },
   },
   defaultOptions: undefined,
@@ -218,7 +301,7 @@ export const literalSecretRule = defineRule({
         reported++;
         const token = value.slice(secret.start, secret.start + secret.length);
         const shown = `("${token.slice(0, 4)}…", ${formatInteger(token.length)} characters)`;
-        const name = variableName(path, secret.variable);
+        const { name } = fixVariable(artifact, path, secret.variable);
         const fix = fixable ? fixFor(artifact, doc, path, value, secret) : undefined;
         const guidance = canEdit ? undefined : sharedFileGuidance(artifact);
         context.report({
