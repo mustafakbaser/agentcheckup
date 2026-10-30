@@ -110,15 +110,35 @@ describe('skill/frontmatter-missing', () => {
     ]);
   });
 
-  it('does not claim what Gemini CLI does when a later line starts with ---', () => {
+  it('reports a block closed only by a line that starts with ---, for Codex and Gemini CLI', () => {
     const text = '---\nname: deploy\ndescription: a---b\n----\nbody\n';
     const result = lint({ [PATH]: text }, { rules: [frontmatterMissingRule] });
     expect(result.findings.map((f) => [f.message, f.platforms])).toEqual([
       [
-        'The frontmatter opened on line 1 has no closing `---` line. Codex skips the skill.',
-        ['codex'],
+        'The frontmatter opened on line 1 has no closing `---` line. Codex and Gemini CLI skip the skill.',
+        ['codex', 'gemini'],
       ],
     ]);
+  });
+
+  it('reports a ---- closing line under .gemini/skills for Gemini CLI, not --- with blanks', () => {
+    const path = '.gemini/skills/deploy/SKILL.md';
+    const result = lint(
+      { [path]: '---\nname: deploy\ndescription: Deploys.\n----\nbody\n' },
+      { rules: [frontmatterMissingRule] },
+    );
+    expect(result.findings.map((f) => [f.path, f.severity, f.platforms, f.message])).toEqual([
+      [
+        path,
+        'error',
+        ['gemini'],
+        'The frontmatter opened on line 1 has no closing `---` line. Gemini CLI skips the skill.',
+      ],
+    ]);
+    for (const close of ['--- ', '---\t', '--- \t']) {
+      const text = `---\nname: deploy\ndescription: Deploys.\n${close}\nbody\n`;
+      expect(findings(lint({ [path]: text }, { rules: [frontmatterMissingRule] }), ID)).toEqual([]);
+    }
   });
 
   it('reports an indented closing delimiter only for Gemini CLI', () => {
@@ -127,7 +147,10 @@ describe('skill/frontmatter-missing', () => {
     expect(result.findings.map((f) => [f.message, f.platforms, f.range.start.line])).toEqual([
       ['The closing `---` on line 4 is indented. Gemini CLI skips the skill.', ['gemini'], 4],
     ]);
-    expect(run('---\nname: deploy\n  ---\n---x\n')).toEqual([]);
+    // A later `---x` line does not close the block for Gemini CLI either.
+    expect(
+      run('---\nname: deploy\n  ---\n---x\n').map((f) => [f.message, f.range.start.line]),
+    ).toEqual([['The closing `---` on line 3 is indented. Gemini CLI skips the skill.', 3]]);
   });
 
   it('does not report valid, invalid or unsupported frontmatter', () => {

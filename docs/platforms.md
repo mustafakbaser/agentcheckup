@@ -366,6 +366,7 @@ Google announced that from June 18, 2026, Gemini CLI stops serving requests for 
 - `GEMINI.md`: none.
 - `SKILL.md`: `name`, which should match the directory name, and `description`. [Creating skills][gemini-creating-skills]
 - In the source, the frontmatter must start on the first line, and a skill without string `name` and `description` values is skipped. If the YAML does not parse, a line-based fallback reads the `name:` and `description:` lines. [source][gemini-src-skills]
+- In the source since v0.66.0, Gemini CLI removes a byte order mark before it reads `SKILL.md`, and closes the frontmatter only at a line that is `---` and optional spaces or tabs: a block closed by `----` or an indented `---` is not frontmatter, and the skill is skipped. [source][gemini-src-skills]
 
 ### Hooks
 

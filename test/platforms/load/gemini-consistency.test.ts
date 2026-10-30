@@ -84,6 +84,21 @@ describe('Gemini CLI mappings', () => {
     // An empty name is a warning: Gemini CLI lists the skill.
     expect(checked.gemini?.entries.map((e) => e.path)).toEqual(['.gemini/skills/empty/SKILL.md']);
   });
+
+  it('lists a skill with a byte order mark, which skill/frontmatter-bom names for Codex only', () => {
+    const encoder = new TextEncoder();
+    const skill = (name: string, close = '---') =>
+      encoder.encode(`---\nname: ${name}\ndescription: Does ${name}.\n${close}\nBody.\n`);
+    const checked = check({
+      '.agents/skills/marked/SKILL.md': new Uint8Array([0xef, 0xbb, 0xbf, ...skill('marked')]),
+      '.gemini/skills/dashes/SKILL.md': skill('dashes', '----'),
+    });
+    expect(checked.report.mismatches).toEqual([]);
+    expect(checked.gemini?.entries.map((e) => e.path)).toEqual(['.agents/skills/marked/SKILL.md']);
+    expect(geminiSkips(checked)).toEqual([
+      '.gemini/skills/dashes/SKILL.md no-frontmatter skill/frontmatter-missing',
+    ]);
+  });
 });
 
 describe('Gemini CLI allowances', () => {

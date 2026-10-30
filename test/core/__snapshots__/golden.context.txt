@@ -350,7 +350,7 @@
       "ruleId": "skill/frontmatter-bom",
       "severity": "error",
       "category": "loading",
-      "message": "SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex and Gemini CLI do not recognize the frontmatter and skip the skill.",
+      "message": "SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex does not recognize the frontmatter and skips the skill.",
       "path": ".agents/skills/db-migrate/SKILL.md",
       "range": {
         "start": {
@@ -364,8 +364,7 @@
       },
       "related": [],
       "platforms": [
-        "codex",
-        "gemini"
+        "codex"
       ],
       "fingerprint": "04e07438515c2a:1",
       "fix": {
@@ -1181,7 +1180,7 @@
         {
           "title": "Codex source: read_file_text decodes UTF-8 without removing a byte order mark",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3404,9 +3403,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3691,7 +3690,7 @@
     {
       "id": "skill/frontmatter-bom",
       "title": "Skill file starts with a byte order mark",
-      "rationale": "A UTF-8 byte order mark (U+FEFF) is invisible in most editors, but it is the first character of the file. Codex decodes SKILL.md without removing it and compares the trimmed first line with `---`; Rust's `trim()` keeps U+FEFF, so Codex finds no frontmatter and skips the skill. Gemini CLI matches `^---` against the raw text and skips the skill too. The skills-ref validator and the anthropics/skills packager require the file to start with `---` and reject it.\n\nSave SKILL.md as UTF-8 without a byte order mark.",
+      "rationale": "A UTF-8 byte order mark (U+FEFF) is invisible in most editors, but it is the first character of the file. Codex decodes SKILL.md without removing it and compares the trimmed first line with `---`; Rust's `trim()` keeps U+FEFF, so Codex finds no frontmatter and skips the skill. The skills-ref validator and the anthropics/skills packager require the file to start with `---` and reject it. Gemini CLI removes the mark when it reads the file, so it lists the skill.\n\nSave SKILL.md as UTF-8 without a byte order mark.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -3699,14 +3698,13 @@
       ],
       "platforms": [
         "claude-code",
-        "codex",
-        "gemini"
+        "codex"
       ],
       "sources": [
         {
           "title": "Codex source: read_file_text decodes UTF-8 without removing a byte order mark",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3722,9 +3720,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3780,9 +3778,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3815,7 +3813,7 @@
     {
       "id": "skill/frontmatter-missing",
       "title": "Skill has no YAML frontmatter on line 1",
-      "rationale": "Agents read a skill's `name` and `description` from YAML frontmatter: a `---` line at the very start of SKILL.md, the fields, and a closing `---` line. Codex and Gemini CLI skip a SKILL.md without it, and Codex also skips one whose frontmatter is never closed. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.\n\nStart the file with `---`, add `name` and `description`, and close the block with another `---` line.",
+      "rationale": "Agents read a skill's `name` and `description` from YAML frontmatter: a `---` line at the very start of SKILL.md, the fields, and a closing `---` line. Codex and Gemini CLI skip a SKILL.md without it, and one whose frontmatter is never closed; a line such as `----` does not close it. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.\n\nStart the file with `---`, add `name` and `description`, and close the block with another `---` line.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -3840,9 +3838,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4058,9 +4056,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4278,9 +4276,9 @@
           "status": "verified"
         },
         {
-          "title": "Gemini CLI source: skillLoader.ts",
+          "title": "Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)",
           "url": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

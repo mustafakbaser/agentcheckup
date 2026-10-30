@@ -118,6 +118,7 @@ export const SOURCES = {
   codexReadFileText: verified(
     'Codex source: read_file_text decodes UTF-8 without removing a byte order mark',
     'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs',
+    AUDIT_CHECKED,
   ),
   codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
   codexHookConfig: verified(
@@ -336,7 +337,7 @@ export const SOURCES = {
   geminiSkillLoaderSource: verified(
     'Gemini CLI source: skillLoader.ts (SKILL.md one level deep, name and description required)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts',
-    COVERAGE_CHECKED,
+    AUDIT_CHECKED,
   ),
   windsurfRules: verified(
     'Devin Desktop (Windsurf): Memories and rules',

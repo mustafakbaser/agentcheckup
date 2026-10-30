@@ -7,7 +7,7 @@ const PATH = '.agents/skills/deploy/SKILL.md';
 const encoder = new TextEncoder();
 const withBom = (text: string) => new Uint8Array([0xef, 0xbb, 0xbf, ...encoder.encode(text)]);
 const MESSAGE =
-  'SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex and Gemini CLI do not recognize the frontmatter and skip the skill.';
+  'SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex does not recognize the frontmatter and skips the skill.';
 
 describe('skill/frontmatter-bom', () => {
   it('reports a byte order mark before the frontmatter', () => {
@@ -24,7 +24,8 @@ describe('skill/frontmatter-bom', () => {
         range: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
       },
     ]);
-    expect(result.findings[0]?.platforms).toEqual(['codex', 'gemini']);
+    // Gemini CLI also reads .agents/skills, but removes the mark first.
+    expect(result.findings[0]?.platforms).toEqual(['codex']);
     expect(result.findings[0]?.fix?.id).toBe('skill/frontmatter-bom#remove-bom');
   });
 
@@ -46,8 +47,9 @@ describe('skill/frontmatter-bom', () => {
     expect(lint(files, { rules: [frontmatterBomRule], targets: ['claude-code'] }).findings).toEqual(
       [],
     );
-    const gemini = lint(files, { rules: [frontmatterBomRule], targets: ['gemini', 'cursor'] });
-    expect(gemini.findings.map((f) => [f.severity, f.platforms])).toEqual([['error', ['gemini']]]);
+    const codex = lint(files, { rules: [frontmatterBomRule], targets: ['codex', 'cursor'] });
+    expect(codex.findings.map((f) => [f.severity, f.platforms])).toEqual([['error', ['codex']]]);
+    expect(lint(files, { rules: [frontmatterBomRule], targets: ['gemini'] }).findings).toEqual([]);
     expect(lint(files, { rules: [frontmatterBomRule], targets: ['cursor'] }).findings).toEqual([]);
   });
 
@@ -59,15 +61,27 @@ describe('skill/frontmatter-bom', () => {
     expect(result.findings.map((f) => [f.severity, f.platforms, f.message])).toEqual([
       [
         'error',
-        ['claude-code', 'codex', 'gemini'],
-        'SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex and Gemini CLI do not recognize the frontmatter and skip the skill, and the skills-ref validator and the anthropics/skills packager reject it.',
+        ['claude-code', 'codex'],
+        'SKILL.md starts with an invisible UTF-8 byte order mark (U+FEFF) before `---`. Codex does not recognize the frontmatter and skips the skill, and the skills-ref validator and the anthropics/skills packager reject it.',
       ],
     ]);
   });
 
-  it('does not report where neither Codex nor Gemini CLI loads the skill', () => {
+  it('does not report where Codex does not load the skill', () => {
     const result = lint(
       { '.claude/skills/deploy/SKILL.md': withBom('---\nname: deploy\n---\n') },
+      { rules: [frontmatterBomRule] },
+    );
+    expect(result.findings).toEqual([]);
+  });
+
+  it('does not report a skill only Gemini CLI loads, which removes the mark', () => {
+    const result = lint(
+      {
+        '.gemini/skills/deploy/SKILL.md': withBom(
+          '---\nname: deploy\ndescription: Deploys.\n---\n',
+        ),
+      },
       { rules: [frontmatterBomRule] },
     );
     expect(result.findings).toEqual([]);

@@ -1,43 +1,31 @@
 /**
  * How Gemini CLI reads a SKILL.md, from packages/core/src/skills/skillLoader.ts
- * (SOURCES.geminiSkillLoaderSource) as the skill rules model it: the frontmatter must start on
- * line 1, and a skill without string `name` and `description` values is skipped; YAML that does
- * not parse, or values that are not text, are read again line by line. The skill rules use
- * {@link geminiSkipReasons} to say what Gemini CLI does with a skill, and the Gemini CLI load plan
- * uses {@link geminiSkillVerdict}, built on it, to say whether Gemini CLI lists the skill, so both
- * always agree.
- *
- * The rules' model predates the loader at google-gemini/gemini-cli ed96fae, which also accepts a
- * byte order mark before the opening `---` and closes the block only at a line that is `---` and
- * optional spaces. The plan marks the claims that differ as unverified.
+ * (SOURCES.geminiSkillLoaderSource, google-gemini/gemini-cli debf423, in v0.66.0): it reads the
+ * file with `readFileWithEncoding`, which removes a byte order mark, and its `FRONTMATTER_REGEX`
+ * needs `---` on line 1 and closes the block at the first later line that is `---` and optional
+ * spaces or tabs, as the frontmatter parser does; a skill without string `name` and `description`
+ * values is skipped, and YAML that does not parse, or values that are not text, are read again
+ * line by line. The skill rules use {@link geminiSkipReasons} to say what Gemini CLI does with a
+ * skill, and the Gemini CLI load plan uses {@link geminiSkillVerdict}, built on it, to say whether
+ * Gemini CLI lists the skill, so both always agree.
  */
-import { lineText } from '../core/text.js';
 import type { DecodedText } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
-import { bomHidesFrontmatter, frontmatterYaml, invalidCause } from './codex-skills.js';
+import { frontmatterYaml, invalidCause } from './codex-skills.js';
 
 /**
  * Why Gemini CLI skips a skill, in the order it reads the file:
  * - `no-frontmatter`: no block that starts on line 1 and is closed (skill/frontmatter-missing).
+ *   A block closed only by a line such as `----` or ` ---` is not closed.
  * - `unsupported`: the block opens with `+++` or `---js` (skill/frontmatter-invalid).
- * - `bom`: a byte order mark comes before the opening `---` (skill/frontmatter-bom).
  * - `not-a-mapping`: the YAML is a list or a scalar (skill/frontmatter-invalid).
  * - `no-description`, `no-name`: the YAML has no `description` or `name` key
  *   (skill/description-missing, skill/name-missing).
+ *
+ * A byte order mark is not a reason: Gemini CLI removes it before it matches the pattern.
  */
 export type GeminiSkipReason =
-  'no-frontmatter' | 'unsupported' | 'bom' | 'not-a-mapping' | 'no-description' | 'no-name';
-
-/**
- * True when a line after line 1 starts with `---`, where Gemini CLI's frontmatter pattern ends an
- * unclosed block (`\n---` without an end-of-line check).
- */
-export function geminiClosesFrontmatter(decoded: DecodedText): boolean {
-  for (let line = 2; line <= decoded.lineStarts.length; line++) {
-    if (lineText(decoded, line).startsWith('---')) return true;
-  }
-  return false;
-}
+  'no-frontmatter' | 'unsupported' | 'not-a-mapping' | 'no-description' | 'no-name';
 
 /**
  * Every reason Gemini CLI has to skip the skill, in reading order; empty when it lists the skill
@@ -50,19 +38,14 @@ export function geminiSkipReasons(
 ): GeminiSkipReason[] {
   switch (result.kind) {
     case 'absent':
-      return ['no-frontmatter'];
     case 'unclosed':
-      return geminiClosesFrontmatter(decoded) ? [] : ['no-frontmatter'];
+      return ['no-frontmatter'];
     case 'unsupported':
       return ['unsupported'];
-    case 'invalid': {
-      const reasons: GeminiSkipReason[] = bomHidesFrontmatter(decoded, result) ? ['bom'] : [];
-      if (invalidCause(decoded.text, result)?.kind === 'not-a-mapping')
-        reasons.push('not-a-mapping');
-      return reasons;
-    }
+    case 'invalid':
+      return invalidCause(decoded.text, result)?.kind === 'not-a-mapping' ? ['not-a-mapping'] : [];
     case 'valid': {
-      const reasons: GeminiSkipReason[] = bomHidesFrontmatter(decoded, result) ? ['bom'] : [];
+      const reasons: GeminiSkipReason[] = [];
       const { keys } = result.data;
       if (!keys.includes('description')) reasons.push('no-description');
       if (!keys.includes('name')) reasons.push('no-name');
@@ -78,8 +61,7 @@ export function geminiSkipReasons(
 /**
  * What Gemini CLI does with one SKILL.md:
  * - `listed`, with the name and description it lists. `fields` says where they come from:
- *   `yaml` when the YAML gives both as text; `lines` when Gemini CLI read them line by line;
- *   `unknown` when the block ends where only the rules' older model of the loader ends it.
+ *   `yaml` when the YAML gives both as text; `lines` when Gemini CLI read them line by line.
  * - `skipped`, for the first of {@link geminiSkipReasons}, or `no-fields` when the line-by-line
  *   reading finds no `name:` or no `description:` line, which no rule reports.
  * - `unchecked`: agentcheckup's YAML parser gave up on the frontmatter.
@@ -89,7 +71,7 @@ export type GeminiSkillVerdict =
       readonly kind: 'listed';
       readonly name: string;
       readonly description: string;
-      readonly fields: 'yaml' | 'lines' | 'unknown';
+      readonly fields: 'yaml' | 'lines';
     }
   | { readonly kind: 'skipped'; readonly reason: GeminiSkipReason | 'no-fields' }
   | { readonly kind: 'unchecked' };
@@ -97,11 +79,7 @@ export type GeminiSkillVerdict =
 /** Characters Gemini CLI replaces with `-` in a skill name (`sanitizedName`). */
 const UNSAFE_NAME_CHARACTERS = /[":*/<>?\\|]/g;
 
-function listed(
-  name: string,
-  description: string,
-  fields: 'yaml' | 'lines' | 'unknown',
-): GeminiSkillVerdict {
+function listed(name: string, description: string, fields: 'yaml' | 'lines'): GeminiSkillVerdict {
   return { kind: 'listed', name: name.replace(UNSAFE_NAME_CHARACTERS, '-'), description, fields };
 }
 
@@ -114,11 +92,10 @@ export function geminiSkillVerdict(
   if (reason !== undefined) return { kind: 'skipped', reason };
   switch (result.kind) {
     case 'absent':
+    case 'unclosed':
     case 'unsupported':
       // geminiSkipReasons always gives a reason for these.
       return { kind: 'skipped', reason: 'no-frontmatter' };
-    case 'unclosed':
-      return listed('', '', 'unknown');
     case 'invalid':
       if (invalidCause(decoded.text, result)?.kind === 'limit') return { kind: 'unchecked' };
       break;

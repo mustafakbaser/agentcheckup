@@ -24,7 +24,7 @@ Fix the syntax at the position the message gives, or the server entry.
 ## Evidence
 
 - [Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)](https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs), verified, checked 2026-10-17
-- [Codex source: read_file_text decodes UTF-8 without removing a byte order mark](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs), verified, checked 2026-10-14
+- [Codex source: read_file_text decodes UTF-8 without removing a byte order mark](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs), verified, checked 2026-10-30
 - [Codex source: mcp_types.rs (transport from command or url, startup timeouts)](https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs), verified, checked 2026-10-17
 - [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-14
 - [Codex: Config basics](https://learn.chatgpt.com/docs/config-file/config-basic), verified, checked 2026-10-14

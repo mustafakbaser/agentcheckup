@@ -409,12 +409,15 @@ describe('loadGemini: skills', () => {
       '.gemini/skills/list/SKILL.md': '---\n- a\n- b\n---\n',
       '.gemini/skills/nodesc/SKILL.md': '---\nname: nodesc\n---\n',
       '.gemini/skills/noname/SKILL.md': '---\ndescription: No name.\n---\n',
-      '.gemini/skills/bom/SKILL.md': '﻿---\nname: bom\ndescription: Has a mark.\n---\n',
+      '.gemini/skills/bom/SKILL.md': '\uFEFF---\nname: bom\ndescription: Has a mark.\n---\n',
+      '.gemini/skills/dashes/SKILL.md': '---\nname: dashes\ndescription: Four.\n----\nBody.\n',
       '.gemini/skills/lines/SKILL.md': '---\nname: lines\ndescription: a: b: c\n---\n',
       '.gemini/skills/nolines/SKILL.md': '---\ntitle: [unclosed\n---\n',
+      '.gemini/skills/spaced/SKILL.md': '---\nname: spaced\ndescription: Blanks.\n--- \t\nBody.\n',
     });
     expect(skips(plan)).toEqual([
-      'skill:.gemini/skills/bom/SKILL.md bom skill/frontmatter-bom unverified',
+      // Gemini CLI closes the block only at a line that is `---` and optional spaces or tabs.
+      'skill:.gemini/skills/dashes/SKILL.md no-frontmatter skill/frontmatter-missing source-code',
       'skill:.gemini/skills/list/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
       'skill:.gemini/skills/nodesc/SKILL.md no-description skill/description-missing source-code',
       'skill:.gemini/skills/nolines/SKILL.md invalid-frontmatter - source-code',
@@ -422,9 +425,13 @@ describe('loadGemini: skills', () => {
       'skill:.gemini/skills/none/SKILL.md no-frontmatter skill/frontmatter-missing source-code',
       'skill:.gemini/skills/toml/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
     ]);
-    // YAML that does not parse: Gemini CLI reads the name and description lines.
-    expect(entries(plan)).toEqual(['skill:.gemini/skills/lines/SKILL.md startup 1 source-code']);
-    expect(plan.entries[0]?.name).toBe('lines');
+    // Gemini CLI removes a byte order mark; YAML that does not parse is read line by line.
+    expect(entries(plan)).toEqual([
+      'skill:.gemini/skills/bom/SKILL.md startup 1 documented',
+      'skill:.gemini/skills/lines/SKILL.md startup 2 source-code',
+      'skill:.gemini/skills/spaced/SKILL.md startup 3 documented',
+    ]);
+    expect(plan.entries.map((skill) => skill.name)).toEqual(['bom', 'lines', 'spaced']);
   });
 
   it('leaves skills of other directories to sessions started there', () => {

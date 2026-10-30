@@ -15,7 +15,7 @@ Skill has no YAML frontmatter on line 1.
 
 ## Why
 
-Agents read a skill's `name` and `description` from YAML frontmatter: a `---` line at the very start of SKILL.md, the fields, and a closing `---` line. Codex and Gemini CLI skip a SKILL.md without it, and Codex also skips one whose frontmatter is never closed. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.
+Agents read a skill's `name` and `description` from YAML frontmatter: a `---` line at the very start of SKILL.md, the fields, and a closing `---` line. Codex and Gemini CLI skip a SKILL.md without it, and one whose frontmatter is never closed; a line such as `----` does not close it. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.
 
 Start the file with `---`, add `name` and `description`, and close the block with another `---` line.
 
@@ -23,7 +23,7 @@ Start the file with `---`, add `name` and `description`, and close the block wit
 
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-17
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
-- [Gemini CLI source: skillLoader.ts](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-14
+- [Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-30
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 
 ## Fix

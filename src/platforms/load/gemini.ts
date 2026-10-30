@@ -157,8 +157,6 @@ const SKILL_SKIPS: Readonly<
     ruleId: 'skill/frontmatter-invalid',
     certainty: 'source-code',
   },
-  // The loader at ed96fae accepts a byte order mark before `---`; the rule follows an older one.
-  bom: { code: 'bom', ruleId: 'skill/frontmatter-bom', certainty: 'unverified' },
   'not-a-mapping': {
     code: 'invalid-frontmatter',
     ruleId: 'skill/frontmatter-invalid',
@@ -678,7 +676,7 @@ class GeminiLoader {
       // Found on case-insensitive file systems only; the listing order within a folder is the
       // order of a file search.
       let certainty: Certainty = verdict.fields === 'yaml' ? 'documented' : 'source-code';
-      if (verdict.fields === 'unknown' || caseMismatch) certainty = 'unverified';
+      if (caseMismatch) certainty = 'unverified';
       listed.push({
         path,
         artifact,

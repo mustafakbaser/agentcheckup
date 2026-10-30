@@ -230,14 +230,14 @@ function unclosedProblem(
   result: Extract<FrontmatterResult, { kind: 'unclosed' }>,
 ): Problem | undefined {
   const { decoded } = artifact;
-  // Gemini CLI closes the block at any line that starts with `---` (geminiClosesFrontmatter).
+  // Gemini CLI closes the block only at a line that is `---` and optional spaces or tabs, as the
+  // parser does, so it skips an unclosed one.
   const gemini = geminiWithout(result, decoded);
   // The block opens with `---` on line 1, so this is the line where Codex finds it closed.
   const indentedClose = codexFrontmatterClose(decoded);
   if (indentedClose !== undefined) {
     // Codex trims lines, so it finds the indented `---`. Claude Code's handling of a closing
     // line is undocumented, so only Gemini CLI, which needs `---` at the line start, is claimed.
-    if (gemini.length === 0) return undefined;
     return problem(
       scope,
       artifact,
@@ -263,7 +263,7 @@ export const frontmatterMissingRule = defineRule({
   meta: {
     id: 'skill/frontmatter-missing',
     title: 'Skill has no YAML frontmatter on line 1',
-    rationale: `Agents read a skill's \`name\` and \`description\` from YAML frontmatter: a \`---\` line at the very start of SKILL.md, the fields, and a closing \`---\` line. Codex and Gemini CLI skip a SKILL.md without it, and Codex also skips one whose frontmatter is never closed. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.
+    rationale: `Agents read a skill's \`name\` and \`description\` from YAML frontmatter: a \`---\` line at the very start of SKILL.md, the fields, and a closing \`---\` line. Codex and Gemini CLI skip a SKILL.md without it, and one whose frontmatter is never closed; a line such as \`----\` does not close it. Claude Code still loads the skill, but takes its name from the directory and its description from the first non-empty line of the body, so automatic invocation depends on how the body starts. When the frontmatter is indented or starts after a blank line, Claude Code reads it as instructions. The Agent Skills specification requires the frontmatter.
 
 Start the file with \`---\`, add \`name\` and \`description\`, and close the block with another \`---\` line.`,
     category: 'loading',

@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { decode } from '../../../src/core/text.js';
 import { parseFrontmatter } from '../../../src/parse/frontmatter.js';
 import {
-  geminiClosesFrontmatter,
   geminiLineFields,
   geminiSkillVerdict,
   geminiSkipReasons,
@@ -35,7 +34,8 @@ describe('geminiSkipReasons', () => {
     expect(reasons('')).toEqual(['no-frontmatter']);
     expect(reasons('+++\nname = "x"\n+++\n')).toEqual(['unsupported']);
     expect(reasons('---\n- a\n---\n')).toEqual(['not-a-mapping']);
-    expect(reasons('﻿---\nname: x\n---\n')).toEqual(['bom', 'no-description']);
+    // Gemini CLI removes a byte order mark before it reads the frontmatter.
+    expect(reasons('\uFEFF---\nname: x\n---\n')).toEqual(['no-description']);
     expect(reasons('---\ntitle: x\n---\n')).toEqual(['no-description', 'no-name']);
   });
 
@@ -47,12 +47,26 @@ describe('geminiSkipReasons', () => {
     expect(reasons('---\nname: x\ndescription: a: b\n---\n')).toEqual([]);
   });
 
-  it('ends an unclosed block at a later line that starts with ---', () => {
-    const closed = read('---\nname: x\n----\nBody.\n');
-    expect(closed.result.kind).toBe('unclosed');
-    expect(geminiClosesFrontmatter(closed.decoded)).toBe(true);
-    expect(geminiSkipReasons(closed.result, closed.decoded)).toEqual([]);
-    expect(reasons('---\nname: x\n  ---\n')).toEqual(['no-frontmatter']);
+  it('closes the block only at a line that is --- and optional spaces or tabs', () => {
+    const unclosed = read('---\nname: x\ndescription: y\n----\nBody.\n');
+    expect(unclosed.result.kind).toBe('unclosed');
+    expect(geminiSkipReasons(unclosed.result, unclosed.decoded)).toEqual(['no-frontmatter']);
+    expect(reasons('---\nname: x\ndescription: y\n  ---\n')).toEqual(['no-frontmatter']);
+    expect(reasons('---\nname: x\ndescription: y\n--- x\n')).toEqual(['no-frontmatter']);
+    expect(reasons('---\nname: x\ndescription: y\n--- \nBody.\n')).toEqual([]);
+    expect(reasons('---\nname: x\ndescription: y\n---\t\r\nBody.\r\n')).toEqual([]);
+    expect(reasons('---\nname: x\ndescription: y\n---')).toEqual([]);
+  });
+
+  it('reads a skill that starts with a byte order mark', () => {
+    const text = '\uFEFF---\nname: x\ndescription: Does x.\n---\n';
+    expect(reasons(text)).toEqual([]);
+    expect(verdict(text)).toEqual({
+      kind: 'listed',
+      name: 'x',
+      description: 'Does x.',
+      fields: 'yaml',
+    });
   });
 });
 
@@ -80,7 +94,7 @@ describe('geminiSkillVerdict', () => {
     });
     expect(verdict('---\ntitle: [x\n---\n')).toEqual({ kind: 'skipped', reason: 'no-fields' });
     expect(verdict('No frontmatter.\n')).toEqual({ kind: 'skipped', reason: 'no-frontmatter' });
-    expect(verdict('---\nname: x\n----\n')).toMatchObject({ kind: 'listed', fields: 'unknown' });
+    expect(verdict('---\nname: x\n----\n')).toEqual({ kind: 'skipped', reason: 'no-frontmatter' });
   });
 });
 

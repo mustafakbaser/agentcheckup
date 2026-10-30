@@ -8,10 +8,13 @@ import { SOURCES } from '../../platforms/sources.js';
  */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -43,8 +46,9 @@ export const SKILL_SOURCES = {
   ),
   geminiSkills: verified('Gemini CLI: Agent Skills', 'https://geminicli.com/docs/cli/skills/'),
   geminiSkillLoader: verified(
-    'Gemini CLI source: skillLoader.ts',
+    'Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts',
+    AUDIT_CHECKED,
   ),
   geminiSkillManager: verified(
     'Gemini CLI source: skillManager.ts (same-name skills override each other)',

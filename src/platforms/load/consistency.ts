@@ -153,7 +153,6 @@ export const SKIP_RULES: readonly SkipRule[] = [
   { ruleId: 'hooks/unknown-event', agent: 'gemini', codes: ['unknown-event'] },
   { ruleId: 'json/invalid-syntax', agent: 'gemini', codes: ['invalid-json'] },
   { ruleId: 'skill/description-missing', agent: 'gemini', codes: ['no-description'] },
-  { ruleId: 'skill/frontmatter-bom', agent: 'gemini', codes: ['bom'] },
   // A `+++` or `---js` block, or YAML that is not a mapping; the rule leaves out Gemini CLI for
   // YAML that does not parse, which Gemini CLI reads line by line.
   { ruleId: 'skill/frontmatter-invalid', agent: 'gemini', codes: ['invalid-frontmatter'] },
