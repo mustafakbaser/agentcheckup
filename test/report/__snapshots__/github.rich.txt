@@ -1,7 +1,7 @@
-::warning file=.cursor/rules/style.mdc,line=2,col=1,endLine=2,endColumn=18,title=cursor/conflicting-activation (fix%3A safe)::`alwaysApply: true` overrides `globs`, so the rule loads in every chat.
-::notice file=AGENTS.md,line=1,col=1,endLine=1,endColumn=1,title=clarity/missing-overview::Start with a one-paragraph project overview.
-::error file=AGENTS.md,line=12,col=3,endLine=12,endColumn=9,title=risk/hidden-unicode::Line contains 3 invisible Unicode tag characters.
-::warning file=CLAUDE.md,line=1,col=1,endLine=1,endColumn=1,title=budget/file-too-large::File is 52,310 characters; Claude Code works best under 40,000.
-::error file=CLAUDE.md,line=3,col=5,endLine=3,endColumn=22,title=instructions/broken-import::Imported file docs/missing.md does not exist.
-::notice file=CLAUDE.md,line=140,col=1,endLine=140,endColumn=30,title=portability/claude-only-import::@-imports are only read by Claude Code; Codex sees the literal text.
 ::error title=agentcheckup internal error::Rule mcp/unknown-server-field failed to run, so results are incomplete: Cannot read properties of undefined (reading 'type')
+::error file=AGENTS.md,line=12,col=3,endLine=12,endColumn=9,title=risk/hidden-unicode::Line contains 3 invisible Unicode tag characters.
+::error file=CLAUDE.md,line=3,col=5,endLine=3,endColumn=22,title=instructions/broken-import::Imported file docs/missing.md does not exist.
+::warning file=.cursor/rules/style.mdc,line=2,col=1,endLine=2,endColumn=18,title=cursor/conflicting-activation (fix%3A safe)::`alwaysApply: true` overrides `globs`, so the rule loads in every chat.
+::warning file=CLAUDE.md,line=1,col=1,endLine=1,endColumn=1,title=budget/file-too-large::File is 52,310 characters; Claude Code works best under 40,000.
+::notice file=AGENTS.md,line=1,col=1,endLine=1,endColumn=1,title=clarity/missing-overview::Start with a one-paragraph project overview.
+::notice file=CLAUDE.md,line=140,col=1,endLine=140,endColumn=30,title=portability/claude-only-import::@-imports are only read by Claude Code; Codex sees the literal text.

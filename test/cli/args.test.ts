@@ -171,6 +171,15 @@ describe('parseCommand', () => {
     });
   });
 
+  it('takes a SARIF category with --format sarif', () => {
+    for (const category of ['api', 'packages/web', 'v1.2_beta-3', 'x'.repeat(100)]) {
+      expect(parseCommand(['-f', 'sarif', '--sarif-category', category])).toMatchObject({
+        options: { format: 'sarif', sarifCategory: category },
+      });
+    }
+    expect(parseCommand(['-f', 'sarif'])).toMatchObject({ options: { sarifCategory: undefined } });
+  });
+
   it.each([
     [['--gate', 'mcp'], /--gate needs --baseline/],
     [['--gate', 'none'], /--gate needs --baseline/],
@@ -182,6 +191,15 @@ describe('parseCommand', () => {
     [['--cwd', 'packages'], /--cwd works only with the context and tokens commands/],
     [['--by-directory'], /--by-directory works only with the tokens command/],
     [['--matrix'], /--matrix works only with the context command/],
+    [['--sarif-category', 'api'], /--sarif-category works only with --format sarif/],
+    [['-f', 'json', '--sarif-category', 'api'], /--sarif-category works only with --format sarif/],
+    [['-f', 'sarif', '--sarif-category', 'a b'], /--sarif-category must be letters, digits/],
+    [['-f', 'sarif', '--sarif-category', '/api'], /--sarif-category must be letters, digits/],
+    [['-f', 'sarif', '--sarif-category', 'api/'], /--sarif-category must be letters, digits/],
+    [['-f', 'sarif', '--sarif-category', 'a//b'], /--sarif-category must be letters, digits/],
+    [['-f', 'sarif', '--sarif-category', ''], /--sarif-category must be letters, digits/],
+    [['-f', 'sarif', '--sarif-category', 'x'.repeat(101)], /at most 100 characters/],
+    [['context', '--sarif-category', 'api'], /does not apply to the context command/],
   ])('rejects scan flags %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
     expect(() => parseCommand(argv)).toThrow(message);

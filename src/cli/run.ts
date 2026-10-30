@@ -367,6 +367,7 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
           level: options.level,
           // OSC 8 links only where a terminal renders them: ANSI output to a TTY.
           hyperlinks: style === ansiStyle && io.isTTY,
+          sarifCategory: options.sarifCategory,
         });
   warn(result, options.format, io);
   await emit(report, options, io);

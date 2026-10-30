@@ -49,11 +49,18 @@ const MAX_TAGS = 20;
 const MAX_RELATED = 100;
 /** Locations attached to a skipped-files or symlink notification. */
 const MAX_NOTIFICATION_LOCATIONS = 100;
+/** GitHub's limit for `shortDescription` and `fullDescription`, in characters. */
 const MAX_DESCRIPTION = 1024;
 const MAX_NAME = 255;
 /** `partialFingerprints` key. Versioned: a new fingerprint algorithm gets a new key. */
 export const FINGERPRINT_KEY = `agentcheckup/v${String(FINGERPRINT_VERSION)}`;
-/** Category for `runAutomationDetails.id`: `<category>/<run id>` with an empty run id. */
+/**
+ * Category for `runAutomationDetails.id`: `<category>/<run id>` with an empty run id. GitHub
+ * keeps one analysis per tool and category, and github/codeql-action's upload-sarif uses this id
+ * instead of its own `category` input, so two scans of one repository need
+ * {@link SarifOptions.category} to stay apart. The default never changes: alerts are tracked
+ * per category.
+ */
 const AUTOMATION_ID = 'agentcheckup/';
 const SRCROOT = '%SRCROOT%';
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[\da-z.-]+)?(?:\+[\da-z.-]+)?$/i;
@@ -183,8 +190,8 @@ const LEVELS: Readonly<Record<Severity, SarifLevel>> = {
 };
 
 /**
- * `security-severity` for `risk` rules, by default severity. GitHub maps 7.0-8.9 to "High" and
- * 4.0-6.9 to "Medium", and only for rules tagged `security`.
+ * `security-severity` for `risk` rules, by severity. GitHub maps 7.0-8.9 to "High" and 4.0-6.9
+ * to "Medium", only for rules tagged `security`, and shows it instead of the result's level.
  */
 const SECURITY_SEVERITY: Readonly<Partial<Record<Severity, string>>> = {
   error: '8.0',
@@ -234,12 +241,22 @@ function physicalLocation(path: string, range?: Range): SarifPhysicalLocation {
   };
 }
 
+/** `text` within GitHub's description limit, the `…` of a cut text included. */
+function description(text: string): string {
+  return text.length <= MAX_DESCRIPTION ? text : truncate(text, MAX_DESCRIPTION - 1);
+}
+
 /** Non-empty SARIF text: GitHub rejects empty required strings. */
 function nonEmpty(text: string, fallback: string): string {
   return text.trim() === '' ? fallback : text;
 }
 
-function describeRule(meta: RuleMeta): SarifRule {
+/**
+ * The descriptor of a rule that ran. `severity` is the one the configuration's top-level `rules`
+ * sets, else the rule's default: a descriptor has one level and one `security-severity` for all
+ * its results, so a per-file override changes only the level of the results it covers.
+ */
+function describeRule(meta: RuleMeta, severity: Severity): SarifRule {
   const docs = ruleDocsUrl(meta.id);
   const title = nonEmpty(forSarifText(meta.title), meta.id);
   const rationale = nonEmpty(
@@ -254,12 +271,12 @@ function describeRule(meta: RuleMeta): SarifRule {
     ...(meta.category === 'risk' ? ['security'] : []),
     ...meta.platforms,
   ];
-  const securitySeverity = meta.category === 'risk' ? SECURITY_SEVERITY[meta.severity] : undefined;
+  const securitySeverity = meta.category === 'risk' ? SECURITY_SEVERITY[severity] : undefined;
   return {
     id: meta.id,
     name: ruleName(meta.id),
-    shortDescription: { text: truncate(title, MAX_DESCRIPTION) },
-    fullDescription: { text: truncate(rationale, MAX_DESCRIPTION) },
+    shortDescription: { text: description(title) },
+    fullDescription: { text: description(rationale) },
     helpUri: docs,
     help: {
       text: `${rationale}\n\nDocumentation: ${docs}`,
@@ -267,7 +284,7 @@ function describeRule(meta: RuleMeta): SarifRule {
         `**${title}**\n\n${forSarifText(meta.rationale, { multiline: true })}\n\n` +
         `**Sources**\n\n${sources}\n\n[Rule documentation](${docs})`,
     },
-    defaultConfiguration: { level: LEVELS[meta.severity] },
+    defaultConfiguration: { level: LEVELS[severity] },
     properties: {
       tags: [...new Set(tags)].slice(0, MAX_TAGS),
       ...(securitySeverity === undefined ? {} : { 'security-severity': securitySeverity }),
@@ -300,7 +317,11 @@ function buildRules(result: ScanResult): { rules: SarifRule[]; index: Map<string
     index.set(id, rules.length);
     rules.push(describe());
   };
-  for (const meta of result.rules) add(meta.id, () => describeRule(meta));
+  const configured = result.configuredSeverities ?? {};
+  for (const meta of result.rules) {
+    const severity = Object.hasOwn(configured, meta.id) ? configured[meta.id] : undefined;
+    add(meta.id, () => describeRule(meta, severity ?? meta.severity));
+  }
   for (const finding of result.findings) add(finding.ruleId, () => placeholderRule(finding.ruleId));
   return { rules, index };
 }
@@ -447,8 +468,17 @@ function executionNotifications(
   return notifications;
 }
 
+export interface SarifOptions {
+  /**
+   * The run's category within agentcheckup, for a repository scanned more than once, such as
+   * each package of a monorepo: `automationDetails.id` becomes `agentcheckup/<category>/`.
+   * Default: none, `agentcheckup/`.
+   */
+  readonly category?: string | undefined;
+}
+
 /** The SARIF log object (for callers that post-process it). */
-export function toSarif(result: ScanResult): SarifLog {
+export function toSarif(result: ScanResult, options: SarifOptions = {}): SarifLog {
   const { rules, index } = buildRules(result);
   const policy = policySarif(result, rules.length);
   const findings = capFindings(result.findings, Math.max(0, MAX_RESULTS - policy.results.length));
@@ -480,7 +510,12 @@ export function toSarif(result: ScanResult): SarifLog {
             rules,
           },
         },
-        automationDetails: { id: AUTOMATION_ID },
+        automationDetails: {
+          id:
+            options.category === undefined
+              ? AUTOMATION_ID
+              : `${AUTOMATION_ID}${forSarifText(options.category)}/`,
+        },
         // SARIF §3.14.14: the absolute URI may be omitted, here to keep local paths private.
         originalUriBaseIds: {
           [SRCROOT]: { description: { text: 'The directory that result paths are relative to.' } },
@@ -507,6 +542,6 @@ export function toSarif(result: ScanResult): SarifLog {
 }
 
 /** SARIF 2.1.0 JSON, 2-space indent, trailing newline. Deterministic: no timestamps. */
-export function formatSarif(result: ScanResult): string {
-  return `${forJsonOutput(JSON.stringify(toSarif(result), null, 2))}\n`;
+export function formatSarif(result: ScanResult, options: SarifOptions = {}): string {
+  return `${forJsonOutput(JSON.stringify(toSarif(result, options), null, 2))}\n`;
 }

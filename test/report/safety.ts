@@ -102,6 +102,41 @@ export function commandLines(text: string): string[] {
 }
 
 /**
+ * ESLint's stylish problem matcher, which actions/setup-node registers in every job that runs it:
+ * a file line, then a loop of finding lines.
+ * https://github.com/actions/setup-node/blob/main/.github/eslint-stylish.json
+ */
+const ESLINT_STYLISH_FILE = /^\s*(\S.*)$/;
+/**
+ * setup-node's `^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.*)\s\s+(.*)$` without its
+ * backtracking: a line matches it exactly when it matches this and the rest after the white-space
+ * character that follows the severity holds two white-space characters in a row.
+ */
+const ESLINT_STYLISH_ROW = /^\s+(\d+):(\d+)\s+(error|warning|info)\s(.*)$/;
+const TWO_WHITE_SPACE = /\s\s/;
+
+/**
+ * The annotations the eslint-stylish matcher makes from `output`, as the runner applies a
+ * multi-line matcher with a loop (IssueMatcher): `file:line:col severity`.
+ */
+export function eslintStylishAnnotations(output: string): string[] {
+  const found: string[] = [];
+  let file: string | undefined;
+  // The runner removes color codes before it applies a matcher (OutputManager).
+  for (const line of stripKnownSgr(output).split('\n')) {
+    if (file !== undefined) {
+      const row = ESLINT_STYLISH_ROW.exec(line);
+      if (row !== null && TWO_WHITE_SPACE.test(row[4] ?? '')) {
+        found.push(`${file}:${row[1] ?? ''}:${row[2] ?? ''} ${row[3] ?? ''}`);
+        continue;
+      }
+    }
+    file = ESLINT_STYLISH_FILE.exec(line)?.[1];
+  }
+  return found;
+}
+
+/**
  * Parses one workflow command line the way the Actions runner does (ActionCommand.TryParseV2):
  * `::name props::data`, properties split on `,` then the first `=`, values unescaped.
  * https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionCommandManager.cs
@@ -211,4 +246,15 @@ export function singleLineMatcherAnnotations(output: string): string[] {
     if (compact) found.push(`eslint-compact: ${line}`);
   }
   return found;
+}
+
+/**
+ * The annotations every problem matcher of actions/setup-node makes from `output`: eslint-stylish
+ * ({@link eslintStylishAnnotations}), tsc and eslint-compact ({@link singleLineMatcherAnnotations}).
+ */
+export function problemMatcherAnnotations(output: string): string[] {
+  return [
+    ...eslintStylishAnnotations(output).map((annotation) => `eslint-stylish: ${annotation}`),
+    ...singleLineMatcherAnnotations(output),
+  ];
 }

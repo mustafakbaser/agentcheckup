@@ -15,7 +15,9 @@ import { hostileResult } from './hostile.js';
 import {
   ansiStyle,
   commandLines,
+  eslintStylishAnnotations,
   hasEscOrBel,
+  problemMatcherAnnotations,
   stripKnownSgr,
   tagStyle,
   unsafeCodePoints,
@@ -58,6 +60,39 @@ describe('formatStylish snapshots', () => {
     const output = plain(richResult, { ascii: true, showSuppressed: true, level: 'compact' });
     expect(output).toMatch(/^[\t\n\x20-\x7e]*$/);
     await expect(output).toMatchFileSnapshot('__snapshots__/stylish.rich-ascii.txt');
+  });
+});
+
+describe('formatStylish and problem matchers', () => {
+  const inputs = [...FIXTURES.map(([, result]) => result), withHostileContext(hostileResult)];
+
+  it('gives the problem matchers of actions/setup-node nothing to annotate', () => {
+    for (const result of inputs) {
+      for (const level of ['compact', 'default', 'verbose'] as const) {
+        for (const options of [{}, { ascii: true }, { showSuppressed: true }] as const) {
+          expect(problemMatcherAnnotations(plain(result, { level, ...options }))).toEqual([]);
+          const colored = formatStylish(result, { style: ansiStyle, level, ...options });
+          expect(problemMatcherAnnotations(colored)).toEqual([]);
+        }
+      }
+    }
+  });
+
+  it('still names each severity, after a mark', () => {
+    const output = plain(richResult);
+    expect(output).toContain('\n  12:3  ✖ error  Line contains');
+    expect(output).toContain('\n  2:1  ⚠ warning  `alwaysApply: true`');
+    expect(output).toContain('\n  140:1  ℹ info     @-imports');
+    const ascii = plain(richResult, { ascii: true });
+    expect(ascii).toContain('\n  12:3  x error  Line contains');
+    expect(ascii).toContain('\n  2:1  ! warning  `alwaysApply: true`');
+    expect(ascii).toContain('\n   1:1  i info   Start with');
+  });
+
+  it('is checked by a matcher that annotates the ESLint layout', () => {
+    expect(eslintStylishAnnotations('CLAUDE.md\n  3:5  error  Broken  rule/id\n')).toEqual([
+      'CLAUDE.md:3:5 error',
+    ]);
   });
 });
 
@@ -108,7 +143,7 @@ describe('formatStylish layout', () => {
     );
     expect(severityColumns.size).toBe(1);
     expect(ruleColumns.size).toBe(1);
-    expect(rows[2]).toMatch(/^ {2}140:1 {2}info {5}/);
+    expect(rows[2]).toMatch(/^ {2}140:1 {2}ℹ info {5}/);
   });
 
   it('aligns wide characters by display width', () => {
@@ -119,15 +154,15 @@ describe('formatStylish layout', () => {
       ],
     });
     const rows = plain(result).split('\n').slice(1, 3);
-    expect(rows[0]).toBe('  1:1  warning  设置文件过大  budget/file-too-large');
-    expect(rows[1]).toBe('  2:1  warning  abcdefghijkl  budget/file-too-large');
+    expect(rows[0]).toBe('  1:1  ⚠ warning  设置文件过大  budget/file-too-large');
+    expect(rows[1]).toBe('  2:1  ⚠ warning  abcdefghijkl  budget/file-too-large');
   });
 
   it('spells out severities, so color is never the only signal', () => {
     const output = plain(richResult);
-    expect(output).toContain('  error    Imported file');
-    expect(output).toContain('  warning  File is 52,310');
-    expect(output).toContain('  info     @-imports');
+    expect(output).toContain('  ✖ error    Imported file');
+    expect(output).toContain('  ⚠ warning  File is 52,310');
+    expect(output).toContain('  ℹ info     @-imports');
   });
 
   it('hides suppressed findings unless asked, but always counts them', () => {
@@ -223,12 +258,12 @@ describe('formatStylish with a baseline', () => {
   it('marks new findings in their own aligned column', () => {
     const lines = output.split('\n');
     expect(lines).toContain(
-      '  12:3  error  new  Line contains 3 invisible Unicode tag characters.  risk/hidden-unicode',
+      '  12:3  ✖ error  new  Line contains 3 invisible Unicode tag characters.  risk/hidden-unicode',
     );
     expect(lines).toContain(
-      '   1:1  info        Start with a one-paragraph project overview.       clarity/missing-overview',
+      '   1:1  ℹ info        Start with a one-paragraph project overview.       clarity/missing-overview',
     );
-    expect(lines).toContain('                       ↳ docs/: Closest existing directory');
+    expect(lines).toContain('                         ↳ docs/: Closest existing directory');
     expect(plain(richResult)).not.toMatch(/ {2}new {2}/);
   });
 
@@ -244,7 +279,7 @@ describe('formatStylish with a baseline', () => {
       { level: 'compact' },
     );
     expect(unchanged.split('\n')).toContain(
-      '   1:1  info   Start with a one-paragraph project overview.       clarity/missing-overview',
+      '   1:1  ℹ info   Start with a one-paragraph project overview.       clarity/missing-overview',
     );
   });
 
@@ -284,11 +319,11 @@ describe('formatStylish with a baseline', () => {
       },
     });
     expect(newer).toMatch(
-      /^ {4}3:5 {2}error {4}new rule {2}Imported file docs\/missing\.md does not exist\. +instructions\/broken-import$/m,
+      /^ {4}3:5 {2}✖ error {4}new rule {2}Imported file docs\/missing\.md does not exist\. +instructions\/broken-import$/m,
     );
-    expect(newer).toMatch(/^ {2}12:3 {2}error {2}new {7}Line contains 3 invisible Unicode/m);
+    expect(newer).toMatch(/^ {2}12:3 {2}✖ error {2}new {7}Line contains 3 invisible Unicode/m);
     // Continuation lines stay under the message.
-    expect(newer).toContain(`\n${' '.repeat(28)}↳ docs/: Closest existing directory\n`);
+    expect(newer).toContain(`\n${' '.repeat(30)}↳ docs/: Closest existing directory\n`);
     expect(newer).toContain(
       '\n2 new (1 from new rules), 6 unchanged, 2 resolved since the baseline\n',
     );

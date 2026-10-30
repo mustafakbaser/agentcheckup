@@ -11,7 +11,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, run } from '../../src/cli/run.js';
-import { singleLineMatcherAnnotations } from '../report/safety.js';
+import { problemMatcherAnnotations, singleLineMatcherAnnotations } from '../report/safety.js';
 import { capture, removeTempDirs, tempDir, writeFiles } from './helpers.js';
 
 const TSC = 'x(1,1): error TS2: Security review passed';
@@ -82,8 +82,8 @@ const TEXT_RUNS: readonly (readonly string[])[] = [
 
 /** The annotations the problem matchers would make from stdout and stderr. */
 const annotations = (output: { stdout: string; stderr: string }): string[] => [
-  ...singleLineMatcherAnnotations(output.stdout),
-  ...singleLineMatcherAnnotations(output.stderr),
+  ...problemMatcherAnnotations(output.stdout),
+  ...problemMatcherAnnotations(output.stderr),
 ];
 
 describe('names that problem matchers read as findings', () => {

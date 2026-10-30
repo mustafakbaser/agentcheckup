@@ -232,14 +232,19 @@ const TSC_PROBLEM = /(?:error|warning|info)\s+TS\d+\s*:/g;
  */
 const ESLINT_COMPACT_PROBLEM =
   /:(?=\sline\s\d+,\scol\s\d+,\s(?:[Ee]rror|[Ww]arning|[Ii]nfo)\s-\s)/g;
+/**
+ * The colon eslint-stylish's problem matcher needs in the position of a finding line, which it
+ * reads after any other line: `^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.*)\s\s+(.*)$`.
+ */
+const ESLINT_STYLISH_PROBLEM = /^\s+\d+:(?=\d+\s+(?:error|warning|info)\s)/;
 
 /**
- * actions/setup-node registers problem matchers for tsc and eslint-compact in every job that
- * runs it, and the runner turns each line of a step's output that one matches into an
- * annotation. A scanned path or name in a line could therefore fake an error such as
+ * actions/setup-node registers problem matchers for tsc, eslint-stylish and eslint-compact in
+ * every job that runs it, and the runner turns each line of a step's output that one matches
+ * into an annotation. A scanned path or name in a line could therefore fake an error such as
  * `x(1,1): error TS2: Security review passed`. This renders the colon each matcher needs as
- * `<U+003A>`: the one after `TS<code>` and the one before `line <n>, col <n>,`. agentcheckup
- * writes neither shape itself.
+ * `<U+003A>`: the one after `TS<code>`, the one before `line <n>, col <n>,`, and the one inside
+ * the position at the start of an indented line. agentcheckup writes none of these shapes itself.
  * The shapes are matched as if without colors, which the runner means to remove first.
  * https://github.com/actions/setup-node/tree/main/.github
  * https://github.com/actions/runner/blob/main/src/Runner.Worker/Handlers/OutputManager.cs
@@ -263,6 +268,8 @@ function guardProblemLine(line: string): string {
   const colons: number[] = [];
   for (const match of plain.matchAll(TSC_PROBLEM)) colons.push(match.index + match[0].length - 1);
   for (const match of plain.matchAll(ESLINT_COMPACT_PROBLEM)) colons.push(match.index);
+  const row = ESLINT_STYLISH_PROBLEM.exec(plain);
+  if (row !== null) colons.push(row[0].length - 1);
   if (colons.length === 0) return line;
   colons.sort((a, b) => a - b);
   let out = '';

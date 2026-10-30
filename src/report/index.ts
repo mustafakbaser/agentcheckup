@@ -42,6 +42,7 @@ export {
   formatSarif,
   MAX_RESULTS as MAX_SARIF_RESULTS,
   type SarifLog,
+  type SarifOptions,
   toSarif,
   toSarifFix,
 } from './sarif.js';
@@ -89,6 +90,8 @@ export interface FormatOptions {
   readonly hyperlinks?: boolean | undefined;
   /** markdown: rows in the findings table. Default 50. */
   readonly maxFindings?: number | undefined;
+  /** sarif: the run's category, for more than one scan of a repository (see SarifOptions). */
+  readonly sarifCategory?: string | undefined;
 }
 
 /** Formats `result` as `name`. */
@@ -106,7 +109,7 @@ export function format(result: ScanResult, name: FormatName, options: FormatOpti
     case 'json':
       return formatJson(result);
     case 'sarif':
-      return formatSarif(result);
+      return formatSarif(result, { category: options.sarifCategory });
     case 'github':
       return formatGithub(result, { level: options.level });
     case 'markdown':

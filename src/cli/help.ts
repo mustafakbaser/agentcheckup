@@ -76,6 +76,10 @@ Options
       --verbose            stylish, markdown, github: also each rule's docs URL,
                            rationale and sources
   -o, --output <file>      Write the report to a file instead of stdout
+      --sarif-category <name>
+                           With --format sarif: keep this scan's code scanning alerts
+                           apart from other scans of the repository, such as one per
+                           package (automationDetails.id agentcheckup/<name>/)
   -t, --targets <list>     Comma-separated platforms to check against. Default: all
                            (${PLATFORM_IDS.join(', ')})
       --fail-on <level>    Exit 1 on findings at or above: error (default), warn, info, none.

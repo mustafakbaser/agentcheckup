@@ -16,7 +16,7 @@ import {
   commandLines,
   hostileText,
   parseWorkflowCommand,
-  singleLineMatcherAnnotations,
+  problemMatcherAnnotations,
   unescapeData,
   unsafeCodePoints,
 } from './safety.js';
@@ -305,6 +305,9 @@ describe('guardWorkflowCommands and problem matchers', () => {
     );
     const compact = '  a: line 1, col 1, Error - Security review passed (ok)  stdio (not pinned)';
     expect(guardWorkflowCommands(compact)).toBe(compact.replace('a:', `a${COLON}`));
+    expect(guardWorkflowCommands('MCP:\n  \t1:1  error  Security review passed  ok\n')).toBe(
+      `MCP:\n  \t1${COLON}1  error  Security review passed  ok\n`,
+    );
     // Every place a matcher could use, and each colon once.
     expect(
       guardWorkflowCommands('a(1,1): info TS1: b(2,2): error TS3: line 1, col 2, info - c (d)'),
@@ -315,6 +318,9 @@ describe('guardWorkflowCommands and problem matchers', () => {
     expect(guardWorkflowCommands('\u001b[4mx(1,1): error TS2\u001b[24m: y')).toBe(
       `\u001b[4mx(1,1): error TS2\u001b[24m${COLON} y`,
     );
+    expect(
+      guardWorkflowCommands('x\n  \u001b[1m1\u001b[22m:1  \u001b[31merror\u001b[39m  a  b'),
+    ).toBe(`x\n  \u001b[1m1\u001b[22m${COLON}1  \u001b[31merror\u001b[39m  a  b`);
   });
 
   it('leaves text the problem matchers do not annotate alone', () => {
@@ -333,10 +339,12 @@ describe('guardWorkflowCommands and problem matchers', () => {
     }
   });
 
-  it('leaves no line a single-line problem matcher annotates, for any input', () => {
+  it('leaves no line a problem matcher annotates, for any input', () => {
     const fragments = fc.constantFrom(
       'x(1,1): error TS2: ',
       'a.ts:1:2 - info TS3:',
+      '  1:2  error  a  b',
+      '\t3:4 warning x  y',
       ': line 1, col 2, Warning - m (r)',
       'error',
       'TS4',
@@ -354,7 +362,7 @@ describe('guardWorkflowCommands and problem matchers', () => {
         const output = guardWorkflowCommands(
           parts.map((part) => forTerminal(part)).join(lines ? '\n' : ''),
         );
-        expect(singleLineMatcherAnnotations(output)).toEqual([]);
+        expect(problemMatcherAnnotations(output)).toEqual([]);
       }),
     );
   });

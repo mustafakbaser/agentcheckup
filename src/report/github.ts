@@ -14,13 +14,20 @@
  * rule's documentation URL. Each added line is single-line: a line break in a fix title or
  * guidance is shown as `⏎`, so it cannot fake another line of the body.
  *
- * GitHub shows at most 10 annotations of each type per step (50 per job) in the UI; the rest
- * remain in the log. GitHub resolves `file` against the repository root, so the CLI rebases
- * paths onto $GITHUB_WORKSPACE for this format when the scanned directory is inside it.
+ * GitHub shows the first 10 error, 10 warning and 10 notice annotations of a step (and 50 per
+ * job); the rest remain in the log only. The output is therefore ordered by what a reader must
+ * see: rule failures, changes that trip `--gate` and policy violations that fail the run, then
+ * findings by severity, `risk` findings first. When GitHub will not show every annotation, a
+ * notice ahead of the other notices says how many are only in the log. GitHub resolves `file`
+ * against the repository root, so the CLI rebases paths onto $GITHUB_WORKSPACE for this format
+ * when the scanned directory is inside it.
+ * https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations
  */
 import type { BaselineDiff } from '../core/baseline-types.js';
 import type { ScanResult } from '../core/engine.js';
+import { formatInteger } from '../core/format.js';
 import type { Finding, Severity } from '../core/types.js';
+import { joinNames } from '../rules/shared/format.js';
 import {
   type DetailLevel,
   docsUrl,
@@ -34,7 +41,7 @@ import {
 import { gateLocations, gateRows } from './gate.js';
 import { policyAnnotations } from './policy-github.js';
 import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
-import { truncate } from './text.js';
+import { SEVERITY_RANK, truncate } from './text.js';
 
 export interface GithubOptions {
   /** How much to show. Default `default`; `verbose` shows what `default` does. */
@@ -43,6 +50,11 @@ export interface GithubOptions {
 
 /** Fix titles and guidance longer than this (code points) are cut. */
 const MAX_DETAIL_LENGTH = 500;
+/**
+ * Annotations of each type GitHub shows for a step (the runner's `_maxCountPerIssueType`).
+ * https://github.com/actions/runner/blob/main/src/Runner.Worker/ExecutionContext.cs
+ */
+export const MAX_ANNOTATIONS_PER_TYPE = 10;
 const LINE_BREAK = /\r\n?|\n/g;
 
 /** Untrusted text for one line of an annotation body: line breaks shown as `⏎`, cut. */
@@ -133,6 +145,61 @@ function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
   });
 }
 
+/** More severe first, `risk` first within a severity, otherwise in report order. */
+function ranked(findings: readonly Finding[]): Finding[] {
+  const risk = (finding: Finding): number => (finding.category === 'risk' ? 0 : 1);
+  return findings
+    .map((finding, position) => ({ finding, position }))
+    .sort(
+      (a, b) =>
+        SEVERITY_RANK[b.finding.severity] - SEVERITY_RANK[a.finding.severity] ||
+        risk(a.finding) - risk(b.finding) ||
+        a.position - b.position,
+    )
+    .map(({ finding }) => finding);
+}
+
+/** `1 error`, `29,990 errors`. */
+function counted(count: number, noun: string): string {
+  return `${formatInteger(count)} ${count === 1 ? noun : `${noun}s`}`;
+}
+
+/** How many lines of `lines` are annotations of `type`. */
+function countOf(lines: readonly string[], type: AnnotationCommand): number {
+  return lines.filter((line) => line.startsWith(`::${type} `)).length;
+}
+
+/**
+ * `lines` with a notice when GitHub will not show all of them, saying how many are only in the
+ * log. It goes ahead of the other notices so that it is shown itself; it then counts against
+ * the notices' cap too.
+ */
+function withOverflowNotice(lines: readonly string[]): readonly string[] {
+  const hidden = (count: number): number => Math.max(0, count - MAX_ANNOTATIONS_PER_TYPE);
+  const errors = hidden(countOf(lines, 'error'));
+  const warnings = hidden(countOf(lines, 'warning'));
+  if (errors + warnings + hidden(countOf(lines, 'notice')) === 0) return lines;
+  const notices = hidden(countOf(lines, 'notice') + 1);
+  const parts = [
+    errors > 0 ? counted(errors, 'error') : '',
+    warnings > 0 ? counted(warnings, 'warning') : '',
+    notices > 0 ? counted(notices, 'notice') : '',
+  ].filter((part) => part !== '');
+  const verb = errors + warnings + notices === 1 ? 'is' : 'are';
+  const notice = command(
+    'notice',
+    [['title', forWorkflowProperty('agentcheckup annotations')]],
+    forWorkflowCommand(
+      `GitHub shows ${MAX_ANNOTATIONS_PER_TYPE} annotations of each type per step, so ` +
+        `${joinNames(parts)} from agentcheckup ${verb} only in the log. The ones that fail ` +
+        'the run come first, then the findings by severity.',
+    ),
+  );
+  const first = lines.findIndex((line) => line.startsWith('::notice '));
+  const at = first === -1 ? lines.length : first;
+  return [...lines.slice(0, at), notice, ...lines.slice(at)];
+}
+
 /**
  * Workflow commands, one per line, ending with a newline; empty when there is nothing to
  * annotate. A rule that crashed is reported as an error annotation too: the results are
@@ -141,40 +208,41 @@ function gateAnnotations(result: ScanResult, diff: BaselineDiff): string[] {
  * With `--baseline`, only new findings are annotated (unchanged ones were there before the
  * change under review), each change that trips `--gate` gets an error annotation, and a baseline
  * from another ruleset gets a warning. With `--policy`, violations get annotations of their own
- * (policy-github.ts).
+ * (policy-github.ts). The order: rule failures, gate hits and failing policy violations (the
+ * errors that decide the run), the baseline's ruleset warning, the findings ranked by severity,
+ * then the other policy annotations.
  */
 export function formatGithub(result: ScanResult, options: GithubOptions = {}): string {
   const level = options.level ?? 'default';
   const plans = planIndex(result);
-  const lines = result.findings
-    .filter((finding) => !finding.suppressed && finding.baseline !== 'unchanged')
-    .map((finding) => annotation(finding, level, plans));
   const diff = result.baseline;
-  if (diff !== undefined) {
-    lines.push(...gateAnnotations(result, diff));
-    if (!diff.against.sameRuleset) {
-      lines.push(
-        command(
-          'warning',
-          [['title', forWorkflowProperty('agentcheckup baseline')]],
-          forWorkflowCommand(
-            `The baseline was written with ruleset ${diff.against.ruleset}, so findings from rules it did not run count as new.`,
-          ),
-        ),
-      );
-    }
-  }
-  lines.push(...policyAnnotations(result));
-  for (const failure of result.ruleFailures) {
+  const policy = policyAnnotations(result);
+  const lines = result.ruleFailures.map((failure) =>
+    command(
+      'error',
+      [['title', forWorkflowProperty('agentcheckup internal error')]],
+      forWorkflowCommand(
+        `Rule ${failure.ruleId} failed to run, so results are incomplete: ${failure.message}`,
+      ),
+    ),
+  );
+  if (diff !== undefined) lines.push(...gateAnnotations(result, diff));
+  lines.push(...policy.failing);
+  if (diff !== undefined && !diff.against.sameRuleset) {
     lines.push(
       command(
-        'error',
-        [['title', forWorkflowProperty('agentcheckup internal error')]],
+        'warning',
+        [['title', forWorkflowProperty('agentcheckup baseline')]],
         forWorkflowCommand(
-          `Rule ${failure.ruleId} failed to run, so results are incomplete: ${failure.message}`,
+          `The baseline was written with ruleset ${diff.against.ruleset}, so findings from rules it did not run count as new.`,
         ),
       ),
     );
   }
-  return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
+  const findings = result.findings.filter(
+    (finding) => !finding.suppressed && finding.baseline !== 'unchanged',
+  );
+  lines.push(...ranked(findings).map((finding) => annotation(finding, level, plans)));
+  lines.push(...policy.other);
+  return lines.length === 0 ? '' : `${withOverflowNotice(lines).join('\n')}\n`;
 }

@@ -184,18 +184,18 @@ What each agent misses
   Cursor       .cursor/rules/style.md is skipped: only .mdc files are read here (≈9 tokens)     fix: review
 
 .claude/skills/pdf/SKILL.md
-  3:14  info  The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.  skill/description-quality
-              fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in .claude/skills/pdf/SKILL.md
+  3:14  ℹ info  The description does not say when to use the skill. Add a "Use when ..." clause with the situations and keywords that should trigger it.  skill/description-quality
+                fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in .claude/skills/pdf/SKILL.md
 …
 AGENTS.md
-  1:1  warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md. Add the line "@AGENTS.md" to that file so Claude Code reads both.  instr/agents-md-ignored-by-claude
-                ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
-                why  Claude Code never loads these ≈28 tokens; Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Devin Local and Cline do.
-                fix  safe: Add "@AGENTS.md" as line 1 of CLAUDE.md
+  1:1  ⚠ warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md. Add the line "@AGENTS.md" to that file so Claude Code reads both.  instr/agents-md-ignored-by-claude
+                  ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
+                  why  Claude Code never loads these ≈28 tokens; Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent, Devin Local and Cline do.
+                  fix  safe: Add "@AGENTS.md" as line 1 of CLAUDE.md
 
 CLAUDE.md
-  3:6  error  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  instr/import-unresolved
-              how  create "docs/setup.md" or correct the path; no file named "setup.md" exists
+  3:6  ✖ error  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  instr/import-unresolved
+                how  create "docs/setup.md" or correct the path; no file named "setup.md" exists
 
 ✖ 6 problems (3 errors, 2 warnings, 1 info)
   loading 2 errors, 2 warnings · correctness 1 error · clarity 1 info
@@ -475,6 +475,7 @@ npx agentcheckup                                    # check the current director
 npx agentcheckup --compact                          # only the findings
 npx agentcheckup --targets claude-code,codex        # only the agents you use
 npx agentcheckup --format sarif --output agentcheckup.sarif
+npx agentcheckup packages/api --format sarif --sarif-category api --output api.sarif
 npx agentcheckup fix                                # preview every fix; changes nothing
 npx agentcheckup fix --write                        # apply the safe fixes
 npx agentcheckup fix --write --review               # also apply the fixes that need review
@@ -490,7 +491,9 @@ npx agentcheckup explain instr/codex-size-budget
 Formats: `stylish` (default), `json`, `sarif`, `github` (annotations), `markdown` and `badge` for
 a check; `diff` (default), `json` and `suggestions` for `fix`; `markdown` (default) and `json` for
 `tasks`; `text` (default), `json` and `markdown` for `context` and `agents`. `--compact` and `--verbose` set
-how much `stylish` shows, and `--compact` also shortens `markdown` and `github`. `--help` and
+how much `stylish` shows, and `--compact` also shortens `markdown` and `github`.
+`--sarif-category` keeps several SARIF uploads of one repository apart
+([Annotations and code scanning](docs/configuration.md#annotations-and-code-scanning)). `--help` and
 `<command> --help` list every option. In a Git hook, `npx agentcheckup --fail-on error` works
 with any hook manager; a scan takes well under a second on most repositories.
 

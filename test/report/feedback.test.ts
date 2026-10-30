@@ -183,12 +183,12 @@ describe('feedback helpers', () => {
       expect(compact).not.toContain('fixable (review)');
       expect(fixLines(compact)).toMatchInlineSnapshot(`
         [
-          "  3:14  info  The description does not say when.  skill/description-quality  needs your words (fix -i)",
+          "  3:14  ℹ info  The description does not say when.  skill/description-quality  needs your words (fix -i)",
         ]
       `);
       expect(fixLines(plain(result))).toMatchInlineSnapshot(`
         [
-          "              fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in skills/pdf/SKILL.md",
+          "                fix  needs your words (fix -i): Add a "Use when ..." sentence to "description" in skills/pdf/SKILL.md",
           "Fixes: 1 safe (agentcheckup fix --write) · 1 needs your words (agentcheckup fix -i)",
         ]
       `);
@@ -362,11 +362,11 @@ describe('formatStylish feedback', () => {
       '               docs/setup.md is skipped: CLAUDE.md imports it, but the import does not resolve  manual\n',
     );
     expect(output).toContain(
-      '                why  Claude Code never loads these ≈197 tokens; Codex and Cursor do.\n' +
-        '                fix  safe: add "@AGENTS.md" as line 1 of CLAUDE.md\n',
+      '                  why  Claude Code never loads these ≈197 tokens; Codex and Cursor do.\n' +
+        '                  fix  safe: add "@AGENTS.md" as line 1 of CLAUDE.md\n',
     );
     expect(output).toContain(
-      '              how  create docs/setup.md or correct the path; no file named setup.md exists\n',
+      '                how  create docs/setup.md or correct the path; no file named setup.md exists\n',
     );
     expect(
       output.endsWith(
@@ -390,9 +390,9 @@ describe('formatStylish feedback', () => {
   it('shows rationale, docs and sources only at the verbose level', () => {
     const verbose = plain(demoResult, { level: 'verbose' });
     expect(verbose).toContain(
-      '                docs    https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md\n' +
-        '                about   Claude Code reads CLAUDE.md, not AGENTS.md. Import it with @AGENTS.md.\n' +
-        '                source  Claude Code memory documentation: https://docs.anthropic.com/en/docs/claude-code/memory\n',
+      '                  docs    https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md\n' +
+        '                  about   Claude Code reads CLAUDE.md, not AGENTS.md. Import it with @AGENTS.md.\n' +
+        '                  source  Claude Code memory documentation: https://docs.anthropic.com/en/docs/claude-code/memory\n',
     );
     expect(verbose).not.toContain('Second paragraph');
     expect(plain(demoResult)).not.toContain('docs/rules/');
@@ -678,26 +678,27 @@ describe('formatGithub feedback', () => {
 
   it('titles a finding with its fix class and adds Why, Fix or How, and Docs lines', () => {
     const parsed = lines(formatGithub(demoResult)).map(parseWorkflowCommand);
+    // Errors first: GitHub shows only the first ten of each type.
     expect(parsed.map((command) => command.properties['title'])).toEqual([
       'skill/description-missing (fix: review)',
       'cursor/md-file-ignored (fix: review)',
       'mcp/url-without-type (fix: review)',
-      'instr/agents-md-ignored-by-claude (fix: safe)',
       'instr/import-unresolved',
+      'instr/agents-md-ignored-by-claude (fix: safe)',
     ]);
-    expect(parsed[3]!.data).toBe(
+    expect(parsed[4]!.data).toBe(
       'Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md.\n' +
         'Why: Claude Code never loads these ≈197 tokens; Codex and Cursor do.\n' +
         'Fix (safe): add "@AGENTS.md" as line 1 of CLAUDE.md\n' +
         'Docs: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/agents-md-ignored-by-claude.md',
     );
-    expect(parsed[4]!.data.split('\n').slice(1)).toEqual([
+    expect(parsed[3]!.data.split('\n').slice(1)).toEqual([
       'How: create docs/setup.md or correct the path; no file named setup.md exists',
       'Docs: https://github.com/mustafakbaser/agentcheckup/blob/main/docs/rules/instr/import-unresolved.md',
     ]);
     const compact = lines(formatGithub(demoResult, { level: 'compact' })).map(parseWorkflowCommand);
-    expect(compact[3]!.data).toBe(DEMO_FINDINGS[3]!.message);
-    expect(compact[3]!.properties['title']).toBe('instr/agents-md-ignored-by-claude (fix: safe)');
+    expect(compact[4]!.data).toBe(DEMO_FINDINGS[3]!.message);
+    expect(compact[4]!.properties['title']).toBe('instr/agents-md-ignored-by-claude (fix: safe)');
   });
 
   it('cuts long fix titles and guidance', () => {

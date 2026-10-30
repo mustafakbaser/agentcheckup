@@ -206,6 +206,43 @@ from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore annotates `.mcp.json`, no
 name for it is refused too: one through a symlinked directory, `/tmp` for `/private/tmp`, or
 another letter case where the file system ignores case, as macOS and Windows do by default.
 
+## Annotations and code scanning
+
+GitHub shows the first 10 error, 10 warning and 10 notice annotations of a step and keeps the
+rest in the log. The `github` format therefore writes the annotations that decide the run first:
+rules that failed to run, changes that trip `--gate` and policy violations that fail the run.
+The findings follow, errors first and `risk` findings first within a severity, then the other
+policy violations and notes. When GitHub will not show them all, a notice says how many are only
+in the log.
+
+The `stylish` output marks each severity (`✖ error`, `⚠ warning`, `ℹ info`), so ESLint's
+problem matcher, which `actions/setup-node` registers in every job, does not read it as ESLint
+output and annotate the wrong lines. Use the `github` format for annotations. `actions/setup-node`
+registers matchers for tsc and ESLint's compact output too. Where a path or name from the
+repository would make a line of text output read as a finding to one of these matchers, such as
+a skill directory named `x(1,1): error TS2: Checks passed`, the colon the matcher needs is shown
+as `<U+003A>`.
+
+The `sarif` format sets the run's `automationDetails.id` to `agentcheckup/`. GitHub keeps one
+analysis per tool and category, and `github/codeql-action/upload-sarif` uses that id instead of
+its own `category` input. To upload more than one scan of a repository, such as one per package
+of a monorepo, give each scan its own `--sarif-category`:
+
+```sh
+npx agentcheckup packages/api --format sarif --sarif-category api --output api.sarif
+npx agentcheckup packages/web --format sarif --sarif-category web --output web.sarif
+```
+
+The run's id becomes `agentcheckup/<name>/`. A name is letters, digits, `.`, `_` and `-`, in
+parts separated by `/`, at most 100 characters. A new category is a separate analysis: GitHub
+does not move the alerts of the default category to it.
+
+A SARIF rule has one level and, for `risk` rules, one `security-severity`, which GitHub shows
+instead of each result's level. Both come from the severity the top-level `rules` of the
+configuration sets, else from the rule's default: `error` is 8.0 (High) and `warn` 5.0 (Medium).
+A severity from `overrides` applies to the files it matches, so it changes the level of those
+results only.
+
 ## Exit codes
 
 | Code | Meaning                                                                                                                                                                                                                            |

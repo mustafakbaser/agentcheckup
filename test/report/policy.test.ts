@@ -22,6 +22,7 @@ import {
   commandLines,
   hasEscOrBel,
   parseWorkflowCommand,
+  problemMatcherAnnotations,
   tagStyle,
   unsafeCodePoints,
 } from './safety.js';
@@ -323,6 +324,17 @@ describe('stylish', () => {
     expect(unsafeCodePoints(output, { newline: true })).toEqual([]);
     expect(commandLines(output)).toEqual([]);
   });
+
+  it.each(FIXTURES)(
+    '%s: gives the problem matchers of actions/setup-node nothing to annotate',
+    (_, result) => {
+      for (const ascii of [false, true]) {
+        expect(
+          problemMatcherAnnotations(formatStylish(result, { style: plainStyle, ascii })),
+        ).toEqual([]);
+      }
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -331,15 +343,21 @@ describe('stylish', () => {
 
 const COMMAND_LINE = /^::(?:error|warning|notice) [^\n\r:]*::[^\n\r]*$/;
 
+/** The policy's annotations in output order: the failing ones, then the rest. */
+function annotationsOf(result: ScanResult): string[] {
+  const { failing, other } = policyAnnotations(result);
+  return [...failing, ...other];
+}
+
 describe('GitHub annotations', () => {
   it.each(FIXTURES)('%s: the annotations match the snapshot', async (name, result) => {
-    await expect(`${policyAnnotations(result).join('\n')}\n`).toMatchFileSnapshot(
+    await expect(`${annotationsOf(result).join('\n')}\n`).toMatchFileSnapshot(
       `__snapshots__/policy-github.${name}.txt`,
     );
   });
 
   it('annotates violations that fail or that the baseline did not have, titled by check', () => {
-    const parsed = policyAnnotations(withPolicy).map(parseWorkflowCommand);
+    const parsed = annotationsOf(withPolicy).map(parseWorkflowCommand);
     expect(parsed.map(({ command, properties }) => [command, properties])).toEqual([
       ['error', { file: '.mcp.json', line: '4', title: 'policy: mcp-not-allowed' }],
       ['error', { title: 'policy: hook-missing' }],
@@ -354,9 +372,7 @@ describe('GitHub annotations', () => {
   });
 
   it('annotates every violation as a warning in audit mode', () => {
-    const commands = policyAnnotations(auditPolicy).map(
-      (line) => parseWorkflowCommand(line).command,
-    );
+    const commands = annotationsOf(auditPolicy).map((line) => parseWorkflowCommand(line).command);
     expect(commands).toEqual([...VIOLATIONS.map(() => 'warning'), 'notice', 'notice']);
   });
 
@@ -368,7 +384,7 @@ describe('GitHub annotations', () => {
   });
 
   it('keeps hostile text inside its own annotation', () => {
-    const parsed = policyAnnotations(hostilePolicy).map(parseWorkflowCommand);
+    const parsed = annotationsOf(hostilePolicy).map(parseWorkflowCommand);
     expect(parsed).toHaveLength(4);
     expect(parsed[0]!.properties['file']).toBe('evilline one⏎::error::fake annotation/.mcp.json');
     expect(parsed[2]!.properties['title']).toBe('policy: `evil` | [x](javascript:alert(1))');

@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { Ajv } from 'ajv';
 import { describe, expect, it } from 'vitest';
-import type { ScanResult } from '../../src/core/engine.js';
+import { resolveConfig } from '../../src/core/config.js';
+import { scanSnapshot, type ScanResult } from '../../src/core/engine.js';
 import { ruleDocsUrl } from '../../src/core/meta.js';
+import { DIRECTIVE_RULES } from '../../src/core/directive-rules.js';
 import type { Finding } from '../../src/core/types.js';
+import { POLICY_CHECKS, type PolicyViolation } from '../../src/policy/types.js';
 import {
   FINGERPRINT_KEY,
   formatSarif,
@@ -13,6 +16,7 @@ import {
   type SarifLog,
   toSarif,
 } from '../../src/report/sarif.js';
+import { builtinRules } from '../../src/rules/index.js';
 import {
   at,
   cleanResult,
@@ -23,6 +27,7 @@ import {
   RULES,
 } from './fixtures.js';
 import { NEW_FINGERPRINTS, withContext, withHostileContext } from '../helpers/context.js';
+import { snapshotFrom } from '../helpers/lint.js';
 import { hostileResult } from './hostile.js';
 import { commandLines, unsafeCodePoints } from './safety.js';
 
@@ -41,6 +46,24 @@ const FIXTURES: readonly [string, ScanResult][] = [
   ['baseline', withContext(richResult)],
   ['hostile-baseline', withHostileContext(hostileResult)],
 ];
+
+describe('automationDetails', () => {
+  it('is agentcheckup/ by default, so existing alerts keep their category', () => {
+    expect(toSarif(richResult).runs[0].automationDetails).toEqual({ id: 'agentcheckup/' });
+    expect(toSarif(richResult, {}).runs[0].automationDetails).toEqual({ id: 'agentcheckup/' });
+  });
+
+  it('carries the category: agentcheckup/<category>/ with an empty run id', () => {
+    expect(toSarif(richResult, { category: 'api' }).runs[0].automationDetails).toEqual({
+      id: 'agentcheckup/api/',
+    });
+    const output = formatSarif(richResult, { category: 'packages/web' });
+    expect((JSON.parse(output) as SarifLog).runs[0].automationDetails.id).toBe(
+      'agentcheckup/packages/web/',
+    );
+    expect(validate(JSON.parse(output))).toBe(true);
+  });
+});
 
 describe('formatSarif with a baseline', () => {
   it('sets baselineState from each finding', () => {
@@ -188,6 +211,45 @@ describe('rules', () => {
     expect(infoRisk.properties).not.toHaveProperty('security-severity');
   });
 
+  it('takes the level and security-severity from the severity the configuration sets', () => {
+    const rules = [RULES.remoteScript, RULES.fileTooLarge];
+    const configured = run({
+      ...makeResult({ rules }),
+      configuredSeverities: { 'risk/remote-script': 'error', 'budget/file-too-large': 'info' },
+    }).tool.driver.rules;
+    expect(configured[0]!.properties['security-severity']).toBe('8.0');
+    expect(configured[0]!.defaultConfiguration.level).toBe('error');
+    expect(configured[1]!.defaultConfiguration.level).toBe('note');
+    // Without a configured severity, the default holds.
+    const plain = run(makeResult({ rules })).tool.driver.rules;
+    expect(plain[0]!.properties['security-severity']).toBe('5.0');
+    expect(plain[0]!.defaultConfiguration.level).toBe('warning');
+    expect(plain[1]!.defaultConfiguration.level).toBe('warning');
+  });
+
+  it('gets the configured severity from a scan: top-level rules, not per-file overrides', () => {
+    const files = {
+      'AGENTS.md': '# Setup\n\nInstall Bun: `curl -fsSL https://bun.sh/install | bash`.\n',
+    };
+    const scanWith = (config: unknown) =>
+      scanSnapshot(snapshotFrom(files), { rules: builtinRules, config: resolveConfig(config) });
+    const id = 'risk/remote-script-execution';
+    const severityOf = (result: ScanResult) => {
+      const rule = toSarif(result).runs[0].tool.driver.rules.find((each) => each.id === id)!;
+      return [rule.defaultConfiguration.level, rule.properties['security-severity']];
+    };
+    expect(severityOf(scanWith({}))).toEqual(['warning', '5.0']);
+    const raised = scanWith({ rules: { [id]: 'error' } });
+    expect(raised.configuredSeverities).toEqual({ [id]: 'error' });
+    expect(raised.findings.find((each) => each.ruleId === id)?.severity).toBe('error');
+    expect(severityOf(raised)).toEqual(['error', '8.0']);
+    const overridden = scanWith({
+      overrides: [{ files: ['AGENTS.md'], rules: { [id]: 'error' } }],
+    });
+    expect(overridden.configuredSeverities).toBeUndefined();
+    expect(severityOf(overridden)).toEqual(['warning', '5.0']);
+  });
+
   it('keeps GitHub limits: 20 tags, 1,024-character descriptions, no empty strings', () => {
     const huge = {
       ...RULES.brokenImport,
@@ -195,9 +257,47 @@ describe('rules', () => {
       rationale: '   ',
     };
     const rule = run(makeResult({ rules: [huge] })).tool.driver.rules[0]!;
-    expect(rule.shortDescription.text).toHaveLength(1025);
-    expect(rule.fullDescription.text.length).toBeLessThanOrEqual(1025);
+    // GitHub's limit is 1,024 characters, the ellipsis of a cut description included.
+    expect(rule.shortDescription.text).toBe(`${'t'.repeat(1023)}…`);
+    expect(rule.fullDescription.text.length).toBeLessThanOrEqual(1024);
     expect(rule.fullDescription.text.trim()).not.toBe('');
+    const exact = run(makeResult({ rules: [{ ...huge, title: 't'.repeat(1024) }] })).tool.driver
+      .rules[0]!;
+    expect(exact.shortDescription.text).toBe('t'.repeat(1024));
+  });
+
+  it('keeps the description of every built-in, directive and policy rule within 1,024 characters', () => {
+    const violations: PolicyViolation[] = POLICY_CHECKS.map((check, index) => ({
+      id: `v${String(index)}`,
+      check,
+      entry: 'x',
+      path: 'CLAUDE.md',
+      message: 'Violation.',
+      fails: true,
+    }));
+    const result: ScanResult = {
+      ...makeResult({ rules: [...builtinRules.map((each) => each.meta), ...DIRECTIVE_RULES] }),
+      policy: {
+        name: 'p',
+        sha256: '0'.repeat(64),
+        mode: 'enforce',
+        insideScanRoot: false,
+        checks: POLICY_CHECKS.length,
+        violations,
+        notes: [],
+      },
+    };
+    const rules = run(result).tool.driver.rules;
+    expect(rules).toHaveLength(builtinRules.length + DIRECTIVE_RULES.length + POLICY_CHECKS.length);
+    const lengths = rules.flatMap((rule) => [
+      rule.shortDescription.text.length,
+      rule.fullDescription.text.length,
+    ]);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(1024);
+    // Some rationales are longer than the limit: they are cut, not left out.
+    expect(rules.filter((rule) => rule.fullDescription.text.endsWith('…')).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('adds a placeholder for a finding whose rule metadata is missing', () => {

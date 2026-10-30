@@ -213,6 +213,13 @@ export interface ScanResult {
   };
   /** Metadata of every rule that ran, plus the directive rules. */
   readonly rules: readonly RuleMeta[];
+  /**
+   * The severity the configuration's top-level `rules` sets, by id, for the rules that ran with
+   * one; the others report at their default, `meta.severity`, unless a rule says otherwise for
+   * a finding. Per-file `overrides` are not included: they apply to some files only. Optional so
+   * that a result built before it existed still formats.
+   */
+  readonly configuredSeverities?: Readonly<Record<string, Severity>>;
   readonly skipped: readonly SkippedEntry[];
   readonly unresolvedSymlinks: readonly UnresolvedSymlink[];
   readonly ruleFailures: readonly RuleFailure[];
@@ -471,6 +478,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   const pending: PendingFinding[] = [];
   const ruleFailures: RuleFailure[] = [];
   const ranRules: RuleMeta[] = [];
+  const configuredSeverities: Record<string, Severity> = {};
   const knownRuleIds = new Set<string>(DIRECTIVE_RULES.map((meta) => meta.id));
   // The files each rule ran on and completed, and how many findings it reported per file: an
   // unused directive is removed only when every rule it names ran on its file in this scan.
@@ -492,6 +500,9 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
     ranOn.set(rule.meta.id, new Set(ruleArtifacts.map((artifact) => artifact.path)));
 
     const baseSetting = config.ruleSetting(rule.meta.id, '');
+    if (baseSetting !== undefined && baseSetting.severity !== 'off') {
+      configuredSeverities[rule.meta.id] = baseSetting.severity;
+    }
     let ruleOptions: unknown = rule.defaultOptions;
     if (baseSetting?.options !== undefined) {
       ruleOptions = { ...(rule.defaultOptions as Record<string, unknown>), ...baseSetting.options };
@@ -713,6 +724,7 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
       suppressed: findings.length - active.length,
     },
     rules: ranRules,
+    ...(Object.keys(configuredSeverities).length > 0 ? { configuredSeverities } : {}),
     skipped: snapshot.skipped,
     unresolvedSymlinks: snapshot.unresolvedSymlinks,
     ruleFailures,

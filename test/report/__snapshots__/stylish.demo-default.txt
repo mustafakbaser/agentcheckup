@@ -6,28 +6,28 @@ What each agent misses
   Cursor       .cursor/rules/style.md is skipped: only .mdc files are read here (≈310 tokens)   fix: review
 
 .agents/skills/release-notes/SKILL.md
-  1:1  error  Skill "release-notes" has no description, so Codex skips it.  skill/description-missing
-              why  Codex never loads these ≈775 tokens.
-              fix  review: Copy the first body line into "description"
+  1:1  ✖ error  Skill "release-notes" has no description, so Codex skips it.  skill/description-missing
+                why  Codex never loads these ≈775 tokens.
+                fix  review: Copy the first body line into "description"
 
 .cursor/rules/style.md
-  1:1  error  Cursor loads only .mdc files from .cursor/rules, so it ignores "style.md".  cursor/md-file-ignored
-              why  Cursor never loads these ≈310 tokens.
-              fix  review: rename to style.mdc with "alwaysApply: true"
+  1:1  ✖ error  Cursor loads only .mdc files from .cursor/rules, so it ignores "style.md".  cursor/md-file-ignored
+                why  Cursor never loads these ≈310 tokens.
+                fix  review: rename to style.mdc with "alwaysApply: true"
 
 .mcp.json
-  4:5  error  MCP server "docs" has "url" but no "type", so Claude Code skips it.  mcp/url-without-type
-              fix  review: Add "type": "http" to MCP server docs
+  4:5  ✖ error  MCP server "docs" has "url" but no "type", so Claude Code skips it.  mcp/url-without-type
+                fix  review: Add "type": "http" to MCP server docs
 
 AGENTS.md
-  1:1  warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md.  instr/agents-md-ignored-by-claude
-                ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
-                why  Claude Code never loads these ≈197 tokens; Codex and Cursor do.
-                fix  safe: add "@AGENTS.md" as line 1 of CLAUDE.md
+  1:1  ⚠ warning  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md.  instr/agents-md-ignored-by-claude
+                  ↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.
+                  why  Claude Code never loads these ≈197 tokens; Codex and Cursor do.
+                  fix  safe: add "@AGENTS.md" as line 1 of CLAUDE.md
 
 CLAUDE.md
-  3:5  error  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  instr/import-unresolved
-              how  create docs/setup.md or correct the path; no file named setup.md exists
+  3:5  ✖ error  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  instr/import-unresolved
+                how  create docs/setup.md or correct the path; no file named setup.md exists
 
 ✖ 5 problems (4 errors, 1 warning, 0 infos)
   loading 3 errors, 1 warning · correctness 1 error

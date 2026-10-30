@@ -169,6 +169,20 @@ describe('run', () => {
     );
   });
 
+  it('writes the SARIF category into automationDetails.id', async () => {
+    const id = async (args: string[]) => {
+      const io = capture();
+      await run([SMOKE, '--format', 'sarif', '--fail-on', 'none', ...args], io);
+      const log = JSON.parse(io.out.join('')) as { runs: { automationDetails: { id: string } }[] };
+      return log.runs[0]?.automationDetails.id;
+    };
+    expect(await id([])).toBe('agentcheckup/');
+    expect(await id(['--sarif-category', 'packages/api'])).toBe('agentcheckup/packages/api/');
+    const io = capture();
+    expect(await run([SMOKE, '--sarif-category', 'api'], io)).toBe(EXIT.usage);
+    expect(io.err.join('')).toContain('--sarif-category works only with --format sarif.');
+  });
+
   it('lists and explains rules', async () => {
     const list = capture();
     expect(await run(['rules'], list)).toBe(EXIT.ok);

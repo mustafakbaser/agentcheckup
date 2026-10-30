@@ -6,28 +6,28 @@
   Cursor       .cursor/rules/style.md is skipped: only .mdc files are read here (≈310 tokens)   <yellow>fix: review</yellow>
 
 <u>.agents/skills/release-notes/SKILL.md</u>
-  <dim>1:1</dim>  <red>error</red>  Skill "release-notes" has no description, so Codex skips it.  <gray>skill/description-missing</gray>
-              <gray>why</gray>  Codex never loads these ≈775 tokens.
-              <gray>fix</gray>  <yellow>review</yellow>: Copy the first body line into "description"
+  <dim>1:1</dim>  <red>✖ error</red>  Skill "release-notes" has no description, so Codex skips it.  <gray>skill/description-missing</gray>
+                <gray>why</gray>  Codex never loads these ≈775 tokens.
+                <gray>fix</gray>  <yellow>review</yellow>: Copy the first body line into "description"
 
 <u>.cursor/rules/style.md</u>
-  <dim>1:1</dim>  <red>error</red>  Cursor loads only .mdc files from .cursor/rules, so it ignores "style.md".  <gray>cursor/md-file-ignored</gray>
-              <gray>why</gray>  Cursor never loads these ≈310 tokens.
-              <gray>fix</gray>  <yellow>review</yellow>: rename to style.mdc with "alwaysApply: true"
+  <dim>1:1</dim>  <red>✖ error</red>  Cursor loads only .mdc files from .cursor/rules, so it ignores "style.md".  <gray>cursor/md-file-ignored</gray>
+                <gray>why</gray>  Cursor never loads these ≈310 tokens.
+                <gray>fix</gray>  <yellow>review</yellow>: rename to style.mdc with "alwaysApply: true"
 
 <u>.mcp.json</u>
-  <dim>4:5</dim>  <red>error</red>  MCP server "docs" has "url" but no "type", so Claude Code skips it.  <gray>mcp/url-without-type</gray>
-              <gray>fix</gray>  <yellow>review</yellow>: Add "type": "http" to MCP server docs
+  <dim>4:5</dim>  <red>✖ error</red>  MCP server "docs" has "url" but no "type", so Claude Code skips it.  <gray>mcp/url-without-type</gray>
+                <gray>fix</gray>  <yellow>review</yellow>: Add "type": "http" to MCP server docs
 
 <u>AGENTS.md</u>
-  <dim>1:1</dim>  <yellow>warning</yellow>  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md.  <gray>instr/agents-md-ignored-by-claude</gray>
-                <gray>↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.</gray>
-                <gray>why</gray>  Claude Code never loads these ≈197 tokens; Codex and Cursor do.
-                <gray>fix</gray>  <green>safe</green>: add "@AGENTS.md" as line 1 of CLAUDE.md
+  <dim>1:1</dim>  <yellow>⚠ warning</yellow>  Claude Code reads "CLAUDE.md" in this directory and skips this AGENTS.md.  <gray>instr/agents-md-ignored-by-claude</gray>
+                  <gray>↳ CLAUDE.md: Claude Code reads this file instead of AGENTS.md.</gray>
+                  <gray>why</gray>  Claude Code never loads these ≈197 tokens; Codex and Cursor do.
+                  <gray>fix</gray>  <green>safe</green>: add "@AGENTS.md" as line 1 of CLAUDE.md
 
 <u>CLAUDE.md</u>
-  <dim>3:5</dim>  <red>error</red>  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  <gray>instr/import-unresolved</gray>
-              <gray>how</gray>  create docs/setup.md or correct the path; no file named setup.md exists
+  <dim>3:5</dim>  <red>✖ error</red>  Imported file "docs/setup.md" does not exist, so Claude Code cannot load it.  <gray>instr/import-unresolved</gray>
+                <gray>how</gray>  create docs/setup.md or correct the path; no file named setup.md exists
 
 <red><b>✖ 5 problems (4 errors, 1 warning, 0 infos)</b></red>
   <dim>loading 3 errors, 1 warning · correctness 1 error</dim>

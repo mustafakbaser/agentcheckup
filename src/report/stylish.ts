@@ -104,6 +104,8 @@ export interface StylishOptions {
 }
 
 interface Symbols {
+  /** Before the severity word of each finding (see {@link renderFile}). */
+  readonly severity: Readonly<Record<Severity, string>>;
   readonly fail: string;
   readonly ok: string;
   readonly info: string;
@@ -116,6 +118,7 @@ interface Symbols {
 }
 
 const UNICODE_SYMBOLS: Symbols = {
+  severity: { error: '✖', warn: '⚠', info: 'ℹ' },
   fail: '✖',
   ok: '✔',
   info: 'ℹ',
@@ -128,6 +131,7 @@ const UNICODE_SYMBOLS: Symbols = {
 };
 
 const ASCII_SYMBOLS: Symbols = {
+  severity: { error: 'x', warn: '!', info: 'i' },
   fail: 'x',
   ok: '',
   info: 'i',
@@ -289,7 +293,16 @@ interface Row {
   readonly message: string;
 }
 
-/** Lines for one file: underlined path, aligned rows, continuation lines, overflow note. */
+/**
+ * Lines for one file: underlined path, aligned rows, continuation lines, overflow note.
+ *
+ * A row is `  3:5  ✖ error  message  rule/id`. The mark before the severity word keeps the row
+ * from matching ESLint's stylish problem matcher, which actions/setup-node registers in every
+ * job (`^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.*)\s\s+(.*)$` after a file line): the
+ * matcher would take a `why` or `fix` line for a file name and annotate it. The github format
+ * writes the annotations.
+ * https://github.com/actions/setup-node/blob/main/.github/eslint-stylish.json
+ */
 function renderFile(
   path: string,
   findings: readonly Finding[],
@@ -301,7 +314,7 @@ function renderFile(
     finding,
     line: String(finding.range.start.line),
     column: String(finding.range.start.column),
-    severity: SEVERITY_LABELS[finding.severity],
+    severity: `${symbols.severity[finding.severity]} ${SEVERITY_LABELS[finding.severity]}`,
     message: clean(finding.message, context),
   }));
 

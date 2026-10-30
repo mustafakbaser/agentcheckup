@@ -69,6 +69,8 @@ export interface ScanCommandOptions extends SharedCommandOptions {
   readonly level: DetailLevel;
   /** `--policy`: an organization policy file to check the scan against. Implies untrusted. */
   readonly policy: string | undefined;
+  /** `--sarif-category`: the SARIF run's category, checked by {@link parseSarifCategory}. */
+  readonly sarifCategory: string | undefined;
 }
 
 export interface ContextCommandOptions extends SharedCommandOptions {
@@ -249,6 +251,30 @@ function parseContextWindow(value: string | undefined): number | undefined {
   return tokens;
 }
 
+/** Letters, digits, `.`, `_` and `-`, in segments separated by `/`. */
+const SARIF_CATEGORY = /^[\w.-]+(?:\/[\w.-]+)*$/;
+const MAX_SARIF_CATEGORY_LENGTH = 100;
+
+/**
+ * `--sarif-category`, which only `--format sarif` takes. Kept to characters GitHub's upload
+ * keeps as they are: the category is part of the run's `automationDetails.id`.
+ */
+export function parseSarifCategory(
+  value: string | undefined,
+  format: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (format !== 'sarif') throw new UsageError('--sarif-category works only with --format sarif.');
+  if (value.length > MAX_SARIF_CATEGORY_LENGTH || !SARIF_CATEGORY.test(value)) {
+    throw new UsageError(
+      `--sarif-category must be letters, digits, ".", "_" and "-", in parts separated by "/", ` +
+        `at most ${MAX_SARIF_CATEGORY_LENGTH} characters, such as api or packages/web. ` +
+        `Got "${value}".`,
+    );
+  }
+  return value;
+}
+
 function parseGate(value: string | undefined, baseline: string | undefined): readonly GateClass[] {
   if (value === undefined) return [];
   if (baseline === undefined) {
@@ -295,6 +321,7 @@ const SCAN_ONLY = [
   'compact',
   'verbose',
   'policy',
+  'sarif-category',
 ] as const;
 const CONTEXT_ONLY = ['matrix'] as const;
 const CONTEXT_ONLY_MESSAGE = 'works only with the context command: agentcheckup context.';
@@ -481,15 +508,16 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
   if (values['compact'] === true && values['verbose'] === true) {
     throw new UsageError('--compact and --verbose cannot be combined.');
   }
+  const format = oneOf(
+    (values['format'] as string | undefined) ?? 'stylish',
+    OUTPUT_FORMATS,
+    '--format',
+  );
   return {
     kind: 'scan',
     options: {
       ...shared,
-      format: oneOf(
-        (values['format'] as string | undefined) ?? 'stylish',
-        OUTPUT_FORMATS,
-        '--format',
-      ),
+      format,
       targets: parseTargets(values['targets'] as string | undefined),
       failOn: oneOf((values['fail-on'] as string | undefined) ?? 'error', FAIL_ON, '--fail-on'),
       minScore: parseMinScore(values['min-score'] as string | undefined),
@@ -498,6 +526,7 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
       level:
         values['compact'] === true ? 'compact' : values['verbose'] === true ? 'verbose' : 'default',
       policy,
+      sarifCategory: parseSarifCategory(values['sarif-category'] as string | undefined, format),
     },
   };
 }
@@ -711,6 +740,7 @@ const OPTIONS = {
   max: { type: 'string' },
   diff: { type: 'string' },
   policy: { type: 'string' },
+  'sarif-category': { type: 'string' },
 } as const;
 
 /**

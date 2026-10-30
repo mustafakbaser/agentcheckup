@@ -361,13 +361,13 @@ Every format shows the policy's name, its mode and the SHA-256 of the policy fil
 covers the file's bytes, so `shasum -a 256 policy.json` prints the same value and tells you which
 policy a run used. Messages never carry `path:line`; each format adds the location.
 
-| Format     | What it shows                                                                                                                                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stylish`  | A policy block after the findings: one line per violation, failing ones first, then a headline and the notes.                                                                                                                   |
-| `markdown` | A "Policy" section before the summary of changes since the baseline: the name, mode, short digest, number of checks, a table of violations with their status (`new`, `unchanged`, `fails`, `reported`) and the notes.           |
-| `github`   | One annotation per violation that fails the run or is new, titled `policy: <check>`, on the file and line when there is one: an error when it fails the run, a warning otherwise. Notes are notices.                            |
-| `sarif`    | Violations with a file are results with `ruleId` `policy/<check>` and `properties.policy: true`, with a rule descriptor per check. Code scanning needs a file for every result, so the others are tool execution notifications. |
-| `json`     | The top-level `policy` field: `name`, `sha256`, `mode`, `insideScanRoot`, `checks`, `violations` and `notes`. See [schemas/report.schema.json](../schemas/report.schema.json).                                                  |
+| Format     | What it shows                                                                                                                                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stylish`  | A policy block after the findings: one line per violation, failing ones first, then a headline and the notes.                                                                                                                                                               |
+| `markdown` | A "Policy" section before the summary of changes since the baseline: the name, mode, short digest, number of checks, a table of violations with their status (`new`, `unchanged`, `fails`, `reported`) and the notes.                                                       |
+| `github`   | One annotation per violation that fails the run or is new, titled `policy: <check>`, on the file and line when there is one: an error when it fails the run, a warning otherwise. Notes are notices. The errors come before the findings' annotations, the rest after them. |
+| `sarif`    | Violations with a file are results with `ruleId` `policy/<check>` and `properties.policy: true`, with a rule descriptor per check. Code scanning needs a file for every result, so the others are tool execution notifications.                                             |
+| `json`     | The top-level `policy` field: `name`, `sha256`, `mode`, `insideScanRoot`, `checks`, `violations` and `notes`. See [schemas/report.schema.json](../schemas/report.schema.json).                                                                                              |
 
 ## Trust model
 
