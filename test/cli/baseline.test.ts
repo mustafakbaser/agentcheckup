@@ -317,7 +317,8 @@ describe('bad baselines', () => {
     await mkdir(join(work, 'dir.json'));
     await expectBaselineError(join(work, 'dir.json'), 'it is not a regular file');
     await writeFile(join(work, 'broken.json'), '{ "schemaVersion": 1, ');
-    await expectBaselineError(join(work, 'broken.json'), 'Baseline file is not valid JSON');
+    const broken = join(work, 'broken.json');
+    await expectBaselineError(broken, `Baseline file ${broken} is not valid JSON`);
     await writeFile(join(work, 'latin1.json'), Buffer.from([0x7b, 0xe9, 0x7d]));
     await expectBaselineError(join(work, 'latin1.json'), 'is not valid UTF-8 text');
     await expectBaselineError(join(work, 'missing.json'), 'Baseline file not found', ['context']);

@@ -15,6 +15,7 @@ async function repository(): Promise<{ repo: string; elsewhere: string }> {
   const dir = await tempDir();
   const repo = join(dir, 'repo');
   await writeFiles(repo, { 'AGENTS.md': '# Project\n\nUse pnpm.\n' });
+  await mkdir(join(repo, '.git'));
   const elsewhere = join(dir, 'outside.json');
   await writeFile(elsewhere, '{ "targets": ["codex"] }\n');
   return { repo, elsewhere };

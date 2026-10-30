@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -32,6 +32,8 @@ const FILES: Readonly<Record<string, string>> = {
 async function repository(files: Readonly<Record<string, string>> = FILES): Promise<string> {
   const root = await tempDir();
   await writeFiles(root, files);
+  // A repository root: `tokens` without a path notes a directory without .git.
+  await mkdir(join(root, '.git'));
   return root;
 }
 

@@ -17,10 +17,11 @@
  */
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { type FileHandle, lstat, open, rename, unlink } from 'node:fs/promises';
+import { type FileHandle, lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import { errorCode } from './paths.js';
+import type { FileIdentity } from './safe-read.js';
 
 /** The report could not be written. The CLI exits with code 2. */
 export class OutputError extends Error {
@@ -130,6 +131,43 @@ async function checkDestination(filePath: string): Promise<void> {
   }
   if (!stats.isFile()) {
     throw new OutputError(`Refusing to write ${filePath}: it is not a regular file.`);
+  }
+}
+
+/**
+ * The device and inode of the entry at `filePath`, which writing the path would replace: symlinks
+ * in its directories are followed, the last component is not. One file has one identity whatever
+ * the name used for it: through a symlinked directory, /tmp for /private/tmp on macOS, or in
+ * another case or Unicode normalization on a file system that ignores them. Undefined when
+ * nothing is there, or it cannot be looked at.
+ */
+export async function entryIdentity(filePath: string): Promise<FileIdentity | undefined> {
+  try {
+    const stats = await lstat(filePath, { bigint: true });
+    return { dev: stats.dev, ino: stats.ino };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `filePath` with the symlinks of its directory resolved, for a file that may not exist yet.
+ * Undefined when the directory does not exist or cannot be resolved.
+ */
+export async function realParentPath(filePath: string): Promise<string | undefined> {
+  try {
+    return path.join(await realpath(path.dirname(filePath)), path.basename(filePath));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The real path of `directory`, or `directory` itself when it cannot be resolved. */
+export async function realPathOrSelf(directory: string): Promise<string> {
+  try {
+    return await realpath(directory);
+  } catch {
+    return directory;
   }
 }
 

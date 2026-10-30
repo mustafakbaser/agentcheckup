@@ -24,6 +24,7 @@ import { MAX_DIFF_BYTES, MAX_DIFF_HUNKS, parseUnifiedDiff } from '../report/unif
 import { type FixCommandOptions, UsageError } from './args.js';
 import {
   allRuleMeta,
+  checkOutput,
   emit,
   EXIT,
   type ExitCode,
@@ -89,9 +90,11 @@ export async function suggest(options: FixCommandOptions, io: Io): Promise<ExitC
     );
   }
 
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, { respectGitignore: true, scanIgnoredAgentConfig: true });
+  await checkOutput(options, io, directory, snapshot);
   const selection: FixSelection = {
     classes: new Set(['safe']),
     ...(ruleIds === undefined ? {} : { ruleIds }),

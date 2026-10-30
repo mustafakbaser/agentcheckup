@@ -151,9 +151,9 @@ describe('agentcheckup agents', () => {
 
   it('writes the list to --output', async () => {
     const root = await repository();
-    const file = join(root, 'agents.md');
+    const file = join(root, 'agent-list.md');
     const io = capture(root);
-    expect(await run(['agents', '-f', 'markdown', '-o', 'agents.md'], io)).toBe(EXIT.ok);
+    expect(await run(['agents', '-f', 'markdown', '-o', 'agent-list.md'], io)).toBe(EXIT.ok);
     expect(io.output()).toBe('');
     expect(await readFile(file, 'utf8')).toContain('| File | Agent | Name | Model | Status |');
   });

@@ -175,6 +175,11 @@ export interface CheckedRoot {
   readonly path: string;
   /** Its real path. */
   readonly real: string;
+  /**
+   * Whether the root has an entry named `.git`: the directory of a repository, or the file of a
+   * worktree or submodule. True when that cannot be told.
+   */
+  readonly git: boolean;
 }
 
 /**
@@ -188,7 +193,18 @@ export async function checkRoot(root: string): Promise<CheckedRoot> {
   if ((await readListing(roots.real, 0)) === undefined) {
     throw new WalkError(`Cannot scan ${roots.given}: the directory cannot be read`);
   }
-  return { path: roots.given, real: roots.real };
+  return { path: roots.given, real: roots.real, git: await hasGitEntry(roots.real) };
+}
+
+/** An lstat of `.git` in the root: inside it, and never followed. */
+async function hasGitEntry(real: string): Promise<boolean> {
+  try {
+    await lstat(path.join(real, '.git'));
+    return true;
+  } catch (error) {
+    const code = errorCode(error);
+    return code !== 'ENOENT' && code !== 'ENOTDIR';
+  }
 }
 
 async function resolveRoot(root: string): Promise<ScanRoots> {

@@ -1,4 +1,4 @@
-import { relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { selectAgents } from '../agents/index.js';
 import { compareWithBaseline } from '../core/baseline.js';
 import { type BaselineReport, validateBaseline } from '../core/baseline-input.js';
@@ -15,12 +15,13 @@ import { rebaseResult } from '../core/rebase.js';
 import { ruleDocsUrl } from '../core/meta.js';
 import { PLATFORM_IDS, type RuleMeta, SEVERITIES, type Snapshot } from '../core/types.js';
 import { VERSION } from '../core/version.js';
-import { OutputError } from '../io/output.js';
-import { relativeInsideRoot } from '../io/paths.js';
+import { OutputError, realPathOrSelf } from '../io/output.js';
+import { errorCode } from '../io/paths.js';
 import { InputFileError, readJsonInput } from '../io/read-file.js';
-import { checkRoot, walk, WalkError } from '../io/walk.js';
+import { type CheckedRoot, checkRoot, walk, WalkError } from '../io/walk.js';
 import { contextAgentsOf } from '../platforms/load/index.js';
 import { CONTEXT_AGENTS, CONTEXT_PLATFORM } from '../platforms/load/types.js';
+import { nearest } from '../policy/text.js';
 import { formatAgentsMarkdown } from '../report/agents-markdown.js';
 import { formatAgentsText } from '../report/agents-text.js';
 import { badgeMarkdown } from '../report/badge.js';
@@ -37,6 +38,7 @@ import { formatJson } from '../report/json.js';
 import { forTerminal } from '../report/sanitize.js';
 import {
   type AgentsCommandOptions,
+  commandName,
   type ContextCommandOptions,
   type TokensCommandOptions,
   type FailOn,
@@ -46,12 +48,15 @@ import {
 } from './args.js';
 import {
   allRuleMeta,
+  checkOutput,
   emit,
   errorMessage,
   EXIT,
   type ExitCode,
   type Io,
   loadConfig,
+  pathBase,
+  rootInside,
   scanOptionsFor,
   styleFor,
 } from './common.js';
@@ -115,8 +120,8 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
     }
   } catch (error) {
     if (error instanceof UsageError || isParseArgsError(error)) {
-      // The first argument that is not a flag names the command, as in parseCommand.
-      const first = argv.find((arg) => !arg.startsWith('-'));
+      // The command, as parseCommand reads it: not the value of a flag (`--format bogus`).
+      const first = commandName(argv);
       const help =
         first === 'context' ||
         first === 'tokens' ||
@@ -223,17 +228,74 @@ function warn(result: ScanResult, format: string, io: Io): void {
  * ($GITHUB_WORKSPACE set) and with the scanned directory inside the workspace, those two formats
  * use paths relative to the workspace, so a scan run from $RUNNER_TEMP on "$GITHUB_WORKSPACE"
  * maps to the right files. Everything else, and those formats outside Actions, use paths
- * relative to the working directory, as terminal users expect.
+ * relative to the working directory, as terminal users expect, when the scanned directory is
+ * inside it ({@link pathBase}); otherwise paths stay relative to the scanned directory. A `../`
+ * path would not resolve against SARIF's %SRCROOT%, and could spell out the home directory.
  */
-function pathPrefix(root: string, io: Io, format: string): string {
+async function pathPrefix(root: CheckedRoot, io: Io, format: string): Promise<string> {
   if (format === 'github' || format === 'sarif') {
     const workspace = io.env['GITHUB_WORKSPACE'];
     if (workspace !== undefined && workspace !== '') {
-      const inside = relativeInsideRoot(resolve(io.cwd, workspace), root);
+      // Spelled through a symlink, as /tmp is on macOS, the workspace still contains the root.
+      const given = resolve(io.cwd, workspace);
+      const inside = rootInside(given, root) ?? rootInside(await realPathOrSelf(given), root);
       if (inside !== undefined) return inside;
     }
   }
-  return relative(io.cwd, root).split(sep).join('/');
+  return pathBase(root, io);
+}
+
+/** Commands and options a mistyped first word may have meant, as the scan takes it for a path. */
+const COMMAND_WORDS: Readonly<Record<string, string>> = {
+  context: 'context',
+  tokens: 'tokens',
+  agents: 'agents',
+  fix: 'fix',
+  tasks: 'tasks',
+  skill: 'skill',
+  rules: 'rules',
+  explain: 'explain',
+  help: '--help',
+  version: '--version',
+};
+
+/**
+ * {@link checkRoot} for the scan's path. A path that does not exist and reads like a command
+ * (`contxt`, `help`) gets the command it may have meant.
+ */
+async function scanRoot(path: string, io: Io): Promise<CheckedRoot> {
+  try {
+    return await checkRoot(resolve(io.cwd, path));
+  } catch (error) {
+    if (!(error instanceof WalkError) || errorCode(error.cause) !== 'ENOENT') throw error;
+    const word = /^[a-z]{2,16}$/i.test(path)
+      ? nearest(path, Object.keys(COMMAND_WORDS))
+      : undefined;
+    if (word === undefined) throw error;
+    throw new WalkError(
+      `${error.message}. Did you mean "agentcheckup ${COMMAND_WORDS[word] ?? word}"?`,
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * Without a path, `context` and `tokens` plan the working directory as the root. When it has
+ * no `.git` entry, it may be a folder of a repository, and an agent started there also loads
+ * files from the directories above it, which agentcheckup never reads (docs/adr/0003).
+ */
+function noteBelowRoot(
+  root: CheckedRoot,
+  options: { readonly pathGiven: boolean },
+  command: 'context' | 'tokens',
+  io: Io,
+): void {
+  if (root.git || options.pathGiven) return;
+  io.stderr(
+    'Note: . has no .git entry. An agent started here may also load files from the ' +
+      'directories above it, which this report leaves out.\n' +
+      `Run agentcheckup from the repository root, or: agentcheckup ${command} <root> --cwd <dir>\n`,
+  );
 }
 
 /**
@@ -254,7 +316,8 @@ function scanWithRootPlans(snapshot: Snapshot, scanOptions: ScanOptions, io: Io)
 }
 
 async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await scanRoot(options.path, io);
+  const root = directory.path;
   const policy = await loadPolicy(options.policy, root, io.cwd);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
@@ -262,6 +325,7 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
   });
+  await checkOutput(options, io, directory, snapshot);
   const scanOptions = scanOptionsFor(options, config, options.targets);
   // Human-readable reports show what each agent misses, from the root load plans (cheap: no
   // matrix). `--compact` shows findings only, and JSON, SARIF and the badge add plans only with
@@ -281,7 +345,7 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
   const checked = withPolicy(scanned, policy, baseline, snapshot, scanOptions);
   const result = rebaseResult(
     withBaseline(checked, baseline, options.gate),
-    pathPrefix(root, io, options.format),
+    await pathPrefix(directory, io, options.format),
   );
 
   const style = styleFor(options, io);
@@ -321,11 +385,12 @@ function checkListedDirectory(snapshot: Snapshot, cwd: string, path: string): vo
   }
   if (snapshot.paths.has(`${cwd}/`)) return;
   if (snapshot.paths.has(cwd)) throw new UsageError(`--cwd ${cwd} is a file, not a directory.`);
-  throw new UsageError(`--cwd ${cwd}: no such directory in ${path}.`);
+  throw new UsageError(`--cwd ${cwd}: no such directory in "${path}".`);
 }
 
 async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode> {
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
@@ -333,6 +398,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
     scanIgnoredAgentConfig: options.untrusted,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
+  await checkOutput(options, io, directory, snapshot);
 
   const configured = config?.targets ?? PLATFORM_IDS;
   const agents = options.agents ?? contextAgentsOf(configured);
@@ -360,7 +426,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   });
   const result = rebaseResult(
     withBaseline(scanned, baseline, options.gate),
-    pathPrefix(root, io, options.format),
+    await pathPrefix(directory, io, options.format),
   );
 
   let report: string;
@@ -381,6 +447,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
       break;
   }
   warn(result, options.format, io);
+  noteBelowRoot(directory, options, 'context', io);
   await emit(report, options, io);
   return contextExitCode(result);
 }
@@ -392,7 +459,8 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
  * after.
  */
 async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> {
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
@@ -400,6 +468,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
     scanIgnoredAgentConfig: options.untrusted,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
+  await checkOutput(options, io, directory, snapshot);
 
   const configured = config?.targets ?? PLATFORM_IDS;
   const agents = options.agents ?? contextAgentsOf(configured);
@@ -426,7 +495,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
   });
   const result = rebaseResult(
     withBaseline(scanned, baseline, options.gate),
-    pathPrefix(root, io, options.format),
+    await pathPrefix(directory, io, options.format),
   );
 
   let report: string;
@@ -447,6 +516,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
       break;
   }
   warn(result, options.format, io);
+  noteBelowRoot(directory, options, 'tokens', io);
   await emit(report, options, io);
   return contextExitCode(result);
 }
@@ -458,13 +528,15 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
  * every agent's definitions.
  */
 async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> {
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
   });
+  await checkOutput(options, io, directory, snapshot);
   const configured = config?.targets ?? PLATFORM_IDS;
   const selected = new Set(options.agents ?? contextAgentsOf(configured));
   // An agent named with --agent is checked even if the configuration does not target it.
@@ -487,7 +559,7 @@ async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> 
     options.format === 'json' && scanned.agents !== undefined
       ? { ...compared, agents: scanned.agents }
       : compared,
-    pathPrefix(root, io, options.format),
+    await pathPrefix(directory, io, options.format),
   );
 
   let report: string;

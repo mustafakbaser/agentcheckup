@@ -68,10 +68,43 @@ describe('run', () => {
     expect(io.err.join('')).toContain('agentcheckup --help');
   });
 
+  it("points to the help of the command, whatever flag's value comes first", async () => {
+    for (const [argv, help] of [
+      [['--format', 'bogus', 'context'], 'agentcheckup context --help'],
+      [['-o', 'x.md', 'fix', '--bogus'], 'agentcheckup fix --help'],
+      [['--format', 'context'], 'agentcheckup --help'],
+    ] as const) {
+      const io = capture();
+      expect(await run(argv, io)).toBe(EXIT.usage);
+      expect(io.err.join(''), argv.join(' ')).toContain(`Run "${help}" for usage.`);
+    }
+  });
+
   it('returns 2 when the path does not exist', async () => {
     const io = capture();
     expect(await run([join(work, 'missing')], io)).toBe(EXIT.usage);
-    expect(io.err.join('')).not.toBe('');
+    expect(io.err.join('')).toBe(`Cannot scan ${join(work, 'missing')}: it does not exist\n`);
+  });
+
+  it('suggests the command a missing path may have meant', async () => {
+    for (const [word, meant] of [
+      ['contxt', 'context'],
+      ['TASK', 'tasks'],
+      ['help', '--help'],
+      ['verison', '--version'],
+    ] as const) {
+      const io = capture(work);
+      expect(await run([word], io)).toBe(EXIT.usage);
+      expect(io.err.join('')).toBe(
+        `Cannot scan ${join(work, word)}: it does not exist. Did you mean "agentcheckup ${meant}"?\n`,
+      );
+    }
+    // Not like any command, or a path with a separator: no guess.
+    for (const path of ['missing', 'docs/contxt', 'contxt.md']) {
+      const io = capture(work);
+      expect(await run([path], io)).toBe(EXIT.usage);
+      expect(io.err.join('')).not.toContain('Did you mean');
+    }
   });
 
   it('reports no configuration for an empty directory and exits 0', async () => {

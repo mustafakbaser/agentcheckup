@@ -58,7 +58,6 @@ import {
   type PlannedFix,
   verifyCompletedInput,
 } from '../fix/index.js';
-import { relativeInsideRoot } from '../io/paths.js';
 import { checkRoot, walk, type WalkOptions } from '../io/walk.js';
 import {
   type FixWrite,
@@ -82,6 +81,7 @@ import { judgmentCount } from '../tasks/index.js';
 import { type FixCommandOptions, UsageError } from './args.js';
 import {
   allRuleMeta,
+  checkOutput,
   emit,
   errorMessage,
   EXIT,
@@ -89,6 +89,7 @@ import {
   interruptible,
   type Io,
   loadConfig,
+  pathBase,
   type Prompt,
   scanOptionsFor,
   styleFor,
@@ -116,7 +117,8 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
   if (options.format === 'suggestions' || options.diff !== undefined) return suggest(options, io);
   const prompt = options.interactive ? terminalOf(io) : undefined;
   const ruleIds = checkedRuleIds(options.rules);
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
   const walkOptions: WalkOptions = {
     respectGitignore: true,
@@ -126,7 +128,7 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
     options,
     io,
     root,
-    base: relativeInsideRoot(io.cwd, root) ?? '',
+    base: pathBase(directory, io),
     style: styleFor(options, io),
     snapshot: await walk(root, walkOptions),
     walkOptions,
@@ -145,6 +147,16 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
     literalSecret: options.interactive || (ruleIds?.has(LITERAL_SECRET_RULE) ?? false),
   };
   const rounds = fixRounds(session.snapshot, session.scanOptions, selection);
+  // Before anything is written: the report must not replace a file the fixes write or read.
+  await checkOutput(
+    options,
+    io,
+    directory,
+    session.snapshot,
+    rounds.files.flatMap((file) =>
+      file.from === undefined ? [file.path] : [file.path, file.from],
+    ),
+  );
   for (const warning of rounds.before.configWarnings) {
     io.stderr(`Warning: ${forTerminal(warning)}\n`);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCommand, UsageError } from '../../src/cli/args.js';
+import { commandName, parseCommand, UsageError } from '../../src/cli/args.js';
 import { CONTEXT_AGENTS } from '../../src/platforms/load/types.js';
 
 describe('parseCommand', () => {
@@ -101,6 +101,46 @@ describe('parseCommand', () => {
 
   it('rejects unknown flags', () => {
     expect(() => parseCommand(['--nope'])).toThrow(/Unknown option/);
+  });
+
+  it('takes no scan flag for rules and explain, and --json only for rules', () => {
+    for (const argv of [
+      ['rules', '-o', 'x'],
+      ['rules', '--format', 'json'],
+      ['rules', '--no-color'],
+      ['explain', 'skill/name-format', '--write'],
+      ['explain', 'skill/name-format', '--json'],
+      ['explain', 'skill/name-format', '-o', 'x'],
+    ]) {
+      expect(() => parseCommand(argv), argv.join(' ')).toThrow(
+        /^--[a-z-]+ does not apply to the (rules|explain) command\.$/,
+      );
+    }
+    for (const argv of [
+      ['--json'],
+      ['.', '--json'],
+      ['context', '--json'],
+      ['tokens', '--json'],
+      ['agents', '--json'],
+      ['fix', '--json'],
+      ['tasks', '--json'],
+    ]) {
+      expect(() => parseCommand(argv), argv.join(' ')).toThrow(
+        '--json works only with the rules command; use --format json.',
+      );
+    }
+    // What each still takes.
+    expect(parseCommand(['rules', '--json'])).toEqual({ kind: 'rules', format: 'json' });
+    expect(parseCommand(['rules', '-h'])).toEqual({ kind: 'help' });
+    expect(parseCommand(['explain', 'skill/name-format', '--help'])).toEqual({ kind: 'help' });
+    expect(parseCommand(['--format', 'json'])).toMatchObject({ options: { format: 'json' } });
+  });
+
+  it('shows the version with -v for every command, skill included', () => {
+    for (const argv of [['-v'], ['context', '-v'], ['fix', '-v'], ['skill', '-v']]) {
+      expect(parseCommand(argv), argv.join(' ')).toEqual({ kind: 'version' });
+    }
+    expect(parseCommand(['skill', 'install', '-h'])).toEqual({ kind: 'help', topic: 'skill' });
   });
 
   it('parses --context, --baseline, --gate and --context-window on a scan', () => {
@@ -237,6 +277,7 @@ describe('parseCommand: context', () => {
         agents: undefined,
         cwd: '',
         matrix: false,
+        pathGiven: false,
       },
     });
   });
@@ -282,6 +323,7 @@ describe('parseCommand: context', () => {
         agents: ['claude-code', 'cursor'],
         cwd: 'packages/api',
         matrix: false,
+        pathGiven: true,
       },
     });
   });
@@ -386,6 +428,7 @@ describe('parseCommand: tokens', () => {
         agents: undefined,
         cwd: '',
         byDirectory: false,
+        pathGiven: false,
       },
     });
   });
@@ -437,5 +480,17 @@ describe('parseCommand: tokens', () => {
     [['context', '--by-directory'], /--by-directory works only with the tokens command/],
   ])('rejects %j', (argv, message) => {
     expect(() => parseCommand(argv)).toThrow(message);
+  });
+});
+
+describe('commandName', () => {
+  it('skips the values of flags, and never throws', () => {
+    expect(commandName(['--format', 'bogus', 'context'])).toBe('context');
+    expect(commandName(['-o', 'out.md', 'fix', '--write'])).toBe('fix');
+    expect(commandName(['--format=json', 'tasks'])).toBe('tasks');
+    expect(commandName(['--nope', 'agents'])).toBe('agents');
+    // A scan of the working directory names no command.
+    expect(commandName(['--fail-on', 'warn'])).toBeUndefined();
+    expect(commandName(['--format'])).toBeUndefined();
   });
 });

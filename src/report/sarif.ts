@@ -483,7 +483,7 @@ export function toSarif(result: ScanResult): SarifLog {
         automationDetails: { id: AUTOMATION_ID },
         // SARIF §3.14.14: the absolute URI may be omitted, here to keep local paths private.
         originalUriBaseIds: {
-          [SRCROOT]: { description: { text: 'The directory agentcheckup scanned.' } },
+          [SRCROOT]: { description: { text: 'The directory that result paths are relative to.' } },
         },
         invocations: [
           {

@@ -78,6 +78,8 @@ export interface ContextCommandOptions extends SharedCommandOptions {
   /** Root-relative POSIX directory, normalized; `''` is the scanned directory. */
   readonly cwd: string;
   readonly matrix: boolean;
+  /** Whether a path was given; without one, the working directory is planned as the root. */
+  readonly pathGiven: boolean;
 }
 
 /** `agentcheckup tokens`: what each agent's configuration costs in context. */
@@ -89,6 +91,8 @@ export interface TokensCommandOptions extends SharedCommandOptions {
   readonly cwd: string;
   /** `--by-directory`: also plan each start directory, from the root. */
   readonly byDirectory: boolean;
+  /** Whether a path was given; without one, the working directory is planned as the root. */
+  readonly pathGiven: boolean;
 }
 
 /**
@@ -309,6 +313,9 @@ const FIX_ONLY = ['write', 'review', 'interactive', 'rule', 'diff'] as const;
 const NOT_FOR_FIX = ['baseline', 'gate', 'context-window', 'no-gitignore'] as const;
 const TASKS_ONLY = ['check', 'max'] as const;
 const TASKS_ONLY_MESSAGE = 'works only with the tasks command: agentcheckup tasks.';
+/** `--json`, which only `rules` takes; every other command has `--format json`. */
+const JSON_FLAG = ['json'] as const;
+const JSON_FLAG_MESSAGE = 'works only with the rules command; use --format json.';
 /** Flags `tasks` does not take: `tasks --check` could not repeat them. */
 const NOT_FOR_TASKS = [
   ...NOT_FOR_FIX,
@@ -357,6 +364,7 @@ function contextCommand(values: Values, rest: readonly string[]): Command {
   rejectFlags(values, [...SCAN_ONLY, 'targets'], 'does not apply to the context command.');
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   rejectFlags(values, TOKENS_ONLY, TOKENS_ONLY_MESSAGE);
   const cwd = parseWorkingDirectory(values['cwd'] as string | undefined);
   const matrix = values['matrix'] === true;
@@ -377,6 +385,7 @@ function contextCommand(values: Values, rest: readonly string[]): Command {
       agents: parseAgents(values['agent'] as string | undefined),
       cwd,
       matrix,
+      pathGiven: rest[0] !== undefined,
     },
   };
 }
@@ -397,6 +406,7 @@ function agentsCommand(values: Values, rest: readonly string[]): Command {
   rejectFlags(values, TOKENS_ONLY, TOKENS_ONLY_MESSAGE);
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   return {
     kind: 'agents',
     options: {
@@ -421,6 +431,7 @@ function tokensCommand(values: Values, rest: readonly string[]): Command {
   rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   const cwd = parseWorkingDirectory(values['cwd'] as string | undefined);
   const byDirectory = values['by-directory'] === true;
   if (byDirectory && cwd !== '') {
@@ -436,6 +447,7 @@ function tokensCommand(values: Values, rest: readonly string[]): Command {
       agents: parseAgents(values['agent'] as string | undefined),
       cwd,
       byDirectory,
+      pathGiven: rest[0] !== undefined,
     },
   };
 }
@@ -450,6 +462,7 @@ function scanCommand(values: Values, positionals: readonly string[]): Command {
   rejectFlags(values, AGENT_FLAG, AGENT_FLAG_MESSAGE);
   rejectFlags(values, FIX_ONLY, 'works only with the fix command: agentcheckup fix.');
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   const policy = values['policy'] as string | undefined;
   if (policy !== undefined && values['config'] !== undefined) {
     throw new UsageError(
@@ -506,6 +519,7 @@ function fixCommand(values: Values, rest: readonly string[]): Command {
   rejectFlags(values, TOKENS_ONLY, TOKENS_ONLY_MESSAGE);
   rejectFlags(values, AGENT_FLAG, AGENT_FLAG_MESSAGE);
   rejectFlags(values, TASKS_ONLY, TASKS_ONLY_MESSAGE);
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   const write = values['write'] === true;
   const review = values['review'] === true;
   const interactive = values['interactive'] === true;
@@ -590,6 +604,7 @@ function tasksCommand(values: Values, rest: readonly string[]): Command {
   if (values['version'] === true) return { kind: 'version' };
   if (rest.length > 1) throw new UsageError(`"tasks" takes at most one path, got ${rest.length}.`);
   rejectFlags(values, [...SCAN_ONLY, ...NOT_FOR_TASKS], 'does not apply to the tasks command.');
+  rejectFlags(values, JSON_FLAG, JSON_FLAG_MESSAGE);
   rejectFlags(values, CONTEXT_ONLY, CONTEXT_ONLY_MESSAGE);
   rejectFlags(values, CWD_FLAG, CWD_FLAG_MESSAGE);
   rejectFlags(values, TOKENS_ONLY, TOKENS_ONLY_MESSAGE);
@@ -626,12 +641,14 @@ function skillCommand(argv: readonly string[]): Command {
     strict: true,
     options: {
       help: { type: 'boolean', short: 'h' },
+      version: { type: 'boolean', short: 'v' },
       dir: { type: 'string' },
       yes: { type: 'boolean', short: 'y' },
       untrusted: { type: 'boolean' },
     },
   });
   if (values.help === true) return { kind: 'help', topic: 'skill' };
+  if (values.version === true) return { kind: 'version' };
   const [, action, ...rest] = positionals;
   if (action !== 'install') {
     throw new UsageError(
@@ -659,48 +676,74 @@ function skillCommand(argv: readonly string[]): Command {
   };
 }
 
+/** Every flag but those of `skill`, which is parsed on its own. */
+const OPTIONS = {
+  help: { type: 'boolean', short: 'h' },
+  version: { type: 'boolean', short: 'v' },
+  format: { type: 'string', short: 'f' },
+  output: { type: 'string', short: 'o' },
+  targets: { type: 'string', short: 't' },
+  'fail-on': { type: 'string' },
+  'min-score': { type: 'string' },
+  config: { type: 'string', short: 'c' },
+  'no-config': { type: 'boolean' },
+  untrusted: { type: 'boolean' },
+  'no-gitignore': { type: 'boolean' },
+  'show-suppressed': { type: 'boolean' },
+  color: { type: 'boolean' },
+  'no-color': { type: 'boolean' },
+  json: { type: 'boolean' },
+  context: { type: 'boolean' },
+  baseline: { type: 'string' },
+  gate: { type: 'string' },
+  agent: { type: 'string' },
+  cwd: { type: 'string' },
+  matrix: { type: 'boolean' },
+  'by-directory': { type: 'boolean' },
+  'context-window': { type: 'string' },
+  compact: { type: 'boolean' },
+  verbose: { type: 'boolean' },
+  write: { type: 'boolean' },
+  review: { type: 'boolean' },
+  interactive: { type: 'boolean', short: 'i' },
+  rule: { type: 'string' },
+  check: { type: 'boolean' },
+  max: { type: 'string' },
+  diff: { type: 'string' },
+  policy: { type: 'string' },
+} as const;
+
+/**
+ * The command `argv` names: its first argument that is neither a flag nor a flag's value, as
+ * parseCommand reads it, so `--format bogus context` names `context`. Undefined for a scan of
+ * the working directory. Never throws: run.ts uses it for the hint after a usage error.
+ */
+export function commandName(argv: readonly string[]): string | undefined {
+  try {
+    return parseArgs({ args: [...argv], allowPositionals: true, strict: false, options: OPTIONS })
+      .positionals[0];
+  } catch {
+    return undefined;
+  }
+}
+
+/** Throws a UsageError for any flag in `values` but `allowed`. */
+function rejectOtherFlags(values: Values, allowed: readonly string[], command: string): void {
+  const other = Object.keys(values).find(
+    (key) => !allowed.includes(key) && values[key] !== undefined,
+  );
+  if (other !== undefined) {
+    throw new UsageError(`--${other} does not apply to the ${command} command.`);
+  }
+}
+
 export function parseCommand(argv: readonly string[]): Command {
-  // The first argument that is not a flag names the command, as in run.ts.
-  if (argv.find((arg) => !arg.startsWith('-')) === 'skill') return skillCommand(argv);
+  if (commandName(argv) === 'skill') return skillCommand(argv);
   const { values, positionals } = parseArgs({
     args: [...argv],
     allowPositionals: true,
     strict: true,
-    options: {
-      help: { type: 'boolean', short: 'h' },
-      version: { type: 'boolean', short: 'v' },
-      format: { type: 'string', short: 'f' },
-      output: { type: 'string', short: 'o' },
-      targets: { type: 'string', short: 't' },
-      'fail-on': { type: 'string' },
-      'min-score': { type: 'string' },
-      config: { type: 'string', short: 'c' },
-      'no-config': { type: 'boolean' },
-      untrusted: { type: 'boolean' },
-      'no-gitignore': { type: 'boolean' },
-      'show-suppressed': { type: 'boolean' },
-      color: { type: 'boolean' },
-      'no-color': { type: 'boolean' },
-      json: { type: 'boolean' },
-      context: { type: 'boolean' },
-      baseline: { type: 'string' },
-      gate: { type: 'string' },
-      agent: { type: 'string' },
-      cwd: { type: 'string' },
-      matrix: { type: 'boolean' },
-      'by-directory': { type: 'boolean' },
-      'context-window': { type: 'string' },
-      compact: { type: 'boolean' },
-      verbose: { type: 'boolean' },
-      write: { type: 'boolean' },
-      review: { type: 'boolean' },
-      interactive: { type: 'boolean', short: 'i' },
-      rule: { type: 'string' },
-      check: { type: 'boolean' },
-      max: { type: 'string' },
-      diff: { type: 'string' },
-      policy: { type: 'string' },
-    },
+    options: OPTIONS,
   });
 
   const [first, ...rest] = positionals;
@@ -714,6 +757,7 @@ export function parseCommand(argv: readonly string[]): Command {
 
   if (first === 'rules') {
     if (rest.length > 0) throw new UsageError('"rules" takes no arguments.');
+    rejectOtherFlags(values, JSON_FLAG, 'rules');
     return { kind: 'rules', format: values.json ? 'json' : 'text' };
   }
   if (first === 'explain') {
@@ -721,6 +765,7 @@ export function parseCommand(argv: readonly string[]): Command {
     if (ruleId === undefined || extra.length > 0) {
       throw new UsageError('Usage: agentcheckup explain <rule-id>');
     }
+    rejectOtherFlags(values, [], 'explain');
     return { kind: 'explain', ruleId };
   }
   return scanCommand(values, positionals);

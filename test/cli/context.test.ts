@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONTEXT_HELP } from '../../src/cli/help.js';
@@ -11,6 +11,12 @@ import { snapshotFrom } from '../helpers/lint.js';
 import { capture, CONTEXT_FIXTURE, removeTempDirs, tempDir, writeFiles } from './helpers.js';
 
 afterEach(removeTempDirs);
+
+/** What `context` and `tokens` print on stderr, run without a path where there is no .git. */
+const NOTE = (command: string): string =>
+  'Note: . has no .git entry. An agent started here may also load files from the directories ' +
+  'above it, which this report leaves out.\n' +
+  `Run agentcheckup from the repository root, or: agentcheckup ${command} <root> --cwd <dir>\n`;
 
 interface Report {
   readonly schemaVersion: number;
@@ -55,7 +61,33 @@ describe('agentcheckup context', () => {
     expect(text).toContain('≈tokens = characters ÷ 4');
     // The fixture has error findings; they never fail the context command.
     expect(text).not.toContain('Since the baseline');
-    expect(io.errors()).toBe('');
+    // It is not a repository root: an agent started there may load more from above.
+    expect(io.errors()).toBe(NOTE('context'));
+  });
+
+  it('notes a working directory without .git only when no path was given', async () => {
+    const repo = await tempDir();
+    await writeFiles(repo, { 'AGENTS.md': '# Project\n\nUse pnpm.\n' });
+    for (const command of ['context', 'tokens'] as const) {
+      const io = capture(repo);
+      expect(await run([command], io)).toBe(EXIT.ok);
+      expect(io.errors()).toBe(NOTE(command));
+      expect(io.output()).not.toContain('Note:');
+      // Asked for by name: the user chose the root.
+      const named = capture(repo);
+      expect(await run([command, '.'], named)).toBe(EXIT.ok);
+      expect(named.errors()).toBe('');
+    }
+    // A repository root, or a worktree or submodule, whose .git is a file.
+    for (const make of [() => mkdir(join(repo, '.git')), () => writeFile(join(repo, '.git'), '')]) {
+      await rm(join(repo, '.git'), { recursive: true, force: true });
+      await make();
+      for (const command of ['context', 'tokens']) {
+        const io = capture(repo);
+        expect(await run([command], io)).toBe(EXIT.ok);
+        expect(io.errors()).toBe('');
+      }
+    }
   });
 
   it('plans a session started in a subdirectory with --cwd', async () => {
@@ -239,7 +271,7 @@ describe('agentcheckup context', () => {
   });
 
   it.each([
-    [['--cwd', 'missing'], '--cwd missing: no such directory in .'],
+    [['--cwd', 'missing'], '--cwd missing: no such directory in ".".'],
     [['--cwd', 'AGENTS.md'], '--cwd AGENTS.md is a file, not a directory.'],
     [['--cwd', '../outside'], '".." is not allowed'],
     [['--cwd', '/tmp'], 'not an absolute path'],

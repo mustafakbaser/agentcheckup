@@ -192,17 +192,26 @@ agentcheckup --baseline base.json --gate security                         # on t
 
 ## Paths in GitHub Actions
 
-Report paths are relative to the current directory. When `GITHUB_WORKSPACE` is set and the
-scanned directory is inside it, the `github` and `sarif` formats use paths relative to the
-workspace instead, because GitHub resolves annotation and SARIF paths against the repository
-root. Running the CLI from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore annotates
-`.mcp.json`, not `../../work/repo/repo/.mcp.json`.
+Report paths are relative to the current directory when the scanned directory is inside it,
+also when the path to it goes through a symlink, such as macOS's `/tmp`. Otherwise they are
+relative to the scanned directory: a path never starts with `..` and is never absolute. When
+`GITHUB_WORKSPACE` is set and the scanned directory is inside it, also when one of them is spelled
+through a symlink, the `github` and `sarif` formats use paths relative to the workspace instead,
+because GitHub resolves annotation and SARIF paths against the repository root. Running the CLI
+from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore annotates `.mcp.json`, not
+`../../work/repo/repo/.mcp.json`.
+
+`--output` never replaces a file the run read, such as `CLAUDE.md`, the configuration file or a
+`.gitignore`, or one that `fix` writes: that exits 2. The file at the path is compared, so another
+name for it is refused too: one through a symlinked directory, `/tmp` for `/private/tmp`, or
+another letter case where the file system ignores case, as macOS and Windows do by default.
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                               |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.   |
-| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, or changes caught by `--gate`                        |
-| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a baseline that cannot be read or used; an unusable `--output` |
-| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                               |
+| Code | Meaning                                                                                                                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | No findings at or above `--fail-on` (default `error`), the score meets `--min-score`, and no gate tripped. `context` exits 0 unless `--gate` trips.                                                                                |
+| 1    | Findings at or above `--fail-on` (only new ones with `--baseline`), a score below `--min-score`, changes caught by `--gate`, or a `--policy` violation that fails the run                                                          |
+| 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a configuration, baseline or policy file that cannot be read or used; an unusable `--output`, or one that would replace a file the run read |
+| 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                                                                            |
+| 130  | Interrupted by Ctrl+C (SIGINT) while a command writes (`fix`, `--output`, `skill install`); 143 for SIGTERM, 129 for SIGHUP                                                                                                        |

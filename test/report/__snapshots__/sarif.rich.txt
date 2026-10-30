@@ -226,7 +226,7 @@
       "originalUriBaseIds": {
         "%SRCROOT%": {
           "description": {
-            "text": "The directory agentcheckup scanned."
+            "text": "The directory that result paths are relative to."
           }
         }
       },

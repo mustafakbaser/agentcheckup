@@ -435,6 +435,11 @@ JSON and Markdown list every location.
 What an agent loads depends on where the session starts. `--cwd` takes a directory relative to
 the scanned path, without `..`, that exists in the scan. The default is the root.
 
+agentcheckup never reads above the directory it scans. Run without a path in a folder that has
+no `.git` entry, such as `packages/api`, `context` and `tokens` say so on stderr: an agent
+started there may also load files from the directories above it. Run them from the repository
+root with `--cwd packages/api` to see that session.
+
 ```text
 $ npx agentcheckup context --cwd packages/api --agent codex
 Codex context · packages/api

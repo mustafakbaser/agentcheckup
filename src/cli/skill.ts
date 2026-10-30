@@ -26,7 +26,6 @@ import {
 } from '../core/types.js';
 import { VERSION } from '../core/version.js';
 import { findPackageRoot, PackageAssetError, readPackageText } from '../io/package-assets.js';
-import { relativeInsideRoot } from '../io/paths.js';
 import { checkRoot, walk } from '../io/walk.js';
 import { FixWriteError, type FixWriteResult, writeFixes, type WriteStep } from '../io/write-fix.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
@@ -41,6 +40,7 @@ import {
   interruptible,
   type Io,
   loadConfig,
+  pathBase,
   type Prompt,
   scanOptionsFor,
 } from './common.js';
@@ -128,13 +128,14 @@ export async function skill(
   source: SkillSource = {},
 ): Promise<ExitCode> {
   const prompt = options.yes ? undefined : terminalOf(io);
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
   const targets = config?.targets ?? PLATFORM_IDS;
   const dir = options.dir ?? (targets.includes('claude-code') ? 'claude' : 'agents');
   const skillsDirectory = SKILL_DIRECTORIES[dir];
   const target = `${skillsDirectory}/${SKILL_NAME}`;
-  const base = relativeInsideRoot(io.cwd, root) ?? '';
+  const base = pathBase(directory, io);
   const shown = (path: string): string => forTerminal(base === '' ? path : `${base}/${path}`);
 
   let files: SkillFile[];

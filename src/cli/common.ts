@@ -2,14 +2,17 @@
  * What the commands of the CLI share: the injected I/O, exit codes, configuration loading, color
  * and the report writer.
  */
-import { basename, dirname, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { ConfigError, resolveConfig, type ResolvedConfig } from '../core/config.js';
 import { DIRECTIVE_RULES } from '../core/directive-rules.js';
 import type { ScanOptions } from '../core/engine.js';
 import { CONFIG_FILE_NAME } from '../core/meta.js';
-import type { AnyRule, PlatformId, RuleMeta } from '../core/types.js';
+import type { AnyRule, PlatformId, RuleMeta, Snapshot } from '../core/types.js';
 import { readConfigFile } from '../io/config-file.js';
-import { writeOutputFile } from '../io/output.js';
+import { entryIdentity, OutputError, realParentPath, writeOutputFile } from '../io/output.js';
+import { relativeInsideRoot } from '../io/paths.js';
+import { type FileIdentity, sameFile } from '../io/safe-read.js';
+import type { CheckedRoot } from '../io/walk.js';
 import { plainStyle, type Style } from '../report/stylish.js';
 import { builtinRules } from '../rules/index.js';
 import type { SharedCommandOptions } from './args.js';
@@ -114,6 +117,104 @@ export async function loadConfig(
     throw new ConfigError(`${fileName} is not valid JSON: ${errorMessage(error)}`);
   }
   return resolveConfig(raw, fileName);
+}
+
+/**
+ * The scanned directory relative to `directory` (POSIX, `''` for the directory itself), or
+ * undefined when the root is not inside it. The root is tried as given and as its real path:
+ * spelled through a symlink, as macOS's /tmp and a logical `$PWD` are, it is still below the
+ * physical working directory that process.cwd() returns.
+ */
+export function rootInside(directory: string, root: CheckedRoot): string | undefined {
+  return relativeInsideRoot(directory, root.path) ?? relativeInsideRoot(directory, root.real);
+}
+
+/**
+ * The prefix of the paths a command shows: the scanned directory relative to the working
+ * directory when it is inside it, else `''`, so that paths are relative to the scanned
+ * directory. Never `..` or absolute, which would name directories outside the repository.
+ */
+export function pathBase(root: CheckedRoot, io: Pick<Io, 'cwd'>): string {
+  return rootInside(io.cwd, root) ?? '';
+}
+
+/** The configuration file {@link loadConfig} reads, or undefined with `--no-config`. */
+function configPath(
+  options: Pick<SharedCommandOptions, 'config' | 'useConfig'>,
+  root: string,
+  cwd: string,
+): string | undefined {
+  if (!options.useConfig) return undefined;
+  return options.config === undefined ? join(root, CONFIG_FILE_NAME) : resolve(cwd, options.config);
+}
+
+/** The git files that steer the walk, which it reads wherever it lists a directory. */
+const GIT_CONTROL_FILES: ReadonlySet<string> = new Set(['.gitignore', '.gitmodules']);
+
+/**
+ * Throws an OutputError when `--output` would replace a file the run read, so that the report
+ * would replace the configuration it describes: a file the walk read, the configuration file,
+ * a `.gitignore` or `.gitmodules` in the tree, or one of `written` (the paths `fix` writes).
+ *
+ * A file at the path is compared by device and inode, which sees through every other name for it:
+ * a symlinked directory, /tmp for /private/tmp, or another case or Unicode normalization on a file
+ * system that ignores them. Where nothing is, the report replaces nothing, unless `fix` creates
+ * the file first: then the path, with the symlinks of its directory resolved, is compared with
+ * the files `fix` creates, without case, as the default file systems of macOS and Windows
+ * compare names.
+ */
+export async function checkOutput(
+  options: Pick<SharedCommandOptions, 'output' | 'config' | 'useConfig'>,
+  io: Pick<Io, 'cwd'>,
+  root: CheckedRoot,
+  snapshot: Pick<Snapshot, 'files' | 'paths' | 'ignoredFiles'>,
+  written: readonly string[] = [],
+): Promise<void> {
+  const { output } = options;
+  if (output === undefined) return;
+  const target = resolve(io.cwd, output);
+  const refuse = (what: string): OutputError =>
+    new OutputError(`agentcheckup ${what} ${output}; choose another --output.`);
+  const inRoot = (path: string): string => join(root.real, path);
+
+  const identity = await entryIdentity(target);
+  if (identity === undefined) {
+    if (written.length === 0) return;
+    const real = await realParentPath(target);
+    const inside = real === undefined ? undefined : relativeInsideRoot(root.real, real);
+    if (inside === undefined) return;
+    for (const path of written) {
+      const created = (await entryIdentity(inRoot(path))) === undefined;
+      if (created && foldName(path) === foldName(inside)) throw refuse('fix writes');
+    }
+    return;
+  }
+  const isTarget = (other: FileIdentity | undefined): boolean =>
+    other !== undefined && sameFile(identity, other);
+
+  for (const file of snapshot.files) {
+    const known = file.identity ?? (await entryIdentity(inRoot(file.symlinkTarget ?? file.path)));
+    if (isTarget(known)) throw refuse('scanned');
+  }
+  const config = configPath(options, root.path, io.cwd);
+  if (config !== undefined && isTarget(await entryIdentity(config))) throw refuse('read');
+  // Another name for one of them keeps its last component, but for case and normalization.
+  const name = foldName(basename(target));
+  if (GIT_CONTROL_FILES.has(name)) {
+    for (const path of [...snapshot.paths, ...snapshot.ignoredFiles]) {
+      const last = path.slice(path.lastIndexOf('/') + 1);
+      if (foldName(last) === name && isTarget(await entryIdentity(inRoot(path)))) {
+        throw refuse('read');
+      }
+    }
+  }
+  for (const path of written) {
+    if (isTarget(await entryIdentity(inRoot(path)))) throw refuse('fix writes');
+  }
+}
+
+function foldName(path: string): string {
+  return path.normalize('NFC').toLowerCase();
 }
 
 /** ANSI color for output to stdout when the flag, the environment and the terminal allow it. */

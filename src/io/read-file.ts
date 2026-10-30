@@ -139,7 +139,8 @@ export function decodeTextInput(
  */
 export async function readJsonInput(filePath: string, options: ReadJsonOptions): Promise<unknown> {
   const text = await readTextInput(filePath, options);
-  return parseJsonInput(text, options);
+  // Named with its path, as every other problem with the file is.
+  return parseJsonInput(text, { ...options, label: `${options.label} ${filePath}` });
 }
 
 /**

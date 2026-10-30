@@ -6,7 +6,6 @@
  */
 import { relative, resolve, sep } from 'node:path';
 import { analyze, runRules } from '../core/engine.js';
-import { relativeInsideRoot } from '../io/paths.js';
 import { checkRoot, walk } from '../io/walk.js';
 import { forTerminal, guardWorkflowCommands } from '../report/sanitize.js';
 import { formatTasksJson } from '../report/tasks-json.js';
@@ -24,11 +23,14 @@ import {
 import { type TasksCommandOptions, UsageError } from './args.js';
 import {
   allRuleMeta,
+  checkOutput,
   emit,
   EXIT,
   type ExitCode,
   type Io,
   loadConfig,
+  pathBase,
+  rootInside,
   scanOptionsFor,
 } from './common.js';
 
@@ -37,12 +39,14 @@ const MAX_LISTED = 50;
 
 export async function tasks(options: TasksCommandOptions, io: Io): Promise<ExitCode> {
   const rules = checkedRuleIds(options.rules);
-  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
+  const directory = await checkRoot(resolve(io.cwd, options.path));
+  const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
     respectGitignore: true,
     scanIgnoredAgentConfig: options.untrusted,
   });
+  await checkOutput(options, io, directory, snapshot);
   const scanOptions = scanOptionsFor(options, config, undefined);
   const analysis = analyze(snapshot, scanOptions);
   const result = runRules(analysis, scanOptions);
@@ -56,12 +60,14 @@ export async function tasks(options: TasksCommandOptions, io: Io): Promise<ExitC
   }
   const scan: TaskScan = { findings: result.findings, rules: allRuleMeta(), analysis };
   // Paths read relative to the working directory when the scanned directory is inside it.
-  const base = relativeInsideRoot(io.cwd, root) ?? '';
+  const base = pathBase(directory, io);
   if (options.check !== undefined) return check(scan, options.check, base, io);
 
+  // Commands run from the working directory, so outside it they keep the path as given.
+  const inside = rootInside(io.cwd, directory);
   const list = buildTasks(scan, {
     pathBase: base,
-    commandPath: shellWord(relative(io.cwd, root).split(sep).join('/')),
+    commandPath: shellWord(inside ?? relative(io.cwd, root).split(sep).join('/')),
     untrusted: options.untrusted,
     rules,
     max: options.max,

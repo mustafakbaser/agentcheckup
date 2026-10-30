@@ -1,7 +1,8 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, realpath, symlink } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXIT, run } from '../../src/cli/run.js';
+import { symlinksSupported } from '../io/helpers.js';
 import { capture, removeTempDirs, tempDir, writeFiles } from './helpers.js';
 
 afterEach(removeTempDirs);
@@ -13,28 +14,33 @@ const MCP = '{\n  "mcpServers": {\n    "docs": { "url": "https://docs.example.co
  * The GitHub Actions layout: the checkout in $GITHUB_WORKSPACE, the CLI run from $RUNNER_TEMP
  * (outside the checkout, so nothing committed can shadow the package).
  */
+let base: string;
 let workspace: string;
 let runnerTemp: string;
 let outside: string;
 
 beforeEach(async () => {
-  const root = await tempDir();
-  workspace = join(root, 'work', 'repo', 'repo');
-  runnerTemp = join(root, '_temp');
-  outside = join(root, 'other');
+  base = await tempDir();
+  workspace = join(base, 'work', 'repo', 'repo');
+  runnerTemp = join(base, '_temp');
+  outside = join(base, 'other');
   await mkdir(runnerTemp, { recursive: true });
   await writeFiles(workspace, { '.mcp.json': MCP, 'packages/app/.mcp.json': MCP });
   await writeFiles(outside, { '.mcp.json': MCP });
 });
 
-async function annotationFiles(args: readonly string[], env: Record<string, string>) {
-  const io = capture(runnerTemp, env);
+async function annotationFiles(
+  args: readonly string[],
+  env: Record<string, string>,
+  cwd = runnerTemp,
+) {
+  const io = capture(cwd, env);
   expect(await run([...args, '--format', 'github'], io)).toBe(EXIT.findings);
   return [...io.output().matchAll(/^::error file=([^,]+),/gm)].map((match) => match[1]);
 }
 
-async function sarifUris(args: readonly string[], env: Record<string, string>) {
-  const io = capture(runnerTemp, env);
+async function sarifUris(args: readonly string[], env: Record<string, string>, cwd = runnerTemp) {
+  const io = capture(cwd, env);
   expect(await run([...args, '--format', 'sarif'], io)).toBe(EXIT.findings);
   const log = JSON.parse(io.output()) as {
     runs: [
@@ -70,27 +76,40 @@ describe('paths in github and sarif output', () => {
     ]);
   });
 
+  it.runIf(symlinksSupported)(
+    'are relative to GITHUB_WORKSPACE spelled through a symlink, as macOS spells /tmp',
+    async () => {
+      await symlink(join(base, 'work'), join(base, 'link'));
+      const env = { GITHUB_WORKSPACE: join(base, 'link', 'repo', 'repo') };
+      const app = await realpath(join(workspace, 'packages', 'app'));
+      expect(await annotationFiles([app], env)).toEqual(['packages/app/.mcp.json']);
+      expect(await sarifUris([app], env)).toEqual(['packages/app/.mcp.json']);
+    },
+  );
+
   it('are relative to the working directory without GITHUB_WORKSPACE', async () => {
-    const expected = `${relative(runnerTemp, workspace).split('\\').join('/')}/.mcp.json`;
-    expect(expected.startsWith('../')).toBe(true);
-    expect((await annotationFiles([workspace], {}))[0]).toBe(expected);
-    expect((await annotationFiles([workspace], { GITHUB_WORKSPACE: '' }))[0]).toBe(expected);
-    expect((await sarifUris([workspace], {}))[0]).toBe(expected);
+    const above = join(base, 'work', 'repo');
+    expect((await annotationFiles([workspace], {}, above))[0]).toBe('repo/.mcp.json');
+    expect((await annotationFiles([workspace], { GITHUB_WORKSPACE: '' }, above))[0]).toBe(
+      'repo/.mcp.json',
+    );
+    expect((await sarifUris([workspace], {}, above))[0]).toBe('repo/.mcp.json');
   });
 
-  it('are relative to the working directory when the scan is outside GITHUB_WORKSPACE', async () => {
+  it('are relative to the scanned directory outside the working directory', async () => {
+    // From $RUNNER_TEMP, a sibling of the checkout: never `../work/repo/repo/.mcp.json`.
+    expect((await annotationFiles([workspace], {}))[0]).toBe('.mcp.json');
+    expect((await sarifUris([workspace], {}))[0]).toBe('.mcp.json');
+    // Outside GITHUB_WORKSPACE as well.
     const env = { GITHUB_WORKSPACE: workspace };
-    const expected = `${relative(runnerTemp, outside).split('\\').join('/')}/.mcp.json`;
-    expect(await annotationFiles([outside], env)).toEqual([expected]);
-    expect(await sarifUris([outside], env)).toEqual([expected]);
+    expect(await annotationFiles([outside], env)).toEqual(['.mcp.json']);
+    expect(await sarifUris([outside], env)).toEqual(['.mcp.json']);
   });
 
   it('leave the other formats relative to the working directory', async () => {
-    const io = capture(runnerTemp, { GITHUB_WORKSPACE: workspace });
+    const io = capture(base, { GITHUB_WORKSPACE: workspace });
     expect(await run([workspace, '--format', 'json'], io)).toBe(EXIT.findings);
     const report = JSON.parse(io.output()) as { findings: { path: string }[] };
-    expect(report.findings[0]?.path).toBe(
-      `${relative(runnerTemp, workspace).split('\\').join('/')}/.mcp.json`,
-    );
+    expect(report.findings[0]?.path).toBe('work/repo/repo/.mcp.json');
   });
 });
