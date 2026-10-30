@@ -3,7 +3,7 @@
  * Catches what unit tests cannot: missing files in the tarball, a broken bin entry, a bundle that
  * still needs a dependency at runtime.
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -83,6 +83,28 @@ try {
   if (version.status !== 0) fail(`--version exited ${version.status}: ${version.stderr}`);
   if (version.stdout.trim() !== manifest.version) {
     fail(`--version printed "${version.stdout.trim()}", expected "${manifest.version}"`);
+  }
+
+  // A reader that stops at once, as `agentcheckup rules --json | head -0` does: the output is
+  // larger than a pipe buffer, and the exit code stays 0.
+  const closedPipe = await new Promise<{ code: number | null; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn(process.execPath, [cli, 'rules', '--json'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.stdout.destroy();
+      let stderr = '';
+      child.stderr.on('data', (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on('error', reject);
+      child.on('close', (code) => {
+        resolve({ code, stderr });
+      });
+    },
+  );
+  if (closedPipe.code !== 0 || closedPipe.stderr !== '') {
+    fail(`rules --json with stdout closed exited ${closedPipe.code}: ${closedPipe.stderr}`);
   }
 
   const fixture = join(root, 'test', 'fixtures', 'smoke');

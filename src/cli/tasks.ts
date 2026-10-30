@@ -7,7 +7,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { analyze, runRules } from '../core/engine.js';
 import { relativeInsideRoot } from '../io/paths.js';
-import { walk } from '../io/walk.js';
+import { checkRoot, walk } from '../io/walk.js';
 import { forTerminal, guardWorkflowCommands } from '../report/sanitize.js';
 import { formatTasksJson } from '../report/tasks-json.js';
 import { formatTasksMarkdown, UNTRUSTED_BANNER } from '../report/tasks-markdown.js';
@@ -37,7 +37,7 @@ const MAX_LISTED = 50;
 
 export async function tasks(options: TasksCommandOptions, io: Io): Promise<ExitCode> {
   const rules = checkedRuleIds(options.rules);
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
     respectGitignore: true,

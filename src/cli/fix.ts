@@ -59,7 +59,7 @@ import {
   verifyCompletedInput,
 } from '../fix/index.js';
 import { relativeInsideRoot } from '../io/paths.js';
-import { walk, type WalkOptions } from '../io/walk.js';
+import { checkRoot, walk, type WalkOptions } from '../io/walk.js';
 import {
   type FixWrite,
   FixWriteError,
@@ -115,7 +115,7 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
   if (options.format === 'suggestions' || options.diff !== undefined) return suggest(options, io);
   const prompt = options.interactive ? terminalOf(io) : undefined;
   const ruleIds = checkedRuleIds(options.rules);
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const config = await loadConfig(options, root, io.cwd);
   const walkOptions: WalkOptions = {
     respectGitignore: true,

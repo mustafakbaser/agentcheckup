@@ -59,7 +59,9 @@ export interface Io {
  *   policy violation that fails the run. `fix`: a dry run found changes, or a selected fix was
  *   not applied.
  * - 2: invalid arguments, configuration, `--cwd`, `--agent`, `--rule`, baseline or policy file;
- *   an unwritable output.
+ *   a configuration file that cannot be read; an unusable root; an unwritable output.
+ *
+ * A reader that stops early (`| head`) changes none of them: see src/cli/streams.ts.
  * - 3: internal error, including a rule or loader that crashed.
  */
 export const EXIT = { ok: 0, findings: 1, usage: 2, internal: 3 } as const;
@@ -78,6 +80,8 @@ export async function loadConfig(
   const explicit = options.config === undefined ? undefined : resolve(cwd, options.config);
   const directory = explicit === undefined ? root : dirname(explicit);
   const fileName = explicit === undefined ? CONFIG_FILE_NAME : basename(explicit);
+  // `--config /`: no file name at all.
+  if (fileName === '') throw new ConfigError(`Refusing to read ${explicit}: it is not a file`);
   const text = await readConfigFile(directory, fileName);
   if (text === undefined) {
     if (explicit !== undefined) throw new ConfigError(`Config file not found: ${explicit}`);

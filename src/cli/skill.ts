@@ -27,7 +27,7 @@ import {
 import { VERSION } from '../core/version.js';
 import { findPackageRoot, PackageAssetError, readPackageText } from '../io/package-assets.js';
 import { relativeInsideRoot } from '../io/paths.js';
-import { walk } from '../io/walk.js';
+import { checkRoot, walk } from '../io/walk.js';
 import { FixWriteError, type FixWriteResult, writeFixes, type WriteStep } from '../io/write-fix.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { splitToolRules } from '../platforms/permissions.js';
@@ -120,7 +120,7 @@ export async function skill(
   source: SkillSource = {},
 ): Promise<ExitCode> {
   const prompt = options.yes ? undefined : terminalOf(io);
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const config = await loadConfig(options, root, io.cwd);
   const targets = config?.targets ?? PLATFORM_IDS;
   const dir = options.dir ?? (targets.includes('claude-code') ? 'claude' : 'agents');

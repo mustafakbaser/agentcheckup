@@ -2,6 +2,7 @@ import type { BigIntStats } from 'node:fs';
 import { lstat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { ConfigError } from '../core/config.js';
 import { errorCode } from './paths.js';
 import { readRegularFile } from './safe-read.js';
 
@@ -9,7 +10,8 @@ export const DEFAULT_CONFIG_MAX_BYTES = 256 * 1024;
 
 /**
  * Reads the config file `fileName` directly inside `root`. Returns undefined when it does not
- * exist; throws an Error when it is a symlink, not a regular file, too large, or unreadable.
+ * exist; throws a ConfigError (exit 2, like an invalid config) when it is a symlink, not a
+ * regular file, too large, or unreadable.
  *
  * A config changes what agentcheckup reports (it can disable rules), and the repository may be
  * hostile, so it must be a regular file that lives in the root: a symlink could make agentcheckup
@@ -32,12 +34,16 @@ export async function readConfigFile(
   } catch (error) {
     const code = errorCode(error);
     if (code === 'ENOENT' || code === 'ENOTDIR') return undefined;
-    throw new Error(`Cannot read ${fileName}: ${code ?? 'unknown error'}`, { cause: error });
+    throw new ConfigError(`Cannot read ${fileName}: ${code ?? 'unknown error'}`, { cause: error });
   }
   if (stats.isSymbolicLink()) {
-    throw new Error(`Refusing to read ${fileName}: it is a symbolic link, not a regular file`);
+    throw new ConfigError(
+      `Refusing to read ${fileName}: it is a symbolic link, not a regular file`,
+    );
   }
-  if (!stats.isFile()) throw new Error(`Refusing to read ${fileName}: it is not a regular file`);
+  if (!stats.isFile()) {
+    throw new ConfigError(`Refusing to read ${fileName}: it is not a regular file`);
+  }
   const size = Number(stats.size);
   if (size > maxBytes) throw tooLarge(fileName, size, maxBytes);
 
@@ -47,14 +53,16 @@ export async function readConfigFile(
     case 'too-large':
       throw tooLarge(fileName, outcome.size, maxBytes);
     case 'special-file':
-      throw new Error(`Refusing to read ${fileName}: it is not a regular file`);
+      throw new ConfigError(`Refusing to read ${fileName}: it is not a regular file`);
     case 'unreadable':
-      throw new Error(`Cannot read ${fileName}: ${outcome.code ?? 'it changed while being read'}`);
+      throw new ConfigError(
+        `Cannot read ${fileName}: ${outcome.code ?? 'it changed while being read'}`,
+      );
   }
 }
 
-function tooLarge(fileName: string, size: number, maxBytes: number): Error {
-  return new Error(
+function tooLarge(fileName: string, size: number, maxBytes: number): ConfigError {
+  return new ConfigError(
     `Refusing to read ${fileName}: ${size} bytes exceeds the ${maxBytes}-byte limit`,
   );
 }

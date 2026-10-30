@@ -1,7 +1,10 @@
+import { type ChildProcessByStdio, spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import type { Readable } from 'node:stream';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Io } from '../../src/cli/run.js';
 
 /** test/fixtures/context: nested instructions, rules, skills, MCP servers and hooks. */
@@ -77,4 +80,48 @@ export async function removeUnpinnedServer(repo: string): Promise<void> {
 
 export async function readJson<T>(file: string): Promise<T> {
   return JSON.parse(await readFile(file, 'utf8')) as T;
+}
+
+/** src/cli/main.ts, the CLI's process entry point, and the tsx loader that runs it from source. */
+const MAIN = fileURLToPath(new URL('../../src/cli/main.ts', import.meta.url));
+const TSX = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href;
+
+/** Starts the CLI from source as a child process, with stdout and stderr piped. */
+export function spawnCli(
+  args: readonly string[],
+  cwd: string,
+): ChildProcessByStdio<null, Readable, Readable> {
+  return spawn(process.execPath, ['--import', TSX, MAIN, ...args], {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+export interface Exited {
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/** Collects what `child` writes to the pipes that are still open, until it exits. */
+export function exited(child: ChildProcessByStdio<null, Readable, Readable>): Promise<Exited> {
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    if (!child.stdout.destroyed) {
+      child.stdout.on('data', (chunk) => {
+        stdout += String(chunk);
+      });
+    }
+    if (!child.stderr.destroyed) {
+      child.stderr.on('data', (chunk) => {
+        stderr += String(chunk);
+      });
+    }
+    child.on('error', reject);
+    child.on('close', (code, signal) => {
+      resolve({ code, signal, stdout, stderr });
+    });
+  });
 }

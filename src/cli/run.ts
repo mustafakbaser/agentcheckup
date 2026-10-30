@@ -18,7 +18,7 @@ import { VERSION } from '../core/version.js';
 import { OutputError } from '../io/output.js';
 import { relativeInsideRoot } from '../io/paths.js';
 import { InputFileError, readJsonInput } from '../io/read-file.js';
-import { walk, WalkError } from '../io/walk.js';
+import { checkRoot, walk, WalkError } from '../io/walk.js';
 import { contextAgentsOf } from '../platforms/load/index.js';
 import { CONTEXT_AGENTS, CONTEXT_PLATFORM } from '../platforms/load/types.js';
 import { formatAgentsMarkdown } from '../report/agents-markdown.js';
@@ -254,7 +254,7 @@ function scanWithRootPlans(snapshot: Snapshot, scanOptions: ScanOptions, io: Io)
 }
 
 async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const policy = await loadPolicy(options.policy, root, io.cwd);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
@@ -325,7 +325,7 @@ function checkListedDirectory(snapshot: Snapshot, cwd: string, path: string): vo
 }
 
 async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode> {
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
@@ -392,7 +392,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
  * after.
  */
 async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> {
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {
@@ -458,7 +458,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
  * every agent's definitions.
  */
 async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> {
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, {

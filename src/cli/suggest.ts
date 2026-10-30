@@ -17,7 +17,7 @@ import { resolve } from 'node:path';
 import { createParseCache } from '../core/parse-cache.js';
 import { fixRounds, type FixSelection } from '../fix/index.js';
 import { readTextInput } from '../io/read-file.js';
-import { walk } from '../io/walk.js';
+import { checkRoot, walk } from '../io/walk.js';
 import { forTerminal } from '../report/sanitize.js';
 import { formatSuggestionsJson } from '../report/suggestions-json.js';
 import { MAX_DIFF_BYTES, MAX_DIFF_HUNKS, parseUnifiedDiff } from '../report/unified-diff.js';
@@ -89,7 +89,7 @@ export async function suggest(options: FixCommandOptions, io: Io): Promise<ExitC
     );
   }
 
-  const root = resolve(io.cwd, options.path);
+  const root = (await checkRoot(resolve(io.cwd, options.path))).path;
   const config = await loadConfig(options, root, io.cwd);
   const snapshot = await walk(root, { respectGitignore: true, scanIgnoredAgentConfig: true });
   const selection: FixSelection = {

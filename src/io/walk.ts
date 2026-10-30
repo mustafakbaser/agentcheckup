@@ -169,6 +169,28 @@ function limit(name: string, value: number | undefined, fallback: number): numbe
   return value;
 }
 
+/** The scan root as {@link checkRoot} found it. */
+export interface CheckedRoot {
+  /** The root made absolute, as given: possibly through symlinks. */
+  readonly path: string;
+  /** Its real path. */
+  readonly real: string;
+}
+
+/**
+ * Checks that `root` is a directory the walk can list, and throws the WalkError the walk would
+ * throw when it is not. The CLI calls it before it reads the configuration file in the root, so
+ * an unusable root is reported as one, not as a configuration file that cannot be read.
+ */
+export async function checkRoot(root: string): Promise<CheckedRoot> {
+  const roots = await resolveRoot(root);
+  // Opening the listing is the check: the walk lists the root first and stops if it cannot.
+  if ((await readListing(roots.real, 0)) === undefined) {
+    throw new WalkError(`Cannot scan ${roots.given}: the directory cannot be read`);
+  }
+  return { path: roots.given, real: roots.real };
+}
+
 async function resolveRoot(root: string): Promise<ScanRoots> {
   try {
     const real = await realpath(root);
