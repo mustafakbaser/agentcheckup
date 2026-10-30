@@ -84,6 +84,41 @@ describe('hooks/unknown-event', () => {
     ]);
   });
 
+  it("accepts Codex's model request events, which only its source names", () => {
+    const events = { PreModelRequest: HOOK, PostModelRequest: HOOK };
+    expect(run({ '.codex/hooks.json': json({ hooks: events }) })).toEqual([]);
+    const toml = [
+      '[[hooks.PreModelRequest]]',
+      '[[hooks.PreModelRequest.hooks]]',
+      'type = "command"',
+      'command = "true"',
+      '[[hooks.PostModelRequest]]',
+      '[[hooks.PostModelRequest.hooks]]',
+      'type = "command"',
+      'command = "true"',
+      '',
+    ].join('\n');
+    expect(run({ '.codex/config.toml': toml })).toEqual([]);
+    // Claude Code fires neither.
+    expect(run({ '.claude/settings.json': json({ hooks: events }) })).toHaveLength(2);
+
+    const text = json({ hooks: { preModelRequest: HOOK } });
+    const result = lint({ '.codex/hooks.json': text }, { rules });
+    expect(findings(result, ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'error',
+        path: '.codex/hooks.json',
+        message:
+          '"preModelRequest" is not a Codex hook event; it is spelled "PreModelRequest". Codex ignores them without a warning, so these hooks never run.',
+        range: rangeOf(text, '"preModelRequest"'),
+      },
+    ]);
+    expect(result.findings[0]?.fix?.title).toBe(
+      'Rename hook event "preModelRequest" to "PreModelRequest"',
+    );
+  });
+
   it('accepts every documented event on each platform', () => {
     const map = (events: readonly string[]) =>
       Object.fromEntries(events.map((event) => [event, HOOK]));

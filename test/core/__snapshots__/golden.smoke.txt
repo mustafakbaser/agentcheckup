@@ -1377,7 +1377,7 @@
         {
           "title": "Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

@@ -17,6 +17,9 @@ const COVERAGE_CHECKED = '2026-10-17';
 /** Sources for custom agents, subagents and models (src/agents, docs/adr/0013). */
 const AGENTS_CHECKED = '2026-10-26';
 
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -118,12 +121,19 @@ export const SOURCES = {
   ),
   codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
   codexHookConfig: verified(
-    'Codex source: hook_config.rs (event names, hooks.json schema)',
+    'Codex source: hook_config.rs (hooks.json top level: description and hooks only)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs',
+    AUDIT_CHECKED,
+  ),
+  codexHookEvents: verified(
+    'Codex source: hooks/src/lib.rs (HOOK_EVENT_NAMES, and the events whose matcher is used)',
+    'https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs',
+    AUDIT_CHECKED,
   ),
   codexHookDiscovery: verified(
     'Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)',
     'https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs',
+    AUDIT_CHECKED,
   ),
   codexConfigReference: verified(
     'Codex: Configuration reference',

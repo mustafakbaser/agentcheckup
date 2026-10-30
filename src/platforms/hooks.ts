@@ -61,10 +61,13 @@ export const CLAUDE_EVENTS = [
 ] as const;
 
 /**
- * https://learn.chatgpt.com/docs/hooks and codex-rs/hooks/src/lib.rs (`HOOK_EVENT_NAMES`), with
- * serde `rename` per field in codex-rs/config/src/hook_config.rs.
+ * https://learn.chatgpt.com/docs/hooks and codex-rs/hooks/src/lib.rs (`HOOK_EVENT_NAMES`,
+ * SOURCES.codexHookEvents), re-transcribed 2026-10-30. The serde `rename` per field in
+ * codex-rs/protocol/src/hooks.rs (`HookEventsToml`) gives the same names.
  */
 export const CODEX_EVENTS = [
+  'PreModelRequest',
+  'PostModelRequest',
   'PreToolUse',
   'PermissionRequest',
   'PostToolUse',
@@ -78,6 +81,16 @@ export const CODEX_EVENTS = [
   'Stop',
   'Interrupt',
 ] as const;
+
+/**
+ * Codex events in the source (SOURCES.codexHookEvents, since rust-v0.165.0) that the hooks
+ * documentation does not list yet. Codex runs their hooks around each model request, retries
+ * included; their output cannot block the request.
+ */
+export const CODEX_SOURCE_ONLY_EVENTS: ReadonlySet<string> = new Set([
+  'PreModelRequest',
+  'PostModelRequest',
+]);
 
 /** https://cursor.com/docs/hooks (agent, Tab and app lifecycle hooks). */
 export const CURSOR_EVENTS = [

@@ -614,6 +614,40 @@ describe('loadCodex: hooks and config.toml', () => {
     expectFindingsForSkips(misplaced);
   });
 
+  it('loads hooks under the model request events from the source, citing it', () => {
+    const handler = { hooks: [{ type: 'command', command }] };
+    const toml = [
+      '[[hooks.PostModelRequest]]',
+      '[[hooks.PostModelRequest.hooks]]',
+      'type = "command"',
+      `command = "${command}"`,
+      '',
+    ].join('\n');
+    const scanned = scan({
+      '.codex/hooks.json': JSON.stringify({
+        hooks: { PreModelRequest: [handler], PostModelRequest: [handler], Stop: [handler] },
+      }),
+      '.codex/config.toml': toml,
+    });
+    expect(scanned.plan.skipped).toEqual([]);
+    expect(
+      scanned.plan.entries
+        .filter((hook) => hook.role === 'hook')
+        .map(({ path, name, certainty, evidence }) => [path, name, certainty, evidence]),
+    ).toEqual([
+      [
+        '.codex/config.toml',
+        'PostModelRequest',
+        'source-code',
+        ['codexHooks', 'codexConfigBasic', 'codexConfigLoader', 'codexHookEvents'],
+      ],
+      ['.codex/hooks.json', 'PostModelRequest', 'source-code', ['codexHooks', 'codexHookEvents']],
+      ['.codex/hooks.json', 'PreModelRequest', 'source-code', ['codexHooks', 'codexHookEvents']],
+      ['.codex/hooks.json', 'Stop', 'documented', ['codexHooks']],
+    ]);
+    expect(findings(scanned.result, 'hooks/unknown-event')).toEqual([]);
+  });
+
   it('skips an unknown or misplaced event without handlers as a whole', () => {
     const scanned = scan({
       '.codex/hooks.json': JSON.stringify({

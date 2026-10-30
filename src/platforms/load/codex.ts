@@ -52,6 +52,7 @@ import {
 } from '../codex-skills.js';
 import {
   CODEX_EVENTS,
+  CODEX_SOURCE_ONLY_EVENTS,
   codexMisplacedEvents,
   eventHandlers,
   hookEvents,
@@ -628,10 +629,16 @@ function hooksOff(config: CodexProjectConfig): boolean {
 
 const HOOKS_DISABLED_EVIDENCE: readonly SourceKey[] = ['codexHooks', 'codexConfigReference'];
 
+/** An event outside "hooks" in `.codex/hooks.json` makes Codex reject the whole file. */
+const MISPLACED_EVIDENCE: readonly SourceKey[] = ['codexHookConfig', 'codexHooks'];
+/** Codex fires only the events of `HOOK_EVENT_NAMES`. */
+const UNKNOWN_EVENT_EVIDENCE: readonly SourceKey[] = ['codexHookEvents', 'codexHooks'];
+
 /**
  * The handlers of one hooks file: `.codex/hooks.json`, or the `[hooks]` table of a
  * `.codex/config.toml` layer. Unknown or misplaced events are skipped with hooks/unknown-event;
- * with hooks turned off, every other handler is skipped as `disabled`.
+ * with hooks turned off, every other handler is skipped as `disabled`. A handler under an event
+ * only the source names ({@link CODEX_SOURCE_ONLY_EVENTS}) cites the source.
  */
 function addHandlers(
   parts: PlanParts,
@@ -660,10 +667,11 @@ function addHandlers(
         code: 'unknown-event',
         ruleId: RULES.unknownEvent,
         certainty: weakest(certainty, 'source-code'),
-        evidence: ['codexHookConfig', 'codexHooks'],
+        evidence: misplaced.length > 0 ? MISPLACED_EVIDENCE : UNKNOWN_EVENT_EVIDENCE,
       });
       return;
     }
+    const sourceOnly = CODEX_SOURCE_ONLY_EVENTS.has(handler.event);
     if (disabled) {
       parts.skip({
         id,
@@ -684,15 +692,15 @@ function addHandlers(
       realPath: artifact.realPath,
       name: handler.event,
       inventoryId: inventoryIds[i] ?? '',
-      certainty,
-      evidence,
+      certainty: sourceOnly ? weakest(certainty, 'source-code') : certainty,
+      evidence: sourceOnly ? [...evidence, 'codexHookEvents'] : evidence,
     });
   });
   // hooks/unknown-event reports event names, so an unknown or misplaced event without a
   // handler Codex could read is skipped as a whole.
   const withHandlers = new Set(handlers.map((handler) => handler.event));
-  const unknown = [...events.filter((event) => !known.includes(event.name)), ...misplaced];
-  for (const event of unknown) {
+  const unknown = events.filter((event) => !known.includes(event.name));
+  for (const event of [...unknown, ...misplaced]) {
     if (withHandlers.has(event.name)) continue;
     parts.skip({
       id: `hook:${path}#${event.name}`,
@@ -702,7 +710,7 @@ function addHandlers(
       code: 'unknown-event',
       ruleId: RULES.unknownEvent,
       certainty: weakest(certainty, 'source-code'),
-      evidence: ['codexHookConfig', 'codexHooks'],
+      evidence: misplaced.length > 0 ? MISPLACED_EVIDENCE : UNKNOWN_EVENT_EVIDENCE,
     });
   }
 }

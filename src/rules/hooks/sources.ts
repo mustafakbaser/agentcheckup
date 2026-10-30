@@ -14,6 +14,7 @@ const verified = (title: string, url: string): RuleSource => ({
 export const HOOK_SOURCES = {
   // Shared with the Codex load plan, which cites them by key.
   codexHookConfig: SOURCES.codexHookConfig,
+  codexHookEvents: SOURCES.codexHookEvents,
   codexHookDiscovery: SOURCES.codexHookDiscovery,
   geminiHookReference: verified(
     'Gemini CLI: Hooks reference',

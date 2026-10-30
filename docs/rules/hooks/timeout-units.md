@@ -25,7 +25,7 @@ Write the timeout in the unit of the agent that reads the file.
 
 - [Claude Code: Hooks](https://code.claude.com/docs/en/hooks), verified, checked 2026-10-14
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
-- [Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs), verified, checked 2026-10-14
+- [Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs), verified, checked 2026-10-30
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRunner.ts (timeout in milliseconds)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRunner.ts), verified, checked 2026-10-14

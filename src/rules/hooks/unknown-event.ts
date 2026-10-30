@@ -119,7 +119,7 @@ export const unknownEventRule = defineRule({
     id: ID,
     title: 'Hook event name is not one the agent fires',
     rationale: [
-      'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.',
+      'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning. Codex\'s list follows its source, which fires `PreModelRequest` and `PostModelRequest` around each model request before its documentation lists them.',
       'Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade\'s snake_case events in `.devin/hooks.json` are not checked.',
       'Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.',
       'Rename the key to an event the agent fires.',
@@ -141,6 +141,7 @@ export const unknownEventRule = defineRule({
       SOURCES.claudeSettings,
       SOURCES.codexHooks,
       HOOK_SOURCES.codexHookConfig,
+      HOOK_SOURCES.codexHookEvents,
       SOURCES.cursorHooks,
       HOOK_SOURCES.geminiHookReference,
       HOOK_SOURCES.geminiHookRegistry,

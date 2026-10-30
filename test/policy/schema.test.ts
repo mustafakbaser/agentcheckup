@@ -121,6 +121,8 @@ describe('POLICY_JSON_SCHEMA', () => {
     'stop',
     'Stop',
     'Interrupt',
+    'PreModelRequest',
+    'preModelRequest',
     'beforeShellExecution',
     '',
   );

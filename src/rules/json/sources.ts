@@ -3,10 +3,13 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the json family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+/** Sources re-read in the source audit of 2026-10-30. */
+const AUDIT_CHECKED = '2026-10-30';
+
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -18,6 +21,7 @@ export const JSON_SOURCES = {
   codexHookDiscovery: verified(
     'Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)',
     'https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs',
+    AUDIT_CHECKED,
   ),
   geminiSettingsLoader: verified(
     'Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)',

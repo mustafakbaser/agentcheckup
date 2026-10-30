@@ -174,7 +174,8 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - Hooks from all locations run. A layer can hold both `hooks.json` and inline `[hooks]`; they merge, with a warning. [Hooks][codex-hooks]
 - Shape: the same three levels as Claude Code, `hooks.<Event>[]` with `{ "matcher", "hooks": [ ... ] }`. Handler types `command` and `mcp_tool`; `prompt` and `agent` handlers are parsed but skipped. [Hooks][codex-hooks]
 - Events (PascalCase): `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `SubagentStart`, `SubagentStop`, `Stop`, `Interrupt`. [Hooks][codex-hooks]
-- Matcher: a regular expression. It is ignored for `UserPromptSubmit`, `Stop` and `Interrupt`. [Hooks][codex-hooks]
+- The source also fires `PreModelRequest` and `PostModelRequest` around each model request, retries included, since rust-v0.165.0; the documentation does not list them yet. Their hooks only observe: their output cannot block the request or change what the model receives. [source][codex-src-hook-events], [commit][codex-model-request-hooks]
+- Matcher: a regular expression. It is ignored for `UserPromptSubmit`, `Stop` and `Interrupt`, and in the source also for `PreModelRequest` and `PostModelRequest`. [Hooks][codex-hooks], [source][codex-src-hook-events]
 - Timeout: seconds, default 600. `SessionEnd` and `Interrupt` default to 1 second, with a maximum of 3. [Hooks][codex-hooks]
 - Failure: exit code 2 with a reason on stderr blocks. Errors, timeouts, missing MCP servers and unavailable tools do not block. In the source, a `PreToolUse` hook that exits 2 with empty stderr is recorded as failed and does not block. [Hooks][codex-hooks], [source][codex-src-pretooluse]
 - Trust: a non-managed hook runs only after you review and trust its exact definition in `/hooks`. A changed hook needs a new review. Project hooks load only when the project `.codex/` folder is trusted. [Hooks][codex-hooks]
@@ -571,6 +572,8 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [codex-src-config-loader]: https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs
 [codex-src-mcp-types]: https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs
 [codex-src-hook-state]: https://github.com/openai/codex/blob/main/codex-rs/hooks/src/config_rules.rs
+[codex-src-hook-events]: https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs
+[codex-model-request-hooks]: https://github.com/openai/codex/commit/70b3bb6d8814ab3f2045238b4ae14c43da99783b
 [codex-cargo-lock]: https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/Cargo.lock
 [toml-spec]: https://toml.io/en/v1.0.0
 [toml-spec-11]: https://toml.io/en/v1.1.0

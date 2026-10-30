@@ -1629,7 +1629,7 @@
         {
           "title": "Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1670,7 +1670,7 @@
         {
           "title": "Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1703,7 +1703,7 @@
     {
       "id": "hooks/unknown-event",
       "title": "Hook event name is not one the agent fires",
-      "rationale": "Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an \"Invalid hook event name\" warning, and Codex without a warning.\n\nDevin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `\"hooks\"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade's snake_case events in `.devin/hooks.json` are not checked.\n\nWrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `\"hooks\"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.\n\nRename the key to an event the agent fires.",
+      "rationale": "Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an \"Invalid hook event name\" warning, and Codex without a warning. Codex's list follows its source, which fires `PreModelRequest` and `PostModelRequest` around each model request before its documentation lists them.\n\nDevin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `\"hooks\"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade's snake_case events in `.devin/hooks.json` are not checked.\n\nWrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `\"hooks\"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.\n\nRename the key to an event the agent fires.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -1742,9 +1742,15 @@
           "status": "verified"
         },
         {
-          "title": "Codex source: hook_config.rs (event names, hooks.json schema)",
+          "title": "Codex source: hook_config.rs (hooks.json top level: description and hooks only)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
+          "status": "verified"
+        },
+        {
+          "title": "Codex source: hooks/src/lib.rs (HOOK_EVENT_NAMES, and the events whose matcher is used)",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2540,7 +2546,7 @@
         {
           "title": "Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
