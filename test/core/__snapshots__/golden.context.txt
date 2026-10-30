@@ -46,14 +46,16 @@
       "path": ".claude/rules/style.md",
       "kind": "claude-rule",
       "readers": [
-        "claude-code"
+        "claude-code",
+        "copilot"
       ]
     },
     {
       "path": ".claude/rules/testing.md",
       "kind": "claude-rule",
       "readers": [
-        "claude-code"
+        "claude-code",
+        "copilot"
       ]
     },
     {

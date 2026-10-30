@@ -142,15 +142,16 @@ describe('the fixture repository, a session at the root', () => {
       '4 instructions:CLAUDE.md startup unverified',
       '5 instructions:.claude/CLAUDE.md startup unverified',
       '6 instructions:GEMINI.md startup unverified',
-      '7 skill:.agents/skills/manual/SKILL.md startup unverified',
-      '8 skill:.agents/skills/notes/SKILL.md startup unverified',
-      '9 skill:.claude/skills/deploy/SKILL.md startup unverified',
-      '10 skill:.github/skills/Bad/SKILL.md startup unverified',
+      '7 skill:.agents/skills/notes/SKILL.md startup unverified',
+      '8 skill:.claude/skills/deploy/SKILL.md startup unverified',
+      '9 skill:.github/skills/Bad/SKILL.md startup unverified',
+      '- rule:.claude/rules/testing.md on-path documented',
       '- rule:.github/instructions/review.instructions.md on-path documented',
       '- rule:.github/instructions/typescript.instructions.md on-path documented',
       '- instructions:pkg/.github/copilot-instructions.md on-path documented',
       '- instructions:pkg/AGENTS.md on-path documented',
       '- instructions:pkg/CLAUDE.md on-path documented',
+      '- skill:.agents/skills/manual/SKILL.md manual documented',
       '- hook:.claude/settings.json#PreToolUse:447fbfea on-approval documented',
       '- hook:.github/copilot/settings.json#agentStop:c532ca1a on-approval documented',
       '- hook:.github/hooks/policy.json#SessionStart:113bcac5 on-approval documented',
@@ -409,7 +410,8 @@ describe('instruction files', () => {
     expect(cli.incomplete).toEqual(['unread:README.md']);
     expect(skips(cli)).toEqual([
       'import:.github/copilot-instructions.md#../../outside.md not-read - documented',
-      'import:.github/copilot-instructions.md#/etc/passwd not-read - documented',
+      // The how-to says absolute paths are not loaded; the reference that they may be absolute.
+      'import:.github/copilot-instructions.md#/etc/passwd not-read - unverified',
     ]);
     expect(cli.limits[0]).toMatchObject({
       key: 'copilot-cli.import_max_hops',
@@ -473,7 +475,8 @@ describe('instruction files', () => {
     expect(entries(vscode)).toEqual([
       '- rule:.claude/rules/all.md on-path documented',
       '- rule:.claude/rules/braces.md on-path unverified',
-      '- rule:.claude/rules/deep/nested.md on-path unverified',
+      // "VS Code searches these folders recursively."
+      '- rule:.claude/rules/deep/nested.md on-path documented',
       '- rule:.claude/rules/string.md on-path unverified',
       '- rule:.claude/rules/broken.md unknown unverified',
       '- rule:.claude/rules/number.md unknown unverified',
@@ -484,8 +487,64 @@ describe('instruction files', () => {
     ]);
     expect(entry(vscode, 'rule:.claude/rules/all.md')?.patterns).toEqual(['**']);
     expect(entry(vscode, 'rule:.claude/rules/string.md')?.patterns).toEqual(['src/**', 'test/**']);
-    expect(cli.entries).toEqual([]);
+    // The CLI reads a `paths` string as documented; a file without `paths` is not documented.
+    expect(entries(cli)).toEqual([
+      '- rule:.claude/rules/braces.md on-path documented',
+      '- rule:.claude/rules/deep/nested.md on-path documented',
+      '- rule:.claude/rules/string.md on-path documented',
+      '- rule:.claude/rules/all.md unknown unverified',
+      '- rule:.claude/rules/broken.md unknown unverified',
+      '- rule:.claude/rules/number.md unknown unverified',
+    ]);
     expect(cloud.entries).toEqual([]);
+  });
+
+  it('the CLI reads .claude/rules at the root and in the working directory, by paths or applyTo', () => {
+    const files = {
+      '.claude/rules/api.md':
+        '---\npaths: "src/api/**/*.ts"\ndescription: API layer conventions\n---\nUse ApiError.\n',
+      '.claude/rules/plain.md': 'No frontmatter.\n',
+      '.claude/rules/apply.md': '---\napplyTo: "**/*.py"\n---\nPython.\n',
+      'pkg/.claude/rules/x.md': '---\npaths:\n  - "lib/**"\n---\nX.\n',
+    };
+    const atRoot = build(files);
+    expect(entries(atRoot.cli)).toEqual([
+      '- rule:.claude/rules/api.md on-path documented',
+      '- rule:.claude/rules/apply.md on-path documented',
+      '- rule:.claude/rules/plain.md unknown unverified',
+    ]);
+    expect(entry(atRoot.cli, 'rule:.claude/rules/api.md')).toMatchObject({
+      patterns: ['src/api/**/*.ts'],
+      evidence: ['copilotCliReference'],
+    });
+    expect(entry(atRoot.cli, 'rule:.claude/rules/apply.md')?.patterns).toEqual(['**/*.py']);
+    // A folder in another directory is not read from the root.
+    expect(atRoot.cli.entries.map((e) => e.path)).not.toContain('pkg/.claude/rules/x.md');
+    expect(atRoot.cli.incomplete).toEqual([]);
+    const inPkg = build(files, {}, 'pkg');
+    expect(entries(inPkg.cli)).toEqual([
+      '- rule:.claude/rules/api.md on-path documented',
+      '- rule:.claude/rules/apply.md on-path documented',
+      '- rule:pkg/.claude/rules/x.md on-path documented',
+      '- rule:.claude/rules/plain.md unknown unverified',
+    ]);
+  });
+
+  it('skips a blank .claude/rules file, as instr/empty-file reports it for Copilot', () => {
+    const built = build({
+      '.claude/rules/empty.md': '\n',
+      '.claude/rules/no-body.md': '---\npaths: src/**\n---\n',
+      '.claude/rules/kept.md': '---\npaths: src/**\n---\nUse vitest.\n',
+    });
+    for (const plan of [built.cli, built.vscode]) {
+      expect(skips(plan)).toEqual([
+        'rule:.claude/rules/empty.md blank-file instr/empty-file unverified',
+        'rule:.claude/rules/no-body.md blank-file instr/empty-file unverified',
+      ]);
+      expect(plan.entries.map((e) => e.path)).toEqual(['.claude/rules/kept.md']);
+    }
+    expect(built.cloud.skipped).toEqual([]);
+    expectSkipsReported(built);
   });
 
   it('keeps a blank file no rule reports for Copilot: VS Code loads CLAUDE.local.md as it is', () => {
@@ -564,6 +623,7 @@ describe('instruction files', () => {
     const { cli, vscode, cloud } = build({ 'AGENTS.md': 'Root.\n' }, { paths: unread });
     const files = (plan: LoadPlan): string[] => plan.incomplete.map((item) => item.slice(7));
     expect(files(cli)).toEqual([
+      '.claude/rules/r.md',
       '.claude/settings.json',
       '.github/copilot/settings.json',
       '.github/hooks/h.json',
@@ -654,8 +714,111 @@ describe('skills', () => {
     expect(entries(built.vscode)).toEqual([
       '1 skill:.github/skills/templates/SKILL.md startup unverified',
     ]);
-    expect(built.cli.skipped).toEqual([]);
+    // The CLI documents both fields too.
+    expect(skips(built.cli)).toEqual([
+      'skill:.github/skills/off/SKILL.md#off disabled - documented',
+    ]);
     expectSkipsReported(built);
+  });
+
+  it('the CLI keeps the first skill of a name: .github, then .agents, then .claude skills', () => {
+    const built = build({
+      '.github/skills/a/SKILL.md': SKILL('dup'),
+      '.agents/skills/b/SKILL.md': SKILL('dup'),
+      '.claude/skills/c/SKILL.md': SKILL('dup'),
+      '.claude/skills/other/SKILL.md': SKILL('other'),
+    });
+    expect(entries(built.cli)).toEqual([
+      '1 skill:.claude/skills/other/SKILL.md startup unverified',
+      '2 skill:.github/skills/a/SKILL.md startup unverified',
+    ]);
+    expect(skips(built.cli)).toEqual([
+      'skill:.agents/skills/b/SKILL.md#dup shadowed-by-preferred - documented',
+      'skill:.claude/skills/c/SKILL.md#dup shadowed-by-preferred - documented',
+    ]);
+    // The cloud agent documents no such order: it lists all four.
+    expect(built.cloud.entries).toHaveLength(4);
+    expectSkipsReported(built);
+  });
+
+  it("the CLI ranks a parent directory's .github/skills after the working directory's", () => {
+    const { cli } = build(
+      {
+        '.github/skills/root/SKILL.md': SKILL('x'),
+        'pkg/.claude/skills/near/SKILL.md': SKILL('x'),
+        '.claude/skills/parent/SKILL.md': SKILL('y', 'disable-model-invocation: true\n'),
+      },
+      {},
+      'pkg',
+    );
+    expect(entries(cli)).toEqual([
+      '1 skill:pkg/.claude/skills/near/SKILL.md startup unverified',
+      // A parent's .claude/skills is not among the CLI's documented locations.
+      '- skill:.claude/skills/parent/SKILL.md manual unverified',
+    ]);
+    expect(skips(cli)).toEqual([
+      'skill:.github/skills/root/SKILL.md#x shadowed-by-preferred - documented',
+    ]);
+  });
+
+  it('the CLI lists .claude/commands files as skills, below a skill of the same name', () => {
+    const built = build({
+      '.claude/commands/release.md': '---\ndescription: Cuts a release.\n---\nRelease.\n',
+      '.claude/commands/deploy.md': 'Deploy.\n',
+      '.claude/commands/manual.md': '---\ndisable-model-invocation: true\n---\nBy hand.\n',
+      '.github/skills/deploy/SKILL.md': SKILL('deploy'),
+      'pkg/.claude/commands/nested.md': 'Nested.\n',
+    });
+    expect(entries(built.cli)).toEqual([
+      '1 skill:.github/skills/deploy/SKILL.md startup unverified',
+      '2 skill:.claude/commands/release.md startup unverified',
+      '- skill:.claude/commands/manual.md manual unverified',
+    ]);
+    expect(entry(built.cli, 'skill:.claude/commands/release.md')).toMatchObject({
+      name: 'release',
+      evidence: ['copilotCliReference'],
+      size: { chars: 'release\nCuts a release.'.length },
+    });
+    expect(skips(built.cli)).toEqual([
+      'skill:.claude/commands/deploy.md#deploy shadowed-by-preferred - documented',
+    ]);
+    // A commands folder of another directory is not read from the root.
+    expect(built.cli.outOfScope).toContainEqual({
+      path: 'pkg/.claude/commands/nested.md',
+      because: 'below-start-dir',
+    });
+    for (const plan of [built.vscode, built.cloud]) {
+      expect(
+        plan.entries.map((e) => e.path),
+        plan.agent,
+      ).not.toContain('.claude/commands/release.md');
+    }
+    expectSkipsReported(built);
+    expectWellFormed(built);
+  });
+
+  it("the CLI skips the skills and commands its repository settings' disabledSkills names", () => {
+    const skills = {
+      '.github/skills/s/SKILL.md': SKILL('s'),
+      '.github/skills/t/SKILL.md': SKILL('t'),
+      '.claude/commands/c.md': 'Command.\n',
+    };
+    const off = build({
+      ...skills,
+      '.github/copilot/settings.json': '{ "disabledSkills": ["s"] }',
+      '.github/copilot/settings.local.json': '{ "disabledSkills": ["c"] }',
+    });
+    expect(entries(off.cli)).toEqual(['1 skill:.github/skills/t/SKILL.md startup unverified']);
+    expect(skips(off.cli)).toEqual([
+      'skill:.claude/commands/c.md#c disabled - unverified',
+      'skill:.github/skills/s/SKILL.md#s disabled - documented',
+    ]);
+    // VS Code does not read the CLI's settings.
+    expect(off.vscode.entries.map((e) => e.path)).toContain('.github/skills/s/SKILL.md');
+    // A value that is not a list turns nothing off.
+    const on = build({ ...skills, '.github/copilot/settings.json': '{ "disabledSkills": "s" }' });
+    expect(on.cli.skipped).toEqual([]);
+    expect(entries(on.cli)).toHaveLength(3);
   });
 });
 
@@ -690,6 +853,31 @@ describe('MCP servers', () => {
       'mcp-server:pkg/.mcp.json#remote',
     ]);
     expect(cloud.entries).toEqual([]);
+  });
+
+  it("the CLI does not start the servers its repository settings' disabledMcpServers names", () => {
+    const servers = {
+      '.mcp.json': `{ "mcpServers": { ${server('a')}, ${server('b')}, ${server('c')} } }`,
+    };
+    const off = build({
+      ...servers,
+      '.github/copilot/settings.json': '{ "disabledMcpServers": ["a"] }',
+      '.github/copilot/settings.local.json': '{ "disabledMcpServers": ["b", 7] }',
+    });
+    expect(entries(off.cli)).toEqual(['- mcp-server:.mcp.json#c on-approval documented']);
+    expect(skips(off.cli)).toEqual([
+      'mcp-server:.mcp.json#a disabled - documented',
+      'mcp-server:.mcp.json#b disabled - documented',
+    ]);
+    expect(off.cli.skipped[0]?.evidence).toEqual(['copilotCliMcp', 'copilotCliConfigDir']);
+    // VS Code reads the same .mcp.json and not the CLI's settings.
+    expect(off.vscode.entries.filter((e) => e.role === 'mcp-server')).toHaveLength(3);
+    const on = build({
+      ...servers,
+      '.github/copilot/settings.json': '{ "disabledSkills": ["a"] }',
+    });
+    expect(on.cli.skipped).toEqual([]);
+    expect(entries(on.cli)).toHaveLength(3);
   });
 
   it('marks files it cannot parse incomplete, and nested ones out of scope', () => {

@@ -48,6 +48,17 @@ describe('instr/empty-file', () => {
     ]);
   });
 
+  it('reports a .claude/rules file for GitHub Copilot, which reads it too', () => {
+    const files = { '.claude/rules/testing.md': '---\npaths: src/**\n---\n' };
+    const copilot = lint(files, { rules, targets: ['copilot'] });
+    expect(copilot.findings.map((finding) => [finding.path, finding.platforms])).toEqual([
+      ['.claude/rules/testing.md', ['copilot']],
+    ]);
+    expect(lint(files, { rules }).findings[0]?.platforms).toEqual(['claude-code', 'copilot']);
+    // Neither Cursor nor Codex reads it.
+    expect(findings(lint(files, { rules, targets: ['cursor', 'codex'] }), RULE)).toEqual([]);
+  });
+
   it('reports a CLAUDE.md that holds only HTML comments', () => {
     const result = lint(
       { 'CLAUDE.md': '<!-- TODO: add project instructions -->\n\n<!-- owner: platform -->\n' },

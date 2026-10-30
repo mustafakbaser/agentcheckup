@@ -26,11 +26,15 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'agents-override-md': ['codex'],
   'claude-md': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-local-md': ['claude-code'],
-  'claude-rule': ['claude-code'],
+  // The Copilot CLI and VS Code read `.claude/rules` as instructions files
+  // (SOURCES.copilotCliReference, SOURCES.vscodeInstructions).
+  'claude-rule': ['claude-code', 'copilot'],
   'claude-agent': ['claude-code'],
   // A subagent's memory, which Claude Code adds to its prompt (SOURCES.claudeSubagents).
   'claude-agent-memory': ['claude-code'],
-  'claude-command': ['claude-code'],
+  // The Copilot CLI reads commands as skills (SOURCES.copilotCliReference), and Devin Local
+  // imports them as skills (SOURCES.devinReadConfigFrom).
+  'claude-command': ['claude-code', 'copilot', 'windsurf'],
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-plugin-manifest': ['claude-code'],

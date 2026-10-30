@@ -97,8 +97,9 @@ const CODEX_KEYS: readonly Wanted[] = [
 const GEMINI_KEYS: readonly Wanted[] = [{ path: ['model', 'name'], applies: 'session' }];
 
 /**
- * GitHub Copilot CLI's repository settings, `.github/copilot/settings.json`, which may set the
- * session's model and effort in a trusted folder (SOURCES.copilotCliAgents).
+ * GitHub Copilot CLI's repository settings, `.github/copilot/settings.json`, which may "pin the
+ * default model for this repo" and its effort when the working directory is trusted
+ * (SOURCES.copilotCliConfigDir).
  */
 const COPILOT_KEYS: readonly Wanted[] = [
   { path: ['model'], applies: 'session' },

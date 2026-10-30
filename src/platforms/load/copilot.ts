@@ -18,16 +18,21 @@
  *   root and the working directory) and the cloud agent apply them through `applyTo`; VS Code
  *   through `applyTo`, else when the model picks their `description`, else when attached
  *   (`copilotActivation`, shared with copilot/apply-to). The cloud agent never applies one without
- *   a valid `applyTo`, nor one whose `excludeAgent` is `cloud-agent`. VS Code also reads
- *   `.claude/rules` files, scoped by `paths`. A file elsewhere is skipped where
+ *   a valid `applyTo`, nor one whose `excludeAgent` is `cloud-agent`. The CLI (at the repository
+ *   root and the working directory) and VS Code also read `.claude/rules/**\/*.md` files, scoped
+ *   by `paths` (the CLI also takes `applyTo`). A file elsewhere is skipped where
  *   copilot/instructions-misplaced reports it (`copilotMisplacement`).
  * - Skills: SKILL.md one level below `.github/skills`, `.claude/skills` and `.agents/skills` at the
- *   repository root (VS Code: the workspace root). VS Code does not load a skill whose `name` has
+ *   repository root (VS Code: the workspace root). The CLI keeps the first skill of a name in that
+ *   order, then a parent directory's `.github/skills`, and lists `.claude/commands/*.md` as skills
+ *   that a skill of the same name wins over. VS Code does not load a skill whose `name` has
  *   invalid characters, is too long or differs from its directory.
  * - MCP servers: the CLI reads `.mcp.json` and `.github/mcp.json` in each directory from the
  *   working directory up to the repository root, closer files winning on a name conflict, in
  *   trusted folders only. VS Code reads `.vscode/mcp.json` and `.mcp.json` at the workspace root.
- *   The cloud agent's servers are configured in the repository settings on GitHub.com.
+ *   The cloud agent's servers are configured in the repository settings on GitHub.com. The CLI's
+ *   repository settings, `.github/copilot/settings(.local).json`, turn skills and servers off by
+ *   name (`disabledSkills`, `disabledMcpServers`).
  * - Hooks in `.github/hooks/*.json` on every surface; the CLI also reads `hooks` in
  *   `.github/copilot/settings(.local).json` and Claude Code's `.claude/settings(.local).json`,
  *   which VS Code reads only with `chat.useClaudeHooks` (off by default).
@@ -76,7 +81,15 @@ import { HOOK_EVENTS, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill, pluginRootOf } from '../location.js';
 import { mcpServers, urlWithoutType } from '../mcp.js';
-import { basename, inPayloadFolder, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
+import {
+  basename,
+  inClaudeFolder,
+  inPayloadFolder,
+  joinPath,
+  nearestGitRoot,
+  selfAndAncestors,
+} from '../paths.js';
+import { settingAt } from '../root-settings.js';
 import { bodyOffset, normalizeName, pluginReaders, readersAt, skillLocation } from '../skills.js';
 import type { SOURCES } from '../sources.js';
 import { isBlank } from './codex-text.js';
@@ -142,10 +155,21 @@ const MISPLACED: Readonly<Record<Surface, Evidence>> = {
   cloud: ['copilotRepoInstructions'],
 };
 const SKILLS: Readonly<Record<Surface, Evidence>> = {
-  cli: ['copilotSkills'],
+  cli: ['copilotSkills', 'copilotCliReference'],
   vscode: ['vscodeSkills'],
   cloud: ['copilotSkills', 'copilotAddSkills'],
 };
+const CLAUDE_RULES: Readonly<Record<Surface, Evidence>> = {
+  cli: ['copilotCliReference'],
+  vscode: ['vscodeInstructions'],
+  cloud: [],
+};
+/** The CLI's `.claude/commands` files, "an alternative to skills". */
+const CLI_COMMANDS: Evidence = ['copilotCliReference'];
+/** The CLI's repository settings: `disabledSkills`, `disabledMcpServers`. */
+const CLI_SETTINGS: Evidence = ['copilotCliConfigDir'];
+/** Imports the CLI's reference and its how-to describe differently. */
+const CLI_IMPORTS: Evidence = ['copilotCliInstructions', 'copilotCliReference'];
 const HOOKS: Readonly<Record<Surface, Evidence>> = {
   cli: ['copilotHooksReference'],
   vscode: ['vscodeHooks', 'vscodeHooksReference'],
@@ -222,6 +246,15 @@ const CLOUD_EVENTS: ReadonlySet<string> = new Set([
 
 const COPILOT_EVENTS: ReadonlySet<string> = new Set(HOOK_EVENTS.copilot);
 
+/** The CLI's skill folders of one directory, in its order of precedence. */
+const CLI_SKILL_FOLDERS: readonly string[] = ['.github/skills', '.agents/skills', '.claude/skills'];
+
+/** The CLI's repository settings files at the repository root, the shared one first. */
+const CLI_SETTINGS_FILES: readonly string[] = [
+  '.github/copilot/settings.json',
+  '.github/copilot/settings.local.json',
+];
+
 /** Directory names whose unlisted contents may hold configuration Copilot reads. */
 const CONFIG_DIRECTORIES: ReadonlySet<string> = new Set([
   '.github',
@@ -230,6 +263,7 @@ const CONFIG_DIRECTORIES: ReadonlySet<string> = new Set([
   '.vscode',
 ]);
 const CONFIG_SUBDIRECTORIES: ReadonlySet<string> = new Set([
+  'commands',
   'copilot',
   'hooks',
   'instructions',
@@ -446,15 +480,19 @@ function splitPatterns(value: string): string[] {
   return patterns;
 }
 
+interface RuleTrigger {
+  readonly trigger: LoadTrigger;
+  readonly patterns?: readonly string[];
+  readonly certainty: Certainty;
+}
+
+const UNKNOWN_TRIGGER: RuleTrigger = { trigger: 'unknown', certainty: 'unverified' };
+
 /**
  * When VS Code applies a `.claude/rules` file: to the files its `paths` array matches, every file
  * (`**`) without one. A `paths` string and frontmatter VS Code may not read are not documented.
  */
-function claudeRuleTrigger(frontmatter: FrontmatterResult): {
-  readonly trigger: LoadTrigger;
-  readonly patterns?: readonly string[];
-  readonly certainty: Certainty;
-} {
+function claudeRuleTrigger(frontmatter: FrontmatterResult): RuleTrigger {
   if (frontmatter.kind === 'absent') {
     return { trigger: 'on-path', patterns: ['**'], certainty: 'documented' };
   }
@@ -471,7 +509,39 @@ function claudeRuleTrigger(frontmatter: FrontmatterResult): {
   if (typeof value === 'string' && splitPatterns(value).length > 0) {
     return { trigger: 'on-path', patterns: splitPatterns(value), certainty: 'unverified' };
   }
-  return { trigger: 'unknown', certainty: 'unverified' };
+  return UNKNOWN_TRIGGER;
+}
+
+/**
+ * When the CLI applies a `.claude/rules` file: "the same way it reads
+ * `.github/instructions/**\/*.instructions.md` files", to the files its `paths` (a string or a
+ * list) or `applyTo` patterns match (SOURCES.copilotCliReference). A file with neither, like an
+ * instructions file without `applyTo`, is not documented; nor is one with both keys, or an
+ * `applyTo` list.
+ */
+function cliClaudeRuleTrigger(frontmatter: FrontmatterResult): RuleTrigger {
+  if (frontmatter.kind !== 'valid') return UNKNOWN_TRIGGER;
+  const { keys, values } = frontmatter.data;
+  const both = keys.includes('paths') && keys.includes('applyTo');
+  if (keys.includes('paths')) {
+    const value = values['paths'];
+    const patterns =
+      typeof value === 'string'
+        ? splitPatterns(value)
+        : Array.isArray(value) && value.every((item) => typeof item === 'string')
+          ? value.map((item: string) => item.trim()).filter((item) => item !== '')
+          : [];
+    if (patterns.length === 0) return UNKNOWN_TRIGGER;
+    return { trigger: 'on-path', patterns, certainty: both ? 'unverified' : 'documented' };
+  }
+  const { applyTo } = copilotActivation(frontmatter);
+  if (applyTo.kind !== 'patterns' && applyTo.kind !== 'list') return UNKNOWN_TRIGGER;
+  if (applyTo.patterns.length === 0) return UNKNOWN_TRIGGER;
+  return {
+    trigger: 'on-path',
+    patterns: applyTo.patterns,
+    certainty: applyTo.kind === 'patterns' ? 'documented' : 'unverified',
+  };
 }
 
 /**
@@ -610,7 +680,10 @@ class CopilotLoader {
   /** CLI: files in context, and their text, so identical copies load once. */
   readonly #loaded = new Set<Artifact>();
   readonly #loadedText = new Set<string>();
+  /** CLI: the names of the skills it lists, which a command of the same name gives way to. */
+  readonly #skillNamesListed = new Set<string>();
   #graph: ImportGraph | undefined;
+  #settings: readonly ParsedJson[] | undefined;
   #position = 0;
 
   // Usage of each limit.
@@ -633,9 +706,10 @@ class CopilotLoader {
   build(): LoadPlan {
     this.#instructions();
     this.#pathInstructions();
-    if (this.#surface === 'vscode') this.#claudeRules();
+    if (this.#surface !== 'cloud') this.#claudeRules();
     this.#misplaced();
     this.#skills();
+    if (this.#surface === 'cli') this.#commands();
     this.#mcp();
     this.#hooks();
     this.#unread();
@@ -816,7 +890,7 @@ class CopilotLoader {
   /**
    * References in `root` in the order the CLI inlines them: depth first, in source order, each
    * file once. The CLI's tokenization is not documented, so Claude Code's is reused, and every
-   * file reached this way is unverified. No depth limit is documented.
+   * file reached this way is unverified. A depth limit exists; its value is not documented.
    */
   #expand(
     rootPath: string,
@@ -842,18 +916,20 @@ class CopilotLoader {
       frame.next++;
       const { reference, target } = edge;
       if (target === undefined || !within(dirnamePosix(target), this.#root)) {
-        // "Referenced files must remain within the repository"; absolute and `~/` paths are not
-        // loaded.
-        const outside =
-          target !== undefined || claudeImportOutsideRoot(edge, repository) !== undefined;
-        if (outside) {
+        // "Referenced files must remain within the repository"; "absolute paths and paths
+        // beginning with `~/` are not loaded" (the how-to). The reference says paths "can be
+        // relative to the instruction file's directory or absolute", so an absolute path is
+        // unverified.
+        const outside = claudeImportOutsideRoot(edge, repository);
+        if (target !== undefined || outside !== undefined) {
+          const absolute = outside === 'absolute';
           this.#skip({
             role: 'import',
             path: frame.path,
             name: reference.path,
             code: 'not-read',
-            certainty: 'documented',
-            evidence,
+            certainty: absolute ? 'unverified' : 'documented',
+            evidence: absolute ? CLI_IMPORTS : evidence,
           });
         }
         continue;
@@ -926,7 +1002,7 @@ class CopilotLoader {
   }
 
   // -------------------------------------------------------------------------------------------
-  // Path-specific instructions and VS Code's .claude/rules
+  // Path-specific instructions and .claude/rules
   // -------------------------------------------------------------------------------------------
 
   /** The `.github/instructions` folders this surface reads, as path prefixes. */
@@ -1035,12 +1111,46 @@ class CopilotLoader {
     );
   }
 
+  /**
+   * The `.claude/rules` folders this surface reads, as path prefixes: the CLI's at the repository
+   * root and in the working directory, VS Code's in the workspace folder. Both search them
+   * recursively.
+   */
+  #claudeRuleFolders(): string[] {
+    const owners = this.#surface === 'cli' ? [...new Set([this.#root, this.#cwd])] : [this.#cwd];
+    return owners.map((owner) => `${joinPath(owner, '.claude/rules')}/`);
+  }
+
+  #readsClaudeRule(path: string): boolean {
+    return this.#claudeRuleFolders().some((prefix) => path.startsWith(prefix));
+  }
+
   #claudeRules(): void {
-    const prefix = `${joinPath(this.#cwd, '.claude/rules')}/`;
     for (const file of this.#reached) {
-      if (file.kind !== 'claude-rule' || !file.path.startsWith(prefix)) continue;
+      if (file.kind !== 'claude-rule' || !this.#readsClaudeRule(file.path)) continue;
       const { artifact, path } = file;
-      const { trigger, patterns, certainty } = claudeRuleTrigger(this.#view.frontmatter(artifact));
+      const frontmatter = this.#view.frontmatter(artifact);
+      const { text } = artifact.decoded;
+      // instr/empty-file's test for a rule: blank, or valid frontmatter and a blank body.
+      if (
+        isBlank(text) ||
+        (frontmatter.kind === 'valid' && isBlank(text.slice(frontmatter.bodyOffset)))
+      ) {
+        // Whether Copilot skips a blank file or sends it as is is not documented.
+        this.#skip({
+          role: 'rule',
+          path,
+          code: 'blank-file',
+          ruleId: 'instr/empty-file',
+          certainty: 'unverified',
+          evidence: CLAUDE_RULES[this.#surface],
+        });
+        continue;
+      }
+      const { trigger, patterns, certainty } =
+        this.#surface === 'cli'
+          ? cliClaudeRuleTrigger(frontmatter)
+          : claudeRuleTrigger(frontmatter);
       this.#add({
         id: `rule:${path}`,
         role: 'rule',
@@ -1049,9 +1159,8 @@ class CopilotLoader {
         realPath: artifact.realPath,
         ...(patterns === undefined ? {} : { patterns }),
         size: fileSize(artifact),
-        // Subfolders of .claude/rules are not documented.
-        certainty: path.slice(prefix.length).includes('/') ? 'unverified' : certainty,
-        evidence: ['vscodeInstructions'],
+        certainty,
+        evidence: CLAUDE_RULES[this.#surface],
       });
     }
   }
@@ -1150,18 +1259,158 @@ class CopilotLoader {
       }
       listed.push({ path: best, artifact });
     }
+    const kept = this.#surface === 'cli' ? this.#cliPrecedence(listed) : listed;
+    kept.sort((a, b) => compareStrings(a.path, b.path));
+    for (const { path, artifact } of kept) this.#skill(path, artifact);
+  }
+
+  /** A skill's name: its `name`, else its directory's. */
+  #skillName(path: string, artifact: Artifact): string {
+    const frontmatter = this.#view.frontmatter(artifact);
+    const declared = frontmatter.kind === 'valid' ? frontmatter.data.values['name'] : undefined;
+    return typeof declared === 'string' && declared.trim() !== ''
+      ? declared.trim()
+      : basename(dirnamePosix(path));
+  }
+
+  /**
+   * Where the CLI looks for a skill first (SOURCES.copilotCliReference, "Skill locations"):
+   * `.github/skills`, `.agents/skills` and `.claude/skills` of the project, the working directory,
+   * then a parent directory's `.github/skills`. Parents are ranked closest first, which is not
+   * documented, after the folders of the working directory; a parent's `.agents/skills` and
+   * `.claude/skills` are not in the list (`documented: false`).
+   */
+  #cliSkillRank(path: string): {
+    readonly rank: number;
+    readonly parent: boolean;
+    readonly documented: boolean;
+  } {
+    const root = skillLocation(path)?.root ?? '';
+    const owner = dirnamePosix(dirnamePosix(root));
+    const folder = (owner === '' ? root : root.slice(owner.length + 1)).toLowerCase();
+    const order = Math.max(0, CLI_SKILL_FOLDERS.indexOf(folder));
+    const distance = Math.max(0, this.#chain.length - 1 - this.#chain.indexOf(owner));
+    return {
+      rank: distance * CLI_SKILL_FOLDERS.length + order,
+      parent: distance > 0,
+      documented: distance === 0 || order === 0,
+    };
+  }
+
+  /**
+   * The CLI keeps the first skill of a name in its order of locations ("first found wins for
+   * duplicate names") and skips the others. Two skills of one name in the same folder are both
+   * listed: which one the CLI finds first is not documented (skill/duplicate-name reports them).
+   * Records the names of the skills it keeps, which its commands give way to.
+   */
+  #cliPrecedence(listed: readonly { path: string; artifact: Artifact }[]): {
+    path: string;
+    artifact: Artifact;
+  }[] {
+    const ranked = listed
+      .map((item) => ({
+        ...item,
+        name: this.#skillName(item.path, item.artifact),
+        ...this.#cliSkillRank(item.path),
+      }))
+      .sort((a, b) => a.rank - b.rank || compareStrings(a.path, b.path));
+    const first = new Map<string, (typeof ranked)[number]>();
+    const kept: { path: string; artifact: Artifact }[] = [];
+    for (const item of ranked) {
+      const winner = first.get(item.name);
+      if (winner === undefined) first.set(item.name, item);
+      if (winner === undefined || winner.rank === item.rank) {
+        kept.push({ path: item.path, artifact: item.artifact });
+        this.#skillNamesListed.add(item.name);
+        continue;
+      }
+      this.#skip({
+        role: 'skill',
+        path: item.path,
+        name: item.name,
+        code: 'shadowed-by-preferred',
+        // The order of parent directories, and of a parent's other folders, is not documented.
+        certainty: !winner.parent && item.documented ? 'documented' : 'unverified',
+        evidence: SKILLS.cli,
+      });
+    }
+    return kept;
+  }
+
+  /**
+   * CLI: each `.claude/commands/*.md` file is a skill named after its file, "an alternative to
+   * skills" with "lower priority than skills with the same name" (SOURCES.copilotCliReference).
+   * It reads `description` and `disable-model-invocation`. In which directories the CLI looks for
+   * the folder is not documented, nor whether it reads subfolders: the folders of the directories
+   * on the startup chain are listed, as skills are, and every entry is unverified.
+   */
+  #commands(): void {
+    const disabled = this.#cliSettingNames('disabledSkills');
+    const listed: { path: string; artifact: Artifact; name: string }[] = [];
+    for (const artifact of this.#view.artifacts) {
+      if (artifact.kind !== 'claude-command') continue;
+      const folder = inClaudeFolder(artifact.path, 'commands');
+      if (folder === undefined) continue;
+      const access = this.#skillAccess(folder.owner);
+      if (access === 'below') {
+        this.#out(artifact.path, 'below-start-dir');
+        continue;
+      }
+      if (access === undefined) continue;
+      listed.push({ path: artifact.path, artifact, name: basename(folder.relative).slice(0, -3) });
+    }
     listed.sort((a, b) => compareStrings(a.path, b.path));
-    for (const { path, artifact } of listed) this.#skill(path, artifact);
+    for (const { path, artifact, name } of listed) {
+      if (this.#skillNamesListed.has(name)) {
+        this.#skip({
+          role: 'skill',
+          path,
+          name,
+          code: 'shadowed-by-preferred',
+          certainty: 'documented',
+          evidence: CLI_COMMANDS,
+        });
+        continue;
+      }
+      if (disabled.has(name)) {
+        // `disabledSkills` names skills; whether it turns a command off is not documented.
+        this.#skip({
+          role: 'skill',
+          path,
+          name,
+          code: 'disabled',
+          certainty: 'unverified',
+          evidence: [...CLI_COMMANDS, ...CLI_SETTINGS],
+        });
+        continue;
+      }
+      const frontmatter = this.#view.frontmatter(artifact);
+      const values = frontmatter.kind === 'valid' ? frontmatter.data.values : undefined;
+      const description = values?.['description'];
+      const text = typeof description === 'string' ? description.trim() : '';
+      const manual = values?.['disable-model-invocation'] === true;
+      this.#add({
+        id: `skill:${path}`,
+        role: 'skill',
+        trigger: manual ? 'manual' : 'startup',
+        ...(manual ? {} : { position: ++this.#position }),
+        path,
+        realPath: artifact.realPath,
+        name,
+        size: textSize(text === '' ? name : `${name}\n${text}`),
+        deferred: textSize(artifact.decoded.text.slice(bodyOffset(frontmatter))),
+        certainty: 'unverified',
+        evidence: CLI_COMMANDS,
+      });
+    }
   }
 
   #skill(path: string, artifact: Artifact): void {
     const evidence = SKILLS[this.#surface];
     const frontmatter = this.#view.frontmatter(artifact);
     const values = frontmatter.kind === 'valid' ? frontmatter.data.values : undefined;
-    const directory = basename(dirnamePosix(path));
     const declared = values?.['name'];
-    const name =
-      typeof declared === 'string' && declared.trim() !== '' ? declared.trim() : directory;
+    const name = this.#skillName(path, artifact);
     const description = values?.['description'];
     const text = typeof description === 'string' ? description.trim() : '';
     if (this.#surface === 'vscode') {
@@ -1173,7 +1422,20 @@ class CopilotLoader {
       }
       if (this.#vscodeRejects(path, artifact, frontmatter)) return;
     }
-    const manual = this.#surface === 'vscode' && values?.['disable-model-invocation'] === true;
+    if (this.#surface === 'cli' && this.#cliSettingNames('disabledSkills').has(name)) {
+      // "Skills discovered but not loaded."
+      this.#skip({
+        role: 'skill',
+        path,
+        name,
+        code: 'disabled',
+        certainty: 'documented',
+        evidence: CLI_SETTINGS,
+      });
+      return;
+    }
+    // The CLI and VS Code document `disable-model-invocation` and `user-invocable`.
+    const manual = this.#surface !== 'cloud' && values?.['disable-model-invocation'] === true;
     if (manual && values['user-invocable'] === false) {
       // Neither a slash command nor loaded by the model.
       this.#skip({
@@ -1198,7 +1460,11 @@ class CopilotLoader {
       name,
       size: textSize(listing),
       deferred: textSize(artifact.decoded.text.slice(bodyOffset(frontmatter))),
-      certainty: manual ? 'documented' : 'unverified',
+      // A parent directory's `.agents/skills` or `.claude/skills` is not a documented location.
+      certainty:
+        manual && (this.#surface !== 'cli' || this.#cliSkillRank(path).documented)
+          ? 'documented'
+          : 'unverified',
       evidence: manual ? evidence : [...evidence, 'agentSkillsSpec'],
     });
   }
@@ -1278,6 +1544,7 @@ class CopilotLoader {
    */
   #cliMcp(): void {
     const taken = new Set<string>();
+    const disabled = this.#cliSettingNames('disabledMcpServers');
     for (const directory of [...this.#chain].reverse()) {
       for (const [name, kind] of [
         ['.mcp.json', 'mcp-json'],
@@ -1302,6 +1569,18 @@ class CopilotLoader {
             return;
           }
           taken.add(server.name);
+          if (disabled.has(server.name)) {
+            // "MCP servers configured but not started."
+            this.#skip({
+              role: 'mcp-server',
+              path,
+              name: server.name,
+              code: 'disabled',
+              certainty: 'documented',
+              evidence: [...CLI_MCP, ...CLI_SETTINGS],
+            });
+            return;
+          }
           this.#add({
             id: `mcp-server:${path}#${server.name}`,
             role: 'mcp-server',
@@ -1379,6 +1658,42 @@ class CopilotLoader {
       this.#incomplete.add(`unread:${path}`);
     }
     return undefined;
+  }
+
+  /**
+   * The CLI's repository settings that parse: `.github/copilot/settings.json` and
+   * `.github/copilot/settings.local.json` at the repository root (SOURCES.copilotCliConfigDir).
+   */
+  #cliSettings(): readonly ParsedJson[] {
+    if (this.#settings === undefined) {
+      const docs: ParsedJson[] = [];
+      for (const name of CLI_SETTINGS_FILES) {
+        const path = joinPath(this.#root, name);
+        const artifact = this.#configAt(path, 'copilot-settings');
+        if (artifact === undefined) continue;
+        const doc = this.#view.json(artifact);
+        if (doc.ok) docs.push(doc);
+        else this.#incomplete.add(`unparsed:${path}`);
+      }
+      this.#settings = docs;
+    }
+    return this.#settings;
+  }
+
+  /**
+   * The names a list setting of the CLI's repository settings holds, such as `disabledSkills`.
+   * The CLI merges these lists as a union, so a repository "can add entries, never remove"
+   * (SOURCES.copilotCliConfigDir), and the names of both files count.
+   */
+  #cliSettingNames(key: string): ReadonlySet<string> {
+    const names = new Set<string>();
+    if (this.#surface !== 'cli') return names;
+    for (const doc of this.#cliSettings()) {
+      const value = settingAt(doc, [key]);
+      if (!Array.isArray(value)) continue;
+      for (const item of value as unknown[]) if (typeof item === 'string') names.add(item);
+    }
+    return names;
   }
 
   /** Config files of `kinds` that belong to a directory below the working directory. */
@@ -1579,9 +1894,14 @@ class CopilotLoader {
     const directory = dirnamePosix(path);
     const cli = this.#surface === 'cli';
     const vscode = this.#surface === 'vscode';
+    const cloud = this.#surface === 'cloud';
     if (kind === 'copilot-path-instructions') return this.#readsPathInstructions(path);
-    if (kind === 'claude-rule') {
-      return vscode && path.startsWith(`${joinPath(this.#cwd, '.claude/rules')}/`);
+    if (kind === 'claude-rule') return !cloud && this.#readsClaudeRule(path);
+    if (kind === 'claude-command') {
+      const folder = inClaudeFolder(path, 'commands');
+      if (!cli || folder === undefined) return false;
+      const access = this.#skillAccess(folder.owner);
+      return access !== undefined && access !== 'below';
     }
     if (kind === 'skill') {
       const location = skillLocation(path);
@@ -1659,13 +1979,13 @@ class CopilotLoader {
         limits.push({ ...usage, used: measured.value, subject: measured.path });
       }
     };
-    // No depth limit is documented for the CLI's references.
+    // The CLI resolves references "up to a depth limit"; its value is not documented.
     add(largest(this.#hops), {
       key: 'copilot-cli.import_max_hops',
       unit: 'hops',
       limit: null,
       effect: 'skips',
-      evidence: INSTRUCTIONS.cli,
+      evidence: CLI_IMPORTS,
     });
     add(largest(this.#lines), {
       key: 'copilot.code_review_instruction_lines',

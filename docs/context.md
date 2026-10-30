@@ -465,8 +465,11 @@ At session start                         bytes  ≈tokens
   directory's file. Codex does not load `AGENTS.md` files below the working directory at all. It
   reads the `.codex/config.toml` of the same directories, the closest winning.
 - **Copilot CLI** reads its instruction files in the root, the working directory and the
-  directories between them, and those in directories below when it works on files there. It
-  reads `.mcp.json` in every directory from the working directory up to the repository root.
+  directories between them, and those in directories below when it works on files there; its
+  `.github/instructions` and `.claude/rules` files only at the root and in the working
+  directory. Of two skills with one name it keeps the working directory's, then a parent's
+  `.github/skills`. It reads `.mcp.json` in every directory from the working directory up to the
+  repository root.
 - **Gemini CLI** reads its context files from the project root down to the working directory,
   and the same names below it when a tool accesses a path there. Its settings, and so its
   context file names, come from `.gemini/settings.json` in the working directory, and so do its
@@ -508,7 +511,7 @@ $ npx agentcheckup context --matrix
 Files by agent              Claude Codex Cursor Copilot       Gemini Devin Cline
                                                 CLI VSC Cloud
 .agents/skills/db-migrate   —      L     L      L   L   L     L      L     L
-.claude/rules/testing.md    P      —     —      —   P   —     —      —     —
+.claude/rules/testing.md    P      —     —      P   P   —     —      —     —
 .claude/settings.json       S      —     S      S   —   —     —      S     —
 .claude/skills/release      L      —     L      L   L   L     —      L     L
 .codex/config.toml          —      S     —      —   —   —     —      —     —

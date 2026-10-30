@@ -1359,7 +1359,8 @@ describe('frontmatter', () => {
       {
         id: 'perm:.claude/commands/release.md#allowed-tools=Bash',
         line: 3,
-        platforms: ['claude-code'],
+        // The Copilot CLI reads a command as a skill, and Devin Local imports it as one.
+        platforms: ['claude-code', 'copilot', 'windsurf'],
         broad: true,
         effective: true,
       },
@@ -1373,7 +1374,7 @@ describe('frontmatter', () => {
       {
         id: 'perm:templates/.claude/commands/release.md#allowed-tools=Bash',
         line: 3,
-        platforms: ['claude-code'],
+        platforms: ['claude-code', 'copilot', 'windsurf'],
         broad: true,
         effective: false,
       },

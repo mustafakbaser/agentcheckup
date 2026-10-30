@@ -125,6 +125,29 @@ function isSkillPath(path: string): boolean {
   return classify(path)?.kind === 'skill';
 }
 
+/** A `.claude/commands` file; the cheap test first, since most paths are not. */
+function isCommandPath(path: string): boolean {
+  return (
+    path.toLowerCase().includes('.claude/commands/') && classify(path)?.kind === 'claude-command'
+  );
+}
+
+/**
+ * A plan without its commands. Commands get no row, but the Copilot CLI lists them as skills
+ * (SOURCES.copilotCliReference), which would make a `.claude/commands` folder a skill row that
+ * Claude Code and Devin Local do not read.
+ */
+function withoutCommands(plan: LoadPlan): LoadPlan {
+  const keep = (path: string): boolean => !isCommandPath(path);
+  return {
+    ...plan,
+    entries: plan.entries.filter((entry) => keep(entry.path)),
+    skipped: plan.skipped.filter((skip) => keep(skip.path)),
+    outOfScope: plan.outOfScope.filter((item) => keep(item.path)),
+    incomplete: plan.incomplete.filter((item) => keep(item.slice(item.indexOf(':') + 1))),
+  };
+}
+
 function kindOf(view: Pick<LoadView, 'index'>, path: string): ArtifactKind | undefined {
   return classify(path)?.kind ?? view.index.get(path)?.kind;
 }
@@ -214,9 +237,10 @@ function cellFor(plans: readonly LoadPlan[], row: MatrixRow): MatrixCell {
  */
 export function buildMatrix(
   view: Pick<LoadView, 'index'>,
-  plans: readonly LoadPlan[],
+  planned: readonly LoadPlan[],
   agents: readonly ContextAgent[],
 ): NonNullable<ContextReport['matrix']> {
+  const plans = planned.map(withoutCommands);
   const columns = orderedAgents(agents);
   const kinds = new Map<string, ArtifactKind>();
   const addRow = (path: string, skill: boolean): void => {

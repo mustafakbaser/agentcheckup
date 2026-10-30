@@ -208,7 +208,7 @@ describe('matrix', () => {
       }),
     ).toEqual([
       '.agents/skills/notes skill not-read skipped listed listed listed listed skipped listed listed',
-      '.claude/rules/api.md claude-rule on-path not-read not-read not-read on-path not-read not-read not-read not-read',
+      '.claude/rules/api.md claude-rule on-path not-read not-read on-path on-path not-read not-read not-read not-read',
       '.claude/skills/deploy skill listed not-read listed listed listed listed not-read listed listed',
       '.cursor/rules/always.mdc cursor-rule not-read not-read startup not-read not-read not-read not-read startup not-read',
       '.cursor/rules/broken.mdc cursor-rule not-read not-read unknown not-read not-read not-read not-read unknown not-read',
@@ -233,6 +233,21 @@ describe('matrix', () => {
       'CLAUDE.md': 'Claude.\n',
     });
     expect(rows).toEqual([
+      'CLAUDE.md claude-md startup not-read startup startup startup startup not-read startup not-read',
+    ]);
+  });
+
+  it('gives commands no row, though the Copilot CLI lists them as skills', () => {
+    const rows = matrixOf({
+      '.claude/commands/review.md': '---\ndescription: Review the change.\n---\nReview.\n',
+      '.claude/commands/git/commit.md': '---\ndescription: Commit.\n---\nCommit.\n',
+      'pkg/.claude/commands/lint.md': '---\ndescription: Lint.\n---\nLint.\n',
+      '.claude/skills/deploy/SKILL.md': '---\nname: deploy\ndescription: Ship.\n---\nSteps.\n',
+      'CLAUDE.md': 'Claude.\n',
+    });
+    expect(rows).toEqual([
+      // A skill next to them keeps its row.
+      '.claude/skills/deploy skill listed not-read listed listed listed listed not-read listed listed',
       'CLAUDE.md claude-md startup not-read startup startup startup startup not-read startup not-read',
     ]);
   });

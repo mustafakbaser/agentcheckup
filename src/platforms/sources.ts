@@ -20,6 +20,9 @@ const AGENTS_CHECKED = '2026-10-26';
 /** Sources re-read in the source audit of 2026-10-30. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** GitHub Copilot and VS Code sources read again for the Copilot loaders and inventory. */
+const COPILOT_CHECKED = '2026-10-30';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -212,7 +215,7 @@ export const SOURCES = {
   copilotCliInstructions: verified(
     'GitHub Copilot CLI: Add custom instructions',
     'https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions',
-    COVERAGE_CHECKED,
+    COPILOT_CHECKED,
   ),
   copilotCodeReview: verified(
     'GitHub Copilot: Customize code review',
@@ -247,7 +250,7 @@ export const SOURCES = {
   vscodeInstructions: verified(
     'VS Code: Custom instructions',
     'https://code.visualstudio.com/docs/agent-customization/custom-instructions',
-    COVERAGE_CHECKED,
+    COPILOT_CHECKED,
   ),
   vscodeSkills: verified(
     'VS Code: Agent skills',
@@ -485,7 +488,17 @@ export const SOURCES = {
   copilotCliAgents: verified(
     'GitHub Copilot CLI: Custom agents reference',
     'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',
-    AGENTS_CHECKED,
+    COPILOT_CHECKED,
+  ),
+  copilotCliReference: verified(
+    'GitHub Copilot CLI: Command reference (instruction locations and imports, skill locations, commands)',
+    'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',
+    COPILOT_CHECKED,
+  ),
+  copilotCliConfigDir: verified(
+    'GitHub Copilot CLI: Configuration directory (repository settings, .claude/settings.json)',
+    'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference',
+    COPILOT_CHECKED,
   ),
   copilotCustomAgents: verified(
     'GitHub Copilot: Custom agents configuration',

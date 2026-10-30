@@ -800,7 +800,8 @@ class InventoryBuilder {
 
   /**
    * A skill's or command's `allowed-tools` and `hooks`. Claude Code applies both to skills and
-   * commands; GitHub Copilot applies a skill's `allowed-tools` (skill/broad-allowed-tools). Hooks
+   * commands; GitHub Copilot applies a skill's `allowed-tools` (skill/broad-allowed-tools), and the
+   * Copilot CLI a command's, which it reads as a skill (SOURCES.copilotCliReference). Hooks
    * are registered when the skill or command is invoked and run for the rest of the session
    * (SOURCES.claudeHooks, "Hooks in skills and agents"). Neither takes effect for a skill bundled
    * inside another skill, or for a file in a payload folder of another directory's agent folder,
