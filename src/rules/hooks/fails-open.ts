@@ -66,7 +66,7 @@ function describe(platform: HookPlatform, event: string, type: string | undefine
         ? `If this ${event} HTTP hook fails, times out or answers with an error status, GitHub Copilot falls back to its usual permission flow, so the tool call can proceed.`
         : `If this ${event} hook exits with an error other than code 2, VS Code, which reads this PascalCase name, continues and runs the tool. The Copilot CLI and cloud agent deny the tool call when a preToolUse command hook fails.`;
     case 'windsurf':
-      return `If this ${event} hook exits with an error other than code 2, Devin Local logs it and runs the tool anyway. If the hook enforces a policy, catch errors in the script and exit with code 2.`;
+      return `If this ${event} hook times out or exits with an error other than code 2, Devin Local logs it and runs the tool anyway. If the hook enforces a policy, catch errors in the script and exit with code 2.`;
   }
 }
 
@@ -75,8 +75,8 @@ export const failsOpenRule = defineRule({
     id: ID,
     title: 'Tool-gating hook lets the tool call proceed when it fails',
     rationale: [
-      'Hooks on events such as `PreToolUse` (Claude Code, Codex), `beforeShellExecution` (Cursor) and `BeforeTool` (Gemini CLI) can block a tool call, so they are used to enforce policies. By default all four agents fail open: when such a hook crashes or cannot start, the tool call proceeds as if the hook had allowed it. Claude Code, Codex and Cursor also let it proceed when the hook times out. A policy hook with a broken path or a slow dependency therefore protects nothing.',
-      'This is documented behavior, so the finding is advice. To fail closed, set `"onFailure": "block"` on a Claude Code command or HTTP hook (v2.1.295 or later), or `"failClosed": true` on a Cursor hook. Codex and Gemini CLI have no such setting: the script has to catch its own errors and exit with code 2 (in Codex, with a reason on stderr).',
+      'Hooks on events such as `PreToolUse` (Claude Code, Codex, Devin Local), `beforeShellExecution` (Cursor) and `BeforeTool` (Gemini CLI) can block a tool call, so they are used to enforce policies. By default all five agents fail open: when such a hook crashes or cannot start, the tool call proceeds as if the hook had allowed it. Claude Code, Codex, Cursor and Devin Local also let it proceed when the hook times out. A policy hook with a broken path or a slow dependency therefore protects nothing.',
+      'This is documented behavior, so the finding is advice. To fail closed, set `"onFailure": "block"` on a Claude Code command or HTTP hook (v2.1.295 or later), or `"failClosed": true` on a Cursor hook. Codex, Gemini CLI and Devin Local have no such setting: the script has to catch its own errors and exit with code 2 (in Codex, with a reason on stderr).',
     ].join('\n\n'),
     category: 'risk',
     severity: 'info',
@@ -86,14 +86,22 @@ export const failsOpenRule = defineRule({
       'codex-config',
       'cursor-hooks',
       'gemini-settings',
+      'devin-hooks',
+      'devin-config',
     ],
-    platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
-    sources: [SOURCES.claudeHooks, SOURCES.cursorHooks, SOURCES.codexHooks, SOURCES.geminiHooks],
+    platforms: ['claude-code', 'codex', 'cursor', 'gemini', 'windsurf'],
+    sources: [
+      SOURCES.claudeHooks,
+      SOURCES.cursorHooks,
+      SOURCES.codexHooks,
+      SOURCES.geminiHooks,
+      SOURCES.devinCliHooks,
+    ],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
       summary:
-        'Sets "onFailure": "block" on the Claude Code hook or "failClosed": true on the Cursor hook. Codex and Gemini CLI have no such setting, so their scripts must be changed by hand.',
+        'Sets "onFailure": "block" on the Claude Code hook or "failClosed": true on the Cursor hook. Codex, Gemini CLI and Devin Local have no such setting, so their scripts must be changed by hand.',
     },
   },
   defaultOptions: undefined,
@@ -116,7 +124,7 @@ export const failsOpenRule = defineRule({
         }
         const field = type === 'http' ? 'url' : 'command';
         const fix = canEdit ? fixFor(artifact, platform, event, handler, path) : undefined;
-        // Codex and Gemini CLI: the message already says what to change in the script.
+        // Codex, Gemini CLI and Devin Local: the message says what to change in the script.
         findings.report({
           artifact,
           ...at(spanOf(doc, [...path, field]) ?? spanOf(doc, path)),

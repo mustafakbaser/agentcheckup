@@ -76,6 +76,36 @@ describe('hooks/fails-open', () => {
     expect(findings(lint({ '.gemini/settings.json': after }, { rules }), ID)).toEqual([]);
   });
 
+  it("covers Devin Local's own hook files, which have no setting to fail closed", () => {
+    const own = json({
+      PreToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: './check.sh' }] }],
+      PostToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: './log.sh' }] }],
+    });
+    const config = json({
+      hooks: { PreToolUse: [{ hooks: [{ type: 'prompt', prompt: 'Is this safe?' }] }] },
+    });
+    const result = lint(
+      {
+        '.devin/hooks.v1.json': own,
+        '.devin/config.json': config,
+        // Cascade's file, whose format is not modeled.
+        '.devin/hooks.json': json({ pre_run_command: [{ command: 'x' }] }),
+      },
+      { rules },
+    );
+    expect(findings(result, ID)).toEqual([
+      {
+        ruleId: ID,
+        severity: 'info',
+        path: '.devin/hooks.v1.json',
+        message:
+          'If this PreToolUse hook times out or exits with an error other than code 2, Devin Local logs it and runs the tool anyway. If the hook enforces a policy, catch errors in the script and exit with code 2.',
+        range: rangeOf(own, '"./check.sh"'),
+      },
+    ]);
+    expect(result.findings.map((f) => [f.platforms, f.fix])).toEqual([[['windsurf'], undefined]]);
+  });
+
   it('respects targets', () => {
     const text = nested('PreToolUse', [{ type: 'command', command: 'x' }]);
     expect(

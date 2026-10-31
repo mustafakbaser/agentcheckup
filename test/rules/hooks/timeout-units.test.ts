@@ -45,6 +45,34 @@ describe('hooks/timeout-units', () => {
     ).toContain('Hook timeout is 0.5 milliseconds (0.0005 seconds),');
   });
 
+  it("checks Devin Local's own hook files, which read seconds", () => {
+    const own = json({
+      PreToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: 'x', timeout: 5000 }] }],
+      Stop: [{ hooks: [{ type: 'command', command: 'y', timeout: 30 }] }],
+    });
+    const result = lint(
+      { '.devin/hooks.v1.json': own, '.devin/config.json': json(nested(10_000)) },
+      { rules },
+    );
+    expect(findings(result, ID).map((f) => [f.path, f.message])).toEqual([
+      [
+        '.devin/config.json',
+        'Hook timeout is 10,000 seconds (about 3 hours), because Devin Local reads "timeout" in seconds. If you meant 10,000 milliseconds, write 10.',
+      ],
+      [
+        '.devin/hooks.v1.json',
+        'Hook timeout is 5,000 seconds (about 83 minutes), because Devin Local reads "timeout" in seconds. If you meant 5,000 milliseconds, write 5.',
+      ],
+    ]);
+    expect(result.findings.map((f) => f.fix?.id)).toEqual([
+      'hooks/timeout-units#to-seconds',
+      'hooks/timeout-units#to-seconds',
+    ]);
+    expect(
+      findings(lint({ '.devin/hooks.v1.json': own }, { rules, targets: ['claude-code'] }), ID),
+    ).toEqual([]);
+  });
+
   it('checks Cursor and Codex files', () => {
     const cursor = json({
       version: 1,

@@ -83,7 +83,7 @@ export const timeoutUnitsRule = defineRule({
     id: ID,
     title: 'Hook timeout looks like the wrong unit',
     rationale: [
-      'Claude Code, Codex and Cursor read a hook\'s `timeout` in seconds; Claude Code and Codex default to 600. Gemini CLI reads it in milliseconds and defaults to 60,000. A value in the other unit is off by a factor of 1,000: `"timeout": 5000` meant as five seconds lets a hung hook block Claude Code for 83 minutes, and `"timeout": 30` cancels a Gemini CLI hook after 30 milliseconds.',
+      'Claude Code, Codex, Cursor and Devin Local read a hook\'s `timeout` in seconds; Claude Code and Codex default to 600. Gemini CLI reads it in milliseconds and defaults to 60,000. A value in the other unit is off by a factor of 1,000: `"timeout": 5000` meant as five seconds lets a hung hook block Claude Code for 83 minutes, and `"timeout": 30` cancels a Gemini CLI hook after 30 milliseconds.',
       'In seconds-based files the rule reports values of 1,000 or more that are multiples of 500, and values of a day or more; durations such as 1,800 or 3,600 seconds are not reported. In Gemini CLI settings it reports values below 1,000.',
       'Write the timeout in the unit of the agent that reads the file.',
     ].join('\n\n'),
@@ -95,8 +95,10 @@ export const timeoutUnitsRule = defineRule({
       'codex-config',
       'cursor-hooks',
       'gemini-settings',
+      'devin-hooks',
+      'devin-config',
     ],
-    platforms: ['claude-code', 'codex', 'cursor', 'gemini'],
+    platforms: ['claude-code', 'codex', 'cursor', 'gemini', 'windsurf'],
     sources: [
       SOURCES.claudeHooks,
       SOURCES.codexHooks,
@@ -104,12 +106,13 @@ export const timeoutUnitsRule = defineRule({
       SOURCES.cursorHooks,
       HOOK_SOURCES.geminiHookReference,
       HOOK_SOURCES.geminiHookRunner,
+      SOURCES.devinCliHooks,
     ],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
       summary:
-        'Rewrites the number in the unit the agent reads: divided by 1,000 and rounded up for Claude Code, Codex and Cursor, multiplied by 1,000 for Gemini CLI. Only the number changes.',
+        'Rewrites the number in the unit the agent reads: divided by 1,000 and rounded up for Claude Code, Codex, Cursor and Devin Local, multiplied by 1,000 for Gemini CLI. Only the number changes.',
     },
   },
   defaultOptions: undefined,
