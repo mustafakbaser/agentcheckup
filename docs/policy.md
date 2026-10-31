@@ -125,7 +125,7 @@ A setting `forbid` names is configured. Grants come from the same table the
 | `bypass-permissions`       | `permissions.defaultMode` or a subagent's `permissionMode` set to `bypassPermissions`. Reported even where Claude Code ignores it, in project settings since v2.1.257 and in a subagent since v2.1.267, because older versions honor it. |
 | `auto-approve-project-mcp` | `enableAllProjectMcpServers` set to `true`: Claude Code starts every server in `.mcp.json` without asking.                                                                                                                               |
 | `mcp-auto-approve`         | Any `enabledMcpjsonServers` entry: Claude Code starts that server without asking.                                                                                                                                                        |
-| `broad-shell`              | A grant of every shell command: `Bash`, `Bash(*)`, `PowerShell`, `PowerShell(*)` in `permissions.allow` or the `allowed-tools` of a skill or command, or Copilot's `shell` or `bash`.                                                    |
+| `broad-shell`              | A grant of every shell command: `Bash`, `Bash(*)`, `PowerShell`, `PowerShell(*)` in `permissions.allow` or the `allowed-tools` of a skill or command, Copilot's `shell` or `bash`, or Devin Local's `exec`.                              |
 | `broad-write`              | A grant to write or edit any file: a bare `Write` or `Edit`.                                                                                                                                                                             |
 | `gemini-trust`             | `trust: true` on a Gemini CLI MCP server: Gemini CLI runs its tool calls without confirmation.                                                                                                                                           |
 | `additional-directories`   | Any `permissions.additionalDirectories` entry: Claude Code gets files outside the project.                                                                                                                                               |
@@ -148,7 +148,7 @@ skill or a Claude Code command.
 - A tool grant violates `denyTools` when it names the tool, without case; when it ends in `*` and
   the tool starts with what comes before it; or when it grants a whole MCP server (`mcp__github`)
   whose tool is denied, and the other way around.
-- A shell grant (`Bash`, `PowerShell`, Copilot's `shell`) violates `denyCommands` when it allows
+- A shell grant (`Bash`, `PowerShell`, Copilot's `shell`, Devin Local's `exec`) violates `denyCommands` when it allows
   every command (no specifier, or `*`), when its first word is the denied program
   (`Bash(curl:*)`, `Bash(/usr/bin/curl https://x)`), or when its program cannot be told: a
   leading `*`, command substitution, `;`, `|`, `&`, a variable or glob in the first word, or a

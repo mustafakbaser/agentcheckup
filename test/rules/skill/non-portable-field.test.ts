@@ -70,6 +70,34 @@ describe('skill/non-portable-field', () => {
       );
     });
 
+    it('names Devin Local as the reader of triggers, permissions and subagent', () => {
+      expect(
+        check('triggers: [user]\npermissions:\n  deny:\n    - exec\nsubagent: false\n'),
+      ).toEqual([
+        expect.objectContaining({
+          message: `"triggers", "permissions" and "subagent" are not Agent Skills fields, so ${REJECTED}.`,
+        }),
+      ]);
+      expect(check('triggers: [user]\n')[0]?.message).toBe(
+        `"triggers" is not an Agent Skills field: Devin Local reads it, but ${REJECTED}.`,
+      );
+      expect(check('triggers: [user]\n', '.devin/skills/deploy/SKILL.md')).toEqual([]);
+      expect(
+        check('triggers: [user]\n', '.claude/skills/deploy/SKILL.md').map((f) => [
+          f.platforms,
+          f.message,
+        ]),
+      ).toEqual([
+        [
+          ['claude-code', 'cursor', 'copilot', 'cline'],
+          '"triggers" is a documented skill field in Devin Local but not in Claude Code, Cursor, GitHub Copilot and Cline, so the agents that load this skill treat it differently.',
+        ],
+      ]);
+      expect(
+        check('permissions:\n  deny:\n    - exec\n', '.windsurf/skills/deploy/SKILL.md'),
+      ).toEqual([]);
+    });
+
     it('does not suggest metadata when every field is a known extension', () => {
       expect(check('model: opus\nagent: Explore\ncontext: fork\n')).toEqual([
         expect.objectContaining({

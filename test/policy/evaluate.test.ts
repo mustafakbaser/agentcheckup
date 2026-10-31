@@ -543,6 +543,22 @@ describe('forbidden-setting', () => {
     ).toEqual([]);
   });
 
+  it("reports Devin Local's exec as a grant of every shell command", () => {
+    const skill =
+      '---\nname: ops\ndescription: Runs.\nallowed-tools:\n  - exec\n  - read\n---\nBody.\n';
+    const report = run(
+      { forbid: ['broad-shell', 'broad-write'], permissions: { denyCommands: ['curl'] } },
+      { '.devin/skills/ops/SKILL.md': skill, '.cursor/skills/ops/SKILL.md': skill },
+    );
+    expect(messages(report)).toEqual([
+      // `.cursor/skills`: only Cursor reads it, and Cursor does not apply `allowed-tools`.
+      'allowed-tools "exec": Devin Local runs any shell command without asking when the skill or command is invoked; the policy forbids broad-shell. It has no effect where it is set today.',
+      'allowed-tools "exec": Devin Local runs any shell command without asking when the skill or command is invoked; the policy forbids broad-shell.',
+      'allowed-tools "exec" lets the agent run any command without asking when the skill or command is invoked; the policy denies curl. It has no effect where it is set today.',
+      'allowed-tools "exec" lets the agent run any command without asking when the skill or command is invoked; the policy denies curl.',
+    ]);
+  });
+
   it('notes a grant no agent applies where it is set', () => {
     // A skill bundled inside another skill's folder is not loaded as a skill.
     const report = run(

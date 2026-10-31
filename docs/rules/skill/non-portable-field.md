@@ -15,7 +15,7 @@ Skill frontmatter uses a field outside the Agent Skills specification.
 
 ## Why
 
-The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`, Devin Local documents `argument-hint`, `model` and `agent` among others, and Cline documents none.
+The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`, Devin Local documents `argument-hint`, `model`, `agent`, `subagent`, `triggers` and `permissions`, and Cline documents none.
 
 For a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.
 
@@ -29,7 +29,7 @@ Keep extension fields in skills that only their agents load, and move your own d
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
 - [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
-- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-17
+- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
 - [Cline: Skills](https://docs.cline.bot/customization/skills), verified, checked 2026-10-17
 
 ## Fix

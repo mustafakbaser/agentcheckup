@@ -137,6 +137,22 @@ describe('skill/broad-allowed-tools#narrow', () => {
     expect(run.applied[0]?.findings).toHaveLength(2);
   });
 
+  it("removes Devin Local's exec with the Bash entry it narrows", () => {
+    const files = { [PATH]: skill('allowed-tools: Bash exec read\n', BODY) };
+    const found = reported(files);
+    expect(found.map((finding) => finding.platforms)).toEqual([['claude-code'], ['windsurf']]);
+    expect(found[0]?.fix).toEqual(found[1]?.fix);
+    expect(found[0]?.fix?.title).toBe(
+      `Replace "Bash" in "allowed-tools" of ${PATH} with 2 rules for the commands the skill shows, and remove "exec"`,
+    );
+    expect(found[0]?.fix?.notes?.at(-1)).toBe(
+      "Devin Local runs shell commands for this skill only as the session's permissions allow.",
+    );
+    expect(fixed(files).text).toContain(
+      'allowed-tools: "Bash(uv run scripts/convert.py *) Bash(git status *) read"\n',
+    );
+  });
+
   it('keeps every command Claude Code runs while rendering the skill allowed', () => {
     const files = {
       [PATH]: skill('allowed-tools: Bash\n', `Version: !\`node --version\`\n\n${BODY}`),

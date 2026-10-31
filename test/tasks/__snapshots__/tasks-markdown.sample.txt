@@ -37,7 +37,7 @@ Check: `npx agentcheckup@0.5.0 tasks --check ac-8de95bab` exits 0.
 File: `.claude/skills/deploy/SKILL.md` line 4, frontmatter key `allowed-tools`
 Problem: \`allowed\-tools\` pre\-approves &quot;Bash&quot; without limits\. During the turn that invokes this skill, Claude Code runs any shell command without asking, even in a \`\-p\` run in a directory you never trusted\.
 Hint: limit each rule in &quot;allowed\-tools&quot; to the commands or files the skill needs, such as &quot;Bash\(git status \*\)&quot;, or remove it so that Claude Code asks
-Why: `allowed-tools` lets the skill use these tools without asking; a bare `Bash` grants every shell command and a bare `Write` or `Edit` every file.
+Why: `allowed-tools` lets the skill use these tools without asking; a bare `Bash`, or Devin Local's `exec`, grants every shell command and a bare `Write` or `Edit` every file.
 Current value:
 ~~~~untrusted
 Bash Read

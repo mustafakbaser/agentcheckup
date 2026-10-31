@@ -9,10 +9,12 @@ describe('toolRule', () => {
     expect(toolRule('Bash(unclosed')).toEqual({ tool: 'Bash', specifier: 'unclosed' });
   });
 
-  it('knows the shell tools of Claude Code and Copilot', () => {
-    for (const tool of ['Bash', 'PowerShell', 'shell', 'bash'])
+  it('knows the shell tools of Claude Code, Copilot and Devin Local', () => {
+    for (const tool of ['Bash', 'PowerShell', 'shell', 'bash', 'exec', 'Exec'])
       expect(isShellTool(tool)).toBe(true);
-    for (const tool of ['Read', 'WebFetch', 'Write']) expect(isShellTool(tool)).toBe(false);
+    for (const tool of ['Read', 'WebFetch', 'Write', 'edit', 'read']) {
+      expect(isShellTool(tool)).toBe(false);
+    }
   });
 });
 

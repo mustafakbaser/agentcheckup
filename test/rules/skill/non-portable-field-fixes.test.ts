@@ -152,6 +152,9 @@ describe('skill/non-portable-field fixes', () => {
       'disable-model-invocation: true\n',
       'disallowed-tools: Bash\n',
       'model: opus\nhooks:\n  Stop: []\n',
+      'triggers: [user]\n',
+      'permissions:\n  deny:\n    - exec\n',
+      'subagent: true\n',
     ])('never offers to remove a field that restricts the model: %j', (fields) => {
       const fix = fixOf(DISTRIBUTABLE, skill(fields));
       expect(variants(fix)).toEqual(['#keep:input']);
@@ -403,6 +406,14 @@ describe('field effects', () => {
       .filter(([, effect]) => !effect.removable)
       .map(([key]) => key)
       .sort();
-    expect(kept).toEqual(['agent', 'disable-model-invocation', 'disallowed-tools', 'hooks']);
+    expect(kept).toEqual([
+      'agent',
+      'disable-model-invocation',
+      'disallowed-tools',
+      'hooks',
+      'permissions',
+      'subagent',
+      'triggers',
+    ]);
   });
 });

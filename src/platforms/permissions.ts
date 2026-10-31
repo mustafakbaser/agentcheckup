@@ -36,6 +36,8 @@ export interface Grant {
  * Rules that match every use of a tool. Claude Code: a bare tool name or `(*)` matches all
  * commands of Bash and PowerShell, and a bare Write or Edit matches every file. Copilot: the
  * docs warn that pre-approving `shell` or `bash` removes the confirmation for terminal commands.
+ * Devin Local: a bare `exec` auto-approves "all command execution" (SOURCES.devinCliSkillsCreate).
+ * Its `edit` and `write` are not mapped: the Copilot CLI has tools of those names.
  */
 export function broadGrant(rule: string): Grant | undefined {
   const open = rule.indexOf('(');
@@ -57,6 +59,9 @@ export function broadGrant(rule: string): Grant | undefined {
   }
   if ((tool === 'shell' || tool === 'bash') && specifier === undefined) {
     return { platform: 'copilot', capability: 'runs terminal commands' };
+  }
+  if (tool === 'exec' && specifier === undefined) {
+    return { platform: 'windsurf', capability: 'runs any shell command' };
   }
   return undefined;
 }

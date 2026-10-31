@@ -131,7 +131,7 @@
       "message": "`allowed-tools` pre-approves \"Bash\" without limits. During the turn that invokes this skill, Claude Code runs any shell command without asking, even in a `-p` run in a directory you never trusted.",
       "template": "rule",
       "hint": "limit each rule in \"allowed-tools\" to the commands or files the skill needs, such as \"Bash(git status *)\", or remove it so that Claude Code asks",
-      "why": "`allowed-tools` lets the skill use these tools without asking; a bare `Bash` grants every shell command and a bare `Write` or `Edit` every file.",
+      "why": "`allowed-tools` lets the skill use these tools without asking; a bare `Bash`, or Devin Local's `exec`, grants every shell command and a bare `Write` or `Edit` every file.",
       "do": [
         "read the skill body and list the commands it tells the agent to run",
         "replace each broad entry with narrow rules for those commands, such as `Bash(git status *)`",

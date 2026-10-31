@@ -29,7 +29,7 @@ Add `name` with the directory name, in lowercase letters, digits and hyphens.
 - [Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-30
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
 - [Codex source: skill loader (default name from the directory)](https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs), verified, checked 2026-10-14
-- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-17
+- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
 
 ## Fix
 

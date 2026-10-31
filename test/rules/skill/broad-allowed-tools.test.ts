@@ -70,6 +70,40 @@ describe('skill/broad-allowed-tools', () => {
     ]);
   });
 
+  it('reports exec for Devin Local, which auto-approves it in the skills it reads', () => {
+    const exec = [
+      'windsurf',
+      '`allowed-tools` auto-approves "exec", so Devin Local runs any shell command without a permission prompt while this skill runs inline.',
+    ];
+    const shown = (tools: string, path: string) =>
+      check(tools, path).map((f) => [f.platforms.join(','), f.message]);
+    expect(shown('exec read grep', '.devin/skills/x/SKILL.md')).toEqual([exec]);
+    expect(shown('exec', '.claude/skills/x/SKILL.md')).toEqual([exec]);
+    // Its own tools that read, and narrow or capitalized forms, are not reported.
+    for (const tools of ['read grep glob', 'Exec(git status)', 'Exec', 'exec(*)']) {
+      expect(check(tools, '.devin/skills/x/SKILL.md')).toEqual([]);
+    }
+    // Devin Local does not read `.cursor/skills`, and Cursor does not document `allowed-tools`.
+    expect(check('exec', '.cursor/skills/x/SKILL.md')).toEqual([]);
+    expect(check('exec', '.devin/skills/x/SKILL.md', ['claude-code'])).toEqual([]);
+  });
+
+  it('does not report exec in a skill Devin Local does not import', () => {
+    const result = lint(
+      {
+        '.devin/config.json': '{ "read_config_from": { "claude": false } }\n',
+        '.claude/skills/x/SKILL.md': '---\nname: x\nallowed-tools: exec Bash\n---\n',
+        '.github/skills/y/SKILL.md': '---\nname: y\nallowed-tools: exec\n---\n',
+      },
+      { rules: [broadAllowedToolsRule] },
+    );
+    findings(result, ID);
+    expect(result.findings.map((f) => `${f.path} ${f.platforms.join(',')}`)).toEqual([
+      '.claude/skills/x/SKILL.md claude-code',
+      '.github/skills/y/SKILL.md windsurf',
+    ]);
+  });
+
   it('reports each platform separately', () => {
     expect(check('Bash shell').map((f) => [f.platforms, f.range.start.column])).toEqual([
       [['claude-code'], 16],

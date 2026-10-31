@@ -392,14 +392,19 @@ export const SOURCES = {
     COVERAGE_CHECKED,
   ),
   devinCliSkills: verified(
-    'Devin CLI: Skills',
+    'Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)',
     'https://docs.devin.ai/cli/extensibility/skills/overview',
-    COVERAGE_CHECKED,
+    '2026-10-30',
   ),
   devinCliSkillsCreate: verified(
-    'Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)',
+    'Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)',
     'https://docs.devin.ai/cli/extensibility/skills/creating-skills',
-    COVERAGE_CHECKED,
+    '2026-10-30',
+  ),
+  devinCliChangelog: verified(
+    'Devin CLI: Changelog, stable channel (v3000.11.1: skills grant tools with `allowed-tools`)',
+    'https://docs.devin.ai/cli/changelog/stable',
+    '2026-10-30',
   ),
   devinCliConfigFile: verified(
     'Devin CLI: Configuration file (JSON with comments)',

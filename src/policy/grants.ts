@@ -7,8 +7,11 @@
  * when its first word is that program, or when its program cannot be told.
  */
 
-/** Tools whose specifier is a command line: Claude Code's Bash and PowerShell, Copilot's shell. */
-const SHELL_TOOLS: ReadonlySet<string> = new Set(['bash', 'powershell', 'shell']);
+/**
+ * Tools whose specifier is a command line: Claude Code's Bash and PowerShell, Copilot's shell and
+ * Devin Local's exec (`Exec(git)`, SOURCES.devinCliSkillsCreate).
+ */
+const SHELL_TOOLS: ReadonlySet<string> = new Set(['bash', 'exec', 'powershell', 'shell']);
 
 /**
  * Text that runs another command, or hides which one runs: substitution, separators, pipes,

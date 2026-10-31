@@ -4,6 +4,7 @@ import { yamlReplaceListItems, yamlSetScalar } from '../../fix/edits.js';
 import { broadGrant, type Grant, splitToolRules } from '../../platforms/permissions.js';
 import { bashRuleMatches, coveredBy, parseToolRule } from '../../platforms/tool-rules.js';
 import { defineRule } from '../define.js';
+import { targetedReaders } from '../instructions/helpers.js';
 import { SOURCES } from '../sources.js';
 import { joinNames, plural, quote } from '../shared/format.js';
 import { editable } from './fixes.js';
@@ -45,6 +46,9 @@ function message(platform: PlatformId, found: readonly Found[], projectSkill: bo
   if (platform === 'copilot') {
     return `\`allowed-tools\` pre-approves ${rules}, so GitHub Copilot ${capabilities} for this skill without asking for confirmation.`;
   }
+  if (platform === 'windsurf') {
+    return `\`allowed-tools\` auto-approves ${rules}, so Devin Local ${capabilities} without a permission prompt while this skill runs inline.`;
+  }
   // Workspace trust does not gate a project skill's allowed-tools, even in a `-p` run.
   const trust = projectSkill ? ', even in a `-p` run in a directory you never trusted' : '';
   return `\`allowed-tools\` pre-approves ${rules} without limits. During the turn that invokes this skill, Claude Code ${capabilities} without asking${trust}.`;
@@ -84,6 +88,11 @@ function consequences(removed: readonly string[]): string[] {
   if (removed.some((rule) => broadGrant(rule)?.platform === 'copilot')) {
     notes.push('GitHub Copilot asks before it runs terminal commands for this skill.');
   }
+  if (removed.some((rule) => broadGrant(rule)?.platform === 'windsurf')) {
+    notes.push(
+      "Devin Local runs shell commands for this skill only as the session's permissions allow.",
+    );
+  }
   return notes;
 }
 
@@ -114,11 +123,12 @@ function injectedAllowed(commands: readonly string[], rules: readonly string[]):
 /**
  * The `#narrow` fix (`review`): each reported Bash entry is replaced in place by Bash rules for
  * the commands the skill's body shows (narrow-tools.ts), and every other reported entry (bare
- * Write, Edit, PowerShell, Copilot's shell and bash) is removed, so the agent asks. Narrow entries
- * and the author's format stay: a string keeps its separator, a list its items. Undefined
- * without a reported Bash entry or a derived command, when a command Claude Code runs while
- * rendering the skill would no longer be allowed, the Markdown was only partly analyzed, the
- * file is reached through a symlink, or the builders cannot write the value exactly.
+ * Write, Edit, PowerShell, Copilot's shell and bash, Devin Local's exec) is removed, so the agent
+ * asks. Narrow entries and the author's format stay: a string keeps its separator, a list its
+ * items. Undefined without a reported Bash entry or a derived command, when a command Claude Code
+ * runs while rendering the skill would no longer be allowed, the Markdown was only partly
+ * analyzed, the file is reached through a symlink, or the builders cannot write the value
+ * exactly.
  */
 function narrowFix(
   context: RuleContext<undefined>,
@@ -212,21 +222,26 @@ export const broadAllowedToolsRule = defineRule({
 
 GitHub Copilot warns that pre-approving \`shell\` or \`bash\` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.
 
+Devin Local auto-approves the tools in a skill's \`allowed-tools\` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and \`exec\` is every shell command. That holds for the skills it imports from \`.claude/skills\` and \`.github/skills\` as well as for its own.
+
 Scope each rule to the commands the skill needs, such as \`Bash(git status *)\`, or leave the tool out so the agent asks.`,
     category: 'risk',
     severity: 'warn',
     appliesTo: ['skill'],
-    platforms: ['claude-code', 'copilot'],
+    platforms: ['claude-code', 'copilot', 'windsurf'],
     sources: [
       SOURCES.claudeSkills,
       SKILL_SOURCES.claudePermissions,
       SKILL_SOURCES.copilotAddSkills,
+      SOURCES.devinCliSkillsCreate,
+      SOURCES.devinCliSkills,
+      SOURCES.devinCliChangelog,
     ],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],
       summary:
-        "Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell` and `bash`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line.",
+        "Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell`, `bash` and `exec`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line.",
     },
   },
   defaultOptions: undefined,
@@ -249,12 +264,15 @@ Scope each rule to the commands the skill needs, such as \`Bash(git status *)\`,
           : artifact.decoded.text.slice(valueSpan.offset, valueSpan.offset + valueSpan.length);
       let cursor = 0;
       const byPlatform = new Map<PlatformId, Found[]>();
+      const devin = targetedReaders(context, artifact).includes('windsurf');
       for (const rule of entries.flatMap(splitToolRules)) {
         const at = source.indexOf(rule, cursor);
         if (at !== -1) cursor = at + rule.length;
         const grant = broadGrant(rule);
         if (grant === undefined || reached(context, artifact, [grant.platform]).length === 0)
           continue;
+        // Devin Local does not read a skill whose source `read_config_from` turns off.
+        if (grant.platform === 'windsurf' && !devin) continue;
         const list = byPlatform.get(grant.platform) ?? [];
         list.push({ rule, grant, at });
         byPlatform.set(grant.platform, list);
@@ -289,7 +307,9 @@ Scope each rule to the commands the skill needs, such as \`Bash(git status *)\`,
           guidance:
             platform === 'copilot'
               ? 'remove the shell tool from "allowed-tools" so that GitHub Copilot asks before it runs commands'
-              : 'limit each rule in "allowed-tools" to the commands or files the skill needs, such as "Bash(git status *)", or remove it so that Claude Code asks',
+              : platform === 'windsurf'
+                ? 'remove "exec" from "allowed-tools" so that Devin Local asks before it runs commands'
+                : 'limit each rule in "allowed-tools" to the commands or files the skill needs, such as "Bash(git status *)", or remove it so that Claude Code asks',
         });
       }
     }

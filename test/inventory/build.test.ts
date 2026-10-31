@@ -1092,6 +1092,80 @@ describe('permissions', () => {
     ]);
   });
 
+  it('counts the tools Devin Local auto-approves in the skills it reads', () => {
+    const skill = '---\nname: ops\nallowed-tools:\n  - exec\n  - read\n---\n\nBody.\n';
+    const shown = (inventory: Inventory) =>
+      inventory.permissions.map(({ id, broad, effective, platforms }) => ({
+        id,
+        broad,
+        effective,
+        platforms,
+      }));
+    expect(
+      shown(
+        inventoryOf({
+          '.devin/skills/ops/SKILL.md': skill,
+          '.claude/skills/ops/SKILL.md': skill,
+          // Only Cursor reads `.cursor/skills`, and it does not apply `allowed-tools`.
+          '.cursor/skills/ops/SKILL.md': skill,
+        }),
+      ),
+    ).toEqual([
+      {
+        id: 'perm:.claude/skills/ops/SKILL.md#allowed-tools=exec',
+        broad: true,
+        effective: true,
+        platforms: ['claude-code', 'cline', 'copilot', 'cursor', 'windsurf'],
+      },
+      {
+        id: 'perm:.claude/skills/ops/SKILL.md#allowed-tools=read',
+        broad: false,
+        effective: true,
+        platforms: ['claude-code', 'cline', 'copilot', 'cursor', 'windsurf'],
+      },
+      {
+        id: 'perm:.cursor/skills/ops/SKILL.md#allowed-tools=exec',
+        broad: true,
+        effective: false,
+        platforms: ['cursor'],
+      },
+      {
+        id: 'perm:.cursor/skills/ops/SKILL.md#allowed-tools=read',
+        broad: false,
+        effective: false,
+        platforms: ['cursor'],
+      },
+      {
+        id: 'perm:.devin/skills/ops/SKILL.md#allowed-tools=exec',
+        broad: true,
+        effective: true,
+        platforms: ['windsurf'],
+      },
+      {
+        id: 'perm:.devin/skills/ops/SKILL.md#allowed-tools=read',
+        broad: false,
+        effective: true,
+        platforms: ['windsurf'],
+      },
+    ]);
+    // Devin Local does not import the skills `read_config_from` turns off; Claude Code has no
+    // `exec`, but it applies `read`.
+    expect(
+      shown(
+        inventoryOf({
+          '.devin/config.json': json({ read_config_from: { claude: false, windsurf: false } }),
+          '.claude/skills/ops/SKILL.md': skill,
+          '.windsurf/skills/ops/SKILL.md': skill,
+        }),
+      ).map(({ id, effective }) => `${id} ${String(effective)}`),
+    ).toEqual([
+      'perm:.claude/skills/ops/SKILL.md#allowed-tools=exec false',
+      'perm:.claude/skills/ops/SKILL.md#allowed-tools=read true',
+      'perm:.windsurf/skills/ops/SKILL.md#allowed-tools=exec false',
+      'perm:.windsurf/skills/ops/SKILL.md#allowed-tools=read false',
+    ]);
+  });
+
   it('lists the subagent every Claude Code session starts as', () => {
     const { permissions } = inventoryOf({
       '.claude/settings.json': json({ agent: 'reviewer', permissions: { allow: ['Read'] } }),

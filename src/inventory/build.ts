@@ -96,6 +96,7 @@ import {
   SUBAGENT_IGNORED_MODES,
   SUBAGENT_PERMISSION_MODES,
 } from '../platforms/permissions.js';
+import { effectiveReaders } from '../platforms/readers.js';
 import { placement, skillLocation } from '../platforms/skills.js';
 import {
   PLUGIN_HOOKS_FILE,
@@ -157,6 +158,9 @@ const FRONTMATTER_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'claude-command',
   'claude-agent',
 ]);
+
+/** Agents that apply a skill's `allowed-tools` to a rule that names no agent of its own. */
+const ALLOWED_TOOLS_READERS: readonly PlatformId[] = ['claude-code', 'copilot', 'windsurf'];
 
 /** Hooks in frontmatter use the format of Claude Code's settings files (SOURCES.claudeHooks). */
 const FRONTMATTER_HOOKS: HookSource = { platform: 'claude-code', root: 'hooks' };
@@ -955,12 +959,12 @@ class InventoryBuilder {
 
   /**
    * A skill's or command's `allowed-tools` and `hooks`. Claude Code applies both to skills and
-   * commands; GitHub Copilot applies a skill's `allowed-tools` (skill/broad-allowed-tools), and the
-   * Copilot CLI a command's, which it reads as a skill (SOURCES.copilotCliReference). Hooks
-   * are registered when the skill or command is invoked and run for the rest of the session
-   * (SOURCES.claudeHooks, "Hooks in skills and agents"). Neither takes effect for a skill bundled
-   * inside another skill, or for a file in a payload folder of another directory's agent folder,
-   * which the loaders leave out ({@link loadableFrom}).
+   * commands; GitHub Copilot and Devin Local apply a skill's `allowed-tools`
+   * (skill/broad-allowed-tools), and the Copilot CLI a command's, which it reads as a skill
+   * (SOURCES.copilotCliReference). Hooks are registered when the skill or command is invoked and
+   * run for the rest of the session (SOURCES.claudeHooks, "Hooks in skills and agents"). Neither
+   * takes effect for a skill bundled inside another skill, or for a file in a payload folder of
+   * another directory's agent folder, which the loaders leave out ({@link loadableFrom}).
    */
   #addSkill(
     artifact: Artifact,
@@ -989,8 +993,10 @@ class InventoryBuilder {
 
   /**
    * `allowed-tools`, one permission per tool rule. A rule takes effect where an agent that
-   * applies it loads the file: Claude Code or GitHub Copilot for a rule of no particular agent,
-   * the agent a broad grant names otherwise.
+   * applies it loads the file: Claude Code, GitHub Copilot or Devin Local for a rule of no
+   * particular agent, the agent a broad grant names otherwise. Devin Local auto-approves the
+   * listed tools while the skill runs inline (SOURCES.devinCliSkillsCreate), wherever it reads the
+   * skill: not where `read_config_from` turns the skill's source off (src/platforms/readers.ts).
    */
   #addAllowedTools(
     artifact: Artifact,
@@ -1005,13 +1011,15 @@ class InventoryBuilder {
     if (entries.length === 0) return;
     const line = lineOf(artifact, keySpanOf(doc, ['allowed-tools']));
     const platforms = sortedPlatforms(reach);
+    const devin =
+      reach.has('windsurf') && effectiveReaders(this.#view, artifact).includes('windsurf');
+    const applies = (platform: PlatformId): boolean =>
+      platform === 'windsurf' ? devin : reach.has(platform);
     for (const rule of entries.flatMap(splitToolRules)) {
       const grant = broadGrant(rule);
       const effective =
         loadable &&
-        (grant === undefined
-          ? reach.has('claude-code') || reach.has('copilot')
-          : reach.has(grant.platform));
+        (grant === undefined ? ALLOWED_TOOLS_READERS.some(applies) : applies(grant.platform));
       this.#pushPermission(artifact, {
         key: 'allowed-tools',
         value: rule,

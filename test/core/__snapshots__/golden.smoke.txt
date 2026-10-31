@@ -2060,7 +2060,7 @@
     {
       "id": "skill/broad-allowed-tools",
       "title": "Skill pre-approves shell commands or file edits without limits",
-      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
+      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nDevin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills` and `.github/skills` as well as for its own.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
       "category": "risk",
       "severity": "warn",
       "appliesTo": [
@@ -2068,7 +2068,8 @@
       ],
       "platforms": [
         "claude-code",
-        "copilot"
+        "copilot",
+        "windsurf"
       ],
       "sources": [
         {
@@ -2088,6 +2089,24 @@
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
           "checked": "2026-10-14",
           "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
+          "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
+          "checked": "2026-10-30",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)",
+          "url": "https://docs.devin.ai/cli/extensibility/skills/overview",
+          "checked": "2026-10-30",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Changelog, stable channel (v3000.11.1: skills grant tools with `allowed-tools`)",
+          "url": "https://docs.devin.ai/cli/changelog/stable",
+          "checked": "2026-10-30",
+          "status": "verified"
         }
       ],
       "since": "2026.10",
@@ -2095,7 +2114,7 @@
         "classes": [
           "review"
         ],
-        "summary": "Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell` and `bash`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line."
+        "summary": "Replaces `Bash` with rules for the commands in the skill's shell code blocks, such as `Bash(git status *)`, and removes bare `Write`, `Edit`, `PowerShell`, `shell`, `bash` and `exec`. Keeps a string or a list as it is. Offered only when it finds a command; each new rule is listed with its source line."
       }
     },
     {
@@ -2386,9 +2405,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2847,9 +2866,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -2904,7 +2923,7 @@
     {
       "id": "skill/non-portable-field",
       "title": "Skill frontmatter uses a field outside the Agent Skills specification",
-      "rationale": "The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`, Devin Local documents `argument-hint`, `model` and `agent` among others, and Cline documents none.\n\nFor a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.\n\nKeep extension fields in skills that only their agents load, and move your own data under `metadata`.",
+      "rationale": "The Agent Skills specification defines six frontmatter fields: `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Claude Code reads its own extensions, such as `when_to_use`, and ignores unknown fields, but claude.ai upload, the Claude API and the anthropics/skills packager fail with a hard error on any other field, and the skills-ref validator rejects it too. Cursor documents `paths`, `disable-model-invocation`, `icon`, `color` and `globs`, GitHub Copilot in VS Code documents `argument-hint`, `user-invocable`, `disable-model-invocation` and `context`, Devin Local documents `argument-hint`, `model`, `agent`, `subagent`, `triggers` and `permissions`, and Cline documents none.\n\nFor a skill that is installed or uploaded on its own, all such fields are reported together. For a skill in an agent's skills directory or a plugin, a documented extension field is reported only when some of the agents that load the skill there document it and others do not. Fields that none of them document, including unknown fields, are ignored by all of them alike and are not reported there.\n\nKeep extension fields in skills that only their agents load, and move your own data under `metadata`.",
       "category": "portability",
       "severity": "warn",
       "appliesTo": [
@@ -2957,9 +2976,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name)",
+          "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

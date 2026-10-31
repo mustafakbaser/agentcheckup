@@ -443,6 +443,7 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 - A rule without `trigger`, with an unknown value or with frontmatter that does not parse: neither agent documents what happens (**Unverified**). Neither documents what `trigger: agent` does either.
 - Cascade `SKILL.md`: `name` and `description` are required. Names use lowercase letters, digits and hyphens. [Cascade skills][devin-skills]
 - Devin Local `SKILL.md`: frontmatter is optional, and `name` defaults to the directory name. Other fields include `allowed-tools`, `permissions`, `triggers`, `model`, `subagent`, `agent` and `argument-hint`. [Creating skills][devin-cli-skills-create], [Devin CLI skills][devin-cli-skills]
+- Devin Local `allowed-tools`: the tools it lists (`read`, `edit`, `grep`, `glob`, `exec`, MCP tools, and since v3000.11.1 `write`) are auto-approved while the skill runs inline, with no permission prompt. The field does not restrict the tools the skill can use; `permissions.deny` blocks one. A skill that runs as a subagent (`subagent: true` or `agent`) gets its tools from the subagent profile instead. agentcheckup lists the entries as permissions and reports a bare `exec`, which runs any shell command. [Creating skills][devin-cli-skills-create], [Devin CLI skills][devin-cli-skills], [changelog][devin-cli-changelog]
 
 ### Hooks
 
@@ -664,6 +665,7 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [devin-cli-hooks]: https://docs.devin.ai/cli/extensibility/hooks/overview
 [devin-cli-hook-events]: https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks
 [devin-cli-mcp]: https://docs.devin.ai/cli/extensibility/mcp/configuration
+[devin-cli-changelog]: https://docs.devin.ai/cli/changelog/stable
 [cline-rules]: https://docs.cline.bot/customization/cline-rules
 [cline-config]: https://docs.cline.bot/getting-started/config
 [cline-skills]: https://docs.cline.bot/customization/skills

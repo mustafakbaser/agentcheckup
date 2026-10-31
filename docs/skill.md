@@ -135,9 +135,9 @@ installed and reviewed, not whatever npm resolves later. `context --agent codex`
 they only read: allowing `context *`, `tokens *` or `tasks *` would also allow `--output`, which
 writes a file.
 
-These are Claude Code permission rules. GitHub Copilot documents `allowed-tools` with its own
-tool names, such as `shell`, and Codex and Cursor do not document the field, so those agents ask
-before each command as their own settings say.
+These are Claude Code permission rules. GitHub Copilot and Devin Local document `allowed-tools`
+with their own tool names, such as `shell` and `exec`, and Codex and Cursor do not document the
+field, so those agents ask before each command as their own settings say.
 
 ## Why `--write` is not pre-approved
 

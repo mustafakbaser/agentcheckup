@@ -6,7 +6,8 @@
  * Checked 2026-10-17 against the frontmatter references of Claude Code
  * (code.claude.com/docs/en/skills), Cursor (cursor.com/docs/skills), GitHub Copilot in VS Code
  * (code.visualstudio.com/docs/agent-customization/agent-skills) and Devin Local
- * (docs.devin.ai/cli/extensibility/skills/creating-skills), which skill/non-portable-field cites.
+ * (docs.devin.ai/cli/extensibility/skills/creating-skills, again 2026-10-30), which
+ * skill/non-portable-field cites.
  * Cline documents only `name` and `description` (docs.cline.bot/customization/skills). Each note
  * states the default the agents fall back to.
  */
@@ -124,6 +125,27 @@ export const FIELD_EFFECTS: Readonly<Record<string, FieldEffect>> = {
     removable: true,
     withoutIt:
       'Without "globs", Cursor applies the skill to every file unless "paths" limits it; Cursor reads "globs" only as a fallback for "paths".',
+  },
+  triggers: {
+    readers: ['windsurf'],
+    // The default, `[user, model]`, lets the model invoke the skill on its own.
+    removable: false,
+    withoutIt:
+      'Without "triggers", Devin Local lets the model invoke the skill on its own as well as the user.',
+  },
+  permissions: {
+    readers: ['windsurf'],
+    // `deny` is how Devin Local blocks a tool for an inline skill.
+    removable: false,
+    withoutIt:
+      'Without "permissions", Devin Local no longer blocks the tools and scopes this skill denies, and asks only as the session\'s permissions say.',
+  },
+  subagent: {
+    readers: ['windsurf'],
+    // An inline skill gets its own `allowed-tools` and `permissions`, a subagent its profile's.
+    removable: false,
+    withoutIt:
+      'Without "subagent", Devin Local runs the skill inline, where its "allowed-tools" are auto-approved, instead of as a subagent.',
   },
 };
 

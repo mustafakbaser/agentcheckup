@@ -151,7 +151,7 @@ const TEMPLATES: Readonly<Record<string, TaskTemplate>> = {
     guardRules: SKILL_FRONTMATTER_GUARDS,
   },
   'skill/broad-allowed-tools': {
-    why: '`allowed-tools` lets the skill use these tools without asking; a bare `Bash` grants every shell command and a bare `Write` or `Edit` every file.',
+    why: "`allowed-tools` lets the skill use these tools without asking; a bare `Bash`, or Devin Local's `exec`, grants every shell command and a bare `Write` or `Edit` every file.",
     do: [
       'read the skill body and list the commands it tells the agent to run',
       'replace each broad entry with narrow rules for those commands, such as `Bash(git status *)`',
