@@ -87,6 +87,10 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      node: ${{ steps.node.outputs.node }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -103,11 +107,72 @@ jobs:
       - run: pnpm build
       - name: Smoke-test the packed tarball
         run: pnpm smoke
-      - name: Rehearse the release's pack and publish commands
-        # The commands of the publish job in release.yml, as a dry run. A dry run still refuses a
-        # version npm already has, so the rehearsal uses a version npm has never seen.
+      # The steps of the build and publish jobs in release.yml, with a dry run: this job packs
+      # the tarball and hands it over as an artifact, and the publish rehearsal below publishes
+      # it without a checkout or an install. A dry run still refuses a version npm already has,
+      # so the rehearsal uses a version npm has never seen.
+      - name: Record the Node.js version for the publish rehearsal
+        id: node
         run: |
-          npm version "0.0.0-ci.$GITHUB_RUN_ID" --no-git-tag-version
+          node=$(cat .node-version)
+          if ! [[ $node =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::.node-version holds \"$node\", not a version such as 24.0.0."
+            exit 1
+          fi
+          echo "node=$node" >>"$GITHUB_OUTPUT"
+      - name: Rehearse the release's pack
+        id: pack
+        run: |
+          version="0.0.0-ci.$GITHUB_RUN_ID"
+          npm version "$version" --no-git-tag-version
           mkdir dist-pack
           npm pack --pack-destination dist-pack
-          npm publish ./dist-pack/*.tgz --dry-run --access public --tag ci
+          tarball="agentcheckup-$version.tgz"
+          if [ "$(ls dist-pack)" != "$tarball" ]; then
+            echo "::error::npm pack did not write exactly $tarball."
+            exit 1
+          fi
+          echo "tarball=$tarball" >>"$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "dist-pack/$tarball" | cut -d ' ' -f 1)" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: dist-pack/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-rehearsal:
+    name: Rehearse the publish job
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # No checkout and no install: the publish job in release.yml runs no code of this repository
+    # or its dependencies while it can request an OIDC token.
+    permissions: {}
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: dist-pack
+      - name: Check the tarball
+        env:
+          TARBALL: ${{ needs.package.outputs.tarball }}
+          SHA256: ${{ needs.package.outputs.sha256 }}
+        run: |
+          if [ "$(ls dist-pack)" != "$TARBALL" ]; then
+            echo "::error::The artifact does not hold exactly $TARBALL."
+            exit 1
+          fi
+          echo "$SHA256  dist-pack/$TARBALL" | sha256sum --check --strict
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ needs.package.outputs.node }}
+          registry-url: https://registry.npmjs.org
+      - name: Publish as a dry run
+        # ./ makes npm read a file: without it, dist-pack/x.tgz is a GitHub repository spec.
+        env:
+          TARBALL: ${{ needs.package.outputs.tarball }}
+        run: npm publish "./dist-pack/$TARBALL" --dry-run --access public --tag ci

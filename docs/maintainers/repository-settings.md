@@ -84,9 +84,10 @@ App token instead of the workflow token would remove this step.
 
 ## The `npm` environment
 
-The publish job runs in the `npm` environment, and npm trusted publishing is bound to it. The
-environment needs the maintainer as a required reviewer, no admin bypass, and deployments from
-`main` only. Create it with:
+The release workflow's publish job runs in the `npm` environment, and npm trusted publishing is
+bound to it. The job that builds the tarball runs before it, without the environment, so the
+approval comes after `pnpm check` passed on the tag. The environment needs the maintainer as a
+required reviewer, no admin bypass, and deployments from `main` only. Create it with:
 
 ```sh
 gh api -X PUT repos/mustafakbaser/agentcheckup/environments/npm --input - <<'JSON'
@@ -103,8 +104,8 @@ gh api -X POST repos/mustafakbaser/agentcheckup/environments/npm/deployment-bran
 
 `prevent_self_review` stays off because the maintainer is the only reviewer.
 
-Immutable releases are off for now. The publish job attaches the tarball to a release that
-already exists, which an immutable release would refuse. Enabling them first needs
+Immutable releases are off for now. The release workflow's `release-asset` job attaches the
+tarball to a release that already exists, which an immutable release would refuse. Enabling them first needs
 release-please to create draft releases.
 
 ## Applying and rolling back

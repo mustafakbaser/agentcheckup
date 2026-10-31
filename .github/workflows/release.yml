@@ -38,31 +38,34 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  publish:
-    name: Publish to npm
+  # Publishing is split in three jobs, so the code that runs with each permission is as small as
+  # it can be. `build` runs `pnpm install` and every devDependency, with read access only.
+  # `publish` can request an OIDC token, and runs no code of this repository or its
+  # dependencies: no checkout, no install. `release-asset` can write to the repository, and only
+  # uploads the tarball. See docs/maintainers/releasing.md.
+  build:
+    name: Build and check the release
     needs: release-please
     if: >-
-      always() && (
+      !cancelled() && (
         (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
         (github.event_name == 'workflow_dispatch' && needs.release-please.result == 'skipped')
       )
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Protected environment: configure required reviewers in the repository settings, so every
-    # publish needs a human approval. npm trusted publishing is bound to this workflow and
-    # environment; no npm token exists anywhere. See docs/maintainers/releasing.md.
-    environment:
-      name: npm
-      url: https://www.npmjs.com/package/agentcheckup
     permissions:
-      contents: write # upload the tarball to the GitHub release
-      id-token: write # npm trusted publishing and provenance (OIDC)
-      attestations: write # store the build provenance attestation
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      node: ${{ steps.node.outputs.node }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
       - name: Check the tag
+        id: tag
         env:
           TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
         run: |
@@ -71,6 +74,7 @@ jobs:
             exit 1
           fi
           echo "TAG=$TAG" >>"$GITHUB_ENV"
+          echo "tag=$TAG" >>"$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ env.TAG }}
@@ -79,7 +83,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          registry-url: https://registry.npmjs.org
       - name: Check that the tag holds that version
         run: |
           version=$(node -p 'require("./package.json").version')
@@ -87,21 +90,115 @@ jobs:
             echo "::error::package.json says $version, but the tag is $TAG."
             exit 1
           fi
+      - name: Record the Node.js version for the publish job
+        id: node
+        run: |
+          node=$(cat .node-version)
+          if ! [[ $node =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::.node-version holds \"$node\", not a version such as 24.0.0."
+            exit 1
+          fi
+          echo "node=$node" >>"$GITHUB_OUTPUT"
       - run: pnpm install --frozen-lockfile
+      # Format, lint, types, generated docs, tests, the build, publint, attw and the smoke test.
       - run: pnpm check
-      - run: pnpm build
       - name: Pack
+        id: pack
         run: |
           mkdir dist-pack
           npm pack --pack-destination dist-pack
+          tarball="agentcheckup-${TAG#v}.tgz"
+          if [ "$(ls dist-pack)" != "$tarball" ]; then
+            echo "::error::npm pack did not write exactly $tarball."
+            exit 1
+          fi
+          echo "tarball=$tarball" >>"$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "dist-pack/$tarball" | cut -d ' ' -f 1)" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: dist-pack/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    needs: build
+    # A skipped release-please job would skip this job too, even after `build` succeeded.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Protected environment: configure required reviewers in the repository settings, so every
+    # publish needs a human approval. npm trusted publishing is bound to this workflow and
+    # environment; no npm token exists anywhere. See docs/maintainers/releasing.md.
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/agentcheckup
+    permissions:
+      id-token: write # npm trusted publishing and provenance (OIDC)
+      attestations: write # store the build provenance attestation
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: dist-pack
+      - name: Check the tarball
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          if [ "$(ls dist-pack)" != "$TARBALL" ]; then
+            echo "::error::The artifact does not hold exactly $TARBALL."
+            exit 1
+          fi
+          echo "$SHA256  dist-pack/$TARBALL" | sha256sum --check --strict
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ needs.build.outputs.node }}
+          registry-url: https://registry.npmjs.org
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist-pack/*.tgz
       - name: Publish with npm trusted publishing (OIDC)
         # ./ makes npm read a file: without it, dist-pack/x.tgz is a GitHub repository spec.
-        run: npm publish ./dist-pack/*.tgz --provenance --access public
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm publish "./dist-pack/$TARBALL" --provenance --access public
+
+  release-asset:
+    name: Attach the tarball to the GitHub release
+    needs: [build, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # upload the tarball to the GitHub release
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: dist-pack
+      - name: Check the tarball
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          if [ "$(ls dist-pack)" != "$TARBALL" ]; then
+            echo "::error::The artifact does not hold exactly $TARBALL."
+            exit 1
+          fi
+          echo "$SHA256  dist-pack/$TARBALL" | sha256sum --check --strict
       - name: Attach the tarball to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" dist-pack/*.tgz --clobber
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: gh release upload "$TAG" "dist-pack/$TARBALL" --clobber

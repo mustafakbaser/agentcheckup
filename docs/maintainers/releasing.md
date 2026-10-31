@@ -12,11 +12,34 @@ one protected GitHub environment.
    bump and changelog.
 3. Close and reopen that pull request so the required checks run on it, then approve and merge
    it. [Repository settings](repository-settings.md#release-pull-requests) explains why. The
-   workflow tags the release, waits for approval on the `npm` environment, runs `pnpm check`,
-   builds, attests the tarball, publishes to npm with provenance, and attaches the tarball to the
-   GitHub release.
+   workflow tags the release, runs `pnpm check` on the tag and packs the tarball, waits for
+   approval on the `npm` environment, attests the tarball, publishes it to npm with provenance,
+   and attaches it to the GitHub release.
 
 Before 1.0.0, breaking changes bump the minor version and features bump the patch version.
+
+## How the release workflow publishes
+
+The publish steps run in three jobs, so that the code running with each permission is as small
+as it can be:
+
+| Job             | Permissions                                                 | What it runs                                                                                                                                                   |
+| --------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build`         | `contents: read`                                            | Checks out the tag, runs `pnpm install` and `pnpm check`, packs the tarball and uploads it as the `package` artifact. Its outputs carry the tarball's SHA-256. |
+| `publish`       | `id-token: write`, `attestations: write`; environment `npm` | Downloads the artifact, checks its SHA-256, attests it and runs `npm publish`. No checkout, no install.                                                        |
+| `release-asset` | `contents: write`                                           | Downloads the artifact, checks its SHA-256 and attaches it to the GitHub release.                                                                              |
+
+Only `publish` can request an OIDC token, the credential npm trusted publishing accepts, and it
+runs no code from the repository or its dependencies. A compromised devDependency runs in
+`build`, where it has a read-only token and cannot publish. It could still change what it builds,
+so the lockfile, `minimumReleaseAge`, `pnpm check` and the smoke test of the packed tarball stay
+the defense for the tarball's contents.
+
+npm checks the workflow file (`release.yml`) and the environment (`npm`) of the run, not the job
+name, so the trusted publisher configuration below did not change with the split. CI rehearses
+the same hand-over on every pull request: the "Build and verify the package" job packs a
+tarball with a version npm has never seen and uploads it, and "Rehearse the publish job"
+downloads it, checks its hash and runs `npm publish --dry-run` without a checkout.
 
 ## One-time setup
 
@@ -75,10 +98,16 @@ npm updates fail, switch npm updates to Renovate and keep Dependabot for GitHub 
 
 ## If something goes wrong
 
-- The publish job failed after the GitHub release was created: the tag is immutable, so fix the
-  workflow on `main`, then run it for that tag: `gh workflow run release.yml -f tag=v0.1.0`.
-  The run builds the tag's source, checks that `package.json` holds that version, and needs the
-  same `npm` environment approval as any publish.
+- A job failed for a reason outside the repository, such as a registry outage: use "Re-run
+  failed jobs" on the run within 7 days, while the `package` artifact exists. The jobs that
+  succeeded keep their results and outputs, so the tarball is not built again; a re-run of
+  `publish` needs the `npm` environment approval again. If `publish` succeeded and only
+  `release-asset` failed, re-running it uploads the same tarball.
+- The `build` or `publish` job failed after the GitHub release was created and the workflow
+  needs a fix: the tag is immutable, so fix the workflow on `main`, then run it for that tag:
+  `gh workflow run release.yml -f tag=v0.1.0`. The run builds the tag's source, checks that
+  `package.json` holds that version, and needs the same `npm` environment approval as any
+  publish.
 - The publish step fails with `404 Not Found - PUT https://registry.npmjs.org/agentcheckup` after
   the provenance statement is signed: npm did not accept the run as the trusted publisher. A new
   configuration that has not published within two days lapses; revoke it

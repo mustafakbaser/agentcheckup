@@ -17,6 +17,7 @@
         "required_status_checks": [
           { "context": "Format, lint, types, generated docs", "integration_id": 15368 },
           { "context": "Build and verify the package", "integration_id": 15368 },
+          { "context": "Rehearse the publish job", "integration_id": 15368 },
           { "context": "Test (ubuntu-latest, Node 22.12.0)", "integration_id": 15368 },
           { "context": "Test (ubuntu-latest, Node 24)", "integration_id": 15368 },
           { "context": "Test (ubuntu-latest, Node 26)", "integration_id": 15368 },
