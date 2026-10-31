@@ -146,23 +146,25 @@ describe('--output', () => {
   );
 
   it('takes another case for the same file only where the file system does', async () => {
-    const repo = await tempDir();
-    await writeFiles(repo, FILES);
-    // The default file systems of macOS and Windows take agents.md for AGENTS.md.
-    const ignoresCase = await stat(join(repo, 'agents.md')).then(
-      () => true,
-      () => false,
-    );
     for (const args of [
       ['--format', 'json'],
       ['fix', '--write'],
     ]) {
+      // A new repository each time: where case counts, the report is a new agents.md, which
+      // the next scan reads.
+      const repo = await tempDir();
+      await writeFiles(repo, FILES);
+      // The default file systems of macOS and Windows take agents.md for AGENTS.md.
+      const ignoresCase = await stat(join(repo, 'agents.md')).then(
+        () => true,
+        () => false,
+      );
       const io = capture(repo);
       const code = await run([...args, '-o', 'agents.md'], io);
       expect(code, args.join(' ')).toBe(ignoresCase ? EXIT.usage : EXIT.ok);
       if (ignoresCase) expect(io.errors()).toContain('agentcheckup scanned agents.md');
+      expect(await readFile(join(repo, 'AGENTS.md'), 'utf8')).toBe(FILES['AGENTS.md']);
     }
-    expect(await readFile(join(repo, 'AGENTS.md'), 'utf8')).toBe(FILES['AGENTS.md']);
   });
 
   it('never replaces the configuration file or a git file that steered the walk', async () => {

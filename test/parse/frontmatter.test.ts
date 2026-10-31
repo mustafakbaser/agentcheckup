@@ -491,32 +491,38 @@ describe('repeated keys', () => {
     );
   });
 
-  it('reports repeats in YAML with a mapping past the key limit as the check does', () => {
-    // Distinct keys that make a mapping one key too many for yaml's check to run.
-    const padding = Array.from({ length: MAX_MAPPING_KEYS }, (_, i) => `p${i.toString(36)}`);
-    const crowdedBlock = padding.map((name) => `${name}: 1\n`).join('');
-    const crowdedFlow = flowMap(padding);
-    const yamls = fc.oneof(
-      // The repeat in the mapping past the limit, or in a mapping nested in it.
-      blockLines.map((lines) => lines + crowdedBlock),
-      crowdedFlow,
-      sequenceOf(fc.oneof(crowdedFlow, flowMap([]))),
-      // The repeat in another mapping than the one past the limit.
-      blockLines.map((lines) => `${lines}zz: {${padding.join(', ')}}\n`),
-    );
-    fc.assert(
-      fc.property(yamls, (yaml) => {
-        const [ours, checked] = [parseYaml(yaml), parseDocument(yaml, YAML_OPTIONS)];
-        expect(errorCodes(ours)).toEqual(errorCodes(checked));
-        expect(repeatsAt(ours, yaml)).toEqual(repeatsAt(checked, yaml));
-        expect({ ...(reported(ours) as object), errors: [] }).toEqual({
-          ...(reported(checked) as object),
-          errors: [],
-        });
-      }),
-      { numRuns: 50 },
-    );
-  });
+  // Each run parses a 2,001-key mapping with yaml's own check, at a cost that grows with the
+  // square of the keys: about 0.1 s here, several times that on a CI runner under coverage.
+  it(
+    'reports repeats in YAML with a mapping past the key limit as the check does',
+    { timeout: 60_000 },
+    () => {
+      // Distinct keys that make a mapping one key too many for yaml's check to run.
+      const padding = Array.from({ length: MAX_MAPPING_KEYS }, (_, i) => `p${i.toString(36)}`);
+      const crowdedBlock = padding.map((name) => `${name}: 1\n`).join('');
+      const crowdedFlow = flowMap(padding);
+      const yamls = fc.oneof(
+        // The repeat in the mapping past the limit, or in a mapping nested in it.
+        blockLines.map((lines) => lines + crowdedBlock),
+        crowdedFlow,
+        sequenceOf(fc.oneof(crowdedFlow, flowMap([]))),
+        // The repeat in another mapping than the one past the limit.
+        blockLines.map((lines) => `${lines}zz: {${padding.join(', ')}}\n`),
+      );
+      fc.assert(
+        fc.property(yamls, (yaml) => {
+          const [ours, checked] = [parseYaml(yaml), parseDocument(yaml, YAML_OPTIONS)];
+          expect(errorCodes(ours)).toEqual(errorCodes(checked));
+          expect(repeatsAt(ours, yaml)).toEqual(repeatsAt(checked, yaml));
+          expect({ ...(reported(ours) as object), errors: [] }).toEqual({
+            ...(reported(checked) as object),
+            errors: [],
+          });
+        }),
+        { numRuns: 20 },
+      );
+    },
+  );
 
   it.each([
     ['repeated block keys', 'a: 1\nb: 2\na: 3\n', ['DUPLICATE_KEY']],

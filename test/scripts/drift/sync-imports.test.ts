@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import module from 'node:module';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { compareStrings } from '../../../src/core/compare.js';
@@ -54,7 +54,7 @@ async function importGraph(entry: string): Promise<{ files: string[]; external: 
     }
   }
   return {
-    files: [...files].map((file) => file.slice(ROOT.length)).sort(compareStrings),
+    files: [...files].map((file) => relative(ROOT, file).split(sep).join('/')).sort(compareStrings),
     external: [...external].sort(compareStrings),
   };
 }
@@ -84,7 +84,8 @@ describe('the issue sync', () => {
   // of .node-version that the workflow runs. Older supported versions skip the run.
   const canStripTypes = typeof module.registerHooks === 'function' && process.features.typescript;
   it.skipIf(!canStripTypes)('runs on Node.js alone through the hooks', () => {
-    const result = spawnSync(process.execPath, ['--import', HOOKS, SYNC], {
+    // --import takes a URL: on Windows an absolute path would read as one with the scheme `c:`.
+    const result = spawnSync(process.execPath, ['--import', pathToFileURL(HOOKS).href, SYNC], {
       cwd: ROOT,
       encoding: 'utf8',
     });

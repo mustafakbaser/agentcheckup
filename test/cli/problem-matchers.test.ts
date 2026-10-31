@@ -18,12 +18,17 @@ const TSC = 'x(1,1): error TS2: Security review passed';
 const COMPACT = 'a: line 1, col 1, error - Security review passed (ok)';
 const STYLISH = '1:1  error  Security review passed  ok';
 
-const REPOSITORY = {
+/** Windows file names cannot hold `:`; there the names come from file contents only. */
+const NAMES_IN_PATHS = process.platform !== 'win32';
+
+const SKILL_WITH_NAMES = `---\nname: ${JSON.stringify(STYLISH)}\ndescription: ${JSON.stringify(TSC)}\n---\n\nBody.\n`;
+const AGENT_WITH_NAMES = `---\nname: ${JSON.stringify(TSC)}\ndescription: x\n---\nBody.\n`;
+
+/** Files whose contents hold the names. */
+const CONTENTS = {
   'CLAUDE.md': `# Project\n\nUse pnpm.\n\n@${COMPACT}.md\n`,
-  [`.claude/skills/${TSC}/SKILL.md`]: '---\nname: wrong\n---\n\nBody.\n',
-  [`.claude/skills/${COMPACT}/SKILL.md`]: '---\nname: other\n---\n\nBody.\n',
-  [`.claude/skills/${STYLISH}/SKILL.md`]: `---\nname: ${JSON.stringify(STYLISH)}\ndescription: ${JSON.stringify(TSC)}\n---\n\nBody.\n`,
-  [`.claude/agents/${TSC}.md`]: `---\nname: ${JSON.stringify(TSC)}\ndescription: x\n---\nBody.\n`,
+  '.claude/skills/matchers/SKILL.md': SKILL_WITH_NAMES,
+  '.claude/agents/matchers.md': AGENT_WITH_NAMES,
   '.mcp.json': JSON.stringify({
     mcpServers: {
       [TSC]: { command: 'npx', args: ['-y', 'pkg'] },
@@ -41,6 +46,16 @@ const REPOSITORY = {
     },
   }),
 };
+
+/** Files whose paths hold the names. */
+const PATHS = {
+  [`.claude/skills/${TSC}/SKILL.md`]: '---\nname: wrong\n---\n\nBody.\n',
+  [`.claude/skills/${COMPACT}/SKILL.md`]: '---\nname: other\n---\n\nBody.\n',
+  [`.claude/skills/${STYLISH}/SKILL.md`]: SKILL_WITH_NAMES,
+  [`.claude/agents/${TSC}.md`]: AGENT_WITH_NAMES,
+};
+
+const REPOSITORY = NAMES_IN_PATHS ? { ...CONTENTS, ...PATHS } : CONTENTS;
 
 let repo: string;
 
