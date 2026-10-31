@@ -24,6 +24,9 @@ else
   dir=$(mktemp -d "${tmp%/}/agentcheckup-demo.XXXXXX")
 fi
 
+# A git repository, as agents and agentcheckup expect: without a .git entry, `context` notes
+# that an agent may also load files from the directories above.
+git init -q -- "$dir"
 mkdir -p -- "$dir/.cursor/rules"
 
 cat >"$dir/AGENTS.md" <<'MD'

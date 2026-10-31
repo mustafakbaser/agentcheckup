@@ -1,13 +1,13 @@
 # Demo recording
 
 [demo.tape](demo.tape) is a [VHS](https://github.com/charmbracelet/vhs) script that records
-`docs/assets/demo.gif`: about 20 seconds in a terminal of about 80 columns by 24 rows.
+`docs/assets/demo.gif`: about 20 seconds in a terminal of about 163 columns by 46 rows.
 
 1. `npx agentcheckup context --matrix`: what each agent loads.
 2. `npx agentcheckup fix`: the dry run, which changes nothing.
 3. `npx agentcheckup fix --write`: the safe fix, written.
 
-The commands run on a small repository that [setup.sh](setup.sh) creates in a new temporary
+The commands run on a small git repository that [setup.sh](setup.sh) creates in a new temporary
 directory. The files are the same on every run:
 
 | File                                                     | What the recording shows                                                                                                                        |
@@ -22,10 +22,14 @@ VHS needs `ttyd` and `ffmpeg`; its README explains how to install them. The tape
 `npx agentcheckup`, so render it once the release is on npm. From the repository root:
 
 ```sh
-npx -y agentcheckup --version   # must print the release; this also fills the npm cache
+(cd "$(scripts/demo/setup.sh)" && npx -y agentcheckup --version)   # must print the release
 mkdir -p docs/assets
-vhs scripts/demo/demo.tape      # writes docs/assets/demo.gif
+vhs scripts/demo/demo.tape                                         # writes docs/assets/demo.gif
 ```
+
+The version check runs in a demo repository, as the tape does: in this repository, npx runs the
+repository's own build. npx also runs an `agentcheckup` on `PATH` before the release, so update
+or uninstall a global install that prints an older version.
 
 Before it starts recording, the tape sets a `$ ` prompt, sets `npm_config_yes=true` and
 `npm_config_update_notifier=false` so that npx shows no install prompt or update notice, sets
@@ -37,7 +41,7 @@ recorded. It waits 20 seconds for that, so on a slow network run the first comma
 ## Check the GIF
 
 - The first frame is an empty `$ ` prompt: no npx prompt, npm notice or error.
-- `Width`, `Height` and `FontSize` in the tape give about 138 columns by 46 rows. No line should
+- `Width`, `Height` and `FontSize` in the tape give about 163 columns by 46 rows. No line should
   wrap; if one does, raise `Width`.
 - `context --matrix` prints the plan of every agent before the matrix, so the plans scroll past.
   The last frame shows the end of the plans, the matrix, its key and the footer.

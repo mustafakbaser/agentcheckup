@@ -9,12 +9,14 @@
 Output docs/assets/demo.gif
 
 Require bash
+Require git
 Require npx
 
 Set Shell "bash"
-# About 138 columns by 46 rows: the whole fix preview fits, and no line wraps.
+# About 163 columns by 46 rows: the whole fix preview fits, and no line wraps (the longest,
+# a note of the Cursor rule's fix, has 159 characters).
 Set FontSize 14
-Set Width 1360
+Set Width 1600
 Set Height 860
 Set Padding 24
 Set TypingSpeed 40ms
