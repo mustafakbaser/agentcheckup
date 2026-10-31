@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.4.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.3.1...v0.4.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **platforms:** Against a 0.3 baseline, `--gate mcp` trips once for the servers of `.claude/settings.json` and `.claude/settings.local.json`, which the inventory now lists.
+* **inventory:** Against a 0.3 baseline, `--gate permissions` trips once for the `allowed-tools` entries that now take effect, such as those of a skill in `.devin/skills`. A policy that forbids `broad-shell` or denies commands fails for a skill Devin Local reads that lists `exec`.
+* **inventory:** Against a 0.3 baseline, `--gate env` trips once for a subagentStatusLine setting, `--gate mcp` and `mcp-unpinned` once for a `"type": "sdk"` server in .mcp.json, now skipped for Claude Code, and `--gate models` once for a subagent whose model came from an ANTHROPIC_DEFAULT_MODEL that Claude Code ignores (default, inherit, opusplan, haiku).
+* **platforms:** Against a 0.3 baseline, `--gate hooks` trips once for the hooks the inventory now lists, those of a skills-folder plugin's hooks/hooks.json and the inline hooks of a .claude-plugin/plugin.json, and for each hook that `disableAllHooks` turns off. A policy's hooks.require fails where only a hook that is turned off met it.
+* **platforms:** The JSON report's assumption `origin` takes the new value `assumed`, and four VS Code assumptions use it. Against a baseline from 0.3, `--gate models` can trip once for a Copilot CLI subagent whose repository sets `model` to `auto`, and for a VS Code agent with `target: github-copilot`.
+* **inventory:** Against a baseline from 0.3, `--gate hooks` trips once for the hooks Copilot custom agents declare, and a policy can report them where it passed. Create baselines again with this version.
+* **platforms:** The Copilot CLI's startup totals in load plans, `context` and the JSON report change: commands join its skills listing, and skills a skill of the same name shadows, skills the repository turns off and skills the model cannot pick leave it. A baseline from 0.3 shows a one-time change, and a policy's `budgets.startupTokens` can fail where it passed.
+* **hooks:** Against a 0.3 baseline, `--gate hooks` trips once for each PreModelRequest or PostModelRequest hook in .codex/hooks.json or .codex/config.toml, which the inventory now lists as an event Codex fires.
+* **cli:** Report paths of a scan outside the working directory are relative to the scanned directory, without `../`; a script that joined them to the working directory must join them to the scanned directory. `--json` outside `rules`, and any flag but `--json` on `rules` or on `explain`, now exit 2 instead of being ignored.
+* **agents:** Against a 0.3 baseline, `--gate models` can trip once for definitions with a merge key. A policy allowlist or subagent budget fails closed for them where it passed.
+
+### Features
+
+* **report:** order GitHub annotations by what fails the run, and add --sarif-category ([472a3cc](https://github.com/mustafakbaser/agentcheckup/commit/472a3ccc53de8e1b381b8fbe17ff7d33633db03b))
+* **rules:** report Devin Local hooks that fail open or set a timeout in milliseconds ([615d1f3](https://github.com/mustafakbaser/agentcheckup/commit/615d1f3b82300dbc5ded38432c26679a5ad6e572))
+
+
+### Bug fixes
+
+* **agents:** read a merge key in any agent's definition as a file it may not read ([fe0aca2](https://github.com/mustafakbaser/agentcheckup/commit/fe0aca2b1c4825e11f03d15f20655f3a6c053464))
+* **agents:** read the Copilot CLI's models in .claude/agents as the CLI documents them ([6784a17](https://github.com/mustafakbaser/agentcheckup/commit/6784a17fe346b44e7b40f402b0fdc14c7e1aa62e))
+* **cli:** keep the exit code when a reader closes the pipe, and exit 2 on an unreadable config ([9a82229](https://github.com/mustafakbaser/agentcheckup/commit/9a822299b353388932bb4afd2186637405554eff))
+* **cli:** report paths without ../, refuse an --output that names a scanned file, and reject ignored flags ([d0d29a6](https://github.com/mustafakbaser/agentcheckup/commit/d0d29a60c2955d8f5e8cd45980275d831881a902))
+* **core:** bound Markdown parsing per scan, not only per file ([d7fe59b](https://github.com/mustafakbaser/agentcheckup/commit/d7fe59beca8297ccb9a9d1b50d3f12ef7bcd8482))
+* **fix:** finish or undo the fix in progress on Ctrl+C, and skip the rest ([ae86e97](https://github.com/mustafakbaser/agentcheckup/commit/ae86e97ff1b2c10c80d9c825fed1a2857e9eb2f5))
+* **hooks:** accept Codex's model request hook events ([9b97816](https://github.com/mustafakbaser/agentcheckup/commit/9b9781698c936b7ab980e6e7178bd80620a8a647))
+* **inventory:** count the tools a Devin Local skill auto-approves ([885daa7](https://github.com/mustafakbaser/agentcheckup/commit/885daa724be0014b57f23d6d38acdcec1469f5c9))
+* **inventory:** list the hooks of Copilot custom agents, and plan Copilot hooks as each surface runs them ([9de24d2](https://github.com/mustafakbaser/agentcheckup/commit/9de24d2e4d861146988ecfca3a7d7441e4efc509))
+* **inventory:** mark the env overrides and MCP servers Claude Code drops, and list subagentStatusLine ([27b679d](https://github.com/mustafakbaser/agentcheckup/commit/27b679d2d8d3524cd2c0d6b6a93ce902c9696b5a))
+* **parse:** report a repeated key that follows a key without a value at the key ([90c3421](https://github.com/mustafakbaser/agentcheckup/commit/90c34212176cd98e8cfc224de559c687b26e5f46))
+* **platforms:** leave out the Cline rules, workflows and skills that Cline does not load ([7ef7d2d](https://github.com/mustafakbaser/agentcheckup/commit/7ef7d2de51f26e3cdbd3aff7f3c918c29a6f72b2))
+* **platforms:** list the MCP servers Devin Local imports from Claude Code, OpenCode and Zed files ([7029c00](https://github.com/mustafakbaser/agentcheckup/commit/7029c004949020c2063599aeec5fac7b0c007d1f))
+* **platforms:** plan Claude Code's per-file cut, settings files and skills-folder plugins as documented ([04a7bb9](https://github.com/mustafakbaser/agentcheckup/commit/04a7bb9d71db1bfc57be186376c59608ba4af684))
+* **platforms:** plan the Copilot CLI's .claude/rules, commands and skill order as its reference does ([636b09e](https://github.com/mustafakbaser/agentcheckup/commit/636b09e6299f1fb91edd8ceeeec2256456328429))
+* **platforms:** stop calling the Local harness VS Code's default, and read Copilot targets and auto models as documented ([1d615a8](https://github.com/mustafakbaser/agentcheckup/commit/1d615a8af43f26d3130bd37a96d332385dcb46c9))
+* **report:** count Markdown budgets in bytes, and keep joiners in Persian and Indic words ([97ffbc1](https://github.com/mustafakbaser/agentcheckup/commit/97ffbc152a577da58e6bce96d90f2d52f15c36ce))
+* **report:** neutralize legacy workflow commands from scanned text ([0353ab4](https://github.com/mustafakbaser/agentcheckup/commit/0353ab4fe7514d080522d7c5be779525306732bd))
+* **rules:** cite what Devin Desktop documents now that its Cascade pages are gone ([9b569a3](https://github.com/mustafakbaser/agentcheckup/commit/9b569a3d4ecde9d934769a4f6061cfdc6cebac67))
+* **rules:** find Slack's rotating app-level and workflow tokens whole ([a9041f3](https://github.com/mustafakbaser/agentcheckup/commit/a9041f318f4b9294ee88ab876e47c44e4623d102))
+* **rules:** read Gemini CLI's skill frontmatter as its current loader does ([834f8d5](https://github.com/mustafakbaser/agentcheckup/commit/834f8d5ea1b389b1af76a5a3e1563132b9abfb22))
+* **rules:** reference a variable Claude Code expands when mcp/literal-secret fixes a remote server ([8ef8740](https://github.com/mustafakbaser/agentcheckup/commit/8ef87404bd5a9173809e260c11f530e1c272d31d))
+
+
+### Performance
+
+* **fix:** reuse parses and text work across verification scans ([edc39ee](https://github.com/mustafakbaser/agentcheckup/commit/edc39ee570eebd6060134db45c6ced221314197f))
+* **parse:** check frontmatter keys for repeats in linear time ([5dab3ae](https://github.com/mustafakbaser/agentcheckup/commit/5dab3aefb6c6614f9c1d255823294cd1f787ed73))
+* **platforms:** build the file-by-agent matrix in one pass per plan ([611ad42](https://github.com/mustafakbaser/agentcheckup/commit/611ad42725cff2c23adbf5ef053d0b07fdda2883))
+
+
+### Documentation
+
+* pin the examples to the current release, and document the API ([a753360](https://github.com/mustafakbaser/agentcheckup/commit/a753360d86893863ca4d29d2c8e662abce13bdd6))
+* re-check the cited sources that changed, and record their new hashes ([0930dde](https://github.com/mustafakbaser/agentcheckup/commit/0930dde63d704c3a9954cd9823e217611dc153b2))
+
 ## [0.3.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.3.0...v0.3.1) (2026-10-28)
 
 
