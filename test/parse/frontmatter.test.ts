@@ -331,6 +331,19 @@ describe('invalid YAML', () => {
     ['duplicate key', '---\nname: a\nname: b\n---\n', 'duplicate-key', 'name'],
     ['duplicate key with CRLF', '---\r\nname: a\r\nname: b\r\n---\r\n', 'duplicate-key', 'name'],
     ['keys that collapse to one JS key', '---\n1: a\n"1": b\n---\n', 'duplicate-key', '"1"'],
+    // yaml points these at the end of the empty value before the key.
+    [
+      'duplicate key after an empty value',
+      '---\nname: a\ndescription:\nname: b\n---\n',
+      'duplicate-key',
+      'name',
+    ],
+    [
+      'duplicate key after an empty nested value and a comment',
+      '---\nx:\n  y:\n# note\n\nx: 1\n---\n',
+      'duplicate-key',
+      'x',
+    ],
     ['tab indentation', '---\nmetadata:\n\tkey: 1\n---\n', 'tab-as-indent', '\t'],
     ['multiple documents', '---\na: 1\n...\nb: 2\n---\n', 'multiple-documents', 'b: 2\n'],
     ['document start inside the block', '---\na: 1\n--- b\n---\n', 'multiple-documents', '--- b\n'],

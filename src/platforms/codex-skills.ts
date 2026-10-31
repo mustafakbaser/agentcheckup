@@ -79,12 +79,13 @@ export type InvalidCause =
   | { readonly kind: 'limit' | 'not-a-mapping' | 'syntax'; readonly issue: ParseIssue }
   | { readonly kind: 'duplicate'; readonly issue: ParseIssue; readonly key: string };
 
-/** The key a duplicate-key error points at: the text before the `:` on that line. */
+/**
+ * The key a duplicate-key error points at: the text of its span, which the parser sets to the
+ * repeated key, without its quotes. In a flow mapping the key may have no `:` after it.
+ */
 function duplicatedKey(text: string, issue: ParseIssue): string {
-  const lineEnd = text.indexOf('\n', issue.span.offset);
-  const rest = text.slice(issue.span.offset, lineEnd === -1 ? text.length : lineEnd);
-  const colon = rest.indexOf(':');
-  const key = (colon === -1 ? rest : rest.slice(0, colon)).trim();
+  const { offset, length } = issue.span;
+  const key = text.slice(offset, offset + length).trim();
   const quoted = key.length >= 2 && (key.startsWith('"') || key.startsWith("'"));
   return quoted && key.endsWith(key.charAt(0)) ? key.slice(1, -1) : key;
 }

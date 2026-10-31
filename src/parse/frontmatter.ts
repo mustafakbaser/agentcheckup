@@ -343,14 +343,31 @@ function walk(root: ParsedNode, visit: (node: ParsedNode) => void): void {
   }
 }
 
-/** Scalar nodes by start offset (the first one wins), to locate keys named by an error. */
-function scalarsByStart(root: ParsedNode | null): Map<number, ParsedNode> {
-  const scalars = new Map<number, ParsedNode>();
-  if (root === null) return scalars;
+/** The scalar keys of every mapping in the tree, by start offset. */
+function scalarKeys(root: ParsedNode | null): ParsedNode[] {
+  const keys: ParsedNode[] = [];
+  if (root === null) return keys;
   walk(root, (node) => {
-    if (isScalar(node) && !scalars.has(node.range[0])) scalars.set(node.range[0], node);
+    if (!isMap(node)) return;
+    for (const pair of node.items) if (isScalar(pair.key)) keys.push(pair.key);
   });
-  return scalars;
+  return keys.sort((a, b) => a.range[0] - b.range[0]);
+}
+
+/**
+ * The key a DUPLICATE_KEY error at `offset` names: the first key that starts there or after it.
+ * yaml points the error at the repeated key, unless the entry before it has an empty value: then
+ * at the end of that value, and only white space, line breaks and comments come before the key.
+ */
+function repeatedKeyAt(keys: readonly ParsedNode[], offset: number): ParsedNode | undefined {
+  let low = 0;
+  let high = keys.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if ((keys[middle]?.range[0] ?? offset) < offset) low = middle + 1;
+    else high = middle;
+  }
+  return keys[low];
 }
 
 /**
@@ -718,13 +735,16 @@ function parseBlock(text: string, location: BlockLocation): FrontmatterResult {
   const located = { yaml, base };
   if (doc.errors.length > 0) {
     const keys = doc.errors.some((error) => error.code === 'DUPLICATE_KEY')
-      ? scalarsByStart(doc.contents)
+      ? scalarKeys(doc.contents)
       : undefined;
     return invalid(
       location,
       doc.errors.slice(0, MAX_ISSUES).map((error) => {
-        // yaml points duplicate keys at their first character; report the whole key.
-        const key = error.code === 'DUPLICATE_KEY' ? keys?.get(error.pos[0]) : undefined;
+        // Report the whole key, not the offset yaml gives.
+        const key =
+          error.code === 'DUPLICATE_KEY' && keys !== undefined
+            ? repeatedKeyAt(keys, error.pos[0])
+            : undefined;
         return issue(
           issueCode(error.code),
           error.code === 'MULTIPLE_DOCS'

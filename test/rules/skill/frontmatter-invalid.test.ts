@@ -149,6 +149,29 @@ describe('skill/frontmatter-invalid', () => {
     );
   });
 
+  it('names a repeated field that follows a field without a value', () => {
+    const text = '---\nname: deploy\ndescription:\nname: deploy\n---\n';
+    expect(check(text)).toEqual([
+      {
+        severity: 'error',
+        platforms: ['claude-code', 'codex', 'cline'],
+        message:
+          'The frontmatter repeats "name". Codex and Cline reject a repeated field and skip the skill, and the skills-ref validator rejects duplicate keys.',
+        range: range(4, 1, 4, 5),
+      },
+    ]);
+    // Empty values alone repeat nothing.
+    expect(check('---\nname: deploy\ndescription:\nlicense:\n---\n')).toEqual([]);
+  });
+
+  it('names a repeated key of a flow mapping, with or without a value', () => {
+    const named = (metadata: string): string | undefined =>
+      check(`---\nname: deploy\ndescription: One.\nmetadata: ${metadata}\n---\n`)[0]?.message;
+    expect(named('{a, b, a}')).toMatch(/^The frontmatter repeats "a"\./);
+    expect(named('{a: 1, "b": 2, "b": 3}')).toMatch(/^The frontmatter repeats "b"\./);
+    expect(named('{a, b}')).toBeUndefined();
+  });
+
   it('reports a repeated field next to a mapping too large for the YAML parser to compare', () => {
     // Past 2,000 keys in a mapping, the repeat is found without yaml's own check.
     const metadata = Array.from({ length: 3_000 }, (_, i) => `  k${String(i)}: v\n`).join('');
