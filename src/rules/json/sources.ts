@@ -3,7 +3,7 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the json family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-/** Sources re-read in the source audit of 2026-10-30. */
+/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
@@ -17,6 +17,7 @@ export const JSON_SOURCES = {
   claudePluginTroubleshooting: verified(
     'Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)',
     'https://code.claude.com/docs/en/plugins/troubleshooting',
+    AUDIT_CHECKED,
   ),
   codexHookDiscovery: verified(
     'Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)',
@@ -39,8 +40,8 @@ export const JSON_SOURCES = {
   ),
   cursorStrictness: {
     title: 'Cursor forum: "The mcp.json parser can\'t handle JavaScript comments" (user report)',
-    url: 'https://forum.cursor.com/t/92529',
-    checked: CHECKED,
+    url: 'https://forum.cursor.com/t/two-flaws-with-mcp-json/92529',
+    checked: AUDIT_CHECKED,
     status: 'unverified',
   },
 } as const satisfies Record<string, RuleSource>;

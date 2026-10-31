@@ -23,10 +23,10 @@ Fix the path, or move the file into the skill directory.
 
 ## Evidence
 
-- [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
+- [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-30
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
-- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
-- [Claude API: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), verified, checked 2026-10-14
+- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-30
+- [Claude API: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), verified, checked 2026-10-30
 
 ## Fix
 

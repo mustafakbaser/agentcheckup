@@ -27,7 +27,7 @@ Scope each rule to the commands the skill needs, such as `Bash(git status *)`, o
 
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
 - [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-10-30
-- [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-14
+- [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-30
 - [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
 - [Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)](https://docs.devin.ai/cli/extensibility/skills/overview), verified, checked 2026-10-30
 - [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-10-30

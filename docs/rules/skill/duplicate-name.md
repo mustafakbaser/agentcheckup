@@ -27,7 +27,7 @@ Rename one of the skills, or, when they are the same skill, keep one copy and li
 - [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-10-14
 - [Gemini CLI: Agent Skills](https://geminicli.com/docs/cli/skills/), verified, checked 2026-10-14
 - [Gemini CLI source: skillManager.ts (same-name skills override each other)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillManager.ts), verified, checked 2026-10-14
-- [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-14
+- [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-30
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
 - [Cline source: unified-config-file-watcher.ts (a later skill with the same name replaces an earlier one)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts), verified, checked 2026-10-17

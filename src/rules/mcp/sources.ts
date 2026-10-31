@@ -3,7 +3,7 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the mcp family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-/** Sources re-read in the source audit of 2026-10-30. */
+/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
@@ -77,6 +77,7 @@ export const MCP_SOURCES = {
   huggingFaceTokens: verified(
     'Hugging Face: User access tokens',
     'https://huggingface.co/docs/hub/security-tokens',
+    AUDIT_CHECKED,
   ),
   pypiTokens: verified(
     'PyPI: Secret reporting API (an API token is pypi- and a base64-serialized macaroon)',
@@ -85,7 +86,7 @@ export const MCP_SOURCES = {
   ),
   digitalOceanTokens: verified(
     'DigitalOcean: API token format',
-    'https://docs.digitalocean.com/notes/2022/api-token-format',
+    'https://docs.digitalocean.com/notes/2022/api-token-format/',
   ),
   shopifyTokens: verified(
     'Shopify: Access tokens',

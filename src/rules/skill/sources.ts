@@ -8,7 +8,7 @@ import { SOURCES } from '../../platforms/sources.js';
  */
 const CHECKED = '2026-10-14';
 
-/** Sources re-read in the source audit of 2026-10-30. */
+/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
@@ -24,10 +24,12 @@ export const SKILL_SOURCES = {
   claudeSkillsApiGuide: verified(
     'Claude API: Using Agent Skills with the API',
     'https://platform.claude.com/docs/en/build-with-claude/skills-guide',
+    AUDIT_CHECKED,
   ),
   claudeSkillBestPractices: verified(
     'Claude API: Skill authoring best practices',
     'https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices',
+    AUDIT_CHECKED,
   ),
   anthropicsSkillValidator: verified(
     'anthropics/skills packager validation (quick_validate.py)',
@@ -55,10 +57,12 @@ export const SKILL_SOURCES = {
   vscodeSkills: verified(
     'VS Code: Use Agent Skills (GitHub Copilot)',
     'https://code.visualstudio.com/docs/agent-customization/agent-skills',
+    AUDIT_CHECKED,
   ),
   copilotAddSkills: verified(
     'GitHub Copilot: Add skills',
     'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills',
+    AUDIT_CHECKED,
   ),
   strictYaml: verified(
     'StrictYAML (used by skills-ref): features removed from YAML',

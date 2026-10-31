@@ -42,9 +42,9 @@ In a remote server's `url` and `headers`, Claude Code reads credential variables
 - [Stripe: API keys](https://docs.stripe.com/keys), verified, checked 2026-10-14
 - [Google Cloud: API keys](https://docs.cloud.google.com/docs/authentication/api-keys), verified, checked 2026-10-30
 - [GitHub blog: npm's new access token format](https://github.blog/2021-09-23-announcing-npms-new-access-token-format/), verified, checked 2026-10-14
-- [Hugging Face: User access tokens](https://huggingface.co/docs/hub/security-tokens), verified, checked 2026-10-14
+- [Hugging Face: User access tokens](https://huggingface.co/docs/hub/security-tokens), verified, checked 2026-10-30
 - [PyPI: Secret reporting API (an API token is pypi- and a base64-serialized macaroon)](https://docs.pypi.org/api/secrets/), verified, checked 2026-10-30
-- [DigitalOcean: API token format](https://docs.digitalocean.com/notes/2022/api-token-format), verified, checked 2026-10-14
+- [DigitalOcean: API token format](https://docs.digitalocean.com/notes/2022/api-token-format/), verified, checked 2026-10-14
 - [Shopify: Access tokens](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens), verified, checked 2026-10-30
 - [Doppler: Auth token formats](https://docs.doppler.com/reference/auth-token-formats), verified, checked 2026-10-14
 - [gitleaks default rules (token lengths that vendors do not document)](https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml), unverified, checked 2026-10-14

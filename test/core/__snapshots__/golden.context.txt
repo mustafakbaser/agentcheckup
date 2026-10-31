@@ -1281,13 +1281,13 @@
         {
           "title": "GitHub Copilot: Repository custom instructions",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "VS Code: Custom instructions",
           "url": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1321,7 +1321,7 @@
         {
           "title": "Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)",
           "url": "https://docs.devin.ai/cli/extensibility/rules",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1564,7 +1564,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1621,7 +1621,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1671,7 +1671,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1745,7 +1745,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2052,7 +2052,7 @@
         {
           "title": "Claude Code: Memory (file encoding is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         }
       ],
@@ -2165,13 +2165,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-15",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
@@ -2183,7 +2183,7 @@
         {
           "title": "Claude Code: Memory (how import cycles are handled is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         }
       ],
@@ -2228,13 +2228,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-15",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
@@ -2285,13 +2285,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-15",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
@@ -2560,7 +2560,7 @@
         {
           "title": "Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)",
           "url": "https://code.claude.com/docs/en/plugins/troubleshooting",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2595,8 +2595,8 @@
         },
         {
           "title": "Cursor forum: \"The mcp.json parser can't handle JavaScript comments\" (user report)",
-          "url": "https://forum.cursor.com/t/92529",
-          "checked": "2026-10-14",
+          "url": "https://forum.cursor.com/t/two-flaws-with-mcp-json/92529",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
@@ -2887,7 +2887,7 @@
         {
           "title": "Hugging Face: User access tokens",
           "url": "https://huggingface.co/docs/hub/security-tokens",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2898,7 +2898,7 @@
         },
         {
           "title": "DigitalOcean: API token format",
-          "url": "https://docs.digitalocean.com/notes/2022/api-token-format",
+          "url": "https://docs.digitalocean.com/notes/2022/api-token-format/",
           "checked": "2026-10-14",
           "status": "verified"
         },
@@ -3020,19 +3020,19 @@
         {
           "title": "AGENTS.md open format",
           "url": "https://agents.md/",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Cursor: Rules (does not say whether HTML comments reach the model)",
           "url": "https://cursor.com/docs/rules",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         },
         {
           "title": "GitHub Copilot: Repository custom instructions (does not say whether HTML comments reach the model)",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "unverified"
         }
       ],
@@ -3187,13 +3187,13 @@
         {
           "title": "Claude Code: Security (network command approval)",
           "url": "https://code.claude.com/docs/en/security",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "AGENTS.md open format",
           "url": "https://agents.md/",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3289,19 +3289,19 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Skill authoring best practices",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3343,7 +3343,7 @@
         {
           "title": "GitHub Copilot: Add skills",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3395,7 +3395,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3407,13 +3407,13 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Skill authoring best practices",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3471,7 +3471,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3489,13 +3489,13 @@
         {
           "title": "GitHub Copilot: Add skills",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3529,13 +3529,13 @@
         {
           "title": "Claude API: Skill authoring best practices",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3575,13 +3575,13 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3651,7 +3651,7 @@
         {
           "title": "GitHub Copilot: Add skills",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3693,7 +3693,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3894,7 +3894,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -3926,13 +3926,13 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3956,7 +3956,7 @@
         {
           "title": "Claude API: Using Agent Skills with the API",
           "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -3995,13 +3995,13 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4031,7 +4031,7 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4076,7 +4076,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4088,7 +4088,7 @@
         {
           "title": "GitHub Copilot: Add skills",
           "url": "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4100,7 +4100,7 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4152,19 +4152,19 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Using Agent Skills with the API",
           "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Claude API: Skill authoring best practices",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4204,7 +4204,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -4228,7 +4228,7 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

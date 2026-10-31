@@ -23,7 +23,7 @@ Start the file with the `---` line, add the missing field, and fix the name or t
 
 ## Evidence
 
-- [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-14
+- [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-30
 
 ## Fix
 

@@ -21,7 +21,7 @@ Remove `model` from the subagent, or turn `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` off
 
 ## Evidence
 
-- [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-14
+- [Claude Code: Subagents](https://code.claude.com/docs/en/sub-agents), verified, checked 2026-10-30
 - [Claude Code: Model configuration](https://code.claude.com/docs/en/model-config), verified, checked 2026-10-30
 
 ## Fix

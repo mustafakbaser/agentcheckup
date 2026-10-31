@@ -23,8 +23,8 @@ Add `applyTo` with the patterns the instructions are for, such as `applyTo: "**/
 
 ## Evidence
 
-- [GitHub Copilot: Repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), verified, checked 2026-10-14
-- [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-14
+- [GitHub Copilot: Repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), verified, checked 2026-10-30
+- [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-30
 - [GitHub changelog, 2025-11-12: agent-specific instructions ("coding-agent")](https://github.blog/changelog/2025-11-12-copilot-code-review-and-coding-agent-now-support-agent-specific-instructions/), unverified, checked 2026-10-14
 
 ## Fix

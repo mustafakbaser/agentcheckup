@@ -3,7 +3,7 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by the risk family. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-/** Sources re-read in the source audit of 2026-10-30. */
+/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
 export const RISK_SOURCES = {
@@ -35,20 +35,20 @@ export const RISK_SOURCES = {
   claudeSecurity: {
     title: 'Claude Code: Security (network command approval)',
     url: 'https://code.claude.com/docs/en/security',
-    checked: CHECKED,
+    checked: AUDIT_CHECKED,
     status: 'verified',
   },
   cursorRulesComments: {
     title: 'Cursor: Rules (does not say whether HTML comments reach the model)',
     url: 'https://cursor.com/docs/rules',
-    checked: CHECKED,
+    checked: AUDIT_CHECKED,
     status: 'unverified',
   },
   copilotInstructionsComments: {
     title:
       'GitHub Copilot: Repository custom instructions (does not say whether HTML comments reach the model)',
     url: 'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions',
-    checked: CHECKED,
+    checked: AUDIT_CHECKED,
     status: 'unverified',
   },
 } as const satisfies Record<string, RuleSource>;

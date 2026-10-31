@@ -24,7 +24,7 @@ Rename the file to `.mdc` and add frontmatter, or move plain Markdown instructio
 ## Evidence
 
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-30
-- [Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)](https://docs.devin.ai/cli/extensibility/rules), verified, checked 2026-10-14
+- [Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)](https://docs.devin.ai/cli/extensibility/rules), verified, checked 2026-10-30
 
 ## Fix
 

@@ -23,8 +23,8 @@ Move the file to `.github/copilot-instructions.md` or into `.github/instructions
 
 ## Evidence
 
-- [GitHub Copilot: Repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), verified, checked 2026-10-14
-- [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-14
+- [GitHub Copilot: Repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions), verified, checked 2026-10-30
+- [VS Code: Custom instructions](https://code.visualstudio.com/docs/agent-customization/custom-instructions), verified, checked 2026-10-30
 
 ## Fix
 

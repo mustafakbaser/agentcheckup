@@ -1,6 +1,6 @@
 # What coding agents read
 
-Last verified: 2026-10-30 for the Copilot CLI's rules, commands, skills and repository settings, Copilot hooks, VS Code's agent harnesses, Cursor and Devin Desktop; 2026-10-27 for what a Claude Code subagent starts with and Claude Code's skill listing; 2026-10-26 for custom agents and subagents; 2026-10-17 for GitHub Copilot, Gemini CLI, Cline and Codex `config.toml`; 2026-10-14 for the rest
+Last verified: 2026-10-30 for every cited page whose content changed since it was last checked, which covers each of the seven agents. The pages that had not changed keep their dates: 2026-10-28 for Gemini CLI's remote subagents; 2026-10-26 for the subagent pages of Codex, Cursor, Gemini CLI and Devin; 2026-10-17 for Codex `config.toml`, the TOML specifications and parser sources, Gemini CLI's skills, trusted folders and memory sources, Cline, and VS Code's settings parser; 2026-10-15 for Cursor's third-party hooks, ld.so and Gemini CLI's memory discovery; 2026-10-14 for the rest. Each rule's page lists the date of every source it cites.
 
 This page lists the configuration files that seven coding agents read, where each agent looks for them, in what order, and which limits apply. Every fact links to the vendor documentation or source code it comes from. Anything we could not confirm is marked **Unverified**.
 

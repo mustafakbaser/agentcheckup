@@ -4,10 +4,13 @@ import { SOURCES } from '../../platforms/sources.js';
 /** Evidence used only by Cursor rules, in addition to the shared SOURCES. Checked 2026-10-14. */
 const CHECKED = '2026-10-14';
 
-const verified = (title: string, url: string): RuleSource => ({
+/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
+const AUDIT_CHECKED = '2026-10-30';
+
+const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
-  checked: CHECKED,
+  checked,
   status: 'verified',
 });
 
@@ -17,5 +20,6 @@ export const CURSOR_SOURCES = {
   devinCliRules: verified(
     'Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)',
     'https://docs.devin.ai/cli/extensibility/rules',
+    AUDIT_CHECKED,
   ),
 } as const satisfies Record<string, RuleSource>;
