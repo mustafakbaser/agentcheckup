@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCommand, UsageError } from '../../src/cli/args.js';
 import { pinnedVersions, SKILL_FILES, withVersion } from '../../src/cli/skill.js';
 import { splitToolRules } from '../../src/platforms/permissions.js';
+import { releasePleaseBump } from '../helpers/release-please.js';
 import {
   bodyOf,
   frontmatterOf,
@@ -10,31 +11,6 @@ import {
   SKILL_DIR,
   skillText,
 } from './helpers.js';
-
-/** A version as release-please's generic updater matches one (src/updaters/generic.ts). */
-const SEMVER = /(?<!\d)\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.-]+)?/;
-
-/**
- * release-please's generic updater for the `version` scope: on a line with
- * `x-release-please-version`, and on each line after `x-release-please-start-version` up to and
- * including `x-release-please-end`, it replaces the first version on the line, and only that.
- */
-function releasePleaseBump(content: string, version: string): string {
-  const lines: string[] = [];
-  let inBlock = false;
-  for (const line of content.split(/\r?\n/)) {
-    if (line.includes('x-release-please-version')) {
-      lines.push(line.replace(SEMVER, version));
-    } else if (inBlock) {
-      lines.push(line.replace(SEMVER, version));
-      if (line.includes('x-release-please-end')) inBlock = false;
-    } else {
-      if (line.includes('x-release-please-start-version')) inBlock = true;
-      lines.push(line);
-    }
-  }
-  return lines.join('\n');
-}
 
 /** The pinned prefix of every agentcheckup command the skill runs. */
 function prefix(version: string): string {

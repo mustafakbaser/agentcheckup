@@ -15,6 +15,12 @@ one protected GitHub environment.
    workflow tags the release, runs `pnpm check` on the tag and packs the tarball, waits for
    approval on the `npm` environment, attests the tarball, publishes it to npm with provenance,
    and attaches it to the GitHub release.
+4. After the release of [agentcheckup-action](https://github.com/mustafakbaser/agentcheckup-action)
+   that runs the new version, point the README's example at it: the release's commit SHA, with
+   the version in the comment. A test fails once the example is more than one minor version
+   behind the package. release-please bumps the pinned versions in `docs/skill.md` and
+   `docs/tasks.md` itself; a test checks that every `npx agentcheckup@<version>` in the docs is
+   one it bumps.
 
 Before 1.0.0, breaking changes bump the minor version and features bump the patch version.
 

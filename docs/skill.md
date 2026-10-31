@@ -55,6 +55,8 @@ The installer reads the skill from the installed agentcheckup package, sets ever
   that links elsewhere, never into `.git`, and all four files or none.
 - **Refuses `--untrusted`.** Install the skill only in a repository you trust.
 
+<!-- x-release-please-start-version -->
+
 ```text
 $ npx agentcheckup skill install
 Install the agentcheckup skill in .claude/skills/agentcheckup:
@@ -65,11 +67,11 @@ Install the agentcheckup skill in .claude/skills/agentcheckup:
 Claude Code, Cursor, GitHub Copilot, Devin Local and Cline load skills from .claude/skills.
 Checked in memory with every rule: the skill adds no finding.
 While the skill runs, Claude Code may use these without asking (allowed-tools):
-  Bash(npx agentcheckup@0.3.0 tasks --format json)
-  Bash(npx agentcheckup@0.3.0 fix)
-  Bash(npx agentcheckup@0.3.0 context)
-  Bash(npx agentcheckup@0.3.0 tokens)
-  Bash(npx agentcheckup@0.3.0 tasks --check *)
+  Bash(npx agentcheckup@0.3.1 tasks --format json)
+  Bash(npx agentcheckup@0.3.1 fix)
+  Bash(npx agentcheckup@0.3.1 context)
+  Bash(npx agentcheckup@0.3.1 tokens)
+  Bash(npx agentcheckup@0.3.1 tasks --check *)
   Read
 Every command that writes asks first.
 Install the skill? [y/N] y
@@ -78,6 +80,8 @@ Its allowed-tools is a new permission: a pull request check with --gate permissi
 --gate security flags it. That is intended: review the tools above and approve it.
 Commit .claude/skills/agentcheckup. To update the skill, remove the directory and install again.
 ```
+
+<!-- x-release-please-end -->
 
 | Code | When                                                                                                                                          |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -106,15 +110,19 @@ installed this way before it is written; run `npx agentcheckup` afterwards.
 
 The skill's `allowed-tools` pre-approves six tools:
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 allowed-tools: >-
-  Bash(npx agentcheckup@0.3.0 tasks --format json)
-  Bash(npx agentcheckup@0.3.0 fix)
-  Bash(npx agentcheckup@0.3.0 context)
-  Bash(npx agentcheckup@0.3.0 tokens)
-  Bash(npx agentcheckup@0.3.0 tasks --check *)
+  Bash(npx agentcheckup@0.3.1 tasks --format json)
+  Bash(npx agentcheckup@0.3.1 fix)
+  Bash(npx agentcheckup@0.3.1 context)
+  Bash(npx agentcheckup@0.3.1 tokens)
+  Bash(npx agentcheckup@0.3.1 tasks --check *)
   Read
 ```
+
+<!-- x-release-please-end -->
 
 The value is one space-separated string, as the Agent Skills specification defines it, written
 over several lines so that release-please can bump the version in each rule.
@@ -152,15 +160,19 @@ an agent into running a command, and an approved write would run without stoppin
 `allowed-tools` grants permissions, so a pull request that adds the skill trips the
 `permissions` class of [`--gate`](context.md#gate-classes):
 
+<!-- x-release-please-start-version -->
+
 ```text
 ✖ 6 security-relevant changes since the baseline need review
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 context)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 fix)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tasks --check *)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tasks --format json)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.0 tokens)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.1 context)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.1 fix)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.1 tasks --check *)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.1 tasks --format json)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.3.1 tokens)
     Permission widened: allowed-tools adds Read
 ```
+
+<!-- x-release-please-end -->
 
 This is intended: review the five rules once and approve the pull request. Updating the skill
 to a new version changes the rules and trips the gate again.
@@ -186,7 +198,7 @@ to a new version changes the rules and trips the gate again.
   checked 2026-10-17).
 - skills CLI: `npx skills add <owner>/<repo> --skill <name>` (https://github.com/vercel-labs/skills,
   checked 2026-10-17).
-- release-please generic updater: replaces the first version on each line of an
-  `x-release-please-start-version` block
+- release-please generic updater: replaces the first version on each line of a start-version
+  block of `x-release-please` markers
   (https://github.com/googleapis/release-please/blob/main/src/updaters/generic.ts, checked
   2026-10-17).

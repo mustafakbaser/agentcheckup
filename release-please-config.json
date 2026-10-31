@@ -22,7 +22,9 @@
       "package-name": "agentcheckup",
       "extra-files": [
         "src/core/version.ts",
-        { "type": "generic", "path": "skills/agentcheckup/SKILL.md" }
+        { "type": "generic", "path": "skills/agentcheckup/SKILL.md" },
+        { "type": "generic", "path": "docs/skill.md" },
+        { "type": "generic", "path": "docs/tasks.md" }
       ]
     }
   }

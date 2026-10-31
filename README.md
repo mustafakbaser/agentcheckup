@@ -372,7 +372,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - uses: mustafakbaser/agentcheckup-action@v0.1.0
+      - uses: mustafakbaser/agentcheckup-action@6e9fcd026c225b9c629eb836a0b785a538207afd # v0.3.1
 ```
 
 The gate looks at what changed since the base commit; removals never trip it. By default it
@@ -490,7 +490,7 @@ npx agentcheckup explain instr/codex-size-budget
 
 Formats: `stylish` (default), `json`, `sarif`, `github` (annotations), `markdown` and `badge` for
 a check; `diff` (default), `json` and `suggestions` for `fix`; `markdown` (default) and `json` for
-`tasks`; `text` (default), `json` and `markdown` for `context` and `agents`. `--compact` and `--verbose` set
+`tasks`; `text` (default), `json` and `markdown` for `context`, `tokens` and `agents`. `--compact` and `--verbose` set
 how much `stylish` shows, and `--compact` also shortens `markdown` and `github`.
 `--sarif-category` keeps several SARIF uploads of one repository apart
 ([Annotations and code scanning](docs/configuration.md#annotations-and-code-scanning)). `--help` and
@@ -509,8 +509,9 @@ for (const plan of result.context?.plans ?? []) {
 }
 ```
 
-The API is not stable before 1.0. The JSON report follows
-[schemas/report.schema.json](schemas/report.schema.json).
+`scan()` does not read `agentcheckup.config.json`; pass the configuration as `config`. The API is
+not stable before 1.0: [Programmatic API](docs/api.md) covers the options and what may change in
+a release. The JSON report follows [schemas/report.schema.json](schemas/report.schema.json).
 
 ## Exit codes
 

@@ -69,6 +69,9 @@ Rules:
 - The reason after `--` is required. A directive without one is reported and has no effect.
 - A directive that no longer suppresses anything is reported, so stale suppressions do not
   accumulate.
+- A suppressed finding does not count toward the exit code or the score. `stylish` output hides
+  it unless you pass `--show-suppressed`; `json` keeps it with a `suppressed` field, `sarif` marks
+  it as suppressed, and `markdown` and `github` leave it out.
 - JSON files cannot hold comments, and directives in TOML comments are not read. Use `overrides`
   for both.
 - A directive applies to findings in its own file. That includes a file an instruction file
