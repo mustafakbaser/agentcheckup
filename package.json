@@ -35,7 +35,8 @@
     "agentcheckup": "./dist/cli.js"
   },
   "files": [
-    "dist",
+    "dist/*.js",
+    "dist/*.d.ts",
     "schemas",
     "skills",
     "THIRD_PARTY_NOTICES.md"

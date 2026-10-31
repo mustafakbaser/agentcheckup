@@ -17,11 +17,14 @@ export default defineConfig({
   // require() calls, which break once bundled. Its ESM build is statically analyzable.
   alias: { 'jsonc-parser': 'jsonc-parser/lib/esm/main.js' },
   dts: true,
-  sourcemap: true,
+  // Maps are written for scripts/third-party-notices.ts, which lists the bundled packages from
+  // their sources, but the bundle does not reference them and package.json leaves them out of
+  // the tarball: they were most of its size and nothing reads them at runtime.
+  sourcemap: 'hidden',
   clean: true,
   treeshake: true,
   // Compress and drop whitespace, but keep identifier names: stack traces stay readable and the
-  // published code stays auditable. Source maps ship alongside.
+  // published code stays auditable without source maps. Provenance ties it to this repository.
   minify: { compress: true, mangle: false },
   // publint and attw run in `pnpm check:package` against the real `npm pack` output.
   publint: false,

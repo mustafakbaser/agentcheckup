@@ -14,6 +14,11 @@ import { CONTEXT_AGENTS } from '../src/platforms/load/types.js';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const work = await mkdtemp(join(tmpdir(), 'agentcheckup-smoke-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+/**
+ * The packed tarball was 546 KB in 0.3.1 without source maps, 1.8 MB with them. The limit leaves
+ * room to grow and fails when maps or another large artifact slip back in.
+ */
+const MAX_PACKED_BYTES = 700 * 1024;
 
 function fail(message: string): never {
   throw new Error(`smoke: ${message}`);
@@ -31,7 +36,7 @@ try {
       encoding: 'utf8',
       shell: process.platform === 'win32',
     }),
-  ) as { filename: string; files: { path: string }[] }[];
+  ) as { filename: string; size: number; files: { path: string }[] }[];
   const tarball = packed[0] ?? fail('npm pack produced no tarball');
   const files = tarball.files.map((file) => file.path).sort();
 
@@ -55,6 +60,12 @@ try {
   }
   const unexpected = files.filter((path) => /^(?:src|test|scripts|docs|\.github)\//.test(path));
   if (unexpected.length > 0) fail(`tarball contains development files: ${unexpected.join(', ')}`);
+  // The build writes source maps for scripts/third-party-notices.ts; nothing reads them at runtime.
+  const maps = files.filter((path) => path.endsWith('.map'));
+  if (maps.length > 0) fail(`tarball contains source maps: ${maps.join(', ')}`);
+  if (tarball.size > MAX_PACKED_BYTES) {
+    fail(`the packed tarball has ${tarball.size} bytes, more than ${MAX_PACKED_BYTES}`);
+  }
 
   const project = join(work, 'project');
   execFileSync(npm, ['init', '-y'], {
@@ -76,6 +87,12 @@ try {
     fail(
       `published package must have zero dependencies, found: ${Object.keys(installed.dependencies).join(', ')}`,
     );
+  }
+
+  // A sourceMappingURL comment would point debuggers and tools at a map the package lacks.
+  for (const path of files.filter((file) => file.startsWith('dist/') && file.endsWith('.js'))) {
+    const code = await readFile(join(work, 'node_modules', manifest.name, path), 'utf8');
+    if (code.includes('//# sourceMappingURL=')) fail(`${path} references a source map`);
   }
 
   const cli = join(work, 'node_modules', manifest.name, 'dist', 'cli.js');
