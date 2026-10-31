@@ -51,13 +51,7 @@
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
-import {
-  codePointLength,
-  estimateTokens,
-  lineCount,
-  tokensOf,
-  utf8ByteLength,
-} from '../../core/measure.js';
+import { codePointLength, lineCount, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact, ArtifactKind } from '../../core/types.js';
 import {
@@ -475,11 +469,44 @@ function sizeOf(bytes: number, chars: number): Size {
 }
 
 function textSize(text: string): Size {
-  return {
-    bytes: utf8ByteLength(text),
-    chars: codePointLength(text),
-    tokens: estimateTokens(text),
-  };
+  return sizeOf(utf8ByteLength(text), codePointLength(text));
+}
+
+interface UnreadFile {
+  readonly path: string;
+  readonly kind: ArtifactKind;
+}
+
+const UNREAD_FILES = new WeakMap<
+  LoadView['snapshot'],
+  WeakMap<LoadView['index'], readonly UnreadFile[]>
+>();
+
+/**
+ * The files of the scan that the classifier recognizes and agentcheckup did not read: ignored,
+ * skipped, or listed only. Found once per scan, in this order, for the plans of every surface
+ * and working directory.
+ */
+function unreadFiles(view: LoadView): readonly UnreadFile[] {
+  const { snapshot, index } = view;
+  let byIndex = UNREAD_FILES.get(snapshot);
+  if (byIndex === undefined) {
+    byIndex = new WeakMap();
+    UNREAD_FILES.set(snapshot, byIndex);
+  }
+  const cached = byIndex.get(index);
+  if (cached !== undefined) return cached;
+  const unread = new Set<string>(snapshot.ignoredFiles);
+  for (const path of snapshot.paths) if (!path.endsWith('/')) unread.add(path);
+  for (const entry of snapshot.skipped) unread.add(entry.path);
+  const files: UnreadFile[] = [];
+  for (const path of unread) {
+    if (index.has(path) || !isCandidateBasename(basename(path))) continue;
+    const classification = classify(path);
+    if (classification !== undefined) files.push({ path, kind: classification.kind });
+  }
+  byIndex.set(index, files);
+  return files;
 }
 
 /** The whole file: Copilot documents no transform of instruction text. */
@@ -2028,16 +2055,9 @@ class CopilotLoader {
 
   #unread(): void {
     const { snapshot } = this.#view;
-    const unread = new Set<string>(snapshot.ignoredFiles);
-    for (const path of snapshot.paths) if (!path.endsWith('/')) unread.add(path);
-    for (const entry of snapshot.skipped) unread.add(entry.path);
-    for (const path of unread) {
-      if (this.#view.index.has(path) || !isCandidateBasename(basename(path))) continue;
+    for (const { path, kind } of unreadFiles(this.#view)) {
       if (this.#scope(dirnamePosix(path)) === undefined) continue;
-      const classification = classify(path);
-      if (classification !== undefined && this.#wouldRead(path, classification.kind)) {
-        this.#incomplete.add(`unread:${path}`);
-      }
+      if (this.#wouldRead(path, kind)) this.#incomplete.add(`unread:${path}`);
     }
     for (const directory of snapshot.opaqueDirectories) {
       const segments = directory.split('/').filter((segment) => segment !== '');

@@ -24,8 +24,27 @@ export function pathStatus(snapshot: Snapshot, path: string): PathStatus {
   if (snapshot.opaqueDirectories.has(`${normalized}/`)) return 'exists';
   // When the entry limit cut the walk short, any directory, including the root, may be only
   // partly listed. Absence then proves nothing.
-  if (snapshot.skipped.some((entry) => entry.reason === 'file-limit')) return 'unknown';
+  if (stoppedAtFileLimit(snapshot)) return 'unknown';
   return 'missing';
+}
+
+const FILE_LIMIT = new WeakMap<
+  Snapshot['skipped'],
+  { readonly length: number; readonly stopped: boolean }
+>();
+
+/**
+ * Whether the walk stopped at its entry limit, found once per list of skipped entries. The walk
+ * hands its import pass a snapshot whose list it keeps appending to, so a longer list is
+ * searched again.
+ */
+function stoppedAtFileLimit(snapshot: Snapshot): boolean {
+  const { skipped } = snapshot;
+  const cached = FILE_LIMIT.get(skipped);
+  if (cached?.length === skipped.length) return cached.stopped;
+  const stopped = skipped.some((entry) => entry.reason === 'file-limit');
+  FILE_LIMIT.set(skipped, { length: skipped.length, stopped });
+  return stopped;
 }
 
 /**

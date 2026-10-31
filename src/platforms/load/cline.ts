@@ -40,7 +40,7 @@ import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
 import { codePointLength, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix } from '../../core/paths.js';
-import type { Artifact, ArtifactKind } from '../../core/types.js';
+import type { Artifact, ArtifactKind, Snapshot } from '../../core/types.js';
 import type { FrontmatterResult } from '../../parse/types.js';
 import { classify } from '../classify.js';
 import {
@@ -229,6 +229,37 @@ function isPluginModule(local: string): boolean {
     return false;
   }
   return local.endsWith('.js') || local.endsWith('.ts');
+}
+
+const CANDIDATES = new WeakMap<Snapshot, readonly string[]>();
+
+/**
+ * The files of the scan, read or not, that the loop over unread files in `loadCline` may act on,
+ * in its order: those named AGENTS.md, SKILL.md, `.clinerules` or a legacy rules file, and those
+ * with `.cline` anywhere in their path, in any letter case (`clinePlace` needs a `.cline` or
+ * `.clinerules` folder). Found once per scan for the plans of every working directory.
+ */
+function clineCandidates(snapshot: Snapshot): readonly string[] {
+  const cached = CANDIDATES.get(snapshot);
+  if (cached !== undefined) return cached;
+  const files = new Set<string>(snapshot.ignoredFiles);
+  for (const path of snapshot.paths) if (!path.endsWith('/')) files.add(path);
+  for (const entry of snapshot.skipped) files.add(entry.path);
+  const candidates: string[] = [];
+  for (const path of files) {
+    const name = basename(path);
+    if (
+      name === 'AGENTS.md' ||
+      name === 'SKILL.md' ||
+      name === '.clinerules' ||
+      Object.hasOwn(LEGACY_FILES, name) ||
+      path.toLowerCase().includes('.cline')
+    ) {
+      candidates.push(path);
+    }
+  }
+  CANDIDATES.set(snapshot, candidates);
+  return candidates;
 }
 
 /** The load plan of Cline for the workspace `options.cwd`. Pure and deterministic. */
@@ -675,10 +706,7 @@ export function loadCline(view: LoadView, options: ClineLoadOptions): LoadPlan {
   };
 
   const { snapshot } = view;
-  const files = new Set<string>(snapshot.ignoredFiles);
-  for (const path of snapshot.paths) if (!path.endsWith('/')) files.add(path);
-  for (const entry of snapshot.skipped) files.add(entry.path);
-  for (const path of files) {
+  for (const path of clineCandidates(snapshot)) {
     if (!inWorkspace(path)) continue;
     const where = local(path);
     const place = clinePlace(where);

@@ -11,6 +11,8 @@ import {
   importsUncertainty,
   isAgentsMdReadByClaude,
 } from '../../../src/rules/instructions/import-graph.js';
+import { ImportGraph as LoadImportGraph } from '../../../src/platforms/load/imports.js';
+import { artifactIndex } from '../../../src/platforms/load/view.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
 
 function graphFor(files: FileMap, extras: SnapshotExtras = {}, budget?: number) {
@@ -84,6 +86,36 @@ describe('ImportGraph', () => {
     expect(graph.edges(byPath('GEMINI.md'), 'claude').map((edge) => edge.target)).toEqual([
       'notes.md',
     ]);
+  });
+
+  it('shares parsed imports between graphs over one view, but not their edge budgets', () => {
+    const snapshot = snapshotFrom({
+      'CLAUDE.md': '@AGENTS.md\n@GEMINI.md\n',
+      'AGENTS.md': 'x',
+      'GEMINI.md': 'y',
+    });
+    const artifacts = buildArtifacts(snapshot, EMPTY_CONFIG);
+    let parses = 0;
+    const view = {
+      snapshot,
+      index: artifactIndex(artifacts),
+      markdown: (artifact: Artifact) => {
+        parses++;
+        return parseMarkdown(artifact.decoded.text, parseFrontmatter(artifact.decoded.text));
+      },
+    };
+    const claude = view.index.get('CLAUDE.md');
+    if (claude === undefined) throw new Error('no CLAUDE.md');
+    const spent = new LoadImportGraph(view, 1);
+    expect(spent.reach([claude], 'claude', 4).incomplete).toBe(true);
+    const parsed = parses;
+    const fresh = new LoadImportGraph(view);
+    expect(fresh.edges(claude, 'claude')).toBe(spent.edges(claude, 'claude'));
+    expect(parses).toBe(parsed);
+    expect(fresh.reach([claude], 'claude', 4).incomplete).toBe(false);
+    // Another view, even of the same files, has its own edges.
+    const other = new LoadImportGraph({ ...view });
+    expect(other.edges(claude, 'claude')).not.toBe(spent.edges(claude, 'claude'));
   });
 
   it('follows symlink aliases to the real file', () => {

@@ -152,33 +152,41 @@ function kindOf(view: Pick<LoadView, 'index'>, path: string): ArtifactKind | und
   return classify(path)?.kind ?? view.index.get(path)?.kind;
 }
 
-/** What a plan says about one row, if it has an entry or a skip for it. */
-function judge(plan: LoadPlan, row: string, deeper: boolean): MatrixCell | undefined {
-  let best: LoadEntry | undefined;
-  let truncated = false;
+/**
+ * What each row's entries and skips in a plan say about it, by row, in one pass over the plan.
+ * A row with an entry gets the cell of its entry with the lowest trigger rank (the first of
+ * equals), `partial` when any of its entries is truncated, and `start-dir` in a plan that starts
+ * below the root. A row with skips only is `skipped`, or `not-read` when every skip is.
+ */
+function judgements(plan: LoadPlan): Map<string, MatrixCell> {
+  const deeper = plan.cwd !== '';
+  const best = new Map<string, { entry: LoadEntry; truncated: boolean }>();
   // Imports load files that are rows of their own, such as an AGENTS.md a CLAUDE.md imports.
   // An import's skip names the importing file, so skips count only for row roles.
   for (const entry of plan.entries) {
     if (!ROW_ROLES.has(entry.role) && entry.role !== 'import') continue;
-    if (rowPath(entry.path, entry.role === 'skill') !== row) continue;
-    truncated ||= entry.truncated !== undefined;
-    if (best === undefined || TRIGGER_RANK[entry.trigger] < TRIGGER_RANK[best.trigger]) {
-      best = entry;
+    const row = rowPath(entry.path, entry.role === 'skill');
+    const truncated = entry.truncated !== undefined;
+    const known = best.get(row);
+    if (known === undefined) {
+      best.set(row, { entry, truncated });
+      continue;
     }
+    known.truncated ||= truncated;
+    if (TRIGGER_RANK[entry.trigger] < TRIGGER_RANK[known.entry.trigger]) known.entry = entry;
   }
-  if (best !== undefined) {
-    if (truncated) return 'partial';
-    if (deeper) return 'start-dir';
-    return entryCell(best);
+  const cells = new Map<string, MatrixCell>();
+  for (const [row, { entry, truncated }] of best) {
+    cells.set(row, truncated ? 'partial' : deeper ? 'start-dir' : entryCell(entry));
   }
-  let notRead = false;
   for (const skip of plan.skipped) {
     if (!ROW_ROLES.has(skip.role)) continue;
-    if (rowPath(skip.path, skip.role === 'skill') !== row) continue;
-    if (skip.code !== 'not-read') return 'skipped';
-    notRead = true;
+    const row = rowPath(skip.path, skip.role === 'skill');
+    if (best.has(row)) continue;
+    if (skip.code !== 'not-read') cells.set(row, 'skipped');
+    else if (!cells.has(row)) cells.set(row, 'not-read');
   }
-  return notRead ? 'not-read' : undefined;
+  return cells;
 }
 
 function entryCell(entry: LoadEntry): MatrixCell {
@@ -196,18 +204,19 @@ function entryCell(entry: LoadEntry): MatrixCell {
   }
 }
 
-/** True when the plan lists the row's path in `incomplete`. */
-function incompleteFor(plan: LoadPlan, row: string, skill: boolean): boolean {
-  return plan.incomplete.some((item) => {
-    const colon = item.indexOf(':');
-    if (colon < 0) return false;
-    const path = item.slice(colon + 1);
-    return path === row || (skill && dirnamePosix(path) === row);
-  });
+/** What one agent's plans say about every row, gathered in one pass over each plan. */
+interface AgentCells {
+  /** Per row, the cell of the first plan that has an entry or a skip for it. */
+  readonly judged: Map<string, MatrixCell>;
+  /** Rows the root plan leaves to a deeper start, as skill rows and as file rows. */
+  readonly belowSkill: Set<string>;
+  readonly belowFile: Set<string>;
+  /** Paths the plans list in `incomplete`, and the directories of those paths. */
+  readonly incomplete: Set<string>;
+  readonly incompleteDirectories: Set<string>;
 }
 
-function cellFor(plans: readonly LoadPlan[], row: MatrixRow): MatrixCell {
-  const skill = row.kind === 'skill';
+function agentCells(plans: readonly LoadPlan[]): AgentCells {
   // The root plan first; then plans that start deeper, the shallowest first.
   const ordered = [...plans].sort(
     (a, b) =>
@@ -215,19 +224,43 @@ function cellFor(plans: readonly LoadPlan[], row: MatrixRow): MatrixCell {
       a.cwd.split('/').length - b.cwd.split('/').length ||
       compareStrings(a.cwd, b.cwd),
   );
+  const cells: AgentCells = {
+    judged: new Map(),
+    belowSkill: new Set(),
+    belowFile: new Set(),
+    incomplete: new Set(),
+    incompleteDirectories: new Set(),
+  };
   for (const plan of ordered) {
-    const cell = judge(plan, row.path, plan.cwd !== '');
-    if (cell !== undefined) return cell;
+    for (const [row, cell] of judgements(plan)) {
+      if (!cells.judged.has(row)) cells.judged.set(row, cell);
+    }
+    for (const item of plan.incomplete) {
+      const colon = item.indexOf(':');
+      if (colon < 0) continue;
+      const path = item.slice(colon + 1);
+      cells.incomplete.add(path);
+      cells.incompleteDirectories.add(dirnamePosix(path));
+    }
   }
   const root = ordered.find((plan) => plan.cwd === '');
-  if (
-    root?.outOfScope.some(
-      (item) => item.because === 'below-start-dir' && rowPath(item.path, skill) === row.path,
-    ) === true
-  ) {
-    return 'start-dir';
+  for (const item of root?.outOfScope ?? []) {
+    if (item.because !== 'below-start-dir') continue;
+    cells.belowSkill.add(rowPath(item.path, true));
+    cells.belowFile.add(rowPath(item.path, false));
   }
-  if (ordered.some((plan) => incompleteFor(plan, row.path, skill))) return 'unknown';
+  return cells;
+}
+
+function cellFor(cells: AgentCells, row: MatrixRow): MatrixCell {
+  const skill = row.kind === 'skill';
+  const judged = cells.judged.get(row.path);
+  if (judged !== undefined) return judged;
+  if ((skill ? cells.belowSkill : cells.belowFile).has(row.path)) return 'start-dir';
+  // The row's path, or for a skill a file in its directory, is in a plan's `incomplete`.
+  if (cells.incomplete.has(row.path) || (skill && cells.incompleteDirectories.has(row.path))) {
+    return 'unknown';
+  }
   return 'not-read';
 }
 
@@ -271,15 +304,11 @@ export function buildMatrix(
     }
   }
 
+  const byAgent = columns.map((agent) => agentCells(plans.filter((plan) => plan.agent === agent)));
   const rows: MatrixRow[] = [];
   for (const [path, kind] of kinds) {
     const row: MatrixRow = { path, kind, cells: [] };
-    const cells = columns.map((agent) =>
-      cellFor(
-        plans.filter((plan) => plan.agent === agent),
-        row,
-      ),
-    );
+    const cells = byAgent.map((agent) => cellFor(agent, row));
     if (cells.every((cell) => cell === 'not-read')) continue;
     rows.push({ path, kind, cells });
   }

@@ -786,12 +786,26 @@ function addConfig(parts: PlanParts, config: CodexProjectConfig): void {
   for (const layer of config.layers) {
     for (const server of codexMcpServers(layer.doc)) declared.set(server.name, layer);
   }
+  // A server's inventory id is that of the first server of its name in its layer.
+  const inventoryIds = new Map<CodexConfigLayer, Map<string, string>>();
+  const inventoryIdOf = (layer: CodexConfigLayer, name: string): string => {
+    let ids = inventoryIds.get(layer);
+    if (ids === undefined) {
+      const servers = codexMcpServers(layer.doc);
+      const all = mcpInventoryIds(layer.artifact.path, servers);
+      const byName = new Map<string, string>();
+      servers.forEach((server, index) => {
+        if (!byName.has(server.name)) byName.set(server.name, all[index] ?? '');
+      });
+      ids = byName;
+      inventoryIds.set(layer, ids);
+    }
+    return ids.get(name) ?? '';
+  };
   for (const [name, layer] of declared) {
     const merged = config.table(['mcp_servers', name]);
     if (merged === undefined) continue;
-    const servers = codexMcpServers(layer.doc);
-    const index = servers.findIndex((server) => server.name === name);
-    const inventoryId = mcpInventoryIds(layer.artifact.path, servers)[index] ?? '';
+    const inventoryId = inventoryIdOf(layer, name);
     const id = `mcp-server:${layer.path}#${name}`;
     if (!codexServerEnabled(merged)) {
       parts.skip({
@@ -828,21 +842,43 @@ function addConfig(parts: PlanParts, config: CodexProjectConfig): void {
   }
 }
 
-/** Files below the working directory that Codex would read only from a deeper start. */
-function addBelowStart(view: LoadView, parts: PlanParts, cwd: string): void {
+/** A file that Codex reads only from a start below `directory`. */
+interface DeeperStartFile {
+  readonly path: string;
+  readonly directory: string;
+}
+
+const DEEPER_START_FILES = new WeakMap<LoadView['index'], readonly DeeperStartFile[]>();
+
+/**
+ * The AGENTS.md files (in any letter case), `.codex/hooks.json` and `.codex/config.toml` files of
+ * the index, in its order. Found once per index: the matrix plans Codex in every directory with
+ * an AGENTS.md.
+ */
+function deeperStartFiles(view: LoadView): readonly DeeperStartFile[] {
+  const cached = DEEPER_START_FILES.get(view.index);
+  if (cached !== undefined) return cached;
+  const files: DeeperStartFile[] = [];
   for (const [path, artifact] of view.index) {
     // Case variants too: Codex at that directory skips them (instr/filename-case).
     const name = basename(path).toLowerCase();
-    const below =
-      (CODEX_FILE_NAMES.some((file) => file.toLowerCase() === name) &&
-        isBelow(dirnamePosix(path), cwd)) ||
-      (artifact.kind === 'codex-hooks' &&
-        path.endsWith('.codex/hooks.json') &&
-        isBelow(ownerOf(path), cwd)) ||
-      (artifact.kind === 'codex-config' &&
-        path.endsWith(CODEX_CONFIG_FILE) &&
-        isBelow(ownerOf(path), cwd));
-    if (below) parts.outOfScope.push({ path, because: 'below-start-dir' });
+    if (CODEX_FILE_NAMES.some((file) => file.toLowerCase() === name)) {
+      files.push({ path, directory: dirnamePosix(path) });
+    } else if (
+      (artifact.kind === 'codex-hooks' && path.endsWith('.codex/hooks.json')) ||
+      (artifact.kind === 'codex-config' && path.endsWith(CODEX_CONFIG_FILE))
+    ) {
+      files.push({ path, directory: ownerOf(path) });
+    }
+  }
+  DEEPER_START_FILES.set(view.index, files);
+  return files;
+}
+
+/** Files below the working directory that Codex would read only from a deeper start. */
+function addBelowStart(view: LoadView, parts: PlanParts, cwd: string): void {
+  for (const { path, directory } of deeperStartFiles(view)) {
+    if (isBelow(directory, cwd)) parts.outOfScope.push({ path, because: 'below-start-dir' });
   }
 }
 

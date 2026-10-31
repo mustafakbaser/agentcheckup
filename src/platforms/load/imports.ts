@@ -83,18 +83,40 @@ export interface Reach {
   readonly incomplete: boolean;
 }
 
+/** What a graph computes from its view alone, so every graph over one view can share it. */
+interface ViewCaches {
+  readonly edges: Map<string, readonly ImportEdge[]>;
+  readonly rootPaths: Record<ImportDialect, Map<Artifact, string | undefined>>;
+}
+
+const VIEW_CACHES = new WeakMap<ImportView, ViewCaches>();
+
+/**
+ * The edges and root paths of the graphs over `view`. Loaders build a graph per plan, and the
+ * matrix and `--by-directory` plan every agent in many directories over one view. Each graph
+ * keeps its own edge budget; a shared parse is the cached one the view returns anyway.
+ */
+function viewCaches(view: ImportView): ViewCaches {
+  let caches = VIEW_CACHES.get(view);
+  if (caches === undefined) {
+    caches = { edges: new Map(), rootPaths: { claude: new Map(), gemini: new Map() } };
+    VIEW_CACHES.set(view, caches);
+  }
+  return caches;
+}
+
 export class ImportGraph {
   readonly index: ReadonlyMap<string, Artifact>;
   readonly snapshot: Snapshot;
   readonly #view: ImportView;
-  readonly #edges = new Map<string, readonly ImportEdge[]>();
-  readonly #rootPaths: Record<ImportDialect, Map<Artifact, string | undefined>> = {
-    claude: new Map(),
-    gemini: new Map(),
-  };
+  readonly #edges: Map<string, readonly ImportEdge[]>;
+  readonly #rootPaths: Record<ImportDialect, Map<Artifact, string | undefined>>;
   #budget: number;
 
   constructor(view: ImportView, maxEdgeVisits = MAX_EDGE_VISITS) {
+    const caches = viewCaches(view);
+    this.#edges = caches.edges;
+    this.#rootPaths = caches.rootPaths;
     this.#view = view;
     this.snapshot = view.snapshot;
     this.index = view.index;

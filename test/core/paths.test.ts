@@ -69,4 +69,16 @@ describe('pathStatus after an incomplete walk', () => {
     expect(pathStatus(truncated, 'missing.md')).toBe('unknown');
     expect(pathStatus(truncated, 'AGENTS.md')).toBe('exists');
   });
+
+  it('sees an entry limit added to a skipped list it has already searched', () => {
+    // The walk hands its import pass a snapshot whose list it keeps appending to.
+    const skipped: { path: string; reason: 'binary' | 'file-limit' }[] = [
+      { path: 'logo.png', reason: 'binary' },
+    ];
+    const snapshot = { ...snapshotFrom({ 'AGENTS.md': '# a' }), skipped };
+    expect(pathStatus(snapshot, 'missing.md')).toBe('missing');
+    skipped.push({ path: 'src/', reason: 'file-limit' });
+    expect(pathStatus(snapshot, 'missing.md')).toBe('unknown');
+    expect(pathStatus(snapshot, 'other.md')).toBe('unknown');
+  });
 });

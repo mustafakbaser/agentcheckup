@@ -4,17 +4,39 @@
  * counts UTF-16 code units (an emoji is 2). Rules must say which unit they mean.
  */
 
-const encoder = new TextEncoder();
-
-export function utf8ByteLength(text: string): number {
-  return encoder.encode(text).byteLength;
+/** True when `code` is a high surrogate and `next` is a low one: one code point in two units. */
+function isPair(code: number, next: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff;
 }
 
-/** Unicode code points (an emoji is 1, `İ` is 1). */
+/**
+ * Bytes of `text` in UTF-8, as `TextEncoder` writes it: a lone surrogate becomes U+FFFD, three
+ * bytes. Counted without encoding a copy.
+ */
+export function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (isPair(code, text.charCodeAt(i + 1))) {
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/** Unicode code points (an emoji is 1, `İ` is 1); a lone surrogate counts as one. */
 export function codePointLength(text: string): number {
-  let count = 0;
-  for (const _ of text) count++;
-  return count;
+  let pairs = 0;
+  for (let i = 0; i + 1 < text.length; i++) {
+    if (isPair(text.charCodeAt(i), text.charCodeAt(i + 1))) {
+      pairs++;
+      i++;
+    }
+  }
+  return text.length - pairs;
 }
 
 /** Number of lines, counting a final line without a terminator. Empty text has 0 lines. */

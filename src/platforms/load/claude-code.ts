@@ -30,7 +30,6 @@ import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
 import {
   codePointLength,
-  estimateTokens,
   lineCount,
   tokensOf,
   utf8ByteLength,
@@ -250,7 +249,8 @@ function onDemandCertainty(scope: Scope): Certainty {
 }
 
 function size(text: string, bytes: number = utf8ByteLength(text)): Size {
-  return { bytes, chars: codePointLength(text), tokens: estimateTokens(text) };
+  const chars = codePointLength(text);
+  return { bytes, chars, tokens: tokensOf(chars) };
 }
 
 /**
