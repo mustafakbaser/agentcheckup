@@ -10,12 +10,13 @@ import { fromMarkdown } from 'mdast-util-from-markdown';
 import type { Span } from '../core/types.js';
 import { FLAT_MODE, guardMarkdown, markdownWindowEnd } from './markdown-guard.js';
 
-export { MAX_MARKDOWN_LENGTH, MAX_MARKDOWN_LINES } from './markdown-guard.js';
+export { FILE_GUARD_BUDGET, MAX_MARKDOWN_LENGTH, MAX_MARKDOWN_LINES } from './markdown-guard.js';
 import { mergeSpans, spanBetween, spansContain } from './spans.js';
 import type {
   FrontmatterResult,
   HtmlComment,
   MarkdownAnalysis,
+  MarkdownCost,
   MarkdownDocument,
   MarkdownLink,
 } from './types.js';
@@ -99,6 +100,11 @@ export interface ParseMarkdownOptions {
    * `MAX_MARKDOWN_LENGTH`, never raises it; 0 or less analyzes nothing.
    */
   readonly maxAnalyzedChars?: number;
+  /**
+   * Parser work allowed, in the cost guard's units (what is left of a scan-wide budget). Lowers
+   * the per-file budget of `guardMarkdown`, never raises it.
+   */
+  readonly maxCost?: MarkdownCost;
 }
 
 /** An empty document, for a zero-length window: micromark is not called. */
@@ -127,7 +133,10 @@ export function parseMarkdown(
   if (frontmatter.kind === 'valid' || frontmatter.kind === 'invalid') {
     window = blank(window, frontmatter.span);
   }
-  const { source, flat, defusedParagraphs, cappedLines } = guardMarkdown(window);
+  const { source, flat, defusedParagraphs, cappedLines, cost } = guardMarkdown(
+    window,
+    options.maxCost,
+  );
   let root: Root;
   if (windowEnd === 0) root = emptyRoot();
   else root = flat ? fromMarkdown(source, FLAT_MODE) : fromMarkdown(source);
@@ -139,6 +148,7 @@ export function parseMarkdown(
     flat,
     defusedParagraphs,
     cappedLines,
+    cost,
   };
   return {
     root,

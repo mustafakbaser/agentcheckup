@@ -26,6 +26,7 @@
  * is U+00A0, which CommonMark treats as neither indentation nor a line ending.
  */
 import type { Options } from 'mdast-util-from-markdown';
+import type { MarkdownCost } from './types.js';
 
 /** Characters of the text that `parseMarkdown` analyzes; the rest is not parsed. */
 export const MAX_MARKDOWN_LENGTH = 128 * 1024;
@@ -41,6 +42,13 @@ const CONTAINER_BUDGET = 7_000_000;
  * ~1.8e-8 s per unit. A list item followed by a 100-line lazy paragraph costs about 5,000.
  */
 const LAZY_BUDGET = 4_000_000;
+
+/** The most one file may cost: what `guardMarkdown` allows without a lower budget. */
+export const FILE_GUARD_BUDGET: MarkdownCost = {
+  inline: INLINE_BUDGET,
+  container: CONTAINER_BUDGET,
+  lazy: LAZY_BUDGET,
+};
 /** Container markers (`>`, `-`, `+`, `*`, `1.`, `1)`) honored at the start of one line. */
 const MAX_CONTAINERS = 32;
 /** Leading indentation, in columns, beyond which whitespace is defused (bounds list nesting). */
@@ -345,22 +353,30 @@ function plan(text: string): Plan {
   return { runs, defuse, cappedLines, complexLines, lazyCost, lines };
 }
 
-/** Runs to defuse, most expensive first, until the remaining cost fits the budget. */
-function selectRuns(runs: readonly Run[]): Run[] {
+/**
+ * Runs to defuse, most expensive first, until the remaining cost fits `budget`, and the cost that
+ * remains.
+ */
+function selectRuns(
+  runs: readonly Run[],
+  budget: number,
+): { readonly selected: Run[]; readonly remaining: number } {
   const costs = new Map(runs.map((run) => [run, runCost(run)]));
   let total = 0;
   for (const cost of costs.values()) total += cost;
-  if (total <= INLINE_BUDGET) return [];
+  if (total <= budget) return { selected: [], remaining: total };
   const byCost = [...runs].sort(
     (a, b) => (costs.get(b) ?? 0) - (costs.get(a) ?? 0) || a.start - b.start,
   );
   const selected: Run[] = [];
   for (const run of byCost) {
-    if (total <= INLINE_BUDGET) break;
+    const cost = costs.get(run) ?? 0;
+    // Runs that cost nothing come last; rounding must not make them look worth defusing.
+    if (total <= budget || cost <= 0) break;
     selected.push(run);
-    total -= costs.get(run) ?? 0;
+    total -= cost;
   }
-  return selected;
+  return { selected, remaining: Math.max(0, total) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -376,21 +392,47 @@ export interface GuardedSource {
   readonly defusedParagraphs: number;
   /** Lines changed by the per-line caps (container markers, indentation before a marker). */
   readonly cappedLines: number;
+  /** What parsing `source` is estimated to cost, after flat mode and defusing. */
+  readonly cost: MarkdownCost;
+}
+
+/** `budget` per unit, never above {@link FILE_GUARD_BUDGET} and never below 0. */
+function fileBudget(budget: MarkdownCost): MarkdownCost {
+  const lower = (value: number, limit: number): number =>
+    Math.max(0, Math.min(limit, Number.isNaN(value) ? 0 : value));
+  return {
+    inline: lower(budget.inline, INLINE_BUDGET),
+    container: lower(budget.container, CONTAINER_BUDGET),
+    lazy: lower(budget.lazy, LAZY_BUDGET),
+  };
 }
 
 /**
  * Prepares `text` (already windowed, frontmatter already blanked) for micromark. Returns the
- * input string itself when nothing needs defusing, which is the common case.
+ * input string itself when nothing needs defusing, which is the common case. `budget` can lower
+ * the cost allowed in each unit (what is left of a scan-wide budget), never raise it: at 0, any
+ * container or lazy-line cost makes the parse flat and every paragraph with inline cost is
+ * defused, so what is left costs time linear in the text.
  */
-export function guardMarkdown(text: string): GuardedSource {
+export function guardMarkdown(
+  text: string,
+  budget: MarkdownCost = FILE_GUARD_BUDGET,
+): GuardedSource {
   const { runs, defuse, cappedLines, complexLines, lazyCost, lines } = plan(text);
-  const flat = complexLines * lines > CONTAINER_BUDGET || lazyCost > LAZY_BUDGET;
-  const selected = selectRuns(runs);
+  const allowed = fileBudget(budget);
+  const containerCost = complexLines * lines;
+  const flat = containerCost > allowed.container || lazyCost > allowed.lazy;
+  const { selected, remaining } = selectRuns(runs, allowed.inline);
   // micromark's preprocessor drops a leading U+FEFF, which would shift every offset by one. The
   // decoder strips one BOM; a second one (or U+FEFF after a UTF-16 BOM) reaches us as text.
   // Replacing it loses nothing, so it does not count as a limit.
   if (text.charCodeAt(0) === 0xfeff) defuse.push(0);
-  const result = { flat, defusedParagraphs: selected.length, cappedLines };
+  const cost: MarkdownCost = {
+    inline: remaining,
+    container: flat ? 0 : containerCost,
+    lazy: flat ? 0 : lazyCost,
+  };
+  const result = { flat, defusedParagraphs: selected.length, cappedLines, cost };
   if (selected.length === 0 && defuse.length === 0) return { source: text, ...result };
 
   const units = new Uint16Array(text.length);

@@ -149,6 +149,23 @@ describe('skill/frontmatter-invalid', () => {
     );
   });
 
+  it('reports a repeated field next to a mapping too large for the YAML parser to compare', () => {
+    // Past 2,000 keys in a mapping, the repeat is found without yaml's own check.
+    const metadata = Array.from({ length: 3_000 }, (_, i) => `  k${String(i)}: v\n`).join('');
+    const text = `---\nname: deploy\ndescription: One.\nname: deploy\nmetadata:\n${metadata}---\n`;
+    expect(check(text)).toEqual([
+      {
+        severity: 'error',
+        platforms: ['claude-code', 'codex', 'cline'],
+        message:
+          'The frontmatter repeats "name". Codex and Cline reject a repeated field and skip the skill, and the skills-ref validator rejects duplicate keys.',
+        range: range(4, 1, 4, 5),
+      },
+    ]);
+    const distinct = `---\nname: deploy\ndescription: One.\nmetadata:\n${metadata}---\n`;
+    expect(check(distinct)).toEqual([]);
+  });
+
   it('reports other repeated keys as a portability warning where Cline does not read them', () => {
     const text = '---\nname: deploy\ndescription: One.\ntags: a\ntags: b\n---\n';
     expect(check(text, ['claude-code', 'codex', 'cursor', 'copilot', 'gemini'])).toEqual([

@@ -85,10 +85,18 @@ const files: fc.Arbitrary<FileMap> = fc
   .map((entries) => Object.fromEntries(entries) as FileMap);
 
 /** A budget that is often used up partway through a scan. */
-const budget: fc.Arbitrary<Pick<ScanOptions, 'markdownBudget' | 'markdownLineBudget'>> = fc.record(
+const budget: fc.Arbitrary<
+  Pick<ScanOptions, 'markdownBudget' | 'markdownLineBudget' | 'markdownCostBudget'>
+> = fc.record(
   {
     markdownBudget: fc.constantFrom(0, 40, 200, 600, 5000),
     markdownLineBudget: fc.constantFrom(0, 3, 12, 40, 1000),
+    // Spent by the first file with any cost, partway through, or never.
+    markdownCostBudget: fc.constantFrom(
+      { inline: 0, container: 0, lazy: 0 },
+      { inline: 40, container: 4, lazy: 1 },
+      { inline: 1e9, container: 1e9, lazy: 1e9 },
+    ),
   },
   { requiredKeys: [] },
 );

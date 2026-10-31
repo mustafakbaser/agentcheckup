@@ -42,6 +42,7 @@ describe('maxAnalyzedChars', () => {
       flat: false,
       defusedParagraphs: 0,
       cappedLines: 0,
+      cost: { inline: 0, container: 0, lazy: 0 },
     });
     expect([doc.codeSpans, doc.htmlComments, doc.links]).toEqual([[], [], []]);
     expect(findImports('@./a.md\n', parse('@./a.md\n', 0), 'claude')).toEqual([]);

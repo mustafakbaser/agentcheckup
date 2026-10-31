@@ -91,6 +91,18 @@ export interface MarkdownAnalysis {
   readonly defusedParagraphs: number;
   /** Lines changed by the per-line caps (container markers, indentation). */
   readonly cappedLines: number;
+  /** The parser work the analysis was estimated to cost, which a scan-wide budget counts. */
+  readonly cost: MarkdownCost;
+}
+
+/**
+ * Parser work in the cost guard's three units (src/parse/markdown-guard.ts): inline delimiter
+ * cost, container cost (complex lines x lines) and lazy-line cost (paragraph lines rescanned).
+ */
+export interface MarkdownCost {
+  readonly inline: number;
+  readonly container: number;
+  readonly lazy: number;
 }
 
 export interface MarkdownDocument {

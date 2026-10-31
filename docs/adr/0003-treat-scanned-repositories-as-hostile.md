@@ -4,6 +4,9 @@
 - Date: 2026-10-14
 - Related: [0008](0008-write-fixes-to-the-scanned-repository.md) sets the rules for writing
   fixes to a scanned repository
+- Amended by: [0015](0015-bound-parser-work-per-scan.md) (2026-10-30), which adds a scan-wide
+  budget of Markdown parser work and bounds the YAML key check and JSON fixes, and corrects the
+  time and memory a crafted repository takes
 
 ## Context
 
@@ -42,7 +45,9 @@ logs, pull request comments and GitHub code scanning. The review identified conc
   gets a budget of 16 MiB and 600,000 lines of Markdown, twice the largest repository in our
   corpus. Files past the budget are reported as partly analyzed, never silently skipped. A
   crafted 64 MiB repository that previously ran for 100 seconds and exhausted memory now
-  finishes in under 8 seconds.
+  finishes in under 8 seconds. (Note, 2026-10-30: not for every crafted repository. Files that
+  each stay just under the per-file guard still added up to minutes; [0015](0015-bound-parser-work-per-scan.md)
+  adds a budget of parser work per scan and gives the times and memory measured since.)
 - Nothing is excluded by directory name inside agent configuration directories, so a skill
   named `build` or `dist` cannot hide from the scan.
 - A hostile-input corpus runs in CI on Linux, macOS and Windows.

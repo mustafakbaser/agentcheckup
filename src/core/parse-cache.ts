@@ -11,10 +11,11 @@
  *   reading agent uses), and are cached by text.
  * - A TOML parse depends on the text and on how it was decoded (UTF-16, a byte order mark the
  *   decoder removed, bytes that were not valid UTF-8), and is cached by both.
- * - A Markdown parse depends on the text and on the analysis window, which the scan's Markdown
- *   budget decides (`markdownWindowEnd` of the characters left). The cache is keyed by both, so
- *   a file parsed with less budget left than before is parsed again, and the scan spends the
- *   same budget, in the same order, as without the cache.
+ * - A Markdown parse depends on the text, on the analysis window and on the parser work it may
+ *   cost, which the scan's Markdown budget decides (`markdownWindowEnd` of the characters left,
+ *   and the units of the cost budget that are spent). The cache is keyed by all three, so a file
+ *   parsed with less budget left than before is parsed again, and the scan spends the same
+ *   budget, in the same order, as without the cache.
  *
  * Parsed documents are shared, read-only, between the scans and the artifacts that use them, as
  * they already are between the rules of one scan. The cache keeps every version it sees: use one
@@ -41,9 +42,15 @@ export interface ParseCache {
   frontmatter(text: string, compute: () => FrontmatterResult): FrontmatterResult;
   /**
    * The Markdown document of `text` analyzed up to `windowEnd` characters, from `compute` the
-   * first time. `windowEnd` must be the window `compute` analyzes.
+   * first time. `windowEnd` must be the window `compute` analyzes, and `allowance` names the
+   * parser work it allows when that is less than a whole file's ('' or absent otherwise).
    */
-  markdown(text: string, windowEnd: number, compute: () => MarkdownDocument): MarkdownDocument;
+  markdown(
+    text: string,
+    windowEnd: number,
+    compute: () => MarkdownDocument,
+    allowance?: string,
+  ): MarkdownDocument;
   /** The JSON document of `text` read in `dialect`, from `compute` the first time. */
   json(text: string, dialect: JsonDialect, compute: () => JsonDocument): JsonDocument;
   /** The TOML document of `decoded`, from `compute` the first time. */
@@ -67,7 +74,7 @@ function tomlVariant(decoded: DecodedText): string {
 export function createParseCache(): ParseCache {
   const decoded = new WeakMap<Uint8Array, DecodedText>();
   const frontmatter = new Map<string, FrontmatterResult>();
-  const markdown = new Map<string, Map<number, MarkdownDocument>>();
+  const markdown = new Map<string, Map<string, MarkdownDocument>>();
   const json: Record<JsonDialect, Map<string, JsonDocument>> = {
     strict: new Map(),
     comments: new Map(),
@@ -83,13 +90,13 @@ export function createParseCache(): ParseCache {
       return value;
     },
     frontmatter: (text, compute) => cached(frontmatter, text, compute),
-    markdown(text, windowEnd, compute) {
+    markdown(text, windowEnd, compute, allowance = '') {
       let windows = markdown.get(text);
       if (windows === undefined) {
         windows = new Map();
         markdown.set(text, windows);
       }
-      const doc = cached(windows, windowEnd, compute);
+      const doc = cached(windows, `${String(windowEnd)}:${allowance}`, compute);
       if (doc.analysis.analyzedLength !== windowEnd) {
         throw new Error('A cached Markdown parse must be keyed by the window it analyzed.');
       }

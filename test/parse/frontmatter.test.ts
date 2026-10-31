@@ -4,10 +4,12 @@ import { parseDocument } from 'yaml';
 import type { Span } from '../../src/core/types.js';
 import {
   MAX_FRONTMATTER_LENGTH,
+  MAX_MAPPING_KEYS,
   parseFrontmatter,
   parseYaml,
   YAML_OPTIONS,
 } from '../../src/parse/frontmatter.js';
+import { hitParserLimit } from '../../src/platforms/yaml.js';
 import type { FrontmatterData, FrontmatterResult, ParseIssue } from '../../src/parse/types.js';
 
 const slice = (text: string, span: Span | undefined): string | undefined =>
@@ -422,36 +424,102 @@ describe('repeated keys', () => {
     warnings: doc.warnings.map((warning) => [warning.code, warning.pos, warning.message]),
     range: doc.contents?.range,
   });
+  /** The codes of a parse's errors, sorted. */
+  const errorCodes = (doc: ReturnType<typeof parseYaml>): string[] =>
+    doc.errors.map((error) => error.code).sort();
+  /**
+   * Where the repeated keys of YAML without another error are reported, each moved past the white
+   * space at its offset: after a key without a value, yaml's check points at the end of that
+   * empty value, before the line break, and the errors for YAML with a mapping past the key limit
+   * at the repeated key. Undefined when the YAML has another error, and is rejected either way.
+   */
+  const repeatsAt = (doc: ReturnType<typeof parseYaml>, yaml: string): number[] | undefined => {
+    if (doc.errors.some((error) => error.code !== 'DUPLICATE_KEY')) return undefined;
+    const atKey = (start: number): number => {
+      let offset = start;
+      while (offset < yaml.length && (yaml[offset] === ' ' || yaml[offset] === '\n')) offset++;
+      return offset;
+    };
+    return doc.errors.map((error) => atKey(error.pos[0])).sort((a, b) => a - b);
+  };
+
+  const KEYS = ['a', 'b', '"a"', "'b'", '0', '00', '0x0', '+0', '-0', '0.0', '~', 'null'];
+  const MORE = ['', '.nan', '.NaN', 'true', 'True', '1', '1.0', '[a]', '{a: 1}', '&k a', '*k'];
+  const key = fc.constantFrom(...KEYS, ...MORE);
+  const value = fc.constantFrom('1', 'x', '', '[a, a]', '&v w', '*v', '{0: a, 00: b}', '{a, a}');
+  const pair = fc.tuple(key, value);
+  /** Lines of a block mapping, some with a nested block mapping. */
+  const blockLines = fc
+    .array(fc.tuple(pair, fc.array(pair, { maxLength: 3 })), { maxLength: 6 })
+    .map((entries) =>
+      entries
+        .map(([[k, v], nested]) =>
+          nested.length === 0
+            ? `${k}: ${v}\n`
+            : `${k}:\n${nested.map(([nk, nv]) => `  ${nk}: ${nv}\n`).join('')}`,
+        )
+        .join(''),
+    );
+  /** A flow mapping of random pairs followed by `padding`, distinct keys of their own. */
+  const flowMap = (padding: readonly string[]) =>
+    fc
+      .array(pair, { maxLength: 8 })
+      .map((pairs) => `{${[...pairs.map(([k, v]) => `${k}: ${v}`), ...padding].join(', ')}}\n`);
+  const sequenceOf = (item: fc.Arbitrary<string>) =>
+    fc.array(item, { maxLength: 3 }).map((items) => items.map((entry) => `- ${entry}`).join(''));
 
   it('finds repeats as the unique-key check does, without its quadratic cost', () => {
-    const KEYS = ['a', 'b', '"a"', "'b'", '0', '00', '0x0', '+0', '-0', '0.0', '~', 'null'];
-    const MORE = ['', '.nan', '.NaN', 'true', 'True', '1', '1.0', '[a]', '{a: 1}', '&k a', '*k'];
-    const key = fc.constantFrom(...KEYS, ...MORE);
-    const value = fc.constantFrom('1', 'x', '', '[a, a]', '&v w', '*v', '{0: a, 00: b}', '{a, a}');
-    const pair = fc.tuple(key, value);
-    const block = fc
-      .array(fc.tuple(pair, fc.array(pair, { maxLength: 3 })), { maxLength: 6 })
-      .map((entries) =>
-        entries
-          .map(([[k, v], nested]) =>
-            nested.length === 0
-              ? `${k}: ${v}\n`
-              : `${k}:\n${nested.map(([nk, nv]) => `  ${nk}: ${nv}\n`).join('')}`,
-          )
-          .join(''),
-      );
-    const flow = fc
-      .array(pair, { maxLength: 8 })
-      .map((pairs) => `{${pairs.map(([k, v]) => `${k}: ${v}`).join(', ')}}\n`);
-    const sequence = fc
-      .array(flow, { maxLength: 3 })
-      .map((items) => items.map((item) => `- ${item}`).join(''));
+    const flow = flowMap([]);
     fc.assert(
-      fc.property(fc.oneof(block, flow, sequence), (yaml) => {
+      fc.property(fc.oneof(blockLines, flow, sequenceOf(flow)), (yaml) => {
         expect(reported(parseYaml(yaml))).toEqual(reported(parseDocument(yaml, YAML_OPTIONS)));
       }),
       { numRuns: 3000 },
     );
+  });
+
+  it('reports repeats in YAML with a mapping past the key limit as the check does', () => {
+    // Distinct keys that make a mapping one key too many for yaml's check to run.
+    const padding = Array.from({ length: MAX_MAPPING_KEYS }, (_, i) => `p${i.toString(36)}`);
+    const crowdedBlock = padding.map((name) => `${name}: 1\n`).join('');
+    const crowdedFlow = flowMap(padding);
+    const yamls = fc.oneof(
+      // The repeat in the mapping past the limit, or in a mapping nested in it.
+      blockLines.map((lines) => lines + crowdedBlock),
+      crowdedFlow,
+      sequenceOf(fc.oneof(crowdedFlow, flowMap([]))),
+      // The repeat in another mapping than the one past the limit.
+      blockLines.map((lines) => `${lines}zz: {${padding.join(', ')}}\n`),
+    );
+    fc.assert(
+      fc.property(yamls, (yaml) => {
+        const [ours, checked] = [parseYaml(yaml), parseDocument(yaml, YAML_OPTIONS)];
+        expect(errorCodes(ours)).toEqual(errorCodes(checked));
+        expect(repeatsAt(ours, yaml)).toEqual(repeatsAt(checked, yaml));
+        expect({ ...(reported(ours) as object), errors: [] }).toEqual({
+          ...(reported(checked) as object),
+          errors: [],
+        });
+      }),
+      { numRuns: 50 },
+    );
+  });
+
+  it.each([
+    ['repeated block keys', 'a: 1\nb: 2\na: 3\n', ['DUPLICATE_KEY']],
+    ['a key repeated twice', 'a: 1\na: 2\na: 3\n', ['DUPLICATE_KEY', 'DUPLICATE_KEY']],
+    [
+      'repeats in flow mappings, inner first',
+      'm: {a: 1, a: {b: 1, b: 2}}\n',
+      ['DUPLICATE_KEY', 'DUPLICATE_KEY'],
+    ],
+    ['NaN keys, which never repeat', '.nan: 1\n.NaN: 2\n', []],
+    ['a repeat and a syntax error', 'a: 1\na: 2\nb: [x\n', ['DUPLICATE_KEY', 'BAD_INDENT']],
+  ])('reports %s next to a mapping past the key limit as the check does', (_name, yaml, errors) => {
+    const padding = Array.from({ length: MAX_MAPPING_KEYS + 1 }, (_, i) => `p${String(i)}`);
+    const crowded = `${yaml}pad: {${padding.join(', ')}}\n`;
+    expect(parseYaml(crowded).errors.map((error) => error.code)).toEqual(errors);
+    expect(reported(parseYaml(crowded))).toEqual(reported(parseDocument(crowded, YAML_OPTIONS)));
   });
 
   it.each([
@@ -463,5 +531,58 @@ describe('repeated keys', () => {
   ])('reports %s as the checked parse does', (_name, yaml, errors) => {
     expect(parseYaml(yaml).errors.map((error) => error.code)).toEqual(errors);
     expect(reported(parseYaml(yaml))).toEqual(reported(parseDocument(yaml, YAML_OPTIONS)));
+  });
+});
+
+describe('keys per mapping', () => {
+  const keys = (count: number, from = 0): string[] =>
+    Array.from({ length: count }, (_, i) => `k${(from + i).toString(36)}`);
+  const flow = (names: readonly string[]): string => `{${names.join(', ')}}`;
+
+  it('reads real-size mappings, mappings up to the limit and any without a repeat, as before', () => {
+    const fields = keys(18).map((key) => `${key}: value`);
+    const text = `---\n${fields.join('\n')}\nnested:\n  ${fields.join('\n  ')}\n---\n`;
+    expect(valid(text).data.keys).toHaveLength(19);
+    const full = valid(`---\nmap: ${flow(keys(MAX_MAPPING_KEYS))}\n---\n`);
+    expect(Object.keys(values(full.data)['map'] as object)).toHaveLength(MAX_MAPPING_KEYS);
+    // A repeat in a full mapping is still found by yaml's own check.
+    const repeated = invalid(`---\nmap: ${flow([...keys(MAX_MAPPING_KEYS - 1), 'k0'])}\n---\n`);
+    expect(codes(repeated.errors)).toEqual(['duplicate-key']);
+    // Without a repeat, nothing is compared pair by pair: a mapping of any size is read.
+    const wide = valid(`---\nmap: ${flow(keys(3 * MAX_MAPPING_KEYS))}\n---\n`);
+    expect(Object.keys(values(wide.data)['map'] as object)).toHaveLength(3 * MAX_MAPPING_KEYS);
+  });
+
+  it('reports a repeat in YAML with a mapping past the limit at the repeated key', () => {
+    const over = flow([...keys(MAX_MAPPING_KEYS), 'k0']);
+    const text = `---\nname: demo\nmap: ${over}\n---\n`;
+    const result = invalid(text);
+    expect(codes(result.errors)).toEqual(['duplicate-key']);
+    expect(result.errors[0]?.message).toBe('Map keys must be unique');
+    expect(result.errors[0]?.span.offset).toBe(text.lastIndexOf('k0'));
+    expect(slice(text, result.errors[0]?.span)).toBe('k0');
+    expect(hitParserLimit(result.errors)).toBe(false);
+    // The repeat may be in another mapping than the one past the limit.
+    const wide = flow(keys(MAX_MAPPING_KEYS + 1));
+    const elsewhere = `---\nname: demo\nlist:\n  - ${wide}\nname: again\n---\n`;
+    const repeated = invalid(elsewhere);
+    expect(codes(repeated.errors)).toEqual(['duplicate-key']);
+    expect(slice(elsewhere, repeated.errors[0]?.span)).toBe('name');
+    expect(repeated.errors[0]?.span.offset).toBe(elsewhere.lastIndexOf('name'));
+  });
+
+  it('parses the costliest mappings within the limit quickly', () => {
+    // Mappings of 2,000 keys with a repeat each, as many as fit in the length limit: yaml then
+    // compares each key with every earlier one.
+    const mappings: string[] = [];
+    let yaml = '';
+    for (let i = 0; yaml.length < MAX_FRONTMATTER_LENGTH - 20_000; i++) {
+      const names = keys(MAX_MAPPING_KEYS - 1, i * MAX_MAPPING_KEYS);
+      mappings.push(`m${String(i)}: ${flow([...names, names[0] ?? ''])}`);
+      yaml = mappings.join('\n');
+    }
+    const started = performance.now();
+    expect(codes(invalid(`---\n${yaml}\n---\n`).errors)[0]).toBe('duplicate-key');
+    expect(performance.now() - started).toBeLessThan(5_000);
   });
 });

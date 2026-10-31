@@ -32,7 +32,9 @@ import {
   type Pair,
   type Scalar,
   type SchemaOptions,
+  type YAMLError,
   type YAMLMap,
+  YAMLParseError,
 } from 'yaml';
 import type { Span } from '../core/types.js';
 import { cleanMessage, spanBetween } from './spans.js';
@@ -49,6 +51,13 @@ const MAX_ALIAS_NODES = 10_000;
 const MAX_DEPTH = 256;
 /** Hostile input can produce one error per character; report a bounded number. */
 const MAX_ISSUES = 100;
+/**
+ * Keys one mapping may hold for yaml's own check of repeated keys to run. The check compares each
+ * key of a mapping with every earlier one, at a cost that grows with the square of the keys (see
+ * {@link parseYaml}); real frontmatter has a few dozen at most (18 in the corpus). Like
+ * `MAX_ALIAS_NODES`, a bound for crafted input.
+ */
+export const MAX_MAPPING_KEYS = 2_000;
 
 /**
  * How frontmatter YAML is read ({@link parseYaml}); src/fix/yaml-source.ts reads it the same way.
@@ -71,23 +80,58 @@ export const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
  * instead of 0.03 s (yaml 2.9.1). All the check adds is a DUPLICATE_KEY error, as the pair is kept
  * either way, so the YAML is parsed without it, and again with it only when a mapping repeats a
  * scalar key's value. A Set compares values as SameValueZero, which equates everything the
- * check's `===` does and `NaN` as well: such a key costs a second parse, not a wrong result.
+ * check's `===` does and `NaN` as well, so `NaN` keys are left out of it: the check never finds
+ * them equal.
+ *
+ * When a key repeats and a mapping has more than {@link MAX_MAPPING_KEYS} keys, the YAML is not
+ * parsed again. Each key the Set found equal to an earlier key of its mapping gets the error the
+ * check gives it instead, with its code and message, at the start of the key, and in the order
+ * the check reports it as far as offsets tell: a key of a block mapping before its value, a key
+ * of a flow mapping after its value.
  */
 export function parseYaml(yaml: string): Document.Parsed {
   const unchecked = parseDocument(yaml, { ...YAML_OPTIONS, uniqueKeys: false });
-  return mayRepeatKeys(unchecked.contents) ? parseDocument(yaml, YAML_OPTIONS) : unchecked;
+  const { crowded, repeated } = checkKeys(unchecked.contents);
+  if (repeated.length === 0) return unchecked;
+  if (!crowded) return parseDocument(yaml, YAML_OPTIONS);
+  unchecked.errors = mergeRepeats(unchecked.errors, repeated);
+  return unchecked;
 }
 
-/** True when a mapping in the tree has two scalar keys with the same value. */
-function mayRepeatKeys(root: unknown): boolean {
-  const stack: unknown[] = [root];
+/** A key equal to an earlier key of its mapping, as {@link checkKeys} finds it. */
+interface RepeatedKey {
+  /** Offset of the key, where the check's error points. */
+  readonly start: number;
+  /** Offset up to which the check reports its other errors before this key's. */
+  readonly reportedAfter: number;
+}
+
+/** yaml's message for a key that repeats (compose/resolve-block-map.js). */
+const DUPLICATE_KEY_MESSAGE = 'Map keys must be unique';
+
+/**
+ * Every scalar key in the tree whose value equals that of an earlier key of its mapping, and
+ * whether a mapping has more than {@link MAX_MAPPING_KEYS} keys.
+ */
+function checkKeys(root: ParsedNode | null): {
+  readonly crowded: boolean;
+  readonly repeated: readonly RepeatedKey[];
+} {
+  const stack: (ParsedNode | null)[] = [root];
+  const repeated: RepeatedKey[] = [];
+  let crowded = false;
   while (stack.length > 0) {
     const node = stack.pop();
     if (isMap(node)) {
+      if (node.items.length > MAX_MAPPING_KEYS) crowded = true;
       const keys = new Set<unknown>();
       for (const pair of node.items) {
-        if (isScalar(pair.key)) {
-          if (keys.has(pair.key.value)) return true;
+        if (isScalar(pair.key) && !Number.isNaN(pair.key.value)) {
+          if (keys.has(pair.key.value)) {
+            const start = pair.key.range[0];
+            const after = node.flow === true ? (pair.value ?? pair.key).range[1] : start;
+            repeated.push({ start, reportedAfter: after });
+          }
           keys.add(pair.key.value);
         }
         stack.push(pair.key, pair.value);
@@ -96,7 +140,33 @@ function mayRepeatKeys(root: unknown): boolean {
       for (const item of node.items) stack.push(item);
     }
   }
-  return false;
+  return { crowded, repeated };
+}
+
+/**
+ * `errors` with a DUPLICATE_KEY error for each of `repeated`, in the order the check reports
+ * them; the order of `errors` is kept.
+ */
+function mergeRepeats(errors: readonly YAMLError[], repeated: readonly RepeatedKey[]): YAMLError[] {
+  // Of keys reported after the same offset, the one nested deeper, which starts later, first.
+  const sorted = [...repeated].sort(
+    (a, b) => a.reportedAfter - b.reportedAfter || b.start - a.start,
+  );
+  const merged: YAMLError[] = [];
+  let next = 0;
+  const reportUntil = (offset: number): void => {
+    for (let key = sorted[next]; key && key.reportedAfter < offset; key = sorted[++next]) {
+      merged.push(
+        new YAMLParseError([key.start, key.start + 1], 'DUPLICATE_KEY', DUPLICATE_KEY_MESSAGE),
+      );
+    }
+  };
+  for (const error of errors) {
+    reportUntil(error.pos[0]);
+    merged.push(error);
+  }
+  reportUntil(Number.POSITIVE_INFINITY);
+  return merged;
 }
 
 // ---------------------------------------------------------------------------------------------

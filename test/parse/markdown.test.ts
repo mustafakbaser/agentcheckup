@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Span } from '../../src/core/types.js';
 import { parseFrontmatter } from '../../src/parse/frontmatter.js';
 import {
+  FILE_GUARD_BUDGET,
   guardMarkdown,
   MAX_MARKDOWN_LENGTH,
   MAX_MARKDOWN_LINES,
@@ -262,7 +263,11 @@ describe('limits', () => {
 });
 
 describe('analysis', () => {
-  const analysis = (text: string) => parse(text).analysis;
+  // The cost the guard estimates is checked in 'the cost guard' below.
+  const analysis = (text: string) => {
+    const { cost: _cost, ...rest } = parse(text).analysis;
+    return rest;
+  };
   const complete = (text: string) => ({
     complete: true,
     analyzedLength: text.length,
@@ -307,7 +312,7 @@ describe('analysis', () => {
     const frontmatter = parseFrontmatter(text);
     expect(frontmatter.kind).toBe('valid');
     const doc = parseMarkdown(text, frontmatter);
-    expect(doc.analysis).toEqual(complete(text));
+    expect(doc.analysis).toEqual({ ...complete(text), cost: doc.analysis.cost });
     // The blanked frontmatter yields no nodes: everything starts in the body.
     expect(doc.root.children.map((child) => child.type)).toEqual(['heading', 'paragraph']);
     if (frontmatter.kind === 'valid') {
@@ -321,7 +326,7 @@ describe('analysis', () => {
     const text = `---\ndescription: ${'Use when: editing. '.repeat(120)}\n---\n# Title\n`;
     expect(parseFrontmatter(text).kind).toBe('invalid');
     const doc = parse(text);
-    expect(doc.analysis).toEqual(complete(text));
+    expect(doc.analysis).toEqual({ ...complete(text), cost: doc.analysis.cost });
     expect(doc.root.children.map((child) => child.type)).toEqual(['heading']);
   });
 
@@ -372,7 +377,7 @@ describe('analysis', () => {
       (_, i) => `- item ${i} text that wraps\nonto a lazy line\n\n> quote ${i}\ncontinued lazily\n`,
     ).join('\n');
     const doc = parse(text);
-    expect(doc.analysis).toEqual(complete(text));
+    expect(doc.analysis).toEqual({ ...complete(text), cost: doc.analysis.cost });
     expect(types(doc.root)).toContain('list');
     expect(types(doc.root)).toContain('blockquote');
   });
@@ -401,5 +406,42 @@ describe('analysis', () => {
       defusedParagraphs: 0,
       cappedLines,
     });
+  });
+});
+
+describe('the cost guard', () => {
+  const NONE = { inline: 0, container: 0, lazy: 0 };
+  const costly = '# Notes\n\n- one\n  - *two* and _three_\n- four\n\n> quote\n';
+  const plain = '# Plain\n\nNo formatting here.\n';
+
+  it('estimates what parsing a file costs, and nothing for plain text', () => {
+    const { cost, flat, defusedParagraphs } = guardMarkdown(costly);
+    expect([flat, defusedParagraphs]).toEqual([false, 0]);
+    expect(cost.inline).toBeGreaterThan(0);
+    expect(cost.container).toBeGreaterThan(0);
+    expect(guardMarkdown(plain).cost).toEqual(NONE);
+    expect(parse(costly).analysis.cost).toEqual(cost);
+  });
+
+  it('parses without the costly constructs when no cost is left', () => {
+    const guarded = guardMarkdown(costly, NONE);
+    expect(guarded.flat).toBe(true);
+    expect(guarded.defusedParagraphs).toBe(1);
+    expect(guarded.cost).toEqual(NONE);
+    expect(guarded.source).toHaveLength(costly.length);
+    // Plain text has nothing to lose.
+    expect(guardMarkdown(plain, NONE)).toEqual(guardMarkdown(plain));
+    const doc = parseMarkdown(plain, parseFrontmatter(plain), { maxCost: NONE });
+    expect(doc.analysis.complete).toBe(true);
+  });
+
+  it('lowers the per-file budget, never raises it', () => {
+    const hostile = `${'*a_'.repeat(4000)}\n`;
+    const huge = { inline: 1e12, container: 1e12, lazy: 1e12 };
+    expect(guardMarkdown(hostile, huge)).toEqual(guardMarkdown(hostile));
+    expect(guardMarkdown(hostile, FILE_GUARD_BUDGET)).toEqual(guardMarkdown(hostile));
+    expect(guardMarkdown(hostile).cost.inline).toBeLessThanOrEqual(FILE_GUARD_BUDGET.inline);
+    const nan = { inline: Number.NaN, container: Number.NaN, lazy: Number.NaN };
+    expect(guardMarkdown(costly, nan)).toEqual(guardMarkdown(costly, NONE));
   });
 });

@@ -19,5 +19,6 @@ changed by adding a new record that supersedes the old one, never by editing his
 | [0012](0012-list-hooks-servers-and-permissions-declared-in-frontmatter.md) | List hooks, servers and permissions declared in frontmatter            | Accepted |
 | [0013](0013-list-agent-definitions-and-their-models.md)                    | List agent definitions and their models                                | Accepted |
 | [0014](0014-measure-subagent-calls-and-sum-up-context-cost.md)             | Measure subagent calls and sum up what configuration costs in context  | Accepted |
+| [0015](0015-bound-parser-work-per-scan.md)                                 | Bound parser work per scan                                             | Accepted |
 
 New records use [the template](template.md).

@@ -5,12 +5,13 @@ import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonc, parseJsonWithComments } from '../parse/json.js';
 import { parseMarkdown } from '../parse/markdown.js';
-import { markdownWindowEnd } from '../parse/markdown-guard.js';
+import { FILE_GUARD_BUDGET, markdownWindowEnd } from '../parse/markdown-guard.js';
 import { parseToml } from '../parse/toml.js';
 import type {
   FrontmatterResult,
   JsonDocument,
   JsonLocation,
+  MarkdownCost,
   MarkdownDocument,
   TomlDocument,
 } from '../parse/types.js';
@@ -103,12 +104,31 @@ export const SCAN_MARKDOWN_BUDGET = 16 * 1024 * 1024;
  */
 export const SCAN_MARKDOWN_LINE_BUDGET = 600_000;
 
+/**
+ * Scan-wide cap on the parser work that the Markdown cost guard estimates (src/parse/
+ * markdown-guard.ts), in its three units. Each file may cost up to the guard's per-file budget,
+ * up to about a second of parsing, so many files just under it took minutes: 320 files of 8 KB
+ * each took 64 s. Twice what the most expensive corpus repository spends in each unit, rounded
+ * up: davila7/claude-code-templates 623,202 inline, ruvnet/ruflo 3,188,563 container and 41,999
+ * lazy-line units. A file may cost a whole file's budget while some of a unit is left, so the scan
+ * overspends by at most one file. Once a unit is spent, later files are parsed without what costs
+ * in it: inline formatting is ignored where it has a cost, and lists, block quotes and setext
+ * headings are not parsed where they have one. `analysis/partial` reports those files.
+ */
+export const SCAN_MARKDOWN_COST_BUDGET: MarkdownCost = {
+  inline: 1_250_000,
+  container: 6_400_000,
+  lazy: 84_000,
+};
+
 /** Options {@link analyze} reads: which files count, which platforms are targeted, the budget. */
 export interface AnalyzeOptions {
   /** Overrides {@link SCAN_MARKDOWN_BUDGET}, in characters. */
   readonly markdownBudget?: number;
   /** Overrides {@link SCAN_MARKDOWN_LINE_BUDGET}, in lines. */
   readonly markdownLineBudget?: number;
+  /** Overrides {@link SCAN_MARKDOWN_COST_BUDGET}, in the cost guard's units. */
+  readonly markdownCostBudget?: MarkdownCost;
   readonly config?: ResolvedConfig;
   /** Overrides `config.targets`. Defaults to every supported platform. */
   readonly targets?: readonly PlatformId[];
@@ -348,9 +368,9 @@ function indexArtifacts(artifacts: readonly Artifact[]): Map<string, Artifact> {
 
 /**
  * Lazy parsers cached per artifact, and in `options.parseCache` across scans. Markdown parsing
- * spends one shared budget of characters and lines, in the order files are first parsed; a
- * cached parse is reused only for the same text and the same analysis window, so the budget is
- * spent exactly as without the cache.
+ * spends one shared budget of characters, lines and estimated parser work, in the order files are
+ * first parsed; a cached parse is reused only for the same text, the same analysis window and the
+ * same cost allowance, so the budget is spent exactly as without the cache.
  */
 function createParseServices(
   options: AnalyzeOptions,
@@ -364,20 +384,33 @@ function createParseServices(
   });
   let markdownBudget = options.markdownBudget ?? SCAN_MARKDOWN_BUDGET;
   let lineBudget = options.markdownLineBudget ?? SCAN_MARKDOWN_LINE_BUDGET;
+  const costBudget = { ...(options.markdownCostBudget ?? SCAN_MARKDOWN_COST_BUDGET) };
   const markdown = memoize<MarkdownDocument>((a) => {
     const { lineStarts, text } = a.decoded;
     // The character offset where the remaining line budget runs out in this file.
     const lineLimit = lineBudget <= 0 ? 0 : (lineStarts[lineBudget] ?? Number.POSITIVE_INFINITY);
     const maxAnalyzedChars = Math.max(0, Math.min(markdownBudget, lineLimit));
-    const parse = (): MarkdownDocument => parseMarkdown(text, frontmatter(a), { maxAnalyzedChars });
-    // parseMarkdown depends on the budget only through the window it analyzes.
+    // A file may cost what one file may while some of the unit is left; once a unit is spent,
+    // nothing. So a file can overspend the scan's budget by at most one file's cost.
+    const maxCost: MarkdownCost = {
+      inline: costBudget.inline > 0 ? FILE_GUARD_BUDGET.inline : 0,
+      container: costBudget.container > 0 ? FILE_GUARD_BUDGET.container : 0,
+      lazy: costBudget.lazy > 0 ? FILE_GUARD_BUDGET.lazy : 0,
+    };
+    const parse = (): MarkdownDocument =>
+      parseMarkdown(text, frontmatter(a), { maxAnalyzedChars, maxCost });
+    // parseMarkdown depends on the budget only through the window it analyzes and the cost it
+    // allows.
     const doc =
       cache === undefined
         ? parse()
-        : cache.markdown(text, markdownWindowEnd(text, maxAnalyzedChars), parse);
+        : cache.markdown(text, markdownWindowEnd(text, maxAnalyzedChars), parse, costKey(maxCost));
     const analyzed = doc.analysis.analyzedLength;
     markdownBudget -= analyzed;
     lineBudget -= countLineStartsBefore(lineStarts, analyzed);
+    costBudget.inline -= doc.analysis.cost.inline;
+    costBudget.container -= doc.analysis.cost.container;
+    costBudget.lazy -= doc.analysis.cost.lazy;
     return doc;
   });
   // Parse JSON the way the reading platform does: Gemini CLI strips comments from its
@@ -401,6 +434,12 @@ function createParseServices(
     return cache === undefined ? parse() : cache.toml(a.decoded, parse);
   });
   return { frontmatter, markdown, json, toml };
+}
+
+/** The cost allowance as a cache key: '' for a whole file's, else the units that are spent. */
+function costKey(cost: MarkdownCost): string {
+  if (cost.inline > 0 && cost.container > 0 && cost.lazy > 0) return '';
+  return `${cost.inline > 0 ? '' : 'inline '}${cost.container > 0 ? '' : 'container '}${cost.lazy > 0 ? '' : 'lazy'}`;
 }
 
 function jsonDialect(kind: ArtifactKind): JsonDialect {
