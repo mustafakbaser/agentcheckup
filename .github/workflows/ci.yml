@@ -67,9 +67,21 @@ jobs:
         run: pnpm test
       # The tests run the source. Run the packed bundle too, on the oldest supported Node.js and
       # each operating system, where a newer API or a Windows path in the bundle would break.
+      # The bundle is built as the release builds it, on the Node.js of .node-version: tsdown
+      # reads its TypeScript config only on a Node.js that strips types (22.18 and later).
+      - name: Use the Node.js of .node-version for the build
+        if: matrix.node == '22.12.0'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
       - name: Build
         if: matrix.node == '22.12.0'
         run: pnpm build
+      - name: Use Node.js ${{ matrix.node }} again
+        if: matrix.node == '22.12.0'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
       - name: Smoke-test the packed tarball
         if: matrix.node == '22.12.0'
         run: pnpm smoke
