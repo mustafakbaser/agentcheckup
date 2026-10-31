@@ -273,7 +273,9 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
       ['claude', 'Claude Code'],
       ['copilot', 'Copilot'],
       ['cursor', 'Cursor'],
+      ['opencode', 'OpenCode'],
       ['windsurf', 'Windsurf'],
+      ['zed', 'Zed'],
     ] as const
   ).map(([source, name]): AssumptionPhrase => ({
     key: `devin.read_config_from.${source}`,

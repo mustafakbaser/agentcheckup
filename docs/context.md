@@ -441,7 +441,8 @@ the repository: managed and system settings; user scopes such as `~/.claude`, `~
 `$CODEX_HOME/AGENTS.md`, `~/.agents`, `~/.cursor`, `~/.copilot`, `~/.gemini`, `~/.config/devin`,
 `~/.devin`, `~/.codeium`, `~/.cline` and `~/Documents/Cline`; Cursor Team Rules and User Rules;
 VS Code profile instructions; personal and organization instructions and the cloud agent's MCP
-configuration on GitHub.com; Devin organization permissions and MCP allowlists; claude.ai
+configuration on GitHub.com; Devin organization permissions and MCP allowlists, and the MCP
+servers and personal plugins of a Devin Cloud account; claude.ai
 connectors, Gemini CLI extensions and installed plugins. agentcheckup never reads them
 ([ADR 0003](adr/0003-treat-scanned-repositories-as-hostile.md)), so a plan describes what the
 repository contributes, not everything the agent sees. Text output summarizes these scopes;
@@ -1010,7 +1011,8 @@ npx agentcheckup context --matrix --format markdown --output agent-context.md
   directory. Whether a server entry Codex rejects stops it at startup is not verified.
 - **Files the scan does not read.** Cline rules ending in `.txt` or `.markdown`, the legacy
   `.clinerules` file, and Devin's `AGENTS.local.md`, `AGENT.md` and global rules files are listed
-  as incomplete, without a size. Cline hook scripts and plugins have no documented format and
+  as incomplete, without a size. So are `opencode.json` and `.zed/settings.json`, whose MCP
+  servers Devin Local imports; the inventory does not list those servers. Cline hook scripts and plugins have no documented format and
   are listed the same way.
 - **Ordering.** Copilot, Devin Local and Cursor do not document the order in which they assemble
   instructions; see [Order that no source documents](#order-that-no-source-documents).

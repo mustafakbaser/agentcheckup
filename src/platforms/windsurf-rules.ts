@@ -203,7 +203,9 @@ function configFolder(path: string, folder: string): string | undefined {
  * undefined for Devin's own files and files no source names. Documented per source:
  * `agents_standard` AGENTS.md and `.windsurfrules`; `cursor` `.cursor/rules` and
  * `.cursor/mcp.json`; `windsurf` `.windsurf/rules` and `.windsurf/skills`; `claude` CLAUDE.md,
- * `.claude/skills`, `.claude/commands` and `.mcp.json`; `copilot` `.github/skills`.
+ * `.claude/skills`, `.claude/commands`, `.mcp.json` and the settings files `.claude/settings.json`
+ * and `.claude/settings.local.json`; `copilot` `.github/skills`. `opencode` and `zed` name files
+ * agentcheckup does not classify (`opencode.json`, `.zed/settings.json`).
  */
 export function devinSourceOf(
   artifact: Pick<Artifact, 'kind' | 'path'>,
@@ -229,6 +231,7 @@ const SOURCE_BY_KIND: Readonly<Partial<Record<ArtifactKind, DevinConfigSource>>>
   'cursor-mcp': 'cursor',
   'claude-md': 'claude',
   'claude-command': 'claude',
+  'claude-settings': 'claude',
   'mcp-json': 'claude',
 };
 

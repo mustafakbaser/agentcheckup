@@ -134,7 +134,9 @@ describe('assumption phrases', () => {
       'Claude Code files imported (default)',
       'Copilot files imported (default)',
       'Cursor files imported (default)',
+      'OpenCode files imported (default)',
       'Windsurf files imported (default)',
+      'Zed files imported (default)',
     ]);
     expect(defaults.get('cline')).toEqual([
       'VS Code extension',

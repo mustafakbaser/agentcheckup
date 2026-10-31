@@ -350,6 +350,7 @@ class InventoryBuilder {
     if (artifact.kind === 'claude-plugin-hooks' || artifact.kind === 'claude-plugin-manifest') {
       this.#addPluginHooks(artifact, doc, plugin);
     }
+    if (artifact.kind === 'claude-settings') this.#addImportedServers(artifact, doc);
     const hooks = hookSourceOf(artifact);
     if (hooks !== undefined) this.#addHooks(artifact, doc, hooks);
     // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
@@ -406,6 +407,15 @@ class InventoryBuilder {
     const bare = bareMcpServers(artifact, doc);
     // When the Copilot CLI starts a project's servers is not documented here.
     if (bare.length > 0) this.#addServerList(artifact, doc, bare, ['copilot'], () => ({}));
+  }
+
+  /**
+   * The `mcpServers` of Claude Code's settings files, which Devin Local imports
+   * (SOURCES.devinReadConfigFrom) and Claude Code does not read there: servers of Devin Local
+   * alone, listed wherever the file is, as the other servers are.
+   */
+  #addImportedServers(artifact: Artifact, doc: ParsedJson): void {
+    this.#addServerList(artifact, doc, mcpServers(artifact, doc), ['windsurf'], () => ({}));
   }
 
   #addServerList(

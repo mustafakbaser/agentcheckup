@@ -119,6 +119,8 @@ describe('read_config_from', () => {
     expect(source('cursor-mcp', '.cursor/mcp.json')).toBe('cursor');
     expect(source('claude-md', 'CLAUDE.md')).toBe('claude');
     expect(source('mcp-json', '.mcp.json')).toBe('claude');
+    expect(source('claude-settings', '.claude/settings.json')).toBe('claude');
+    expect(source('claude-settings', '.claude/settings.local.json')).toBe('claude');
     expect(source('windsurf-rule', '.windsurf/rules/a.md')).toBe('windsurf');
     expect(source('skill', '.windsurf/skills/x/SKILL.md')).toBe('windsurf');
     expect(source('skill', '.claude/skills/x/SKILL.md')).toBe('claude');
@@ -126,6 +128,6 @@ describe('read_config_from', () => {
     // Devin's own files, and files no source names.
     expect(source('windsurf-rule', '.devin/rules/a.md')).toBeUndefined();
     expect(source('skill', '.agents/skills/x/SKILL.md')).toBeUndefined();
-    expect(source('claude-settings', '.claude/settings.json')).toBeUndefined();
+    expect(source('devin-hooks', '.devin/hooks.v1.json')).toBeUndefined();
   });
 });

@@ -26,8 +26,10 @@
  *   the working directory and the directories above it up to the repository root. They load with
  *   the session unless the workspace is in Restricted Mode, an assumption.
  * - MCP servers: `.devin/mcp_config.json` and `.devin/mcp_config.local.json`, the legacy
- *   `mcpServers` of `.devin/config.json`, and the imported `.mcp.json` and `.cursor/mcp.json`.
- *   `"disabled": true` turns a server off.
+ *   `mcpServers` of `.devin/config.json`, and the imported `.mcp.json`, `.cursor/mcp.json`,
+ *   `.claude/settings.json` and `.claude/settings.local.json`. `"disabled": true` turns a server
+ *   off. Devin also imports the servers of `opencode.json` and `.zed/settings.json`, whose formats
+ *   agentcheckup does not read: they are listed as unread, and the plan is incomplete.
  * - `read_config_from` in `.devin/config.json` turns imported sources off (`devinReadConfigFor`,
  *   shared with the rules through src/platforms/readers.ts): their files are `disabled`.
  *
@@ -100,7 +102,9 @@ const PLANNED_SOURCES: readonly DevinConfigSource[] = [
   'claude',
   'copilot',
   'cursor',
+  'opencode',
   'windsurf',
+  'zed',
 ];
 
 const BASE_ASSUMPTIONS: readonly Assumption[] = [
@@ -122,6 +126,7 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.agents/skills',
       '~/.claude.json',
       '~/.claude/CLAUDE.md',
+      '~/.claude/mcp_servers.json',
       '~/.claude/settings.json',
       '~/.claude/settings.local.json',
       '~/.codeium/<channel>/mcp_config.json',
@@ -130,11 +135,19 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.config/devin/config.json',
       '~/.config/devin/mcp_config.json',
       '~/.config/devin/skills',
+      '~/.config/opencode/opencode.json',
+      '~/.config/zed/settings.json',
       '~/.copilot/skills',
       '~/.devin/global_rules.md',
       '~/.devin/rules',
     ],
     roles: ['hook', 'instructions', 'mcp-server', 'rule', 'skill'],
+  },
+  {
+    // `read_config_from.cloud`, read from the user configuration only (SOURCES.devinReadConfigFrom).
+    scope: 'account',
+    locations: ['Devin Cloud: remote MCP servers and personal plugins'],
+    roles: ['hook', 'mcp-server', 'rule', 'skill', 'subagent'],
   },
   {
     scope: 'plugin',
@@ -190,6 +203,8 @@ const TOOL_EVENTS: ReadonlySet<string> = new Set([
 
 /** Files in the workspace root that declare MCP servers, with the kind each one has. */
 const MCP_FILES: Readonly<Record<string, ArtifactKind>> = {
+  '.claude/settings.json': 'claude-settings',
+  '.claude/settings.local.json': 'claude-settings',
   '.cursor/mcp.json': 'cursor-mcp',
   '.devin/config.json': 'devin-config',
   '.devin/config.local.json': 'devin-config',
@@ -199,15 +214,27 @@ const MCP_FILES: Readonly<Record<string, ArtifactKind>> = {
 };
 
 /**
+ * Files in the workspace root whose MCP servers Devin imports in a format agentcheckup does not
+ * read, by the `read_config_from` source that turns each one off: OpenCode's own server schema,
+ * and Zed's `context_servers` (SOURCES.devinReadConfigFrom).
+ */
+const UNREAD_MCP_FILES: Readonly<Record<string, DevinConfigSource>> = {
+  'opencode.json': 'opencode',
+  '.zed/settings.json': 'zed',
+};
+
+/**
  * True when an unlisted directory (trailing `/`) may hold files Devin Local reads: `.devin` or
- * `.windsurf` and anything below, `.cursor` and its rules, and the skills and commands folders it
- * imports.
+ * `.windsurf` and anything below, `.cursor` and its rules, the skills and commands folders it
+ * imports, and the workspace's own `.zed`.
  */
 function mayHoldConfig(directory: string): boolean {
   const segments = directory.split('/').filter((segment) => segment !== '');
   return segments.some((segment, i) => {
     const next = segments[i + 1];
     if (segment === '.devin' || segment === '.windsurf') return true;
+    // Devin reads `.zed/settings.json` at the workspace root only.
+    if (segment === '.zed') return i === 0 && next === undefined;
     if (segment === '.cursor') return next === undefined || next === 'rules';
     if (segment === '.agents' || segment === '.github') {
       return next === undefined || next === 'skills';
@@ -689,7 +716,7 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     }
     const claude = kind === 'claude-settings';
     // `read_config_from.claude` controls the hooks in `.claude/` (SOURCES.devinCliHooks).
-    const importedFrom: DevinConfigSource | undefined = claude ? 'claude' : undefined;
+    const importedFrom = devinSourceOf({ kind, path });
     const evidence: readonly SourceKey[] = claude
       ? ['devinCliHooks', 'devinReadConfigFrom']
       : ['devinCliHooks'];
@@ -849,7 +876,8 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   }
 
   // ------------------------------------------------------------------------------------------
-  // Files the classifier does not know: AGENTS.local.md, AGENT.md and the global rules
+  // Files the classifier does not know: AGENTS.local.md, AGENT.md, the global rules, and the
+  // MCP files of OpenCode and Zed
   // ------------------------------------------------------------------------------------------
 
   const present = new Set<string>(snapshot.ignoredFiles);
@@ -859,6 +887,13 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
 
   for (const path of candidates) {
     if (view.index.has(path)) continue;
+    const where = local(path);
+    if (Object.hasOwn(UNREAD_MCP_FILES, where)) {
+      const source = UNREAD_MCP_FILES[where];
+      // Devin imports their servers at session start; which ones they declare is not read.
+      if (!disabled('mcp-server', path, source)) incomplete.add(`unread:${path}`);
+      continue;
+    }
     const name = basename(path);
     if (UNREAD_INSTRUCTIONS.has(name)) {
       if (!disabled('instructions', path, 'agents_standard')) {

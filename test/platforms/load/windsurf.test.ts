@@ -404,10 +404,12 @@ describe('loadWindsurf: read_config_from', () => {
     '.cursor/mcp.json': '{"mcpServers":{"c":{"command":"c"}}}',
     '.devin/mcp_config.json': '{"mcpServers":{"d":{"command":"d"}}}',
     '.claude/settings.json':
-      '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./stop.sh"}]}]}}',
+      '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./stop.sh"}]}]},"mcpServers":{"s":{"command":"s"}}}',
+    'opencode.json': '{"mcp":{"o":{"type":"local","command":["o"]}}}',
+    '.zed/settings.json': '{"context_servers":{"z":{"command":"z"}}}',
   };
   const OFF =
-    '{"read_config_from":{"agents_standard":false,"claude":false,"copilot":false,"cursor":false,"windsurf":false}}';
+    '{"read_config_from":{"agents_standard":false,"claude":false,"copilot":false,"cursor":false,"opencode":false,"windsurf":false,"zed":false}}';
 
   it('turns each imported source off, and keeps Devin’s own files', () => {
     const built = build(FILES, {
@@ -422,6 +424,7 @@ describe('loadWindsurf: read_config_from', () => {
     expect(off.plan.skipped.map((s) => `${s.id} ${s.code} ${s.certainty}`)).toEqual([
       'command:.claude/commands/run.md disabled documented',
       expect.stringMatching(/^hook:\.claude\/settings\.json#Stop:[0-9a-f]{8} disabled documented$/),
+      'mcp-server:.claude/settings.json#s disabled documented',
       'skill:.claude/skills/c/SKILL.md disabled documented',
       'mcp-server:.cursor/mcp.json#c disabled documented',
       'rule:.cursor/rules/c.mdc disabled documented',
@@ -431,11 +434,21 @@ describe('loadWindsurf: read_config_from', () => {
       'rule:.windsurf/rules/w.md disabled documented',
       'skill:.windsurf/skills/w/SKILL.md disabled documented',
       'instructions:.windsurfrules disabled documented',
+      'mcp-server:.zed/settings.json disabled documented',
       'instructions:AGENTS.local.md disabled documented',
       // Turned off before its emptiness matters: instr/empty-file leaves it alone too.
       'instructions:AGENTS.md disabled documented',
       'instructions:CLAUDE.md disabled documented',
       'instructions:Claude.md disabled documented',
+      'mcp-server:opencode.json disabled documented',
+    ]);
+    expect(off.plan.incomplete).toEqual([]);
+    expect(built.plan.incomplete).toEqual([
+      'unread:.devin/config.json',
+      'unread:.windsurf/global_rules.md',
+      'unread:.zed/settings.json',
+      'unread:AGENTS.local.md',
+      'unread:opencode.json',
     ]);
     expect(off.plan.skipped.every((s) => s.ruleId === undefined)).toBe(true);
     expect(off.plan.skipped.every((s) => s.evidence.includes('devinReadConfigFrom'))).toBe(true);
@@ -446,12 +459,14 @@ describe('loadWindsurf: read_config_from', () => {
       'skill:.devin/skills/own/SKILL.md model-selected documented',
     ]);
     expect(off.plan.assumptions.filter((a) => a.key.startsWith('devin.read_config_from'))).toEqual(
-      ['agents_standard', 'claude', 'copilot', 'cursor', 'windsurf'].map((source) => ({
-        key: `devin.read_config_from.${source}`,
-        value: false,
-        origin: 'repository',
-        evidence: ['devinReadConfigFrom'],
-      })),
+      ['agents_standard', 'claude', 'copilot', 'cursor', 'opencode', 'windsurf', 'zed'].map(
+        (source) => ({
+          key: `devin.read_config_from.${source}`,
+          value: false,
+          origin: 'repository',
+          evidence: ['devinReadConfigFrom'],
+        }),
+      ),
     );
     // The rules agree: no finding names Devin Local for a source that is off.
     expect(devinFindings(off, 'instr/empty-file')).toEqual([]);
@@ -627,6 +642,76 @@ describe('loadWindsurf: MCP servers', () => {
     }
   });
 
+  it('imports the servers of Claude Code settings files, which Claude Code does not read there', () => {
+    const built = build({
+      '.claude/settings.json': JSON.stringify({
+        mcpServers: { db: { command: 'db' }, quiet: { command: 'q', disabled: true } },
+      }),
+      // Hooks and permissions only: no server.
+      '.claude/settings.local.json': JSON.stringify({
+        permissions: { allow: ['Read'] },
+        hooks: { Stop: [{ hooks: [{ type: 'command', command: './stop.sh' }] }] },
+      }),
+      'pkg/.claude/settings.json': JSON.stringify({ mcpServers: { nested: { command: 'n' } } }),
+    });
+    const { plan } = built;
+    expect(summary(plan).filter((line) => line.startsWith('mcp-server:'))).toEqual([
+      'mcp-server:.claude/settings.json#db startup documented',
+    ]);
+    expect(entry(plan, 'mcp-server:.claude/settings.json#db')?.evidence).toEqual([
+      'devinCliMcp',
+      'devinReadConfigFrom',
+    ]);
+    expect(skips(plan)).toEqual(['.claude/settings.json disabled - unverified']);
+    expect(plan.outOfScope).toEqual([
+      { path: 'pkg/.claude/settings.json', because: 'below-start-dir' },
+    ]);
+    const inventory = buildInventory(built.analysis);
+    expect(
+      inventory.mcpServers.map(({ id, platforms, status }) => ({ id, platforms, status })),
+    ).toEqual([
+      { id: 'mcp:.claude/settings.json#db', platforms: ['windsurf'], status: {} },
+      { id: 'mcp:.claude/settings.json#quiet', platforms: ['windsurf'], status: {} },
+      { id: 'mcp:pkg/.claude/settings.json#nested', platforms: ['windsurf'], status: {} },
+    ]);
+    expect(inventory.mcpServers.map((item) => item.id)).toContain(
+      entry(plan, 'mcp-server:.claude/settings.json#db')?.inventoryId,
+    );
+
+    const off = build({
+      '.devin/config.json': '{"read_config_from":{"claude":false}}',
+      '.claude/settings.json': JSON.stringify({ mcpServers: { db: { command: 'db' } } }),
+    });
+    expect(off.plan.entries.filter((e) => e.role === 'mcp-server')).toEqual([]);
+    expect(skips(off.plan)).toEqual(['.claude/settings.json disabled - documented']);
+  });
+
+  it('lists the OpenCode and Zed files it imports servers from as unread', () => {
+    const files: FileMap = {
+      'opencode.json': JSON.stringify({ mcp: { o: { type: 'local', command: ['o'] } } }),
+      '.zed/settings.json': JSON.stringify({ context_servers: { z: { command: 'z' } } }),
+      // Only the workspace's own files.
+      'pkg/opencode.json': '{}',
+      '.zed/tasks.json': '[]',
+    };
+    const { plan } = build(files);
+    expect(plan.entries).toEqual([]);
+    expect(plan.incomplete).toEqual(['unread:.zed/settings.json', 'unread:opencode.json']);
+    const opaque = build({}, { opaqueDirectories: ['.zed/', 'pkg/.zed/'] });
+    expect(opaque.plan.incomplete).toEqual(['unread:.zed/']);
+    const nested = build(files, {}, 'pkg');
+    expect(nested.plan.incomplete).toEqual(['unread:pkg/opencode.json']);
+    const off = build({
+      ...files,
+      '.devin/config.json': '{"read_config_from":{"opencode":false,"zed":false}}',
+    });
+    expect(off.plan.incomplete).toEqual([]);
+    expect(off.plan.skipped.map((s) => `${s.id} ${s.code} ${s.certainty}`)).toEqual([
+      'mcp-server:.zed/settings.json disabled documented',
+      'mcp-server:opencode.json disabled documented',
+    ]);
+  });
+
   it('marks a file that is not valid JSON incomplete', () => {
     const { plan } = build({ '.devin/mcp_config.json': '{"mcpServers": {', '.mcp.json': '[]' });
     expect(plan.incomplete).toEqual(['unparsed:.devin/mcp_config.json']);
@@ -688,10 +773,12 @@ describe('loadWindsurf: workspace and visibility', () => {
       'devin.read_config_from.claude=true default',
       'devin.read_config_from.copilot=true default',
       'devin.read_config_from.cursor=true default',
+      'devin.read_config_from.opencode=true default',
       'devin.read_config_from.windsurf=true default',
+      'devin.read_config_from.zed=true default',
       'devin.restrictedMode=false default',
     ]);
-    expect(plan.hidden.map((h) => h.scope)).toEqual(['managed', 'user', 'plugin']);
+    expect(plan.hidden.map((h) => h.scope)).toEqual(['managed', 'user', 'account', 'plugin']);
     const user = plan.hidden.find((h) => h.scope === 'user')?.locations;
     for (const location of [
       '~/.config/devin/AGENTS.md',
@@ -702,9 +789,18 @@ describe('loadWindsurf: workspace and visibility', () => {
       '~/.devin/global_rules.md',
       '~/.agents/skills',
       '~/.codeium/<channel>/skills',
+      '~/.claude/mcp_servers.json',
+      '~/.config/opencode/opencode.json',
+      '~/.config/zed/settings.json',
     ]) {
       expect(user).toContain(location);
     }
+    // Devin Cloud's servers and personal plugins come from the account (`read_config_from.cloud`).
+    expect(plan.hidden.find((h) => h.scope === 'account')).toEqual({
+      scope: 'account',
+      locations: ['Devin Cloud: remote MCP servers and personal plugins'],
+      roles: ['hook', 'mcp-server', 'rule', 'skill', 'subagent'],
+    });
     expect(plan.hidden.find((h) => h.scope === 'managed')?.locations).toContain('/etc/devin/rules');
     expect(plan).toMatchObject({ entries: [], skipped: [], incomplete: [], limits: [] });
   });
