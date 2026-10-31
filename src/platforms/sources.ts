@@ -29,6 +29,9 @@ const COPILOT_CHECKED = '2026-10-30';
  */
 const CLAUDE_CHECKED = '2026-10-30';
 
+/** The Cursor and Devin pages read again after Devin's documentation moved, in October 2026. */
+const CURSOR_DEVIN_CHECKED = '2026-10-30';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -210,17 +213,21 @@ export const SOURCES = {
     'https://github.com/toml-rs/toml/blob/toml_datetime-v0.7.5/crates/toml_datetime/src/datetime.rs',
     COVERAGE_CHECKED,
   ),
-  cursorRules: verified('Cursor: Rules', 'https://cursor.com/docs/rules'),
-  cursorRulesHelp: verified('Cursor Help: Rules', 'https://cursor.com/help/customization/rules'),
-  cursorSkills: verified('Cursor: Skills', 'https://cursor.com/docs/skills'),
+  cursorRules: verified('Cursor: Rules', 'https://cursor.com/docs/rules', CURSOR_DEVIN_CHECKED),
+  cursorRulesHelp: verified(
+    'Cursor Help: Rules',
+    'https://cursor.com/help/customization/rules',
+    CURSOR_DEVIN_CHECKED,
+  ),
+  cursorSkills: verified('Cursor: Skills', 'https://cursor.com/docs/skills', CURSOR_DEVIN_CHECKED),
   cursorThirdPartyHooks: {
     title: 'Cursor: Third-party hooks',
     url: 'https://cursor.com/docs/reference/third-party-hooks',
     checked: '2026-10-15',
     status: 'verified',
   },
-  cursorHooks: verified('Cursor: Hooks', 'https://cursor.com/docs/hooks'),
-  cursorMcp: verified('Cursor: MCP', 'https://cursor.com/docs/mcp'),
+  cursorHooks: verified('Cursor: Hooks', 'https://cursor.com/docs/hooks', CURSOR_DEVIN_CHECKED),
+  cursorMcp: verified('Cursor: MCP', 'https://cursor.com/docs/mcp', CURSOR_DEVIN_CHECKED),
   copilotRepoInstructions: verified(
     'GitHub Copilot: Repository custom instructions',
     'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions',
@@ -372,59 +379,71 @@ export const SOURCES = {
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts',
     AUDIT_CHECKED,
   ),
+  // The Cascade memories page this key cited redirects here since October 2026.
   windsurfRules: verified(
-    'Devin Desktop (Windsurf): Memories and rules',
-    'https://docs.devin.ai/desktop/cascade/memories',
+    'Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)',
+    'https://docs.devin.ai/desktop/devin-local/customizations',
+    CURSOR_DEVIN_CHECKED,
+  ),
+  devinLocalCustomizations: verified(
+    'Devin Desktop: Devin Local customizations ("every customization uses the Devin CLI format and discovery")',
+    'https://docs.devin.ai/desktop/devin-local/customizations',
+    CURSOR_DEVIN_CHECKED,
   ),
   devinLocal: verified(
     'Devin Desktop: Devin Local',
-    'https://docs.devin.ai/desktop/devin-local',
-    COVERAGE_CHECKED,
+    'https://docs.devin.ai/desktop/devin-local/overview',
+    CURSOR_DEVIN_CHECKED,
+  ),
+  devinDesktopFaq: verified(
+    'Devin Desktop FAQ ("Devin Desktop reads rules from `AGENTS.md` / `agents.md` files")',
+    'https://docs.devin.ai/desktop/devin-desktop-faq',
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliRules: verified(
     'Devin CLI: Rules',
     'https://docs.devin.ai/cli/extensibility/rules',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   devinReadConfigFrom: verified(
     'Devin CLI: read_config_from',
     'https://docs.devin.ai/cli/reference/configuration/read-config-from',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliSkills: verified(
     'Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)',
     'https://docs.devin.ai/cli/extensibility/skills/overview',
-    '2026-10-30',
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliSkillsCreate: verified(
     'Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)',
     'https://docs.devin.ai/cli/extensibility/skills/creating-skills',
-    '2026-10-30',
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliChangelog: verified(
-    'Devin CLI: Changelog, stable channel (v3000.11.1: skills grant tools with `allowed-tools`)',
+    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)',
     'https://docs.devin.ai/cli/changelog/stable',
-    '2026-10-30',
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliConfigFile: verified(
     'Devin CLI: Configuration file (JSON with comments)',
     'https://docs.devin.ai/cli/reference/configuration/config-file',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliHooks: verified(
     'Devin CLI: Hooks',
     'https://docs.devin.ai/cli/extensibility/hooks/overview',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliHookEvents: verified(
     'Devin CLI: Lifecycle hooks',
     'https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   devinCliMcp: verified(
     'Devin CLI: MCP configuration',
     'https://docs.devin.ai/cli/extensibility/mcp/configuration',
-    COVERAGE_CHECKED,
+    CURSOR_DEVIN_CHECKED,
   ),
   clineRules: verified('Cline: Rules', 'https://docs.cline.bot/customization/cline-rules'),
   clineConfig: verified(

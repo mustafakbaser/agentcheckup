@@ -1,10 +1,10 @@
 /**
  * How Devin Desktop (formerly Windsurf) treats rule files, shared by the instr/windsurf-* rules,
  * ./readers.ts and the Devin Local load plans: when a workspace rule applies, the character
- * limits Cascade documents, and which other agents' files Devin Local imports
- * (`read_config_from`).
+ * limit of Cascade in the Windsurf JetBrains plugin, and which other agents' files Devin Local
+ * imports (`read_config_from`).
  *
- * Sources: Cascade memories and rules (SOURCES.windsurfRules), Devin CLI rules
+ * Sources: Devin Local customizations (SOURCES.windsurfRules), Devin CLI rules
  * (SOURCES.devinCliRules) and `read_config_from` (SOURCES.devinReadConfigFrom).
  */
 import type { Artifact, ArtifactKind, ParseServices } from '../core/types.js';
@@ -18,10 +18,9 @@ import { joinPath, selfAndAncestors } from './paths.js';
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A workspace rule's `trigger`. Cascade documents `always_on`, `model_decision`, `glob` and
+ * A workspace rule's `trigger`. Devin Desktop documents `always_on`, `model_decision`, `glob` and
  * `manual`; Devin CLI also lists `agent`. `unknown`: no frontmatter, no `trigger`, a value that is
- * not one of these, or frontmatter that does not parse. Neither agent documents what it does
- * then.
+ * not one of these, or frontmatter that does not parse. Neither documents what Devin does then.
  */
 export type WindsurfRuleMode =
   'always_on' | 'model_decision' | 'glob' | 'manual' | 'agent' | 'unknown';
@@ -89,14 +88,15 @@ export function windsurfActivation(frontmatter: FrontmatterResult): WindsurfActi
 }
 
 // ---------------------------------------------------------------------------------------------
-// Character limits
+// Character limit
 // ---------------------------------------------------------------------------------------------
 
-/** Cascade's limit for each workspace rule file. What happens above it is not documented. */
+/**
+ * The limit of Cascade in the Windsurf JetBrains plugin for each rules file
+ * (src/rules/instructions/sources.ts). What happens above it is not documented, and Devin Desktop
+ * documents no limit.
+ */
 export const WINDSURF_WORKSPACE_RULE_MAX_CHARS = 12_000;
-
-/** Cascade's limit for the global rules file. */
-export const WINDSURF_GLOBAL_RULES_MAX_CHARS = 6_000;
 
 export interface WindsurfLength {
   /** Unicode characters from `start` on, a CRLF line break counting as one. */
@@ -106,7 +106,7 @@ export interface WindsurfLength {
 }
 
 /**
- * The length of a rule as agentcheckup measures it against Cascade's limits: characters after
+ * The length of a rule as agentcheckup measures it against Cascade's limit: characters after
  * the frontmatter (`start`), counting a surrogate pair and a CRLF pair as one each, so that only
  * text over the limit however it is counted is reported.
  */

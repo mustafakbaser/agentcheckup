@@ -30,7 +30,7 @@ Rename the skill to lowercase ASCII words joined by single hyphens, and rename i
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
 - [Claude API: Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), verified, checked 2026-10-14
-- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
+- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
 
 ## Fix

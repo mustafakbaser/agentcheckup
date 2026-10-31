@@ -37,10 +37,6 @@ export const INSTRUCTION_SOURCES = {
     'Gemini CLI source: memoryDiscovery.ts (reads GEMINI.md as UTF-8)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts',
   ),
-  cascadeAgentsMd: verified(
-    'Devin Desktop (Cascade): AGENTS.md ("Both AGENTS.md and agents.md are recognized")',
-    'https://docs.devin.ai/desktop/cascade/agents-md',
-  ),
   gitCoreSymlinks: verified(
     'Git: core.symlinks',
     'https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks',
@@ -71,10 +67,22 @@ export const INSTRUCTION_SOURCES = {
     'Claude Code: Memory (file encoding is not documented)',
     'https://code.claude.com/docs/en/memory',
   ),
-  windsurfOverLimitUndocumented: unverified(
-    'Devin Desktop (Windsurf): what happens past the 12,000-character limit is not documented',
-    'https://docs.devin.ai/desktop/cascade/memories',
-  ),
+  // Cascade's limits were documented for Devin Desktop until its Cascade pages were removed in
+  // October 2026; the JetBrains plugin's page is the one left.
+  cascadeJetbrainsRules: {
+    title:
+      'Windsurf JetBrains plugin: Cascade memories and rules ("Rules files are limited to 12000 characters each")',
+    url: 'https://docs.devin.ai/windsurf/plugins/cascade/memories',
+    checked: '2026-10-30',
+    status: 'verified',
+  },
+  windsurfOverLimitUndocumented: {
+    title:
+      'Windsurf JetBrains plugin: what happens past the 12,000-character limit is not documented',
+    url: 'https://docs.devin.ai/windsurf/plugins/cascade/memories',
+    checked: '2026-10-30',
+    status: 'unverified',
+  },
   evaluatingAgentsMd: verified(
     'Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)',
     'https://arxiv.org/abs/2602.11988',

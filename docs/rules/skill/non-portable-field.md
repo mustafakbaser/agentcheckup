@@ -27,7 +27,7 @@ Keep extension fields in skills that only their agents load, and move your own d
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14
 - [anthropics/skills packager validation (quick_validate.py)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), verified, checked 2026-10-14
-- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
+- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-14
 - [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
 - [Cline: Skills](https://docs.cline.bot/customization/skills), verified, checked 2026-10-17

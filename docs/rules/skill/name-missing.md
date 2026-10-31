@@ -22,7 +22,7 @@ Add `name` with the directory name, in lowercase letters, digits and hyphens.
 ## Evidence
 
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-10-14
-- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-14
+- [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-14
 - [Cline: Skills](https://docs.cline.bot/customization/skills), verified, checked 2026-10-17
 - [Claude API: Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), verified, checked 2026-10-14

@@ -30,11 +30,11 @@ The finding points at the first syntax error. Fix it and run agentcheckup again.
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
 - [Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs), verified, checked 2026-10-30
 - [Gemini CLI source: packages/cli/src/config/settings.ts (strip-json-comments, FatalConfigError)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts), verified, checked 2026-10-30
-- [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
-- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
+- [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-30
+- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Cursor forum: "The mcp.json parser can't handle JavaScript comments" (user report)](https://forum.cursor.com/t/92529), unverified, checked 2026-10-14
 - [GitHub Copilot: Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), verified, checked 2026-10-30
-- [Devin CLI: Configuration file (JSON with comments)](https://docs.devin.ai/cli/reference/configuration/config-file), verified, checked 2026-10-17
+- [Devin CLI: Configuration file (JSON with comments)](https://docs.devin.ai/cli/reference/configuration/config-file), verified, checked 2026-10-30
 
 ## Fix
 

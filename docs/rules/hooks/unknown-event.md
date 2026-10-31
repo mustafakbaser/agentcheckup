@@ -30,11 +30,11 @@ Rename the key to an event the agent fires.
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
 - [Codex source: hook_config.rs (hooks.json top level: description and hooks only)](https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs), verified, checked 2026-10-30
 - [Codex source: hooks/src/lib.rs (HOOK_EVENT_NAMES, and the events whose matcher is used)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs), verified, checked 2026-10-30
-- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
+- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRegistry.ts (invalid event names are skipped)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts), verified, checked 2026-10-14
-- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-10-17
-- [Devin CLI: Lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), verified, checked 2026-10-17
+- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-10-30
+- [Devin CLI: Lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), verified, checked 2026-10-30
 
 ## Fix
 

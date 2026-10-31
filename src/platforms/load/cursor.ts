@@ -84,7 +84,7 @@ export interface CursorLoadOptions {
 }
 
 const ASSUMPTIONS: readonly Assumption[] = [
-  // Rules apply only to Agent (Chat), not to Tab, Inline Edit or Bugbot.
+  // Rules apply only to Agent (Chat), not to Tab completion or Bugbot PR reviews.
   { key: 'cursor.mode', value: 'agent', origin: 'default', evidence: ['cursorRulesHelp'] },
   // "Include Third-Party Plugins, Skills, and Other Configs" is on by default.
   {

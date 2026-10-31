@@ -513,7 +513,7 @@
         {
           "title": "Cursor: Rules",
           "url": "https://cursor.com/docs/rules",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -907,7 +907,7 @@
     {
       "id": "instr/filename-case",
       "title": "Instruction file name has the wrong letter case",
-      "rationale": "Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.\n\nCascade, the older agent of Devin Desktop (formerly Windsurf), documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.\n\nRename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.",
+      "rationale": "Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.\n\nDevin Local, the default agent of Devin Desktop (formerly Windsurf), discovers lowercase `agents.md` files as well as `AGENTS.md` since Devin CLI v3000.4.16, and the Devin Desktop FAQ names both, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.\n\nRename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.",
       "category": "loading",
       "severity": "warn",
       "appliesTo": [
@@ -946,9 +946,15 @@
           "status": "verified"
         },
         {
-          "title": "Devin Desktop (Cascade): AGENTS.md (\"Both AGENTS.md and agents.md are recognized\")",
-          "url": "https://docs.devin.ai/desktop/cascade/agents-md",
-          "checked": "2026-10-14",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
+          "url": "https://docs.devin.ai/cli/changelog/stable",
+          "checked": "2026-10-30",
+          "status": "verified"
+        },
+        {
+          "title": "Devin Desktop FAQ (\"Devin Desktop reads rules from `AGENTS.md` / `agents.md` files\")",
+          "url": "https://docs.devin.ai/desktop/devin-desktop-faq",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1203,7 +1209,7 @@
     {
       "id": "instr/vague-directive",
       "title": "Instruction is generic advice that says nothing about the project",
-      "rationale": "Sentences such as \"Follow best practices\" or \"Write clean code\" tell an agent nothing about this project. Claude Code's documentation asks for instructions concrete enough to verify (\"Use 2-space indentation\" instead of \"Format code properly\"). the documentation of Devin Desktop (formerly Windsurf) says generic rules like \"write good code\" are already in Cascade's training data, and Cursor's says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.\n\nagentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.\n\nReplace it with the specific command, convention or path you mean, or delete it.",
+      "rationale": "Sentences such as \"Follow best practices\" or \"Write clean code\" tell an agent nothing about this project. Claude Code's documentation asks for instructions concrete enough to verify (\"Use 2-space indentation\" instead of \"Format code properly\"). The documentation of Devin Desktop (formerly Windsurf) says to skip generic rules such as \"write good code\", and Cursor's says to avoid vague guidance. Gloaguen et al. (2026) found that context files are useful mainly for non-standard practices, and that they raise inference cost by over 20% on average.\n\nagentcheckup reports a sentence only when the whole sentence is one of a fixed list of generic directives, and only in English text.\n\nReplace it with the specific command, convention or path you mean, or delete it.",
       "category": "clarity",
       "severity": "info",
       "appliesTo": [
@@ -1237,15 +1243,15 @@
           "status": "verified"
         },
         {
-          "title": "Devin Desktop (Windsurf): Memories and rules",
-          "url": "https://docs.devin.ai/desktop/cascade/memories",
-          "checked": "2026-10-14",
+          "title": "Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)",
+          "url": "https://docs.devin.ai/desktop/devin-local/customizations",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Cursor: Rules",
           "url": "https://cursor.com/docs/rules",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1390,13 +1396,13 @@
         {
           "title": "Cursor: MCP",
           "url": "https://cursor.com/docs/mcp",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
           "title": "Cursor: Hooks",
           "url": "https://cursor.com/docs/hooks",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1414,7 +1420,7 @@
         {
           "title": "Devin CLI: Configuration file (JSON with comments)",
           "url": "https://docs.devin.ai/cli/reference/configuration/config-file",
-          "checked": "2026-10-17",
+          "checked": "2026-10-30",
           "status": "verified"
         }
       ],
@@ -1459,7 +1465,7 @@
         {
           "title": "Cursor: MCP",
           "url": "https://cursor.com/docs/mcp",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1530,7 +1536,7 @@
         {
           "title": "Cursor: MCP",
           "url": "https://cursor.com/docs/mcp",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -1609,7 +1615,7 @@
         {
           "title": "Cursor: MCP",
           "url": "https://cursor.com/docs/mcp",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2103,7 +2109,7 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.11.1: skills grant tools with `allowed-tools`)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
           "checked": "2026-10-30",
           "status": "verified"
@@ -2227,7 +2233,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2401,7 +2407,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2682,7 +2688,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2781,7 +2787,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2826,7 +2832,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {
@@ -2966,7 +2972,7 @@
         {
           "title": "Cursor: Skills",
           "url": "https://cursor.com/docs/skills",
-          "checked": "2026-10-14",
+          "checked": "2026-10-30",
           "status": "verified"
         },
         {

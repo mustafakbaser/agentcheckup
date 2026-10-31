@@ -10,7 +10,7 @@ import { clinePlace } from './cline-rules.js';
  * - Cursor rules: https://cursor.com/docs/rules
  * - Copilot instructions: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions
  * - Gemini CLI: https://geminicli.com/docs/cli/gemini-md/
- * - Windsurf / Devin Desktop: https://docs.devin.ai/desktop/cascade/memories
+ * - Windsurf / Devin Desktop: https://docs.devin.ai/desktop/devin-local/customizations
  * - Cline: https://docs.cline.bot/customization/cline-rules
  * - Agent Skills: https://agentskills.io/specification
  * - Per-agent details and every source: docs/platforms.md

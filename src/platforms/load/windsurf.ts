@@ -1,10 +1,11 @@
 /**
  * What Devin Local loads for a workspace. Devin Local is the default agent of Devin Desktop
  * (formerly Windsurf; agent id `windsurf`) and shares its harness and configuration with Devin
- * CLI, so the Devin CLI pages are the sources (docs/platforms.md, "Devin Desktop"). Cascade, the
- * older agent, is not modeled. The plan treats `cwd` as the folder opened in Devin Desktop: the
- * workspace root. Files outside it are not part of the workspace, except hook files, which Devin
- * also finds in the directories above it up to the repository root.
+ * CLI, so the Devin CLI pages are the sources (docs/platforms.md, "Devin Desktop"): "every
+ * customization uses the Devin CLI format and discovery" (SOURCES.devinLocalCustomizations).
+ * Cascade, the older agent, is not modeled. The plan treats `cwd` as the folder opened in Devin
+ * Desktop: the workspace root. Files outside it are not part of the workspace, except hook files,
+ * which Devin also finds in the directories above it up to the repository root.
  *
  * - Instructions: `AGENTS.md`, `AGENTS.local.md`, `AGENT.md`, `.windsurfrules` and `CLAUDE.md` at
  *   the workspace root load at session start; the same files in subdirectories load when the agent
@@ -33,9 +34,10 @@
  * - `read_config_from` in `.devin/config.json` turns imported sources off (`devinReadConfigFor`,
  *   shared with the rules through src/platforms/readers.ts): their files are `disabled`.
  *
- * Devin documents no order for the startup context, so startup entries have no position. Files
- * the classifier does not know (`AGENTS.local.md`, `AGENT.md`, the global rules files) are not
- * read: they are listed without a size, and the plan is incomplete.
+ * Devin documents no order for the startup context and no size limit, so startup entries have no
+ * position and the plan lists no limits. Files the classifier does not know (`AGENTS.local.md`,
+ * `AGENT.md`, the global rules files) are not read: they are listed without a size, and the plan
+ * is incomplete.
  *
  * Pure and deterministic: reads only the view, never the file system.
  */
@@ -66,16 +68,13 @@ import {
   devinReadConfigFrom,
   devinSourceOf,
   WINDSURF_MODE_TRIGGER,
-  WINDSURF_WORKSPACE_RULE_MAX_CHARS,
   windsurfActivation,
-  windsurfRuleLength,
 } from '../windsurf-rules.js';
 import { isBlank } from './codex-text.js';
 import type {
   Assumption,
   Certainty,
   HiddenScope,
-  LimitUsage,
   LoadEntry,
   LoadPlan,
   LoadRole,
@@ -316,7 +315,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   const entries: LoadEntry[] = [];
   const skipped: SkippedLoad[] = [];
   const outOfScope = new Map<string, OutOfScope>();
-  const limits: LimitUsage[] = [];
   const incomplete = new Set<string>();
   /** Listing sizes of skills the model can pick: in context at startup. */
   const listed: Size[] = [];
@@ -402,25 +400,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   // Instructions: AGENTS.md, .windsurfrules and CLAUDE.md
   // ------------------------------------------------------------------------------------------
 
-  const ruleLimit = (path: string, artifact: Artifact): void => {
-    const frontmatter = view.frontmatter(artifact);
-    const { chars } = windsurfRuleLength(
-      artifact.decoded.text,
-      bodyOffset(frontmatter),
-      WINDSURF_WORKSPACE_RULE_MAX_CHARS,
-    );
-    // Cascade's figure: Devin Local documents no limit, so it is advice only.
-    limits.push({
-      key: 'windsurf.workspace_rule_chars',
-      unit: 'chars',
-      limit: WINDSURF_WORKSPACE_RULE_MAX_CHARS,
-      used: chars,
-      subject: path,
-      effect: 'advice',
-      evidence: ['windsurfRules'],
-    });
-  };
-
   const instruction = (
     path: string,
     artifact: Artifact,
@@ -429,12 +408,16 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   ): void => {
     const directory = dirnamePosix(local(path));
     const source = devinSourceOf({ kind, path });
-    const evidence: readonly SourceKey[] =
-      kind === 'agents-md' ? ['devinCliRules'] : ['devinCliRules', 'devinReadConfigFrom'];
-    if (disabled('instructions', path, source)) return;
-    // Cascade documents `agents.md` besides `AGENTS.md`, so instr/filename-case leaves that
-    // spelling alone for Devin; Devin Local documents only `AGENTS.md`.
+    // Devin CLI discovers lowercase `agents.md` files since v3000.4.16, and the Devin Desktop FAQ
+    // names both spellings, so instr/filename-case leaves `agents.md` alone for Devin.
     const lowerAgentsMd = basename(path) === 'agents.md';
+    const evidence: readonly SourceKey[] =
+      kind !== 'agents-md'
+        ? ['devinCliRules', 'devinReadConfigFrom']
+        : lowerAgentsMd
+          ? ['devinCliRules', 'devinCliChangelog', 'devinDesktopFaq']
+          : ['devinCliRules'];
+    if (disabled('instructions', path, source)) return;
     if (caseMismatch && !lowerAgentsMd) {
       // Found on case-insensitive file systems only; Devin documents neither case.
       skip('instructions', path, 'case-mismatch', 'unverified', evidence, {
@@ -452,7 +435,9 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     }
     const nested = directory !== '';
     const documented =
-      !caseMismatch && (!nested || kind === 'agents-md') && !nestedSettings(path, source);
+      (!caseMismatch || lowerAgentsMd) &&
+      (!nested || kind === 'agents-md') &&
+      !nestedSettings(path, source);
     entries.push({
       id: `instructions:${path}`,
       role: 'instructions',
@@ -464,7 +449,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       certainty: documented ? 'documented' : 'unverified',
       evidence,
     });
-    if (kind === 'windsurf-legacy-rules') ruleLimit(path, artifact);
   };
 
   /**
@@ -561,7 +545,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       activation.documented && !nestedSettings(path, source),
       evidence,
     );
-    ruleLimit(path, artifact);
   };
 
   const cursorRule = (path: string, artifact: Artifact, kind: ArtifactKind): void => {
@@ -640,7 +623,7 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
           : 'unverified',
       evidence: [
         'devinCliSkills',
-        'devinLocal',
+        'devinLocalCustomizations',
         ...(source === undefined ? [] : ['devinReadConfigFrom']),
         'agentSkillsSpec',
       ],
@@ -1000,9 +983,8 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     ),
     assumptions: assumptions.sort((a, b) => compareStrings(a.key, b.key)),
     hidden: HIDDEN,
-    limits: limits.sort(
-      (a, b) => compareStrings(a.key, b.key) || compareStrings(a.subject, b.subject),
-    ),
+    // Devin Local documents no size limit (SOURCES.windsurfRules).
+    limits: [],
     totals: { startup: total(startupSizes), onDemand: total(onDemandSizes) },
     incomplete: [...incomplete].sort(compareStrings),
   };

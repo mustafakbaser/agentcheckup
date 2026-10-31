@@ -22,7 +22,7 @@ This is documented behavior, so the finding is advice. To fail closed, set `"onF
 ## Evidence
 
 - [Claude Code: Hooks](https://code.claude.com/docs/en/hooks), verified, checked 2026-10-14
-- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-14
+- [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
 - [Gemini CLI: Hooks](https://geminicli.com/docs/hooks/), verified, checked 2026-10-14
 

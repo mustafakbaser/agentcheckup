@@ -121,10 +121,7 @@ describe('loadWindsurf: instruction files', () => {
       'devinReadConfigFrom',
     ]);
     expect(built.plan.totals.startup).toEqual({ bytes: 24, chars: 24, tokens: 6 });
-    expect(built.plan.limits.map((l) => [l.subject, l.used, l.limit, l.effect])).toEqual([
-      ['.windsurfrules', 8, 12_000, 'advice'],
-      ['pkg/.windsurfrules', 15, 12_000, 'advice'],
-    ]);
+    expect(built.plan.limits).toEqual([]);
     expectSorted(built.plan);
   });
 
@@ -168,10 +165,18 @@ describe('loadWindsurf: instruction files', () => {
     expectSkipsReported(built);
   });
 
-  it('reads a lower-case agents.md, which Cascade documents, as unverified', () => {
+  it('reads a lower-case agents.md, which Devin CLI discovers since v3000.4.16', () => {
     const built = build({ 'agents.md': '# Lower case\n' });
-    expect(summary(built.plan)).toEqual(['instructions:agents.md startup unverified']);
+    expect(summary(built.plan)).toEqual(['instructions:agents.md startup documented']);
+    expect(entry(built.plan, 'instructions:agents.md')?.evidence).toEqual([
+      'devinCliRules',
+      'devinCliChangelog',
+      'devinDesktopFaq',
+    ]);
     expect(devinFindings(built, 'instr/filename-case')).toEqual([]);
+    // Other spellings are not documented.
+    const mixed = build({ 'Agents.md': '# Mixed case\n' });
+    expect(skips(mixed.plan)).toEqual(['Agents.md case-mismatch instr/filename-case unverified']);
   });
 
   it('lists AGENTS.local.md and AGENT.md without a size: the scan does not read them', () => {
@@ -260,27 +265,25 @@ describe('loadWindsurf: workspace rules', () => {
       'devinCliRules',
       'windsurfRules',
     ]);
-    expect(built.plan.limits.map((l) => l.subject)).toHaveLength(9);
-    expect(built.plan.limits.every((l) => l.key === 'windsurf.workspace_rule_chars')).toBe(true);
+    // Devin Local documents no size limit for rule files.
+    expect(built.plan.limits).toEqual([]);
     expectSorted(built.plan);
   });
 
-  it('measures each rule against the 12,000-character advice, as instr/windsurf-rule-too-long', () => {
-    const built = build({ '.devin/rules/long.md': RULE('trigger: always_on', 'é'.repeat(12_001)) });
-    expect(built.plan.limits).toEqual([
-      {
-        key: 'windsurf.workspace_rule_chars',
-        unit: 'chars',
-        limit: 12_000,
-        used: 12_003,
-        subject: '.devin/rules/long.md',
-        effect: 'advice',
-        evidence: ['windsurfRules'],
-      },
-    ]);
-    expect(built.result.findings.map((f) => f.ruleId)).toContain('instr/windsurf-rule-too-long');
-    // Advice: the rule still loads whole.
+  it('loads a long rule whole and states no limit: Devin Desktop documents none', () => {
+    const built = build({
+      '.devin/rules/long.md': RULE('trigger: always_on', 'é'.repeat(12_001)),
+      '.windsurfrules': 'é'.repeat(12_001),
+    });
+    expect(built.plan.limits).toEqual([]);
+    // The JetBrains plugin's Cascade documents a limit; the rule reports it as information.
+    expect(
+      built.result.findings
+        .filter((f) => f.ruleId === 'instr/windsurf-rule-too-long')
+        .map((f) => `${f.path} ${f.severity}`),
+    ).toEqual(['.devin/rules/long.md info', '.windsurfrules info']);
     expect(entry(built.plan, 'rule:.devin/rules/long.md')?.truncated).toBeUndefined();
+    expect(entry(built.plan, 'instructions:.windsurfrules')?.truncated).toBeUndefined();
   });
 
   it('skips a rule with no text, and loads rules of a nested folder on its path', () => {
@@ -362,7 +365,7 @@ describe('loadWindsurf: skills', () => {
     });
     expect(entry(built.plan, 'skill:.github/skills/team/e/SKILL.md')?.evidence).toEqual([
       'devinCliSkills',
-      'devinLocal',
+      'devinLocalCustomizations',
       'devinReadConfigFrom',
       'agentSkillsSpec',
     ]);

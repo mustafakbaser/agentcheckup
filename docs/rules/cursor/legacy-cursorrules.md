@@ -21,7 +21,7 @@ Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead 
 
 ## Evidence
 
-- [Cursor Help: Rules](https://cursor.com/help/customization/rules), verified, checked 2026-10-14
+- [Cursor Help: Rules](https://cursor.com/help/customization/rules), verified, checked 2026-10-30
 
 ## Fix
 

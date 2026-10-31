@@ -47,7 +47,7 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | [`instr/subagent-invalid`](instr/subagent-invalid.md)                       | error    | loading     | safe          | Claude Code skips a subagent with invalid frontmatter                 |
 | [`instr/symlink-materialized`](instr/symlink-materialized.md)               | error    | loading     | review        | Instruction file is a symlink checked out as plain text               |
 | [`instr/vague-directive`](instr/vague-directive.md)                         | info     | clarity     | manual        | Instruction is generic advice that says nothing about the project     |
-| [`instr/windsurf-rule-too-long`](instr/windsurf-rule-too-long.md)           | info     | budget      | manual        | Devin Desktop rule file exceeds Cascade's 12,000-character limit      |
+| [`instr/windsurf-rule-too-long`](instr/windsurf-rule-too-long.md)           | info     | budget      | manual        | Rule file exceeds Cascade's 12,000-character limit in JetBrains       |
 | [`json/duplicate-key`](json/duplicate-key.md)                               | warn     | correctness | safe          | JSON object repeats a key                                             |
 | [`json/invalid-syntax`](json/invalid-syntax.md)                             | error    | loading     | review        | Configuration file is not valid JSON                                  |
 | [`mcp/env-syntax-mismatch`](mcp/env-syntax-mismatch.md)                     | warn     | portability | review        | MCP configuration uses another agent's variable syntax                |

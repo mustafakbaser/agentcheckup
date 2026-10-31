@@ -28,7 +28,7 @@ In a remote server's `url` and `headers`, Claude Code reads credential variables
 - [Orca Security: 2023 Honeypotting in the Cloud Report (exposed keys used within two minutes)](https://orca.security/resources/press-releases/orca-security-2023-honeypotting-in-the-cloud-report/), verified, checked 2026-10-14
 - [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
-- [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-14
+- [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-30
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
 - [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-30
 - [GitHub: About authentication to GitHub (token prefixes)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github), verified, checked 2026-10-30

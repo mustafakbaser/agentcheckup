@@ -5,7 +5,6 @@ import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quote } from '../shared/format.js';
 import { basename, joinPath, targetedReaders } from './helpers.js';
-import { INSTRUCTION_SOURCES } from './sources.js';
 
 /** Paths that are safe to print in a shell command without quoting. */
 const SHELL_SAFE_PATH = /^[\w./-]+$/;
@@ -28,7 +27,7 @@ export const filenameCaseRule = defineRule({
     title: 'Instruction file name has the wrong letter case',
     rationale: [
       'Agents look for instruction files by exact name: `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md`. Codex, for example, opens a file named exactly `AGENTS.md` in each directory. On the case-insensitive file systems that macOS and Windows use by default, `Agents.md` matches that name and loads; on Linux, including most CI runners and containers, it does not. The same repository then gives agents different instructions on different machines.',
-      'Cascade, the older agent of Devin Desktop (formerly Windsurf), documents both `AGENTS.md` and `agents.md`, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.',
+      'Devin Local, the default agent of Devin Desktop (formerly Windsurf), discovers lowercase `agents.md` files as well as `AGENTS.md` since Devin CLI v3000.4.16, and the Devin Desktop FAQ names both, so agentcheckup does not report `agents.md` for Devin Local; other spellings, such as `Agents.md`, are reported. Cline reads every Markdown file in `.clinerules/` and `.cline/rules/` as a rule, whatever its name, so a case variant there is not reported for Cline.',
       'Rename the file to the exact name if it holds agent instructions, or to a different name if it does not. On a case-insensitive file system, use `git mv` so Git records the rename.',
     ].join('\n\n'),
     category: 'loading',
@@ -39,7 +38,8 @@ export const filenameCaseRule = defineRule({
       SOURCES.codexAgentsMdSource,
       SOURCES.claudeMemory,
       SOURCES.geminiMd,
-      INSTRUCTION_SOURCES.cascadeAgentsMd,
+      SOURCES.devinCliChangelog,
+      SOURCES.devinDesktopFaq,
       SOURCES.clineRulesSource,
     ],
     since: RULESET_VERSION,
@@ -48,13 +48,13 @@ export const filenameCaseRule = defineRule({
   check(context) {
     for (const artifact of context.artifacts) {
       if (artifact.caseMismatch === undefined) continue;
-      // Cascade documents exactly two spellings, AGENTS.md and agents.md.
-      const documentedForCascade = basename(artifact.path) === 'agents.md';
+      // Devin documents exactly two spellings, AGENTS.md and agents.md.
+      const documentedForDevin = basename(artifact.path) === 'agents.md';
       // In a folder of Cline's, the file is a rule or workflow to Cline, or nothing it reads.
       const clineFolder = clinePlace(artifact.path) !== undefined;
       const platforms = targetedReaders(context, artifact).filter(
         (platform) =>
-          !(documentedForCascade && platform === 'windsurf') &&
+          !(documentedForDevin && platform === 'windsurf') &&
           !(clineFolder && platform === 'cline'),
       );
       if (platforms.length === 0) continue;

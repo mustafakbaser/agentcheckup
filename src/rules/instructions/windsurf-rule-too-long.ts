@@ -5,16 +5,15 @@ import {
   windsurfRuleLength,
 } from '../../platforms/windsurf-rules.js';
 import { defineRule } from '../define.js';
-import { SOURCES } from '../sources.js';
 import { formatInteger } from '../shared/format.js';
 import { INSTRUCTION_SOURCES } from './sources.js';
 
 export const windsurfRuleTooLongRule = defineRule({
   meta: {
     id: 'instr/windsurf-rule-too-long',
-    title: "Devin Desktop rule file exceeds Cascade's 12,000-character limit",
+    title: "Rule file exceeds Cascade's 12,000-character limit in JetBrains",
     rationale: [
-      'Cascade, the older agent of Devin Desktop (formerly Windsurf), limits each workspace rule file in `.devin/rules/` or `.windsurf/rules/` to 12,000 characters; agentcheckup applies the same limit to the legacy `.windsurfrules`. The documentation does not say whether a longer file is cut off or rejected, and the default Devin Local agent documents no limit, so this is information only.',
+      "Cascade in the Windsurf JetBrains plugin limits each rules file to 12,000 characters. agentcheckup applies the same limit to the rule files of Devin Desktop (formerly Windsurf) in `.devin/rules/` and `.windsurf/rules/` and to the legacy `.windsurfrules`. The plugin's documentation does not say whether a longer file is cut off or rejected, and Devin Local, the default agent of Devin Desktop, documents no limit, so this is information only.",
       'agentcheckup counts Unicode characters after the frontmatter, with a CRLF line break as one character, so it reports only files that are over the limit however you count.',
       'Split the rule into several rule files with their own activation modes, or move reference material into files the rule points to.',
     ].join('\n\n'),
@@ -22,7 +21,10 @@ export const windsurfRuleTooLongRule = defineRule({
     severity: 'info',
     appliesTo: ['windsurf-rule', 'windsurf-legacy-rules'],
     platforms: ['windsurf'],
-    sources: [SOURCES.windsurfRules, INSTRUCTION_SOURCES.windsurfOverLimitUndocumented],
+    sources: [
+      INSTRUCTION_SOURCES.cascadeJetbrainsRules,
+      INSTRUCTION_SOURCES.windsurfOverLimitUndocumented,
+    ],
     since: RULESET_VERSION,
   },
   defaultOptions: undefined,
@@ -46,7 +48,7 @@ export const windsurfRuleTooLongRule = defineRule({
       context.report({
         artifact,
         span: { offset: overflow, length: Math.max(0, lineEnd - overflow) },
-        message: `This rule has ${formatInteger(count)} characters. Cascade, the older agent of Devin Desktop (formerly Windsurf), limits each workspace rule file to ${formatInteger(WINDSURF_WORKSPACE_RULE_MAX_CHARS)} characters, and the text from line ${formatInteger(line)} on is past that limit.`,
+        message: `This rule has ${formatInteger(count)} characters. Cascade in the Windsurf JetBrains plugin limits each rules file to ${formatInteger(WINDSURF_WORKSPACE_RULE_MAX_CHARS)} characters, and the text from line ${formatInteger(line)} on is past that limit.`,
         guidance:
           'split the rule into several rule files with their own activation modes, or move reference material into files the rule points to',
       });

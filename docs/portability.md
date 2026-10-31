@@ -20,15 +20,15 @@ scripts/hooks/                   hook scripts, registered in each agent's file
 
 ### Use `AGENTS.md` as the source of truth
 
-| Agent          | Reads `AGENTS.md`                                                                              | What to add                                   | Source                                                              |
-| -------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
-| Codex          | Yes                                                                                            | Nothing                                       | [Codex][codex-agents-md]                                            |
-| Cursor         | Yes, including nested files                                                                    | Nothing                                       | [Cursor][cursor-rules]                                              |
-| GitHub Copilot | Cloud agent, code review, CLI and VS Code                                                      | Nothing                                       | [Copilot][gh-repo-instructions], [Copilot CLI][gh-cli-instructions] |
-| Devin Desktop  | Yes, including nested files                                                                    | Nothing                                       | [Devin Local][devin-cli-rules], [Cascade][devin-agents-md]          |
-| Cline          | Yes; the docs mention the project root only                                                    | Nothing                                       | [Cline][cline-config]                                               |
-| Claude Code    | Only when no `CLAUDE.md` or `CLAUDE.local.md` is in the working directory or above (v2.1.277+) | A `CLAUDE.md` that imports `AGENTS.md`        | [Claude Code][cc-memory]                                            |
-| Gemini CLI     | Only when configured                                                                           | `context.fileName` in `.gemini/settings.json` | [Gemini CLI][gemini-md]                                             |
+| Agent          | Reads `AGENTS.md`                                                                              | What to add                                   | Source                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| Codex          | Yes                                                                                            | Nothing                                       | [Codex][codex-agents-md]                                              |
+| Cursor         | Yes, including nested files                                                                    | Nothing                                       | [Cursor][cursor-rules]                                                |
+| GitHub Copilot | Cloud agent, code review, CLI and VS Code                                                      | Nothing                                       | [Copilot][gh-repo-instructions], [Copilot CLI][gh-cli-instructions]   |
+| Devin Desktop  | Yes, including nested files                                                                    | Nothing                                       | [Devin Local][devin-cli-rules], [Cascade (archived)][devin-agents-md] |
+| Cline          | Yes; the docs mention the project root only                                                    | Nothing                                       | [Cline][cline-config]                                                 |
+| Claude Code    | Only when no `CLAUDE.md` or `CLAUDE.local.md` is in the working directory or above (v2.1.277+) | A `CLAUDE.md` that imports `AGENTS.md`        | [Claude Code][cc-memory]                                              |
+| Gemini CLI     | Only when configured                                                                           | `context.fileName` in `.gemini/settings.json` | [Gemini CLI][gemini-md]                                               |
 
 ### Claude Code: import `AGENTS.md` from `CLAUDE.md`
 
@@ -88,15 +88,15 @@ Use nested `AGENTS.md` files for directory-specific guidance. Use the per-agent 
 
 ### Keep skills in `.agents/skills` and link them for Claude Code
 
-| Agent          | `.agents/skills/` | `.claude/skills/`                                                                         | Source                                                   |
-| -------------- | ----------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Claude Code    | No                | Yes                                                                                       | [Skills][cc-skills], [Memory][cc-memory]                 |
-| Codex          | Yes               | No                                                                                        | [Codex][codex-skills], [source][codex-src-skill-roots]   |
-| Cursor         | Yes               | Yes                                                                                       | [Cursor][cursor-skills]                                  |
-| GitHub Copilot | Yes               | Yes                                                                                       | [Copilot][gh-skills]                                     |
-| Gemini CLI     | Yes               | Not documented                                                                            | [Gemini CLI][gemini-skills]                              |
-| Devin Desktop  | Yes               | Devin Local imports it by default; Cascade reads it when Claude Code config reading is on | [Devin Local][devin-cli-import], [Cascade][devin-skills] |
-| Cline          | Yes               | Yes                                                                                       | [Cline][cline-config], [Cline skills][cline-skills]      |
+| Agent          | `.agents/skills/` | `.claude/skills/`                                                                         | Source                                                              |
+| -------------- | ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Claude Code    | No                | Yes                                                                                       | [Skills][cc-skills], [Memory][cc-memory]                            |
+| Codex          | Yes               | No                                                                                        | [Codex][codex-skills], [source][codex-src-skill-roots]              |
+| Cursor         | Yes               | Yes                                                                                       | [Cursor][cursor-skills]                                             |
+| GitHub Copilot | Yes               | Yes                                                                                       | [Copilot][gh-skills]                                                |
+| Gemini CLI     | Yes               | Not documented                                                                            | [Gemini CLI][gemini-skills]                                         |
+| Devin Desktop  | Yes               | Devin Local imports it by default; Cascade reads it when Claude Code config reading is on | [Devin Local][devin-cli-import], [Cascade (archived)][devin-skills] |
+| Cline          | Yes               | Yes                                                                                       | [Cline][cline-config], [Cline skills][cline-skills]                 |
 
 No directory is read by all seven agents. Keep each skill once, in `.agents/skills/<name>/`. Do not group skills in category folders, because Gemini CLI finds only `<skills>/<name>/SKILL.md` ([source][gemini-src-skills]). Then give Claude Code one link per skill:
 
@@ -158,13 +158,13 @@ There is no shared hooks format. Keep the logic in scripts under version control
 | GitHub Copilot | `.github/hooks/*.json`             | Exit 2 on `preToolUse` and `permissionRequest`    | `preToolUse` command hooks deny; other events proceed | Proceeds                                               | Seconds            | [Copilot][gh-hooks-ref]                              |
 | Gemini CLI     | `.gemini/settings.json`            | Exit 2                                            | Proceeds with a warning                               | Not documented                                         | Milliseconds       | [Gemini CLI][gemini-hooks]                           |
 | Devin Local    | `.devin/hooks.v1.json`             | Exit 2                                            | Proceeds                                              | Not documented                                         | Seconds            | [Devin Local][devin-cli-hooks]                       |
-| Cascade        | `.devin/hooks.json`                | Exit 2 on pre-hooks                               | Proceeds                                              | Not documented                                         | No timeout field   | [Cascade][devin-hooks]                               |
+| Cascade        | `.devin/hooks.json`                | Exit 2 on pre-hooks                               | Proceeds                                              | Not documented                                         | No timeout field   | [Cascade (archived)][devin-hooks]                    |
 | Cline          | Plugin in JavaScript or TypeScript | Return `{ skip: true, reason }` from `beforeTool` | Continues                                             | Continues                                              | 3 seconds per call | [Cline][cline-plugins]                               |
 
-- To block, exit 2 and write the reason to stderr. Every script-based agent in the table treats exit 2 as a block on events that can be blocked; in Copilot those are `preToolUse` and `permissionRequest`. Codex does not block on exit 2 in `PreToolUse` when stderr is empty. [Claude Code][cc-hooks], [Codex][codex-src-pretooluse], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref], [Gemini CLI][gemini-hooks], [Devin Local][devin-cli-hooks], [Cascade][devin-hooks]
+- To block, exit 2 and write the reason to stderr. Every script-based agent in the table treats exit 2 as a block on events that can be blocked; in Copilot those are `preToolUse` and `permissionRequest`. Codex does not block on exit 2 in `PreToolUse` when stderr is empty. [Claude Code][cc-hooks], [Codex][codex-src-pretooluse], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref], [Gemini CLI][gemini-hooks], [Devin Local][devin-cli-hooks], [Cascade (archived)][devin-hooks]
 - To fail closed, catch errors inside the script and exit 2 yourself. A timeout is outside the script's control: Claude Code, Codex, Cursor and Copilot let the tool call proceed when a hook times out, unless you opt in to failing closed where the agent allows it. agentcheckup reports tool-gating hooks that fail open. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks], [Copilot][gh-hooks-ref]
 - Convert timeouts: Gemini CLI counts milliseconds, the others count seconds. agentcheckup reports likely unit mix-ups. [Gemini CLI][gemini-hooks]
-- Event names differ: `PreToolUse` (Claude Code, Codex, Devin Local), `preToolUse` (Cursor, Copilot), `BeforeTool` (Gemini CLI), `pre_run_command` and its siblings (Cascade), `beforeTool` (Cline). So do tool names: the shell tool is `Bash` in Claude Code and Codex, `Shell` in Cursor, `bash` in Copilot hooks with camelCase event names, `run_shell_command` in Gemini CLI and `exec` in Devin Local. agentcheckup reports event names an agent does not fire. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks-claude], [Copilot][gh-hooks-ref], [Gemini CLI hooks reference][gemini-hooks-ref], [Devin Local][devin-cli-hook-events], [Cascade][devin-hooks], [Cline][cline-plugins]
+- Event names differ: `PreToolUse` (Claude Code, Codex, Devin Local), `preToolUse` (Cursor, Copilot), `BeforeTool` (Gemini CLI), `pre_run_command` and its siblings (Cascade), `beforeTool` (Cline). So do tool names: the shell tool is `Bash` in Claude Code and Codex, `Shell` in Cursor, `bash` in Copilot hooks with camelCase event names, `run_shell_command` in Gemini CLI and `exec` in Devin Local. agentcheckup reports event names an agent does not fire. [Claude Code][cc-hooks], [Codex][codex-hooks], [Cursor][cursor-hooks-claude], [Copilot][gh-hooks-ref], [Gemini CLI hooks reference][gemini-hooks-ref], [Devin Local][devin-cli-hook-events], [Cascade (archived)][devin-hooks], [Cline][cline-plugins]
 - Cursor and Devin Local load Claude Code's hooks from `.claude/settings.json` by default, Copilot CLI loads them too, and VS Code loads them when `chat.useClaudeHooks` is on. Test the hook in each agent: Cursor maps `Bash` to `Shell`, VS Code ignores the matcher, Devin matches its own tool names, and Copilot denies the tool call when a `PreToolUse` command hook crashes. [Cursor][cursor-hooks-claude], [Devin Local][devin-cli-hooks], [Copilot][gh-hooks-ref], [VS Code][vscode-hooks]
 - Expect a review step for committed hooks. Codex runs a hook only after each user trusts it in `/hooks`, Gemini CLI warns about changed project hooks, Cursor runs project hooks only in trusted workspaces, and interactive Claude Code waits for the workspace trust dialog. [Codex][codex-hooks], [Gemini CLI][gemini-hooks], [Cursor][cursor-hooks], [Claude Code][cc-hooks]
 
@@ -222,11 +222,11 @@ Run `npx agentcheckup` in the repository to check these files. [Known gotchas](p
 [gemini-src-discovery]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts
 [gemini-src-skills]: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts
 [gemini-config]: https://geminicli.com/docs/reference/configuration/
-[devin-local]: https://docs.devin.ai/desktop/devin-local
-[devin-rules]: https://docs.devin.ai/desktop/cascade/memories
-[devin-agents-md]: https://docs.devin.ai/desktop/cascade/agents-md
-[devin-skills]: https://docs.devin.ai/desktop/cascade/skills
-[devin-hooks]: https://docs.devin.ai/desktop/cascade/hooks
+[devin-local]: https://docs.devin.ai/desktop/devin-local/overview
+[devin-rules]: https://docs.devin.ai/desktop/devin-local/customizations
+[devin-agents-md]: https://web.archive.org/web/20261022220405/https://docs.devin.ai/desktop/cascade/agents-md
+[devin-skills]: https://web.archive.org/web/20261021094352/https://docs.devin.ai/desktop/cascade/skills
+[devin-hooks]: https://web.archive.org/web/20261022220405/https://docs.devin.ai/desktop/cascade/hooks
 [devin-cli-rules]: https://docs.devin.ai/cli/extensibility/rules
 [devin-cli-import]: https://docs.devin.ai/cli/reference/configuration/read-config-from
 [devin-cli-hooks]: https://docs.devin.ai/cli/extensibility/hooks/overview

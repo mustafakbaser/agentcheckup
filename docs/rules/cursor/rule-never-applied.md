@@ -23,7 +23,7 @@ Add `alwaysApply: true`, `globs` or a `description`, or set `alwaysApply: false`
 
 ## Evidence
 
-- [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-14
+- [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-30
 
 ## Fix
 

@@ -72,7 +72,7 @@ describe('instr/filename-case', () => {
     ]);
   });
 
-  it('does not list Devin Local for agents.md, which Cascade documents, but does for Agents.md', () => {
+  it('does not list Devin Local for agents.md, which Devin documents, but does for Agents.md', () => {
     const lower = lint({ 'agents.md': 'x' }, { rules });
     expect(lower.findings[0]?.platforms).not.toContain('windsurf');
     expect(lower.findings[0]?.platforms).toContain('codex');
