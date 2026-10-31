@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.1...v0.4.2) (2026-10-31)
+
+
+### Documentation
+
+* pin the Action example to v0.4.1 and name its sarif-category input ([bb08dfb](https://github.com/mustafakbaser/agentcheckup/commit/bb08dfb1195016acbe7f5a4ae820d640b119b84d))
+
 ## [0.4.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.0...v0.4.1) (2026-10-31)
 
 
