@@ -116,6 +116,31 @@ export function textVersionUrl(url: string): { url: string; negotiate: boolean }
   return { url: parsed.href, negotiate: false };
 }
 
+/**
+ * The page a requested URL stands for, the URL to cite: the inverse of {@link textVersionUrl}
+ * and of {@link rawGitHubUrl}, so a redirect of a Markdown version or a raw file is reported
+ * as the page it moved to. Any other URL is returned as it is.
+ */
+export function pageUrlOf(url: string): string {
+  const parsed = parseHttps(url);
+  if (parsed === undefined) return url;
+  if (parsed.hostname === 'raw.githubusercontent.com') {
+    const [, owner, repo, ...rest] = parsed.pathname.split('/');
+    if (owner === undefined || owner === '' || repo === undefined || rest.length < 2) return url;
+    return `https://github.com/${owner}/${repo}/blob/${rest.join('/')}`;
+  }
+  const style = TEXT_HOSTS.get(parsed.hostname);
+  const path = parsed.pathname;
+  if (style === 'index' && path.endsWith('/index.md')) {
+    parsed.pathname = path.slice(0, -'index.md'.length);
+  } else if (style === 'md' && path.endsWith('.md')) {
+    parsed.pathname = path.slice(0, -'.md'.length);
+  } else if (style === 'txt' && path.endsWith('.txt')) {
+    parsed.pathname = path.slice(0, -'.txt'.length);
+  }
+  return parsed.href;
+}
+
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}-/;
 
 /**

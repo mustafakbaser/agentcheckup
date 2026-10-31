@@ -63,6 +63,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "drift:check": "tsx scripts/drift/check.ts",
     "drift:update": "tsx scripts/drift/check.ts --update",
+    "drift:diff": "tsx scripts/drift/check.ts --diff",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm docs:check && pnpm coverage && pnpm build && pnpm check:package && pnpm smoke",
     "check:package": "publint --strict --pack npm && attw --pack . --profile esm-only"
   },

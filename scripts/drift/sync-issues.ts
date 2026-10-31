@@ -1,9 +1,11 @@
 /**
  * Opens or updates source-drift issues from a JSON drift report. Runs in
- * .github/workflows/source-drift.yml after `pnpm drift:check --report <file>`.
+ * .github/workflows/source-drift.yml after `pnpm drift:check --report <file>`, in a job of its
+ * own that installs no dependencies:
  *
- *   tsx scripts/drift/sync-issues.ts <report.json>
+ *   node --import ./scripts/drift/ts-hooks.ts scripts/drift/sync-issues.ts <report.json>
  *
+ * It and everything it imports use only Node.js built-ins (test/scripts/drift/sync-imports.test.ts).
  * Needs the `gh` CLI with GH_TOKEN (issues: write) and GH_REPO. `gh` is started with execFile
  * and an argument array, never through a shell.
  */
@@ -56,7 +58,9 @@ function runUrl(): string | undefined {
 
 const [file, ...rest] = process.argv.slice(2);
 if (file === undefined || rest.length > 0) {
-  process.stderr.write('Usage: tsx scripts/drift/sync-issues.ts <report.json>\n');
+  process.stderr.write(
+    'Usage: node --import ./scripts/drift/ts-hooks.ts scripts/drift/sync-issues.ts <report.json>\n',
+  );
   process.exitCode = 2;
 } else {
   const report = parseReport(await readFile(file, 'utf8'));

@@ -46,6 +46,21 @@ export interface ChangedSource {
   readonly current: string;
 }
 
+/**
+ * A source whose request ended at another URL after redirects: the page moved, or its host
+ * sends it elsewhere. Reported as moved whatever its content, because the cited URL needs an
+ * update either way; the hashes say whether the content changed too.
+ */
+export interface MovedSource {
+  readonly url: string;
+  readonly rules: readonly string[];
+  /** The URL the request ended at. From the network: sanitize before printing. */
+  readonly location: string;
+  /** Hash in the baseline, or null when the URL is not in the baseline yet. */
+  readonly previous: string | null;
+  readonly current: string;
+}
+
 export interface UnreachableSource {
   readonly url: string;
   readonly rules: readonly string[];
@@ -57,13 +72,14 @@ export interface CitedSource {
   readonly rules: readonly string[];
 }
 
-export const REPORT_VERSION = 1;
+export const REPORT_VERSION = 2;
 
 export interface DriftReport {
   readonly version: typeof REPORT_VERSION;
   /** URLs fetched. */
   readonly checked: number;
   readonly changed: readonly ChangedSource[];
+  readonly moved: readonly MovedSource[];
   readonly unreachable: readonly UnreachableSource[];
   readonly unchanged: number;
   /** In the baseline but no longer cited by any rule or loader. `--update` removes them. */
@@ -88,6 +104,7 @@ export interface CompareInput {
 
 export function compareWithBaseline(input: CompareInput): DriftReport {
   const changed: ChangedSource[] = [];
+  const moved: MovedSource[] = [];
   const unreachable: UnreachableSource[] = [];
   let unchanged = 0;
   for (const [url, rules] of input.watched) {
@@ -97,7 +114,10 @@ export function compareWithBaseline(input: CompareInput): DriftReport {
       continue;
     }
     const previous = input.baseline.get(url);
-    if (previous === outcome.hash) {
+    if (outcome.location !== undefined) {
+      const { location, hash: current } = outcome;
+      moved.push({ url, rules, location, previous: previous ?? null, current });
+    } else if (previous === outcome.hash) {
       unchanged++;
     } else {
       changed.push({ url, rules, previous: previous ?? null, current: outcome.hash });
@@ -110,6 +130,7 @@ export function compareWithBaseline(input: CompareInput): DriftReport {
     version: REPORT_VERSION,
     checked: input.watched.size,
     changed,
+    moved,
     unreachable,
     unchanged,
     uncited,
@@ -119,7 +140,7 @@ export function compareWithBaseline(input: CompareInput): DriftReport {
 
 /** Whether the report needs a maintainer: exit code 1. */
 export function needsAttention(report: DriftReport): boolean {
-  return report.changed.length > 0 || report.unreachable.length > 0;
+  return report.changed.length > 0 || report.moved.length > 0 || report.unreachable.length > 0;
 }
 
 export interface UpdateResult {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   ChangedSource,
   DriftReport,
+  MovedSource,
   UnreachableSource,
 } from '../../../scripts/drift/baseline.js';
 import {
@@ -9,11 +10,14 @@ import {
   changedIssueTitle,
   type Issue,
   LABEL,
+  movedIssueBody,
+  movedIssueTitle,
   type RunGh,
   syncIssues,
   UNREACHABLE_TITLE,
   unreachableIssueBody,
 } from '../../../scripts/drift/issues.js';
+import { sha256 } from '../../../scripts/drift/normalize.js';
 import { HOSTILE_ALL } from '../../report/hostile.js';
 import { unsafeCodePoints } from '../../report/safety.js';
 
@@ -41,8 +45,21 @@ const DOWN: UnreachableSource = {
   reason: 'HTTP 503',
 };
 
-function report(changed: ChangedSource[], unreachable: UnreachableSource[] = []): DriftReport {
-  return { version: 1, checked: 10, changed, unreachable, unchanged: 0, uncited: [], skipped: [] };
+function report(
+  changed: ChangedSource[],
+  unreachable: UnreachableSource[] = [],
+  moved: MovedSource[] = [],
+): DriftReport {
+  return {
+    version: 2,
+    checked: 10,
+    changed,
+    moved,
+    unreachable,
+    unchanged: 0,
+    uncited: [],
+    skipped: [],
+  };
 }
 
 /** A fake `gh` that answers list commands from the given state and records every call. */
@@ -115,6 +132,47 @@ describe('changedIssueBody', () => {
 
   it('has a plain title with the URL', () => {
     expect(changedIssueTitle(DOCS)).toBe(`Source changed: ${DOCS}`);
+  });
+});
+
+const MOVED: MovedSource = {
+  url: DOCS,
+  rules: ['instr/import-depth'],
+  location: 'https://code.claude.com/docs/en/claude-md',
+  previous: H1,
+  current: H1,
+};
+
+describe('movedIssueBody', () => {
+  it('names the new location, the content and what the maintainer must do', () => {
+    const body = movedIssueBody(MOVED, { runUrl: RUN });
+    expect(body.split('\n')[0]).toBe(
+      `<!-- agentcheckup-source-drift moved url=${DOCS} to-sha256=${sha256(MOVED.location)} -->`,
+    );
+    expect(body).toContain(`- Source: [https\\://code\\.claude\\.com/docs/en/memory](${DOCS})`);
+    expect(body).toContain(`](${MOVED.location})`);
+    expect(body).toContain('- Content: unchanged since the baseline');
+    expect(body).toContain(`- Found by: [workflow run](${RUN})`);
+    expect(body).toContain('`pnpm drift:update --only <new url>`');
+    expect(movedIssueTitle(DOCS)).toBe(`Source moved: ${DOCS}`);
+  });
+
+  it('says whether the content changed too', () => {
+    expect(movedIssueBody({ ...MOVED, current: H2 })).toContain(
+      `- Content: changed since the baseline (\`${H1}\`, now \`${H2}\`)`,
+    );
+    expect(movedIssueBody({ ...MOVED, previous: null })).toContain(
+      '- Content: not in the baseline yet',
+    );
+  });
+
+  it('never links a hostile location or puts it in the marker', () => {
+    const location = `https://evil.example/a page)(x)<b>--${HOSTILE_ALL}`;
+    const body = movedIssueBody({ ...MOVED, location });
+    expect(body.split('\n')[0]).toContain(`to-sha256=${sha256(location)} -->`);
+    expect(body).not.toContain('](https://evil.example');
+    expect(body).not.toContain('<b>');
+    expect(unsafeCodePoints(body, { newline: true, tab: true })).toEqual([]);
   });
 });
 
@@ -216,6 +274,39 @@ describe('syncIssues', () => {
     const { gh, writes } = fakeGh({ issues: [existing] });
     await syncIssues(report([CHANGED]), gh);
     expect(writes().map((args) => args.slice(0, 2))).toEqual([['issue', 'create']]);
+  });
+
+  it('opens one labeled issue per moved source, apart from changed ones', async () => {
+    const changed = { number: 4, title: 't', body: changedIssueBody(CHANGED) };
+    const { gh, writes } = fakeGh({ issues: [changed] });
+    const log = await syncIssues(report([], [], [MOVED]), gh, { runUrl: RUN });
+    expect(writes()).toHaveLength(1);
+    expect(argAfter(writes()[0]!, '--title')).toBe(movedIssueTitle(DOCS));
+    expect(argAfter(writes()[0]!, '--label')).toBe(LABEL);
+    expect(argAfter(writes()[0]!, '--body')).toBe(movedIssueBody(MOVED, { runUrl: RUN }));
+    expect(log).toEqual([`opened an issue for ${DOCS}, which moved`]);
+  });
+
+  it('does nothing on a re-run when the open issue reports the same location', async () => {
+    const existing = { number: 8, title: 't', body: movedIssueBody({ ...MOVED, current: H2 }) };
+    const { gh, writes } = fakeGh({ issues: [existing] });
+    expect(await syncIssues(report([], [], [MOVED]), gh)).toEqual([
+      `#8 already reports that ${DOCS} moved`,
+    ]);
+    expect(writes()).toEqual([]);
+  });
+
+  it('updates and comments when the source moved again', async () => {
+    const before = { ...MOVED, location: 'https://code.claude.com/docs/en/old-move' };
+    const existing = { number: 8, title: 't', body: movedIssueBody(before) };
+    const { gh, writes } = fakeGh({ issues: [existing] });
+    const log = await syncIssues(report([], [], [MOVED]), gh);
+    expect(writes().map((args) => args.slice(0, 3))).toEqual([
+      ['issue', 'edit', '8'],
+      ['issue', 'comment', '8'],
+    ]);
+    expect(argAfter(writes()[0]!, '--body')).toBe(movedIssueBody(MOVED));
+    expect(log).toEqual([`updated #8 for ${DOCS}, which moved again`]);
   });
 
   it('opens one issue for all unreachable sources', async () => {

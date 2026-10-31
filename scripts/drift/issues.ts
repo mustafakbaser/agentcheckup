@@ -1,6 +1,6 @@
 /**
- * Turns a drift report into GitHub issues: one per changed source, and one listing the
- * unreachable sources. Used by .github/workflows/source-drift.yml through sync-issues.ts.
+ * Turns a drift report into GitHub issues: one per changed source, one per moved source, and one
+ * listing the unreachable sources. Used by .github/workflows/source-drift.yml through sync-issues.ts.
  *
  * Re-runs never duplicate an issue. Each issue body carries a marker comment, and existing issues
  * are found among the open issues with the `source-drift` label. Only people with triage access
@@ -11,13 +11,13 @@
 import { compareStrings } from '../../src/core/compare.js';
 import { ruleDocsUrl } from '../../src/core/meta.js';
 import { forMarkdown } from '../../src/report/sanitize.js';
-import type { ChangedSource, DriftReport, UnreachableSource } from './baseline.js';
+import type { ChangedSource, DriftReport, MovedSource, UnreachableSource } from './baseline.js';
 import { sha256 } from './normalize.js';
 import { gitHubHistoryUrl, parseGitHubBlobUrl } from './resolve.js';
 
 export const LABEL = 'source-drift';
 const LABEL_COLOR = 'd93f0b';
-const LABEL_DESCRIPTION = 'A source cited by a rule changed or cannot be fetched';
+const LABEL_DESCRIPTION = 'A source cited by a rule changed, moved or cannot be fetched';
 const MARKER = 'agentcheckup-source-drift';
 /** GitHub accepts up to 65,536 characters in an issue body. */
 const MAX_BODY = 60_000;
@@ -69,6 +69,11 @@ function urlKey(url: string): string {
 
 function changedMarkerPrefix(url: string): string {
   return `<!-- ${MARKER} ${urlKey(url)} hash=`;
+}
+
+/** A moved source's marker ends with the SHA-256 of its new location, which may be any URL. */
+function movedMarkerPrefix(url: string): string {
+  return `<!-- ${MARKER} moved ${urlKey(url)} to-sha256=`;
 }
 
 const UNREACHABLE_MARKER_PREFIX = `<!-- ${MARKER} unreachable set=`;
@@ -124,6 +129,42 @@ export function changedIssueBody(source: ChangedSource, context: IssueContext = 
     ...WHAT_TO_DO_CHANGED(source.url),
     '',
     'The Source drift workflow opened this issue. It comments here if the source changes again before the baseline is updated.',
+    '',
+  ].join('\n');
+}
+
+export function movedIssueTitle(url: string): string {
+  return `Source moved: ${url}`;
+}
+
+function contentLine(source: MovedSource): string {
+  if (source.previous === null) return 'not in the baseline yet';
+  if (source.previous === source.current) return 'unchanged since the baseline';
+  return `changed since the baseline (${hashCode(source.previous)}, now ${hashCode(source.current)})`;
+}
+
+export function movedIssueBody(source: MovedSource, context: IssueContext = {}): string {
+  return [
+    `${movedMarkerPrefix(source.url)}${sha256(source.location)} -->`,
+    'A source cited by agentcheckup rules or context loaders redirects to another URL. The Source drift workflow follows redirects, so it reports the move instead of a change of content.',
+    '',
+    `- Source: ${link(source.url, source.url)}`,
+    `- Now at: ${link(source.location, source.location)}`,
+    `- Content: ${contentLine(source)}`,
+    ...runLine(context),
+    '',
+    '## Used by',
+    '',
+    ...source.rules.map((id) => `- ${ruleLink(id)}`),
+    '',
+    '## What to do',
+    '',
+    '1. Open the new location and check that it is the same document, and that it still says what each rule above relies on. A redirect to a general page, a login or another product usually means the cited content is gone.',
+    '2. Replace the URL in the `meta.sources` of each rule above, or in `src/platforms/sources.ts` for "context loaders", and bump its `checked` date. If the content changed, update the rules and their tests as for a changed source.',
+    '3. In the same pull request, run `pnpm drift:update --only <new url>` and commit `scripts/drift/baseline.json`. A later `pnpm drift:update` drops the old URL.',
+    '4. Reference this issue in the pull request so that merging it closes the issue.',
+    '',
+    'The Source drift workflow opened this issue. It comments here if the source moves again before the URL is updated.',
     '',
   ].join('\n');
 }
@@ -242,6 +283,43 @@ async function syncChanged(
   return `updated #${number} for ${source.url}`;
 }
 
+async function syncMoved(
+  gh: RunGh,
+  source: MovedSource,
+  open: readonly Issue[],
+  context: IssueContext,
+): Promise<string> {
+  const prefix = movedMarkerPrefix(source.url);
+  const existing = open.find((issue) => issue.body.includes(prefix));
+  const body = movedIssueBody(source, context);
+  if (existing === undefined) {
+    await gh([
+      'issue',
+      'create',
+      '--title',
+      movedIssueTitle(source.url),
+      '--body',
+      body,
+      '--label',
+      LABEL,
+    ]);
+    return `opened an issue for ${source.url}, which moved`;
+  }
+  const number = String(existing.number);
+  if (markerValue(existing.body, prefix) === sha256(source.location)) {
+    return `#${number} already reports that ${source.url} moved`;
+  }
+  await gh(['issue', 'edit', number, '--body', body]);
+  await gh([
+    'issue',
+    'comment',
+    number,
+    '--body',
+    'The source redirects to another location now. The description is updated.',
+  ]);
+  return `updated #${number} for ${source.url}, which moved again`;
+}
+
 async function syncUnreachable(
   gh: RunGh,
   sources: readonly UnreachableSource[],
@@ -306,6 +384,7 @@ export async function syncIssues(
     ]),
   );
   for (const source of report.changed) log.push(await syncChanged(gh, source, open, context));
+  for (const source of report.moved) log.push(await syncMoved(gh, source, open, context));
   const unreachable = await syncUnreachable(gh, report.unreachable, open, context);
   if (unreachable !== undefined) log.push(unreachable);
   return log;

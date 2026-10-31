@@ -59,6 +59,7 @@ describe('fetchPlan', () => {
     expect(await fetchPlan(DOCS, options(fetch))).toEqual({
       ok: true,
       hash: sha256('# Memory\n\ntext'),
+      text: '# Memory\n\ntext',
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe('https://code.claude.com/docs/en/memory.md');
@@ -78,6 +79,7 @@ describe('fetchPlan', () => {
     expect(await fetchPlan(DOCS, options(fetch, sleeps))).toEqual({
       ok: true,
       hash: sha256('# ok'),
+      text: '# ok',
     });
     expect(calls).toHaveLength(3);
     expect(sleeps).toEqual([1_000, 2_000]);
@@ -158,6 +160,68 @@ describe('fetchPlan', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('reports where a redirected request ended, so a moved page is not a changed one', async () => {
+    const page = planFetch('https://example.com/old#section');
+    const moved = Object.defineProperties(
+      response('<p>a</p>', 200, { 'content-type': 'text/html' }),
+      {
+        redirected: { value: true },
+        url: { value: 'https://example.com/new#top' },
+      },
+    );
+    const { fetch } = fakeFetch([moved]);
+    expect(await fetchPlan(page, options(fetch))).toEqual({
+      ok: true,
+      hash: sha256('a'),
+      text: 'a',
+      location: 'https://example.com/new',
+    });
+  });
+
+  it('reports a moved Markdown version or raw file as the page to cite', async () => {
+    const markdown = Object.defineProperties(
+      response('# a', 200, { 'content-type': 'text/markdown' }),
+      {
+        redirected: { value: true },
+        url: { value: 'https://docs.devin.ai/desktop/devin-local/customizations.md' },
+      },
+    );
+    const raw = Object.defineProperties(response('a', 200, { 'content-type': 'text/plain' }), {
+      redirected: { value: true },
+      url: { value: 'https://raw.githubusercontent.com/o/new/main/src/a.ts' },
+    });
+    const { fetch } = fakeFetch([markdown, raw]);
+    const moved = await fetchPlan(
+      planFetch('https://docs.devin.ai/desktop/cascade/memories'),
+      options(fetch),
+    );
+    expect(moved).toMatchObject({
+      location: 'https://docs.devin.ai/desktop/devin-local/customizations',
+    });
+    // Citing the reported page plans the request the redirect ended at.
+    expect(planFetch('https://docs.devin.ai/desktop/devin-local/customizations').url).toBe(
+      'https://docs.devin.ai/desktop/devin-local/customizations.md',
+    );
+    expect(
+      await fetchPlan(planFetch('https://github.com/o/old/blob/main/src/a.ts'), options(fetch)),
+    ).toMatchObject({ location: 'https://github.com/o/new/blob/main/src/a.ts' });
+  });
+
+  it('does not report a redirect that ends at the requested URL', async () => {
+    const page = planFetch('https://example.com/page');
+    const back = Object.defineProperties(
+      response('<p>a</p>', 200, { 'content-type': 'text/html' }),
+      {
+        redirected: { value: true },
+        url: { value: 'https://example.com/page#x' },
+      },
+    );
+    const plain = response('<p>a</p>', 200, { 'content-type': 'text/html' });
+    const { fetch } = fakeFetch([back, plain]);
+    expect(await fetchPlan(page, options(fetch))).not.toHaveProperty('location');
+    expect(await fetchPlan(page, options(fetch))).not.toHaveProperty('location');
+  });
+
   it('describes network errors without a cause', async () => {
     const { fetch } = fakeFetch([new Error('boom'), new Error('boom'), new Error('boom')]);
     expect(await fetchPlan(DOCS, options(fetch))).toEqual({
@@ -176,6 +240,7 @@ describe('normalizeResponse', () => {
     expect(normalizeResponse(github, 'a\r\nb\n', 'application/octet-stream')).toEqual({
       ok: true,
       hash: sha256('a\nb'),
+      text: 'a\nb',
     });
   });
 
@@ -198,14 +263,17 @@ describe('normalizeResponse', () => {
     expect(normalizeResponse(page, '<p>a</p>', 'text/html; charset=utf-8')).toEqual({
       ok: true,
       hash: sha256('a'),
+      text: 'a',
     });
     expect(normalizeResponse(page, 'a  \n', 'text/plain')).toEqual({
       ok: true,
       hash: sha256(normalizeText('a')),
+      text: normalizeText('a'),
     });
     expect(normalizeResponse(page, '<!DOCTYPE html><p>a</p>', 'application/octet-stream')).toEqual({
       ok: true,
       hash: sha256('a'),
+      text: 'a',
     });
   });
 
@@ -216,6 +284,7 @@ describe('normalizeResponse', () => {
     expect(normalizeResponse(wordpress, post, 'application/json')).toEqual({
       ok: true,
       hash: sha256('Notice ’s\nBody text'),
+      text: 'Notice ’s\nBody text',
     });
   });
 
@@ -240,8 +309,16 @@ describe('hashSources', () => {
       { ...options(fetch), concurrency: 2 },
     );
     expect(calls).toHaveLength(1);
-    expect(outcomes.get('https://example.com/spec#a')).toEqual({ ok: true, hash: sha256('spec') });
-    expect(outcomes.get('https://example.com/spec#b')).toEqual({ ok: true, hash: sha256('spec') });
+    expect(outcomes.get('https://example.com/spec#a')).toEqual({
+      ok: true,
+      hash: sha256('spec'),
+      text: 'spec',
+    });
+    expect(outcomes.get('https://example.com/spec#b')).toEqual({
+      ok: true,
+      hash: sha256('spec'),
+      text: 'spec',
+    });
     expect(outcomes.get('http://insecure.example/')).toEqual({
       ok: false,
       reason: 'not a valid https URL',

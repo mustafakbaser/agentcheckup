@@ -9,6 +9,7 @@ import {
   type ChangedSource,
   type CitedSource,
   type DriftReport,
+  type MovedSource,
   REPORT_VERSION,
   type UnreachableSource,
 } from './baseline.js';
@@ -40,6 +41,19 @@ export function formatText(report: DriftReport): string {
       );
     }
   }
+  if (report.moved.length > 0) {
+    out.push('', `Moved (${report.moved.length}):`);
+    for (const source of report.moved) {
+      out.push(
+        `  ${line(source.url)}`,
+        rulesLine(source.rules),
+        `    now at: ${line(source.location)}`,
+        source.previous === source.current
+          ? '    content: unchanged'
+          : `    hash: ${short(source.previous)} -> ${short(source.current)}`,
+      );
+    }
+  }
   if (report.unreachable.length > 0) {
     out.push('', `Unreachable (${report.unreachable.length}):`);
     for (const source of report.unreachable) {
@@ -65,6 +79,13 @@ export function formatText(report: DriftReport): string {
       '',
       'Re-read each changed source and update the rules, the loaders or the `checked` date. Then run',
       '`pnpm drift:update --only <url>` and commit scripts/drift/baseline.json in the same pull request.',
+    );
+  }
+  if (report.moved.length > 0) {
+    out.push(
+      '',
+      'Replace each moved URL with its new location in the sources that cite it, re-read it, and run',
+      '`pnpm drift:update --only <new url>`. `pnpm drift:diff <url>` shows what changed in the text.',
     );
   }
   return `${out.join('\n')}\n`;
@@ -103,6 +124,16 @@ function isChanged(value: unknown): value is ChangedSource {
   );
 }
 
+function isMoved(value: unknown): value is MovedSource {
+  return (
+    isCited(value) &&
+    isRecord(value) &&
+    typeof value['location'] === 'string' &&
+    (value['previous'] === null || typeof value['previous'] === 'string') &&
+    typeof value['current'] === 'string'
+  );
+}
+
 function isUnreachable(value: unknown): value is UnreachableSource {
   return isCited(value) && isRecord(value) && typeof value['reason'] === 'string';
 }
@@ -117,6 +148,8 @@ export function parseReport(text: string): DriftReport {
     !isCount(raw['unchanged']) ||
     !Array.isArray(raw['changed']) ||
     !raw['changed'].every(isChanged) ||
+    !Array.isArray(raw['moved']) ||
+    !raw['moved'].every(isMoved) ||
     !Array.isArray(raw['unreachable']) ||
     !raw['unreachable'].every(isUnreachable) ||
     !isStringArray(raw['uncited']) ||
@@ -129,6 +162,7 @@ export function parseReport(text: string): DriftReport {
     version: REPORT_VERSION,
     checked: raw['checked'],
     changed: raw['changed'],
+    moved: raw['moved'],
     unreachable: raw['unreachable'],
     unchanged: raw['unchanged'],
     uncited: raw['uncited'],

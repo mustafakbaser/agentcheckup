@@ -16,13 +16,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  drift:
+  check:
     name: Check cited sources
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Fetches every source with the repository's dependencies installed, so it can only read.
     permissions:
       contents: read # check out the repository
-      issues: write # open, update and close source-drift issues
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -37,17 +37,50 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Compare cited sources with the baseline
-        id: check
-        # Exit code 1 means a source changed or could not be fetched. The next step turns the
-        # report into issues; it fails if no report was written.
+        # Exit code 1 means a source changed, moved or could not be fetched. The issues job turns
+        # the report into issues; the upload below fails if no report was written.
         continue-on-error: true
         env:
           # Reads github.com files through the REST API instead of the unauthenticated
           # raw.githubusercontent.com. The script sends it to api.github.com only.
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm drift:check --report "$RUNNER_TEMP/source-drift.json"
+      # The report holds URLs, hashes and fetch errors, never the sources' text.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: source-drift-report
+          path: ${{ runner.temp }}/source-drift.json
+          if-no-files-found: error
+          retention-days: 7
+
+  issues:
+    name: Open or update issues
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Can write issues, so it runs no dependency: Node.js runs the TypeScript of the issue sync
+    # itself, which imports only Node.js built-ins. No pnpm install.
+    permissions:
+      contents: read # check out the issue sync script
+      issues: write # open, update and close source-drift issues
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: source-drift-report
+          path: ${{ runner.temp }}/source-drift
       - name: Open or update issues
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: pnpm exec tsx scripts/drift/sync-issues.ts "$RUNNER_TEMP/source-drift.json"
+        run: >-
+          node --import ./scripts/drift/ts-hooks.ts scripts/drift/sync-issues.ts
+          "$RUNNER_TEMP/source-drift/source-drift.json"

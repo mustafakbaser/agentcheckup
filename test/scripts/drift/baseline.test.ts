@@ -83,11 +83,14 @@ describe('parseBaseline and serializeBaseline', () => {
 
 describe('compareWithBaseline', () => {
   it('reports nothing when every hash matches', () => {
-    const report = compareWithBaseline(input({ [A]: { ok: true, hash: H1 } }, { [A]: H1 }));
+    const report = compareWithBaseline(
+      input({ [A]: { ok: true, hash: H1, text: '' } }, { [A]: H1 }),
+    );
     expect(report).toEqual({
-      version: 1,
+      version: 2,
       checked: 1,
       changed: [],
+      moved: [],
       unreachable: [],
       unchanged: 1,
       uncited: [],
@@ -100,9 +103,9 @@ describe('compareWithBaseline', () => {
     const report = compareWithBaseline(
       input(
         {
-          [A]: { ok: true, hash: H1 },
-          [B]: { ok: true, hash: H3 },
-          [C]: { ok: true, hash: H2 },
+          [A]: { ok: true, hash: H1, text: '' },
+          [B]: { ok: true, hash: H3, text: '' },
+          [C]: { ok: true, hash: H2, text: '' },
           [D]: { ok: false, reason: 'HTTP 404' },
         },
         { [A]: H1, [B]: H2, [D]: H1, [OLD]: H1 },
@@ -119,6 +122,38 @@ describe('compareWithBaseline', () => {
     expect(needsAttention(report)).toBe(true);
   });
 
+  it('reports a source that redirects elsewhere as moved, not as changed or unchanged', () => {
+    const report = compareWithBaseline(
+      input(
+        {
+          [A]: { ok: true, hash: H1, text: '', location: 'https://a.example/new' },
+          [B]: { ok: true, hash: H3, text: '', location: 'https://b.example/new' },
+          [C]: { ok: true, hash: H2, text: '' },
+        },
+        { [A]: H1, [B]: H2, [C]: H2 },
+      ),
+    );
+    expect(report.moved).toEqual([
+      { url: A, rules: ['rule/a'], location: 'https://a.example/new', previous: H1, current: H1 },
+      { url: B, rules: ['rule/b'], location: 'https://b.example/new', previous: H2, current: H3 },
+    ]);
+    expect(report.changed).toEqual([]);
+    expect(report.unchanged).toBe(1);
+    expect(needsAttention(report)).toBe(true);
+  });
+
+  it('records the hash of a moved source on update, like any other', () => {
+    const result = updateBaseline(
+      input(
+        { [A]: { ok: true, hash: H2, text: '', location: 'https://a.example/new' } },
+        {
+          [A]: H1,
+        },
+      ),
+    );
+    expect([...result.baseline]).toEqual([[A, H2]]);
+  });
+
   it('counts an unreachable source as needing attention on its own', () => {
     const report = compareWithBaseline(input({ [A]: { ok: false, reason: 'HTTP 500' } }, {}));
     expect(report.changed).toEqual([]);
@@ -126,14 +161,14 @@ describe('compareWithBaseline', () => {
   });
 
   it('treats a URL without an outcome as unreachable', () => {
-    const base = input({ [A]: { ok: true, hash: H1 } }, { [A]: H1 });
+    const base = input({ [A]: { ok: true, hash: H1, text: '' } }, { [A]: H1 });
     const report = compareWithBaseline({ ...base, outcomes: new Map() });
     expect(report.unreachable).toEqual([{ url: A, rules: ['rule/a'], reason: 'not fetched' }]);
   });
 
   it('does not report uncited entries for a partial check', () => {
     const report = compareWithBaseline(
-      input({ [A]: { ok: true, hash: H1 } }, { [A]: H1, [B]: H2 }, false),
+      input({ [A]: { ok: true, hash: H1, text: '' } }, { [A]: H1, [B]: H2 }, false),
     );
     expect(report.uncited).toEqual([]);
   });
@@ -144,8 +179,8 @@ describe('updateBaseline', () => {
     const result = updateBaseline(
       input(
         {
-          [A]: { ok: true, hash: H1 },
-          [B]: { ok: true, hash: H3 },
+          [A]: { ok: true, hash: H1, text: '' },
+          [B]: { ok: true, hash: H3, text: '' },
           [C]: { ok: false, reason: 'HTTP 503' },
           [D]: { ok: false, reason: 'HTTP 404' },
         },
@@ -165,7 +200,7 @@ describe('updateBaseline', () => {
 
   it('leaves every other entry alone in a partial update', () => {
     const result = updateBaseline(
-      input({ [B]: { ok: true, hash: H3 } }, { [A]: H1, [B]: H2, [OLD]: H1 }, false),
+      input({ [B]: { ok: true, hash: H3, text: '' } }, { [A]: H1, [B]: H2, [OLD]: H1 }, false),
     );
     expect([...result.baseline].sort()).toEqual([
       [A, H1],

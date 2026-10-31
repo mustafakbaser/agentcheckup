@@ -3,7 +3,7 @@
  * so tests run without network access or a real clock.
  */
 import { looksLikeHtml, normalizeContent, sha256 } from './normalize.js';
-import { type FetchPlan, planFetch } from './resolve.js';
+import { type FetchPlan, pageUrlOf, planFetch } from './resolve.js';
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -29,10 +29,27 @@ export const DEFAULT_FETCH_OPTIONS = {
 const MAX_RETRY_AFTER_MS = 60_000;
 
 export type Outcome =
-  { readonly ok: true; readonly hash: string } | { readonly ok: false; readonly reason: string };
+  | {
+      readonly ok: true;
+      readonly hash: string;
+      /** The normalized text the hash covers. Kept in .drift-cache/, never in a report. */
+      readonly text: string;
+      /**
+       * Where the request ended after redirects, when that is not the URL requested: the cited
+       * page moved, or its host sends it elsewhere.
+       */
+      readonly location?: string;
+    }
+  | { readonly ok: false; readonly reason: string };
 
 type Attempt =
-  | { readonly ok: true; readonly body: string; readonly contentType: string }
+  | {
+      readonly ok: true;
+      readonly body: string;
+      readonly contentType: string;
+      /** `response.url` after a followed redirect, or undefined. */
+      readonly redirectedTo: string | undefined;
+    }
   | {
       readonly ok: false;
       readonly reason: string;
@@ -114,7 +131,8 @@ async function attempt(plan: FetchPlan, options: FetchOptions): Promise<Attempt>
     }
     const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
     const body = await readBody(response, options.maxBytes);
-    return { ok: true, body, contentType };
+    const redirectedTo = response.redirected && response.url !== '' ? response.url : undefined;
+    return { ok: true, body, contentType, redirectedTo };
   } catch (error) {
     const reason = describeError(error, plan, options.timeoutMs);
     return {
@@ -159,29 +177,47 @@ function wordPressText(body: string): string | { reason: string } {
   return `${normalizeContent(titleHtml, 'html')}\n${normalizeContent(contentHtml, 'html')}`;
 }
 
+function hashed(text: string): Outcome {
+  return { ok: true, hash: sha256(text), text };
+}
+
 /** Normalizes a successful response, or explains why it cannot be used. */
 export function normalizeResponse(plan: FetchPlan, body: string, contentType: string): Outcome {
   const type = mediaType(contentType);
   switch (plan.kind) {
     case 'github':
-      return { ok: true, hash: sha256(normalizeContent(body, 'text')) };
+      return hashed(normalizeContent(body, 'text'));
     case 'text': {
       const text = type === 'text/markdown' || type === 'text/x-markdown' || type === 'text/plain';
       if (!text || looksLikeHtml(body)) {
         const got = type === '' ? 'no content type' : type;
         return { ok: false, reason: `expected Markdown or plain text, got ${got}` };
       }
-      return { ok: true, hash: sha256(normalizeContent(body, 'text')) };
+      return hashed(normalizeContent(body, 'text'));
     }
     case 'wordpress': {
       const text = wordPressText(body);
-      return typeof text === 'string' ? { ok: true, hash: sha256(text) } : { ok: false, ...text };
+      return typeof text === 'string' ? hashed(text) : { ok: false, ...text };
     }
     case 'page': {
       const html = type === 'text/html' || type === 'application/xhtml+xml' || looksLikeHtml(body);
-      return { ok: true, hash: sha256(normalizeContent(body, html ? 'html' : 'text')) };
+      return hashed(normalizeContent(body, html ? 'html' : 'text'));
     }
   }
+}
+
+/** The outcome of a response that ended at `redirectedTo`: moved, unless it is the same URL. */
+function withLocation(
+  outcome: Outcome,
+  plan: FetchPlan,
+  redirectedTo: string | undefined,
+): Outcome {
+  if (!outcome.ok || redirectedTo === undefined) return outcome;
+  const location = URL.canParse(redirectedTo) ? new URL(redirectedTo) : undefined;
+  if (location !== undefined) location.hash = '';
+  if (location?.href === plan.url) return outcome;
+  // A Markdown version or raw file that moved is reported as the page to cite instead.
+  return { ...outcome, location: pageUrlOf(location?.href ?? redirectedTo) };
 }
 
 async function fetchWithRetries(plan: FetchPlan, options: FetchOptions): Promise<Outcome> {
@@ -192,7 +228,13 @@ async function fetchWithRetries(plan: FetchPlan, options: FetchOptions): Promise
       await options.sleep(Math.max(backoff, last.waitMs ?? 0));
     }
     last = await attempt(plan, options);
-    if (last.ok) return normalizeResponse(plan, last.body, last.contentType);
+    if (last.ok) {
+      return withLocation(
+        normalizeResponse(plan, last.body, last.contentType),
+        plan,
+        last.redirectedTo,
+      );
+    }
     if (!last.retry || (last.waitMs ?? 0) > MAX_RETRY_AFTER_MS) break;
   }
   if (last === undefined || last.ok) return { ok: false, reason: 'not fetched' };
@@ -201,7 +243,8 @@ async function fetchWithRetries(plan: FetchPlan, options: FetchOptions): Promise
 
 /**
  * Fetches a plan with retries. Never throws. When the request does not go to the cited page
- * itself (a Markdown version, an API), a failure names the URL that was requested.
+ * itself (a Markdown version, an API), a failure names the URL that was requested. A response
+ * that redirects elsewhere carries the URL it ended at as `location`.
  */
 export async function fetchPlan(plan: FetchPlan, options: FetchOptions): Promise<Outcome> {
   const outcome = await fetchWithRetries(plan, options);
