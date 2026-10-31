@@ -67,11 +67,11 @@ Install the agentcheckup skill in .claude/skills/agentcheckup:
 Claude Code, Cursor, GitHub Copilot, Devin Local and Cline load skills from .claude/skills.
 Checked in memory with every rule: the skill adds no finding.
 While the skill runs, Claude Code may use these without asking (allowed-tools):
-  Bash(npx agentcheckup@0.4.0 tasks --format json)
-  Bash(npx agentcheckup@0.4.0 fix)
-  Bash(npx agentcheckup@0.4.0 context)
-  Bash(npx agentcheckup@0.4.0 tokens)
-  Bash(npx agentcheckup@0.4.0 tasks --check *)
+  Bash(npx agentcheckup@0.4.1 tasks --format json)
+  Bash(npx agentcheckup@0.4.1 fix)
+  Bash(npx agentcheckup@0.4.1 context)
+  Bash(npx agentcheckup@0.4.1 tokens)
+  Bash(npx agentcheckup@0.4.1 tasks --check *)
   Read
 Every command that writes asks first.
 Install the skill? [y/N] y
@@ -114,11 +114,11 @@ The skill's `allowed-tools` pre-approves six tools:
 
 ```yaml
 allowed-tools: >-
-  Bash(npx agentcheckup@0.4.0 tasks --format json)
-  Bash(npx agentcheckup@0.4.0 fix)
-  Bash(npx agentcheckup@0.4.0 context)
-  Bash(npx agentcheckup@0.4.0 tokens)
-  Bash(npx agentcheckup@0.4.0 tasks --check *)
+  Bash(npx agentcheckup@0.4.1 tasks --format json)
+  Bash(npx agentcheckup@0.4.1 fix)
+  Bash(npx agentcheckup@0.4.1 context)
+  Bash(npx agentcheckup@0.4.1 tokens)
+  Bash(npx agentcheckup@0.4.1 tasks --check *)
   Read
 ```
 
@@ -164,11 +164,11 @@ an agent into running a command, and an approved write would run without stoppin
 
 ```text
 ✖ 6 security-relevant changes since the baseline need review
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.0 context)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.0 fix)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.0 tasks --check *)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.0 tasks --format json)
-    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.0 tokens)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.1 context)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.1 fix)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.1 tasks --check *)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.1 tasks --format json)
+    Permission widened: allowed-tools adds Bash(npx agentcheckup@0.4.1 tokens)
     Permission widened: allowed-tools adds Read
 ```
 

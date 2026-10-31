@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.0...v0.4.1) (2026-10-31)
+
+
+### Bug fixes
+
+* **deps:** bump ignore to 7.0.14, bundled into the CLI, and the development group ([#80](https://github.com/mustafakbaser/agentcheckup/issues/80)) ([6a27d55](https://github.com/mustafakbaser/agentcheckup/commit/6a27d55c0d22b829e990118aa9e2cdb13b7c512f))
+
+
+### Documentation
+
+* record the demo again with agentcheckup 0.4.0 ([7f165bd](https://github.com/mustafakbaser/agentcheckup/commit/7f165bd657025376fa94ece7d2737e3739296d1e))
+
 ## [0.4.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.3.1...v0.4.0) (2026-10-31)
 
 
