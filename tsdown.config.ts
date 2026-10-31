@@ -23,9 +23,12 @@ export default defineConfig({
   sourcemap: 'hidden',
   clean: true,
   treeshake: true,
-  // Compress and drop whitespace, but keep identifier names: stack traces stay readable and the
-  // published code stays auditable without source maps. Provenance ties it to this repository.
-  minify: { compress: true, mangle: false },
+  // Compress, but keep identifier names, line breaks and indentation: stack traces stay
+  // readable, and the published code stays auditable without source maps, as supply-chain
+  // scanners such as Socket expect of an npm package. They flag code minified onto a few long
+  // lines as minified or obfuscated; dropping whitespace gave lines of 157,000 characters.
+  // Provenance ties the code to this repository.
+  minify: { compress: true, mangle: false, codegen: { removeWhitespace: false } },
   // publint and attw run in `pnpm check:package` against the real `npm pack` output.
   publint: false,
   attw: false,

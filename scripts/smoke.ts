@@ -15,10 +15,17 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const work = await mkdtemp(join(tmpdir(), 'agentcheckup-smoke-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 /**
- * The packed tarball was 546 KB in 0.3.1 without source maps, 1.8 MB with them. The limit leaves
- * room to grow and fails when maps or another large artifact slip back in.
+ * The packed tarball was 546 KB in 0.3.1 without source maps, 1.8 MB with them, and 779 KB with
+ * the line breaks and indentation the bundle keeps since 0.4.1. The limit leaves room to grow
+ * and fails when maps or another large artifact slip back in.
  */
-const MAX_PACKED_BYTES = 700 * 1024;
+const MAX_PACKED_BYTES = 900 * 1024;
+/**
+ * The longest line a bundled file may have. Supply-chain scanners such as Socket flag code
+ * minified onto a few long lines as minified or obfuscated; tsdown.config.ts keeps line breaks,
+ * and the longest line, an enum of jsonc-parser, has under 4,000 characters.
+ */
+const MAX_LINE_LENGTH = 10_000;
 
 function fail(message: string): never {
   throw new Error(`smoke: ${message}`);
@@ -89,10 +96,17 @@ try {
     );
   }
 
-  // A sourceMappingURL comment would point debuggers and tools at a map the package lacks.
+  // A sourceMappingURL comment would point debuggers and tools at a map the package lacks, and a
+  // line past MAX_LINE_LENGTH would make the code hard to audit.
   for (const path of files.filter((file) => file.startsWith('dist/') && file.endsWith('.js'))) {
     const code = await readFile(join(work, 'node_modules', manifest.name, path), 'utf8');
     if (code.includes('//# sourceMappingURL=')) fail(`${path} references a source map`);
+    const longest = Math.max(...code.split('\n').map((line) => line.length));
+    if (longest > MAX_LINE_LENGTH) {
+      fail(
+        `${path} has a line of ${longest} characters, more than ${MAX_LINE_LENGTH}: is it minified?`,
+      );
+    }
   }
 
   const cli = join(work, 'node_modules', manifest.name, 'dist', 'cli.js');
