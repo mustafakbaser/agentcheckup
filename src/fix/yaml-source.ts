@@ -6,9 +6,9 @@
  * Runs only on YAML that src/parse/frontmatter.ts already parsed as valid, which bounds its size
  * and nesting. Builds no JavaScript values (no `toJS()`), and never follows an alias. Pure.
  */
-import { CST, isAlias, isMap, isScalar, isSeq, Lexer, type ParsedNode, parseDocument } from 'yaml';
+import { CST, isAlias, isMap, isScalar, isSeq, Lexer, type ParsedNode } from 'yaml';
 
-import { YAML_OPTIONS } from '../parse/frontmatter.js';
+import { parseYaml } from '../parse/frontmatter.js';
 
 /**
  * Offsets, relative to the start of `yaml`, of the `#` that starts each comment. Text inside
@@ -87,7 +87,7 @@ function valueText(node: ParsedNode | null): string | readonly string[] | undefi
  */
 export function entrySources(yaml: string): ReadonlyMap<number, EntrySource> {
   const entries = new Map<number, EntrySource>();
-  const doc = parseDocument(yaml, YAML_OPTIONS);
+  const doc = parseYaml(yaml);
   const root = doc.contents;
   if (doc.errors.length > 0 || !isMap(root)) return entries;
   for (const pair of root.items) {
@@ -128,7 +128,7 @@ const LIST_ITEM_TYPES: ReadonlySet<string | undefined> = new Set([
  * line.
  */
 export function listSource(yaml: string, keyOffset: number): ListSource | undefined {
-  const doc = parseDocument(yaml, YAML_OPTIONS);
+  const doc = parseYaml(yaml);
   const root = doc.contents;
   if (doc.errors.length > 0 || !isMap(root)) return undefined;
   const value = root.items.find((pair) => pair.key.range[0] === keyOffset)?.value;

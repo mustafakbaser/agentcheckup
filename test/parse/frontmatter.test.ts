@@ -1,6 +1,13 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { parseDocument } from 'yaml';
 import type { Span } from '../../src/core/types.js';
-import { MAX_FRONTMATTER_LENGTH, parseFrontmatter } from '../../src/parse/frontmatter.js';
+import {
+  MAX_FRONTMATTER_LENGTH,
+  parseFrontmatter,
+  parseYaml,
+  YAML_OPTIONS,
+} from '../../src/parse/frontmatter.js';
 import type { FrontmatterData, FrontmatterResult, ParseIssue } from '../../src/parse/types.js';
 
 const slice = (text: string, span: Span | undefined): string | undefined =>
@@ -405,5 +412,56 @@ describe('warnings', () => {
       ['null-value', 'Null'],
       ['null-value', 'k'],
     ]);
+  });
+});
+
+describe('repeated keys', () => {
+  /** What a parse reports, as the frontmatter parser reads it. */
+  const reported = (doc: ReturnType<typeof parseYaml>): unknown => ({
+    errors: doc.errors.map((error) => [error.code, error.pos, error.message]),
+    warnings: doc.warnings.map((warning) => [warning.code, warning.pos, warning.message]),
+    range: doc.contents?.range,
+  });
+
+  it('finds repeats as the unique-key check does, without its quadratic cost', () => {
+    const KEYS = ['a', 'b', '"a"', "'b'", '0', '00', '0x0', '+0', '-0', '0.0', '~', 'null'];
+    const MORE = ['', '.nan', '.NaN', 'true', 'True', '1', '1.0', '[a]', '{a: 1}', '&k a', '*k'];
+    const key = fc.constantFrom(...KEYS, ...MORE);
+    const value = fc.constantFrom('1', 'x', '', '[a, a]', '&v w', '*v', '{0: a, 00: b}', '{a, a}');
+    const pair = fc.tuple(key, value);
+    const block = fc
+      .array(fc.tuple(pair, fc.array(pair, { maxLength: 3 })), { maxLength: 6 })
+      .map((entries) =>
+        entries
+          .map(([[k, v], nested]) =>
+            nested.length === 0
+              ? `${k}: ${v}\n`
+              : `${k}:\n${nested.map(([nk, nv]) => `  ${nk}: ${nv}\n`).join('')}`,
+          )
+          .join(''),
+      );
+    const flow = fc
+      .array(pair, { maxLength: 8 })
+      .map((pairs) => `{${pairs.map(([k, v]) => `${k}: ${v}`).join(', ')}}\n`);
+    const sequence = fc
+      .array(flow, { maxLength: 3 })
+      .map((items) => items.map((item) => `- ${item}`).join(''));
+    fc.assert(
+      fc.property(fc.oneof(block, flow, sequence), (yaml) => {
+        expect(reported(parseYaml(yaml))).toEqual(reported(parseDocument(yaml, YAML_OPTIONS)));
+      }),
+      { numRuns: 3000 },
+    );
+  });
+
+  it.each([
+    ['repeated block keys', '0: a\n00: b\n', ['DUPLICATE_KEY']],
+    ['repeated flow keys', '{a: 1, b: 2, a: 3}\n', ['DUPLICATE_KEY']],
+    ['a repeat in a nested mapping', 'x:\n  - {k: 1, k: 2}\n', ['DUPLICATE_KEY']],
+    ['distinct keys', 'a: 1\nb: {a: 1, b: 2}\nc: [{a: 1}, {a: 2}]\n', []],
+    ['NaN keys, which never repeat', '.nan: 1\n.NaN: 2\n', []],
+  ])('reports %s as the checked parse does', (_name, yaml, errors) => {
+    expect(parseYaml(yaml).errors.map((error) => error.code)).toEqual(errors);
+    expect(reported(parseYaml(yaml))).toEqual(reported(parseDocument(yaml, YAML_OPTIONS)));
   });
 });

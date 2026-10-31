@@ -22,7 +22,12 @@
 import type { Span } from '../core/types.js';
 import { locateFrontmatter, parseFrontmatter } from '../parse/frontmatter.js';
 import { isTable, type SpannedDocument } from '../parse/json-access.js';
-import type { FrontmatterData, FrontmatterResult, JsonPathSegment } from '../parse/types.js';
+import type {
+  FrontmatterData,
+  FrontmatterResult,
+  JsonPathSegment,
+  ParseIssue,
+} from '../parse/types.js';
 import { claudeCodeBlock, claudeCodeRepair } from './skill-repair.js';
 import { hitParserLimit } from './yaml.js';
 
@@ -71,7 +76,11 @@ export function claudeFrontmatterConfig(
   text: string,
   frontmatter: FrontmatterResult,
 ): FrontmatterConfig {
-  const blocks: { readonly block: Block; readonly strict?: ValidFrontmatter }[] = [];
+  const blocks: {
+    readonly block: Block;
+    readonly strict?: ValidFrontmatter;
+    readonly errors?: readonly ParseIssue[];
+  }[] = [];
   const location = locateFrontmatter(text);
   const documented =
     location.kind === 'block' ? { start: location.yamlStart, end: location.yamlEnd } : undefined;
@@ -79,6 +88,7 @@ export function claudeFrontmatterConfig(
     blocks.push({
       block: documented,
       ...(frontmatter.kind === 'valid' ? { strict: frontmatter } : {}),
+      ...(frontmatter.kind === 'invalid' ? { errors: frontmatter.errors } : {}),
     });
   }
   const claude = claudeCodeBlock(text);
@@ -87,10 +97,10 @@ export function claudeFrontmatterConfig(
 
   const readings: FrontmatterReading[] = [];
   let unreadable = false;
-  for (const { block, strict } of blocks) {
+  for (const { block, strict, errors } of blocks) {
     const read =
       strict === undefined
-        ? readBlock(text, block)
+        ? readBlock(text, block, errors)
         : ({
             kind: 'fields',
             reading: { doc: documentOf(strict.data), parse: strict, documented: true },
@@ -108,22 +118,32 @@ export function claudeFrontmatterConfig(
   return { readings, unreadable };
 }
 
-/** The fields of a block: parsed as it is, else as Claude Code's retry repairs it. */
-function readBlock(text: string, block: Block): BlockRead {
+/**
+ * The fields of a block: parsed as it is, else as Claude Code's retry repairs it. `failed` holds
+ * the errors of a parse of the block that failed already, the documented block's, which the scan
+ * has parsed. Parsing that block again here would add a blank line at its end, which changes no
+ * error a parse reports; where it would make the block too large, the repaired block, which is no
+ * shorter, is too large as well.
+ */
+function readBlock(text: string, block: Block, failed?: readonly ParseIssue[]): BlockRead {
   const yaml = text.slice(block.start, block.end);
-  const parsed = parseFrontmatter(`${OPENING}${yaml}${CLOSING}`);
-  if (parsed.kind === 'valid') {
-    const map = (span: Span): Span => ({
-      offset: Math.max(block.start, span.offset - OPENING.length + block.start),
-      length: span.length,
-    });
-    return {
-      kind: 'fields',
-      reading: { doc: documentOf(parsed.data, map), parse: parsed, documented: false },
-    };
+  let errors = failed;
+  if (errors === undefined) {
+    const parsed = parseFrontmatter(`${OPENING}${yaml}${CLOSING}`);
+    if (parsed.kind === 'valid') {
+      const map = (span: Span): Span => ({
+        offset: Math.max(block.start, span.offset - OPENING.length + block.start),
+        length: span.length,
+      });
+      return {
+        kind: 'fields',
+        reading: { doc: documentOf(parsed.data, map), parse: parsed, documented: false },
+      };
+    }
+    if (parsed.kind !== 'invalid') return { kind: 'unparsed' };
+    errors = parsed.errors;
   }
-  if (parsed.kind !== 'invalid') return { kind: 'unparsed' };
-  if (hitParserLimit(parsed.errors)) return { kind: 'limit' };
+  if (hitParserLimit(errors)) return { kind: 'limit' };
 
   const repaired = claudeCodeRepair(yaml);
   const retried = parseFrontmatter(`${OPENING}${repaired}${CLOSING}`);

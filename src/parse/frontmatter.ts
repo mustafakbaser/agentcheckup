@@ -20,6 +20,7 @@
  *   (billion-laughs) before any large value is materialized.
  */
 import {
+  type Document,
   type DocumentOptions,
   isAlias,
   isMap,
@@ -49,7 +50,9 @@ const MAX_DEPTH = 256;
 /** Hostile input can produce one error per character; report a bounded number. */
 const MAX_ISSUES = 100;
 
-/** How frontmatter YAML is read; src/fix/yaml-source.ts reads the same document with these. */
+/**
+ * How frontmatter YAML is read ({@link parseYaml}); src/fix/yaml-source.ts reads it the same way.
+ */
 export const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
   version: '1.2',
   schema: 'core',
@@ -60,6 +63,41 @@ export const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
   strict: true,
   keepSourceTokens: false,
 };
+
+/**
+ * `parseDocument(yaml, YAML_OPTIONS)`, without yaml's unique-key check where it cannot fire. The
+ * check compares each key with every earlier key of its mapping, so its cost grows with the
+ * square of the keys: a flow mapping of 16,000 keys, which fits in the length limit, takes 0.9 s
+ * instead of 0.03 s (yaml 2.9.1). All the check adds is a DUPLICATE_KEY error, as the pair is kept
+ * either way, so the YAML is parsed without it, and again with it only when a mapping repeats a
+ * scalar key's value. A Set compares values as SameValueZero, which equates everything the
+ * check's `===` does and `NaN` as well: such a key costs a second parse, not a wrong result.
+ */
+export function parseYaml(yaml: string): Document.Parsed {
+  const unchecked = parseDocument(yaml, { ...YAML_OPTIONS, uniqueKeys: false });
+  return mayRepeatKeys(unchecked.contents) ? parseDocument(yaml, YAML_OPTIONS) : unchecked;
+}
+
+/** True when a mapping in the tree has two scalar keys with the same value. */
+function mayRepeatKeys(root: unknown): boolean {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (isMap(node)) {
+      const keys = new Set<unknown>();
+      for (const pair of node.items) {
+        if (isScalar(pair.key)) {
+          if (keys.has(pair.key.value)) return true;
+          keys.add(pair.key.value);
+        }
+        stack.push(pair.key, pair.value);
+      }
+    } else if (isSeq(node)) {
+      for (const item of node.items) stack.push(item);
+    }
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Delimiters
@@ -606,7 +644,7 @@ function parseBlock(text: string, location: BlockLocation): FrontmatterResult {
     ]);
   }
 
-  const doc = parseDocument(yaml, YAML_OPTIONS);
+  const doc = parseYaml(yaml);
   const located = { yaml, base };
   if (doc.errors.length > 0) {
     const keys = doc.errors.some((error) => error.code === 'DUPLICATE_KEY')
