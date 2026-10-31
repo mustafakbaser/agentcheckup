@@ -238,7 +238,9 @@ npx agentcheckup packages/web --format sarif --sarif-category web --output web.s
 
 The run's id becomes `agentcheckup/<name>/`. A name is letters, digits, `.`, `_` and `-`, in
 parts separated by `/`, at most 100 characters. A new category is a separate analysis: GitHub
-does not move the alerts of the default category to it.
+does not move the alerts of the default category to it. In the
+[GitHub Action](https://github.com/mustafakbaser/agentcheckup-action), v0.4.1 or later, the
+`sarif-category` input sets this option.
 
 A SARIF rule has one level and, for `risk` rules, one `security-severity`, which GitHub shows
 instead of each result's level. Both come from the severity the top-level `rules` of the
