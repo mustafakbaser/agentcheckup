@@ -93,8 +93,32 @@ fetched. [Source drift](source-drift.md) explains how to handle those issues.
 ## Dependency updates
 
 Dependabot proposes updates weekly with a 7-day cooldown, matching `minimumReleaseAge` in
-`pnpm-workspace.yaml`. Dependabot's support for pnpm 12 lockfiles is not confirmed yet. If its
-npm updates fail, switch npm updates to Renovate and keep Dependabot for GitHub Actions.
+`pnpm-workspace.yaml`. It updates the pnpm 12 lockfile: pull request #80 bumped seven
+devDependencies in `pnpm-lock.yaml`, and CI passed on it.
+
+Every dependency is a devDependency: tsdown bundles the ones the CLI runs, so the package has
+none. Minor and patch updates arrive in two grouped pull requests:
+
+- **`bundled`**: `ignore`, `jsonc-parser`, `mdast-util-from-markdown`, `picomatch` and `yaml`,
+  the packages tsdown bundles into `dist/`. `THIRD_PARTY_NOTICES.md`, which `pnpm build` writes,
+  lists them with the packages they bring along. A bump changes the code users run.
+- **`development`**: everything else, the tools that build and test the package.
+
+Dependabot sets one commit message prefix for all npm updates, not one per group, so both
+arrive titled `build: ...`, a type release-please leaves out of the changelog. Before merging a
+`bundled` pull request, or any other that bumps a bundled package (a security update of
+`micromark`, say, or a major update), retitle it to `fix(deps): ...`: the squash commit takes
+the pull request's title, so the bump gets a changelog entry and a release.
+
+A bundled bump needs more than green CI. Read the package's changelog, and run the unit tests
+that cover it: `test/parse` and `test/fix` for `yaml`, `jsonc-parser` and
+`mdast-util-from-markdown`, `test/core/config.test.ts` for `picomatch`, which matches the
+configuration's `ignore` and `overrides` globs, and `test/io` for `ignore`. For `ignore`, also
+compare how `.gitignore` files are read before and after the bump. The corpus checks cannot
+show it: `scripts/corpus/virtual-walk.ts` replays the walk without applying `.gitignore`. Scan a
+few repositories with nested `.gitignore` files and negated patterns with
+`node dist/cli.js <repo> --context --format json --output <file> --fail-on none`, built from
+both versions, and compare the `artifacts`, the findings and the plans' `ignored` counts.
 
 ## If something goes wrong
 
