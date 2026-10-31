@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.2.0 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.3.1 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -28,11 +28,11 @@ What Claude Code, Codex, Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud 
 | Some agent loads no instructions at all                                |     68 of 72 |
 | Root `AGENTS.md`                                                       |           55 |
 | Claude Code skips the root `AGENTS.md` and reads a `CLAUDE.md` instead |     11 of 55 |
-| Some agent skips an agent-config file or item                          |           34 |
+| Some agent skips an agent-config file or item                          |           35 |
 | Claude Code skips one                                                  |           25 |
 | Codex skips one                                                        |            5 |
 | Cursor skips one                                                       |            5 |
-| Copilot CLI skips one                                                  |            3 |
+| Copilot CLI skips one                                                  |            7 |
 | Copilot in VS Code skips one                                           |            8 |
 | Copilot cloud agent skips one                                          |            5 |
 | Gemini CLI skips one                                                   |            1 |
@@ -57,7 +57,7 @@ In ≈tokens. "Instructions" are instruction files, imports and rules, after doc
 | Cursor: instructions                         |           70 |  2,966 |          10,941 |  27,396 |
 | Cursor: with the skills listing              |           71 |  3,997 |          12,380 |  71,481 |
 | Copilot CLI: instructions                    |           71 |  3,347 |           9,743 |  28,093 |
-| Copilot CLI: with the skills listing         |           72 |  4,136 |          10,365 |  29,945 |
+| Copilot CLI: with the skills listing         |           72 |  3,966 |          10,397 |  29,964 |
 | Copilot in VS Code: instructions             |           70 |  3,500 |          11,316 |  27,396 |
 | Copilot in VS Code: with the skills listing  |           71 |  4,610 |          12,397 |  40,992 |
 | Copilot cloud agent: instructions            |           71 |  3,500 |          11,316 |  28,093 |
@@ -77,14 +77,13 @@ Repositories where a modeled agent skips a file or item for this reason, in a pl
 | ----------------------- | --------------------------------------------- | -----------: |
 | `shadowed-by-claude-md` | AGENTS.md hidden by a CLAUDE.md (Claude Code) |           24 |
 | `over-byte-budget`      | over a byte limit                             |            5 |
+| `shadowed-by-preferred` | a preferred file is read instead              |            5 |
 | `invalid-frontmatter`   | invalid frontmatter                           |            4 |
 | `not-mdc`               | not an .mdc file (Cursor)                     |            3 |
 | `wrong-location`        | not in a location the agent reads             |            3 |
 | `no-apply-to`           | no valid applyTo (Copilot)                    |            2 |
 | `blank-file`            | blank file                                    |            1 |
-| `invalid-subagent`      | invalid subagent                              |            1 |
 | `no-frontmatter`        | no frontmatter                                |            1 |
-| `shadowed-by-preferred` | a preferred file is read instead              |            1 |
 
 ### MCP servers, hooks, permissions and env overrides
 
@@ -92,9 +91,9 @@ From the security inventory, which lists every item whether or not an agent load
 
 |                                            | Repositories | Items |
 | ------------------------------------------ | -----------: | ----: |
-| MCP servers                                |           30 |   132 |
-| Local MCP servers (started from a command) |           23 |    97 |
-| Unpinned local MCP servers                 |           20 |    85 |
+| MCP servers                                |           30 |   133 |
+| Local MCP servers (started from a command) |           23 |    98 |
+| Unpinned local MCP servers                 |           20 |    86 |
 | Remote MCP servers (URL)                   |           17 |    35 |
 | Hooks                                      |           28 |   228 |
 | Hooks that fail open                       |           12 |    37 |
@@ -114,8 +113,8 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | Claude Code         |           13 |         378 |  344 |       0 |       27 |            7 |           64 |              0 |
 | Codex               |            2 |           4 |    4 |       0 |        0 |            0 |            4 |              0 |
 | Cursor              |           13 |         378 |  344 |       0 |       27 |            7 |           64 |             58 |
-| Copilot CLI         |           17 |         390 |  380 |       0 |        3 |            7 |           64 |              0 |
-| Copilot in VS Code  |           17 |         390 |  352 |       1 |       30 |            7 |           64 |              0 |
+| Copilot CLI         |           17 |         390 |  380 |       0 |        3 |            7 |           64 |             58 |
+| Copilot in VS Code  |           17 |         390 |  352 |       0 |       30 |            8 |           64 |              0 |
 | Copilot cloud agent |            3 |           8 |    8 |       0 |        0 |            0 |            0 |              0 |
 | Gemini CLI          |            1 |           1 |    1 |       0 |        0 |            0 |            0 |              0 |
 
