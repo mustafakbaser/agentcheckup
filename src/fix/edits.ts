@@ -26,9 +26,9 @@
 import { type Node as JsonNode, parseTree, type ParseError } from 'jsonc-parser';
 import { lineText } from '../core/text.js';
 import { locateFrontmatter, parseFrontmatter } from '../parse/frontmatter.js';
-import { parseJsonWithComments } from '../parse/json.js';
+import { strictJsonTree, stripJsonComments } from '../parse/json.js';
 import type { FrontmatterResult } from '../parse/types.js';
-import type { Artifact, FileChange, Span, TextEdit } from '../core/types.js';
+import type { Artifact, DecodedText, FileChange, Span, TextEdit } from '../core/types.js';
 import { foldPath, pathProblem } from './paths.js';
 import {
   applyEdits,
@@ -1453,15 +1453,57 @@ function jsonText(value: JsonValue, depth = 0): string {
 }
 
 const JSON_TREE_OPTIONS = { disallowComments: false, allowTrailingComma: false };
-const trees = new WeakMap<Artifact, JsonNode | null>();
+const trees = new WeakMap<DecodedText, JsonNode | null>();
+
+/**
+ * What the JSON builders returned, by the decoding of the file and their arguments. A builder
+ * reads nothing of the file but its path and decoded text, and checks its result by parsing the
+ * whole edited file again. `fix` runs the rules in every scan that verifies its fixes, and a file
+ * the fixes leave alone keeps its decoding, so each change is built and checked once.
+ */
+const built = new WeakMap<DecodedText, Map<string, FileChange | undefined>>();
+
+/** Arguments as a key: strings, undefined and numbers JSON has no text for cannot collide. */
+function argumentsKey(args: readonly unknown[]): string {
+  return JSON.stringify(args, (_key, value: unknown) =>
+    typeof value === 'string'
+      ? `s${value}`
+      : value === undefined
+        ? 'u'
+        : typeof value === 'number' && !Number.isFinite(value)
+          ? `n${String(value)}`
+          : value,
+  );
+}
+
+function builtOnce(
+  artifact: Artifact,
+  args: readonly unknown[],
+  build: () => FileChange | undefined,
+): FileChange | undefined {
+  let changes = built.get(artifact.decoded);
+  if (changes === undefined) {
+    changes = new Map();
+    built.set(artifact.decoded, changes);
+  }
+  const key = argumentsKey([artifact.path, ...args]);
+  if (changes.has(key)) return changes.get(key);
+  const change = build();
+  changes.set(key, change);
+  return change;
+}
 
 /**
  * The jsonc-parser tree of a text that parses as JSON once comments are removed (as Gemini CLI
- * reads settings). The parse in src/parse/json.ts goes first: it bounds size and nesting, so the
- * recursive tree builder cannot overflow the stack.
+ * reads settings). The check in src/parse/json.ts goes first: it bounds size and nesting, so the
+ * recursive tree builder cannot overflow the stack. A text without comments then has its tree
+ * already: the strict parse rejects comments, and nothing else differs.
  */
 function treeOf(text: string): JsonNode | undefined {
-  if (!parseJsonWithComments(text).ok) return undefined;
+  const stripped = stripJsonComments(text);
+  const strict = strictJsonTree(stripped);
+  if (strict === undefined) return undefined;
+  if (stripped === text) return strict;
   try {
     const errors: ParseError[] = [];
     const root = parseTree(text, errors, JSON_TREE_OPTIONS);
@@ -1472,10 +1514,10 @@ function treeOf(text: string): JsonNode | undefined {
 }
 
 function artifactTree(artifact: Artifact): JsonNode | undefined {
-  const cached = trees.get(artifact);
+  const cached = trees.get(artifact.decoded);
   if (cached !== undefined) return cached ?? undefined;
   const root = treeOf(artifact.decoded.text);
-  trees.set(artifact, root ?? null);
+  trees.set(artifact.decoded, root ?? null);
   return root;
 }
 
@@ -1577,6 +1619,18 @@ export function jsonInsertProperty(
   value: JsonValue,
   options: JsonInsertOptions = {},
 ): FileChange | undefined {
+  return builtOnce(artifact, ['insert', objectPath, key, value, options.position], () =>
+    insertProperty(artifact, objectPath, key, value, options),
+  );
+}
+
+function insertProperty(
+  artifact: Artifact,
+  objectPath: JsonPath,
+  key: string,
+  value: JsonValue,
+  options: JsonInsertOptions,
+): FileChange | undefined {
   const root = artifactTree(artifact);
   const object = root === undefined ? undefined : nodeAt(root, objectPath)?.value;
   if (object?.type !== 'object' || countKey(object, key) > 0) return undefined;
@@ -1675,6 +1729,16 @@ export function jsonRemoveProperty(
   path: JsonPath,
   options: JsonRemoveOptions = {},
 ): FileChange | undefined {
+  return builtOnce(artifact, ['remove', path, options.keyOffset], () =>
+    removeProperty(artifact, path, options),
+  );
+}
+
+function removeProperty(
+  artifact: Artifact,
+  path: JsonPath,
+  options: JsonRemoveOptions,
+): FileChange | undefined {
   const key = path.at(-1);
   const root = artifactTree(artifact);
   if (typeof key !== 'string' || root === undefined) return undefined;
@@ -1722,6 +1786,10 @@ export function jsonRenameKey(
   path: JsonPath,
   newKey: string,
 ): FileChange | undefined {
+  return builtOnce(artifact, ['rename', path, newKey], () => renameKey(artifact, path, newKey));
+}
+
+function renameKey(artifact: Artifact, path: JsonPath, newKey: string): FileChange | undefined {
   const key = path.at(-1);
   const root = artifactTree(artifact);
   if (typeof key !== 'string' || root === undefined) return undefined;
@@ -1748,6 +1816,14 @@ export function jsonRenameKey(
  * not parse or the value is absent.
  */
 export function jsonReplaceValue(
+  artifact: Artifact,
+  path: JsonPath,
+  value: JsonValue,
+): FileChange | undefined {
+  return builtOnce(artifact, ['replace', path, value], () => replaceValue(artifact, path, value));
+}
+
+function replaceValue(
   artifact: Artifact,
   path: JsonPath,
   value: JsonValue,

@@ -7,6 +7,7 @@
  *
  * Plain string scanning, linear in the line length: every inner scan is bounded.
  */
+import type { DecodedText } from '../../core/types.js';
 import { negatesRunning } from './command-context.js';
 import { wordTokens } from './english.js';
 
@@ -423,4 +424,29 @@ export function findRemoteExecutionInLine(
     open = -1;
   }
   return undefined;
+}
+
+/** Most matches kept per file: a hostile file can hold one on every line. */
+const MAX_KEPT_LINES = 1024;
+const BY_LINE = new WeakMap<DecodedText, ReadonlyMap<number, RemoteExecution>>();
+
+/**
+ * {@link findRemoteExecutionInLine} for every line of a decoded file, by line index, for the lines
+ * with a match. Kept per decoding, unless there are more than {@link MAX_KEPT_LINES}: two rules
+ * ask, in every scan that `fix` runs to verify its fixes, and a file the fixes leave alone keeps
+ * its decoding.
+ */
+export function remoteExecutionsByLine(decoded: DecodedText): ReadonlyMap<number, RemoteExecution> {
+  const kept = BY_LINE.get(decoded);
+  if (kept !== undefined) return kept;
+  const { text, lineStarts } = decoded;
+  const matches = new Map<number, RemoteExecution>();
+  for (let line = 0; line < lineStarts.length; line++) {
+    const start = lineStarts[line] ?? 0;
+    const end = lineStarts[line + 1] ?? text.length;
+    const match = findRemoteExecutionInLine(text, start, end);
+    if (match !== undefined) matches.set(line, match);
+  }
+  if (matches.size <= MAX_KEPT_LINES) BY_LINE.set(decoded, matches);
+  return matches;
 }

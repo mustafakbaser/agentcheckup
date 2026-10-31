@@ -134,7 +134,10 @@ export const timeoutUnitsRule = defineRule({
         if (typeof timeout !== 'number') continue;
         const message = describeTimeout(platform, timeout);
         if (message === undefined) continue;
-        const fix = fixable ? fixFor(artifact, platform, [...path, 'timeout'], timeout) : undefined;
+        const fix =
+          fixable && findings.listsNext
+            ? fixFor(artifact, platform, [...path, 'timeout'], timeout)
+            : undefined;
         findings.report({
           artifact,
           ...at(spanOf(doc, [...path, 'timeout'])),

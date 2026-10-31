@@ -10,7 +10,7 @@ import { mcpServers } from '../mcp/servers.js';
 import { SOURCES } from '../sources.js';
 import {
   findRemoteExecution,
-  findRemoteExecutionInLine,
+  remoteExecutionsByLine,
   type RemoteExecution,
 } from './remote-script.js';
 import { CommandContext } from './command-context.js';
@@ -137,11 +137,7 @@ export const remoteScriptExecutionRule = defineRule({
       let skipped = 0;
       let firstSkipped: RemoteExecution | undefined;
       let prose: CommandContext | undefined;
-      for (let line = 0; line < lineStarts.length; line++) {
-        const start = lineStarts[line] ?? 0;
-        const end = lineStarts[line + 1] ?? text.length;
-        const match = findRemoteExecutionInLine(text, start, end);
-        if (match === undefined) continue;
+      for (const [line, match] of remoteExecutionsByLine(artifact.decoded)) {
         prose ??= new CommandContext(text, lineStarts, context.markdown(artifact));
         if (prose.suppression(line, match.offset) !== undefined) continue;
         if (reported === MAX_REMOTE_FINDINGS) {

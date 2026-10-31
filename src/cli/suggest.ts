@@ -93,7 +93,13 @@ export async function suggest(options: FixCommandOptions, io: Io): Promise<ExitC
   const directory = await checkRoot(resolve(io.cwd, options.path));
   const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
-  const snapshot = await walk(root, { respectGitignore: true, scanIgnoredAgentConfig: true });
+  // The walk's import pass and the fix rounds share their parses.
+  const parseCache = createParseCache();
+  const snapshot = await walk(root, {
+    respectGitignore: true,
+    scanIgnoredAgentConfig: true,
+    parseCache,
+  });
   await checkOutput(options, io, directory, snapshot);
   const selection: FixSelection = {
     classes: new Set(['safe']),
@@ -102,7 +108,7 @@ export async function suggest(options: FixCommandOptions, io: Io): Promise<ExitC
   };
   const run = fixRounds(
     snapshot,
-    { ...scanOptionsFor(options, config, options.targets), parseCache: createParseCache() },
+    { ...scanOptionsFor(options, config, options.targets), parseCache },
     selection,
     1,
   );

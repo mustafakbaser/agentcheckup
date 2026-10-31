@@ -97,7 +97,7 @@ export const urlWithoutTypeRule = defineRule({
       }, 'servers with a "url" but no "type"');
       for (const server of mcpServers(artifact, doc)) {
         if (!urlWithoutType(server.config)) continue;
-        const fix = canEdit ? fixFor(artifact, server) : undefined;
+        const fix = canEdit && findings.listsNext ? fixFor(artifact, server) : undefined;
         findings.report({
           artifact,
           ...at(keySpanOf(doc, server.path)),

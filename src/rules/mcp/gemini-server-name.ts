@@ -69,7 +69,8 @@ export const geminiServerNameRule = defineRule({
         if (!server.name.includes('_')) continue;
         const renamed = server.name.replaceAll('_', '-');
         const listed = namedElsewhere(doc.value, server.name);
-        const fix = canEdit && !listed ? fixFor(artifact, server, renamed) : undefined;
+        const fix =
+          canEdit && !listed && findings.listsNext ? fixFor(artifact, server, renamed) : undefined;
         const guidance = !canEdit
           ? sharedFileGuidance(artifact)
           : listed

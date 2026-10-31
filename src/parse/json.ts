@@ -382,6 +382,24 @@ export function parseJson(text: string): JsonDocument {
 }
 
 /**
+ * The tree `parseJson(text)` builds its value from when that parse is `ok`, else undefined: the
+ * same limits and parser, without the value, the warnings and the locator, which add no failure
+ * once the tree parses within the nesting limit. For checks that run once per edit, such as a fix
+ * builder's check of its result. Never throws on any input.
+ */
+export function strictJsonTree(text: string): JsonNode | undefined {
+  if (text.length > MAX_JSON_LENGTH) return undefined;
+  try {
+    if (tooDeepAt(text) !== -1) return undefined;
+    const errors: ParseError[] = [];
+    const root = parseTree(text, errors, PARSE_OPTIONS);
+    return errors.length > 0 ? undefined : root;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Parses JSON with comments (`//` and `/* *\/`) and trailing commas, the JSONC that VS Code
  * reads its configuration files as, `.vscode/mcp.json` among them (SOURCES.vscodeMcp). Spans
  * refer to the original text. Never throws on any input.

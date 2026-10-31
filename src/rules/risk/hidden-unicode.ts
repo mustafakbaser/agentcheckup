@@ -14,7 +14,7 @@ import { editable, mergeEdits, sharedFileGuidance } from '../json/fix-support.js
 import { codePointLabel, formatInteger, joinNames, quote } from '../shared/format.js';
 import { SOURCES } from '../sources.js';
 import { RISK_SOURCES } from './sources.js';
-import { type HiddenRun, scanHidden } from './unicode.js';
+import { type HiddenRun, hiddenRuns } from './unicode.js';
 
 /** Findings reported per file before the rest are summarized in one finding. */
 export const MAX_HIDDEN_FINDINGS = 20;
@@ -115,19 +115,19 @@ function deletion(text: string, run: HiddenRun): Span {
 function deletionFix(artifact: Artifact): Fix | undefined {
   const { text } = artifact.decoded;
   const spans: Span[] = [];
-  // An object, so the flow analysis sees the callback's writes.
-  const seen = { runs: 0, bidi: 0, bidiPastCap: false };
-  scanHidden(text, (run) => {
-    seen.runs++;
+  let runs = 0;
+  let bidi = 0;
+  let bidiPastCap = false;
+  for (const run of hiddenRuns(artifact.decoded)) {
+    runs++;
     if (run.kind === 'bidi') {
-      seen.bidi++;
-      if (seen.runs > MAX_HIDDEN_FINDINGS) seen.bidiPastCap = true;
-      return;
+      bidi++;
+      if (runs > MAX_HIDDEN_FINDINGS) bidiPastCap = true;
+      continue;
     }
     if (spans.length <= MAX_DELETED_RUNS) spans.push(deletion(text, run));
-  });
-  const { bidi } = seen;
-  if (spans.length === 0 || spans.length > MAX_DELETED_RUNS || seen.bidiPastCap) return undefined;
+  }
+  if (spans.length === 0 || spans.length > MAX_DELETED_RUNS || bidiPastCap) return undefined;
   const change = mergeEdits(
     artifact,
     spans.map((span) => replaceSpan(artifact, span, '')),
@@ -193,7 +193,7 @@ export const hiddenUnicodeRule = defineRule({
       const fix = canEdit ? deletionFix(artifact) : undefined;
       let reported = 0;
       let extra: { first: HiddenRun; count: number; severity: Severity } | undefined;
-      scanHidden(artifact.decoded.text, (run) => {
+      for (const run of hiddenRuns(artifact.decoded)) {
         if (reported < MAX_HIDDEN_FINDINGS) {
           reported++;
           const guidance =
@@ -211,12 +211,12 @@ export const hiddenUnicodeRule = defineRule({
             ...(fix === undefined || run.kind === 'bidi' ? {} : { fix }),
             ...(guidance === undefined ? {} : { guidance }),
           });
-          return;
+          continue;
         }
         extra ??= { first: run, count: 0, severity: run.severity };
         extra.count++;
         if (RANK[run.severity] > RANK[extra.severity]) extra.severity = run.severity;
-      });
+      }
       if (extra !== undefined) {
         context.report({
           artifact,

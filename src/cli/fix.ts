@@ -120,9 +120,13 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
   const directory = await checkRoot(resolve(io.cwd, options.path));
   const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
+  // Every scan of the run (rounds, -i's second pass, the scan from disk) and the import passes
+  // of its walks share the parses.
+  const parseCache = createParseCache();
   const walkOptions: WalkOptions = {
     respectGitignore: true,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   };
   const session: Session = {
     options,
@@ -132,11 +136,7 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
     style: styleFor(options, io),
     snapshot: await walk(root, walkOptions),
     walkOptions,
-    // Every scan of the run (rounds, -i's second pass, the scan from disk) shares the parses.
-    scanOptions: {
-      ...scanOptionsFor(options, config, options.targets),
-      parseCache: createParseCache(),
-    },
+    scanOptions: { ...scanOptionsFor(options, config, options.targets), parseCache },
   };
 
   const selection: FixSelection = {

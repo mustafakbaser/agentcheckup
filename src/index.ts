@@ -2,6 +2,7 @@
  * Programmatic API. Pre-1.0: may change in minor versions; see CHANGELOG.md.
  */
 import { resolveConfig, type ResolvedConfig } from './core/config.js';
+import { createParseCache } from './core/parse-cache.js';
 import {
   type ContextOptions,
   type ScanOptions,
@@ -29,11 +30,14 @@ export interface ScanDirectoryOptions {
 
 /** Scans a directory with the built-in rules. */
 export async function scan(root: string, options: ScanDirectoryOptions = {}): Promise<ScanResult> {
-  const snapshot = await walk(root, options.walk);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = options.walk?.parseCache ?? createParseCache();
+  const snapshot = await walk(root, { ...options.walk, parseCache });
   const config: ResolvedConfig | undefined =
     options.config === undefined ? undefined : resolveConfig(options.config);
   const scanOptions: ScanOptions = {
     rules: builtinRules,
+    parseCache,
     ...(config ? { config } : {}),
     ...(options.targets ? { targets: options.targets } : {}),
     ...(options.trustDirectives === undefined ? {} : { trustDirectives: options.trustDirectives }),

@@ -60,6 +60,15 @@ export class FileFindings {
     this.#what = what;
   }
 
+  /**
+   * True while the next finding is listed with its fix. Past the cap a finding only counts toward
+   * the summary, which has no fix, so build a fix only when this is true: each JSON fix parses
+   * the whole file again to check itself, and a hostile file holds thousands of entries.
+   */
+  get listsNext(): boolean {
+    return this.#count < MAX_FINDINGS_PER_FILE;
+  }
+
   report(descriptor: ReportDescriptor): void {
     if (this.#count < MAX_FINDINGS_PER_FILE) {
       this.#count++;

@@ -11,6 +11,7 @@ import {
   type ScanResult,
   scanWithContext,
 } from '../core/engine.js';
+import { createParseCache } from '../core/parse-cache.js';
 import { rebaseResult } from '../core/rebase.js';
 import { ruleDocsUrl } from '../core/meta.js';
 import { PLATFORM_IDS, type RuleMeta, SEVERITIES, type Snapshot } from '../core/types.js';
@@ -330,12 +331,15 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
   const policy = await loadPolicy(options.policy, root, io.cwd);
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = createParseCache();
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   });
   await checkOutput(options, io, directory, snapshot);
-  const scanOptions = scanOptionsFor(options, config, options.targets);
+  const scanOptions = { ...scanOptionsFor(options, config, options.targets), parseCache };
   // Human-readable reports show what each agent misses, from the root load plans (cheap: no
   // matrix). `--compact` shows findings only, and JSON, SARIF and the badge add plans only with
   // --context.
@@ -403,9 +407,12 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = createParseCache();
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
   await checkOutput(options, io, directory, snapshot);
@@ -432,6 +439,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   };
   const scanned = scanWithContext(snapshot, {
     ...scanOptionsFor(options, config, targets),
+    parseCache,
     ...contextOptions,
   });
   const result = rebaseResult(
@@ -473,9 +481,12 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
   const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = createParseCache();
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
   await checkOutput(options, io, directory, snapshot);
@@ -496,6 +507,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
       : [...new Set([...configured, ...agents.map((agent) => CONTEXT_PLATFORM[agent])])];
   const scanned = scanWithContext(snapshot, {
     ...scanOptionsFor(options, config, targets),
+    parseCache,
     agents,
     cwd: options.cwd,
     startDirectories: options.byDirectory,
@@ -542,9 +554,12 @@ async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> 
   const root = directory.path;
   const baseline = await loadBaseline(options.baseline, io.cwd);
   const config = await loadConfig(options, root, io.cwd);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = createParseCache();
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   });
   await checkOutput(options, io, directory, snapshot);
   const configured = config?.targets ?? PLATFORM_IDS;
@@ -554,7 +569,10 @@ async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> 
     options.agents === undefined
       ? undefined
       : [...new Set([...configured, ...options.agents.map((agent) => CONTEXT_PLATFORM[agent])])];
-  const scanned = scanSnapshot(snapshot, scanOptionsFor(options, config, targets));
+  const scanned = scanSnapshot(snapshot, {
+    ...scanOptionsFor(options, config, targets),
+    parseCache,
+  });
   const narrowed: ScanResult = {
     ...scanned,
     agents: selectAgents(scanned.agents ?? { definitions: [], settings: [] }, selected),

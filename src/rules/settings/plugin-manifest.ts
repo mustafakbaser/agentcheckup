@@ -10,6 +10,7 @@ import {
   isObject,
   type JsonObject,
   type JsonPath,
+  MAX_FINDINGS_PER_FILE,
   own,
   type ParsedJson,
   projectRootOf,
@@ -386,8 +387,10 @@ export const pluginManifestRule = defineRule({
         for (const entry of pathEntries(valueAt(root, keyPath), keyPath, component)) {
           const problem = checkPath(entry, component, pluginRoot, status);
           if (problem === undefined) continue;
+          // Problems are listed in this order, those past the cap without their fixes.
+          const listed = problems.length < MAX_FINDINGS_PER_FILE;
           const fix =
-            canEdit && !entry.value.startsWith('./')
+            canEdit && listed && !entry.value.startsWith('./')
               ? prefixFix(artifact, entry, component, pluginRoot, status, review)
               : undefined;
           problems.push({

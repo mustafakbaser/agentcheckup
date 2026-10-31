@@ -364,7 +364,7 @@ export const envSyntaxMismatchRule = defineRule({
                 ? emptyInRemote(item.value, unbraced)
                 : undefined;
             const fix =
-              canEdit && empty === undefined
+              canEdit && empty === undefined && findings.listsNext
                 ? fixFor(artifact, item, platform, unbraced)
                 : undefined;
             const guidance = !canEdit

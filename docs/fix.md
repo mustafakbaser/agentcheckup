@@ -420,6 +420,10 @@ scan from disk after it, a signal ends `fix` at once: it is not changing anythin
 - At most 3 rounds per run.
 - At most 1,000 fixes per run.
 - At most 1 MiB per written file.
+- At most 100 JSON fixes per rule and file: the JSON, MCP, hooks and settings rules list at
+  most 100 findings in a file, sum up the rest in one finding without a fix, and build fixes for
+  the listed findings only. Each JSON fix parses the whole file again to check its result, so a
+  file with thousands of entries does not make a scan parse it thousands of times.
 
 A fix past a limit is listed as `skipped: past a limit of this run`; run `fix` again for the
 rest. Text copied from the repository, such as a skill description, is one line of at most 200

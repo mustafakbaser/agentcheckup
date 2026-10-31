@@ -274,13 +274,25 @@ export function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
+const ROUND_TRIPS = new WeakMap<
+  DecodedText,
+  { readonly bytes: Uint8Array; readonly result: boolean }
+>();
+
 /**
  * True when the file decoded without errors and encoding its text again gives its bytes back:
- * the only files a fix may edit (docs/adr/0008-write-fixes-to-the-scanned-repository.md).
+ * the only files a fix may edit (docs/adr/0008-write-fixes-to-the-scanned-repository.md). Known
+ * per decoding of the same bytes: rules ask in every scan that `fix` runs to verify its fixes,
+ * and a file the fixes leave alone keeps its bytes and its decoding.
  */
 export function roundTrips(bytes: Uint8Array, decoded: DecodedText): boolean {
-  if (decoded.hadDecodeErrors) return false;
-  return sameBytes(encodeText(decoded.text, decoded.encoding, decoded.hasBom), bytes);
+  const known = ROUND_TRIPS.get(decoded);
+  if (known?.bytes === bytes) return known.result;
+  const result =
+    !decoded.hadDecodeErrors &&
+    sameBytes(encodeText(decoded.text, decoded.encoding, decoded.hasBom), bytes);
+  ROUND_TRIPS.set(decoded, { bytes, result });
+  return result;
 }
 
 /**

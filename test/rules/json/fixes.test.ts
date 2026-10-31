@@ -5,7 +5,8 @@ import { duplicateKeyRule } from '../../../src/rules/json/duplicate-key.js';
 import { lint } from '../../helpers/lint.js';
 import { invalidSyntaxRule } from '../../../src/rules/json/invalid-syntax.js';
 import { urlWithoutTypeRule } from '../../../src/rules/mcp/url-without-type.js';
-import { MAX_FINDINGS_PER_FILE } from '../../../src/rules/json/access.js';
+import { FileFindings, MAX_FINDINGS_PER_FILE } from '../../../src/rules/json/access.js';
+import type { ReportDescriptor } from '../../../src/core/types.js';
 import { applied, checkGolden, fixesOf, goldenCases, readTree } from './golden-fixes.js';
 import { json } from './helpers.js';
 
@@ -157,5 +158,19 @@ describe('FileFindings', () => {
     expect(fixes).toHaveLength(MAX_FINDINGS_PER_FILE + 1);
     expect(fixes.slice(0, -1).every((fix) => fix !== undefined)).toBe(true);
     expect(fixes.at(-1)).toBeUndefined();
+  });
+
+  it('tells rules to build fixes only for the findings it lists', () => {
+    const reported: string[] = [];
+    const findings = new FileFindings((descriptor) => reported.push(descriptor.message), 'items');
+    const lists: boolean[] = [];
+    for (let i = 0; i < MAX_FINDINGS_PER_FILE + 2; i++) {
+      lists.push(findings.listsNext);
+      findings.report({ message: `finding ${String(i)}` } as ReportDescriptor);
+    }
+    findings.finish();
+    expect(lists.filter(Boolean)).toHaveLength(MAX_FINDINGS_PER_FILE);
+    expect(lists.slice(MAX_FINDINGS_PER_FILE)).toEqual([false, false]);
+    expect(reported).toHaveLength(MAX_FINDINGS_PER_FILE + 1);
   });
 });

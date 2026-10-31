@@ -121,7 +121,9 @@ export const insecureTransportRule = defineRule({
           const path = [...server.path, field];
           // No fix builder edits TOML.
           const fix =
-            canEdit && !toml ? secureFix(artifact, server.name, path, value, secure) : undefined;
+            canEdit && !toml && findings.listsNext
+              ? secureFix(artifact, server.name, path, value, secure)
+              : undefined;
           const guidance = !canEdit
             ? sharedFileGuidance(artifact)
             : toml

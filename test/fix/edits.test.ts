@@ -752,6 +752,24 @@ describe('JSON', () => {
     return change === undefined ? undefined : edited(artifact, change);
   };
 
+  it('builds and checks a change once per decoding, path and arguments', () => {
+    const { artifact } = artifactOf('.mcp.json', SERVER);
+    const insert = (a: typeof artifact, value: string) =>
+      jsonInsertProperty(a, ['mcpServers', 'docs'], 'type', value, { position: 'first' });
+    const first = insert(artifact, 'http');
+    expect(first).toBeDefined();
+    // Another scan's artifact of the same unchanged file shares the decoding.
+    expect(insert({ ...artifact }, 'http')).toBe(first);
+    expect(insert(artifact, 'sse')).not.toEqual(first);
+    expect(jsonInsertProperty(artifact, ['mcpServers', 'docs'], 'type', 'http')).not.toEqual(first);
+    // A path is part of the change, so another path gets its own.
+    const moved = insert({ ...artifact, path: 'pkg/.mcp.json' }, 'http');
+    expect(moved?.kind === 'edit' ? moved.path : undefined).toBe('pkg/.mcp.json');
+    // An absent object stays without a change, also the second time.
+    expect(jsonReplaceValue(artifact, ['missing'], 1)).toBeUndefined();
+    expect(jsonReplaceValue(artifact, ['missing'], 1)).toBeUndefined();
+  });
+
   it('inserts a property first or last, matching the indentation', () => {
     expect(
       json(SERVER, (a) =>

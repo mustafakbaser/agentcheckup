@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hiddenUnicodeRule, MAX_HIDDEN_FINDINGS } from '../../../src/rules/risk/hidden-unicode.js';
+import { hiddenKind, mayHide } from '../../../src/rules/risk/unicode.js';
 import { findings, lint } from '../../helpers/lint.js';
 
 const ID = 'risk/hidden-unicode';
@@ -327,5 +328,30 @@ describe('risk/hidden-unicode in Codex config.toml', () => {
       run({ '.codex/config.toml': text }).map((found) => [found.severity, found.path]),
     ).toEqual([['error', '.codex/config.toml']]);
     expect(run({ '.codex/config.toml': 'developer_instructions = "Be careful."\n' })).toEqual([]);
+  });
+});
+
+describe('the hidden-character prefilter', () => {
+  it('matches every code point that hiddenKind classifies, and only four others', () => {
+    const missed: number[] = [];
+    const extra: number[] = [];
+    for (let point = 0; point <= 0x10ffff; point++) {
+      const classified = hiddenKind(point) !== undefined;
+      const matched = mayHide(String.fromCodePoint(point));
+      if (classified && !matched) missed.push(point);
+      if (matched && !classified) extra.push(point);
+    }
+    expect(missed).toEqual([]);
+    // The Mongolian free variation selectors: such text is scanned, and nothing is reported.
+    expect(extra).toEqual([0x180b, 0x180c, 0x180d, 0x180f]);
+  });
+
+  it('lets text without such code points through unscanned, and finds them anywhere else', () => {
+    const plain = `Plain text, Türkçe, ${cp(0x5e2, 0x5d1)}, ${cp(0x1f600)} and ${cp(0x1f3f4)}.\n`;
+    expect(mayHide(plain)).toBe(false);
+    for (const hidden of [ZWSP, BOM, VS16, RLO, cp(0xe0041), cp(0xe0100), cp(0x180e)]) {
+      expect(mayHide(`${plain}${hidden}`)).toBe(true);
+      expect(mayHide(`${hidden}${plain}`)).toBe(true);
+    }
   });
 });

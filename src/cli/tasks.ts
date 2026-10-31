@@ -6,6 +6,7 @@
  */
 import { relative, resolve, sep } from 'node:path';
 import { analyze, runRules } from '../core/engine.js';
+import { createParseCache } from '../core/parse-cache.js';
 import { checkRoot, walk } from '../io/walk.js';
 import { forTerminal, guardWorkflowCommands } from '../report/sanitize.js';
 import { formatTasksJson } from '../report/tasks-json.js';
@@ -42,12 +43,15 @@ export async function tasks(options: TasksCommandOptions, io: Io): Promise<ExitC
   const directory = await checkRoot(resolve(io.cwd, options.path));
   const root = directory.path;
   const config = await loadConfig(options, root, io.cwd);
+  // The walk's import pass and the scan share their parses.
+  const parseCache = createParseCache();
   const snapshot = await walk(root, {
     respectGitignore: true,
     scanIgnoredAgentConfig: options.untrusted,
+    parseCache,
   });
   await checkOutput(options, io, directory, snapshot);
-  const scanOptions = scanOptionsFor(options, config, undefined);
+  const scanOptions = { ...scanOptionsFor(options, config, undefined), parseCache };
   const analysis = analyze(snapshot, scanOptions);
   const result = runRules(analysis, scanOptions);
   for (const warning of result.configWarnings) io.stderr(`Warning: ${forTerminal(warning)}\n`);

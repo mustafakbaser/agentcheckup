@@ -17,12 +17,28 @@ export interface InjectedCommand {
 const isBlank = (char: string | undefined): boolean =>
   char === undefined || char === ' ' || char === '\t' || char === '\n' || char === '\r';
 
+const INJECTED = new WeakMap<
+  Nodes,
+  { readonly text: string; readonly commands: readonly InjectedCommand[] }
+>();
+
 /**
  * Finds the documented forms: `` !`command` `` where `!` starts a line or follows whitespace,
  * and fenced code blocks opened with ```` ```! ````. Commands inside other code blocks are not
  * the documented syntax and are left out.
+ *
+ * Found once per parsed document: three rules ask, in every scan that `fix` runs to verify its
+ * fixes, and a file the fixes leave alone keeps its parse.
  */
-export function injectedCommands(text: string, root: Nodes): InjectedCommand[] {
+export function injectedCommands(text: string, root: Nodes): readonly InjectedCommand[] {
+  const cached = INJECTED.get(root);
+  if (cached?.text === text) return cached.commands;
+  const commands = findInjectedCommands(text, root);
+  INJECTED.set(root, { text, commands });
+  return commands;
+}
+
+function findInjectedCommands(text: string, root: Nodes): InjectedCommand[] {
   const found: InjectedCommand[] = [];
   const stack: Nodes[] = [root];
   for (let node = stack.pop(); node !== undefined; node = stack.pop()) {

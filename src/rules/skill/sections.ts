@@ -24,8 +24,8 @@ import { foldPath } from '../../fix/paths.js';
 import { applyEdits } from '../../fix/text.js';
 import type { MarkdownDocument } from '../../parse/types.js';
 import { classify } from '../../platforms/classify.js';
-import { findRemoteExecutionInLine } from '../risk/remote-script.js';
-import { scanHidden } from '../risk/unicode.js';
+import { remoteExecutionsByLine } from '../risk/remote-script.js';
+import { hiddenRuns } from '../risk/unicode.js';
 import { relativeLinkPath } from './broken-reference.js';
 import { hasNonAsciiLetters } from './fixes.js';
 import { injectedCommands } from './shell-preprocessing.js';
@@ -198,7 +198,14 @@ function placeholderSpans(text: string, from: number, argumentNames: readonly st
   return spans;
 }
 
-function collectPins(input: SplitInput): Pins {
+/** The pins that the text and its parse decide, and the headings links to this file can name. */
+interface TextPins {
+  readonly spans: readonly Span[];
+  /** Offsets of the headings by {@link anchorKey}. */
+  readonly headings: ReadonlyMap<string, readonly number[]>;
+}
+
+function textPins(input: SplitInput): TextPins {
   const { artifact, doc, bodyStart, argumentNames } = input;
   const { text, lineStarts } = artifact.decoded;
   const spans: Span[] = [];
@@ -206,14 +213,13 @@ function collectPins(input: SplitInput): Pins {
   for (const injected of injectedCommands(text, doc.root)) spans.push(injected.span);
   spans.push(...placeholderSpans(text, bodyStart, argumentNames));
   for (const comment of doc.htmlComments) spans.push(comment.span);
-  scanHidden(text, (run) => spans.push(run.span));
+  for (const run of hiddenRuns(artifact.decoded)) spans.push(run.span);
   for (let i = bodyStart; i < text.length; i++) {
     if (BIDI_MARKS.has(text.charCodeAt(i))) spans.push({ offset: i, length: 1 });
   }
-  for (const [index, start] of lineStarts.entries()) {
-    if (start < bodyStart) continue;
-    const match = findRemoteExecutionInLine(text, start, lineStarts[index + 1] ?? text.length);
-    if (match !== undefined) spans.push({ offset: match.offset, length: match.length });
+  for (const [line, match] of remoteExecutionsByLine(artifact.decoded)) {
+    if ((lineStarts[line] ?? 0) < bodyStart) continue;
+    spans.push({ offset: match.offset, length: match.length });
   }
 
   const headings = new Map<string, number[]>();
@@ -238,7 +244,14 @@ function collectPins(input: SplitInput): Pins {
     }
     if ('children' in node) for (const child of node.children) stack.push(child);
   }
+  return { spans, headings };
+}
 
+/** Every pin: those of the text, and those links add where the file sits in the snapshot. */
+function collectPins(input: SplitInput, text: TextPins): Pins {
+  const { artifact, doc } = input;
+  const spans = [...text.spans];
+  const { headings } = text;
   const fileName = artifact.path.slice(artifact.path.lastIndexOf('/') + 1);
   const directory = dirnamePosix(artifact.path);
   const fragments: FragmentPair[] = [];
@@ -446,17 +459,68 @@ function splitAt(
  * Undefined when the Markdown was not analyzed completely or no such split fits.
  */
 export function splitBody(input: SplitInput): BodySplit | undefined {
-  const { artifact, doc, bodyStart, limits } = input;
+  const { doc, limits } = input;
   if (!doc.analysis.complete) return undefined;
-  const before = measure(artifact.decoded.text, bodyStart);
+  const plan = textPlan(input);
+  const { before, headings, depth } = plan;
   if (fits(before, limits)) return undefined;
-  const headings = topHeadings(doc);
-  const depth = splitDepth(headings);
   if (depth === undefined) return undefined;
-  const pins = collectPins(input);
+  plan.pins ??= textPins(input);
+  const pins = collectPins(input, plan.pins);
   for (const level of depth < 6 ? [depth, depth + 1] : [depth]) {
-    const split = splitAt(input, sectionsAt(input, headings, level), pins, before);
+    let sections = plan.sections.get(level);
+    if (sections === undefined) {
+      sections = sectionsAt(input, headings, level);
+      plan.sections.set(level, sections);
+    }
+    const split = splitAt(input, sections, pins, before);
     if (split !== undefined) return split;
   }
   return undefined;
+}
+
+/**
+ * What {@link splitBody} works out from the text, its parse, the body's start and the declared
+ * argument names alone, and keeps per parsed document: `fix` runs the rule in every scan that
+ * verifies its fixes, and a file the fixes leave alone keeps its parse. Names, links and the
+ * edits depend on the snapshot and are worked out in each scan.
+ */
+interface TextPlan {
+  readonly text: string;
+  readonly bodyStart: number;
+  readonly argumentNames: string;
+  readonly before: BodySize;
+  readonly headings: readonly TopHeading[];
+  readonly depth: number | undefined;
+  pins?: TextPins;
+  /** The sections at each heading depth tried. */
+  readonly sections: Map<number, readonly Candidate[]>;
+}
+
+const TEXT_PLANS = new WeakMap<MarkdownDocument, TextPlan>();
+
+function textPlan(input: SplitInput): TextPlan {
+  const { artifact, doc, bodyStart } = input;
+  const { text } = artifact.decoded;
+  const argumentNames = JSON.stringify(input.argumentNames);
+  const known = TEXT_PLANS.get(doc);
+  if (
+    known?.text === text &&
+    known.bodyStart === bodyStart &&
+    known.argumentNames === argumentNames
+  ) {
+    return known;
+  }
+  const headings = topHeadings(doc);
+  const plan: TextPlan = {
+    text,
+    bodyStart,
+    argumentNames,
+    before: measure(text, bodyStart),
+    headings,
+    depth: splitDepth(headings),
+    sections: new Map(),
+  };
+  TEXT_PLANS.set(doc, plan);
+  return plan;
 }

@@ -16,6 +16,7 @@
 import { resolve } from 'node:path';
 import { compareStrings } from '../core/compare.js';
 import { analyze, type RuleResult, runRules, type ScanOptions } from '../core/engine.js';
+import { createParseCache } from '../core/parse-cache.js';
 import { pathStatus } from '../core/paths.js';
 import {
   type Finding,
@@ -151,7 +152,13 @@ export async function skill(
   }
 
   // The .gitignore must not hide a skill that agents load from the directory.
-  const snapshot = await walk(root, { respectGitignore: true, scanIgnoredAgentConfig: true });
+  // The walk's import pass and both scans share their parses.
+  const parseCache = createParseCache();
+  const snapshot = await walk(root, {
+    respectGitignore: true,
+    scanIgnoredAgentConfig: true,
+    parseCache,
+  });
   const refusal = existingSkill(snapshot, dir);
   if (refusal !== undefined) {
     io.stderr(`Not installed: ${forTerminal(refusal(shown))}\n`);
@@ -163,7 +170,7 @@ export async function skill(
     path: `${target}/${file.path}`,
     bytes: encoder.encode(file.text),
   }));
-  const scanOptions = scanOptionsFor({ untrusted: false }, undefined, undefined);
+  const scanOptions = { ...scanOptionsFor({ untrusted: false }, undefined, undefined), parseCache };
   const before = scan(snapshot, scanOptions);
   const after = scan(withFiles(snapshot, added), scanOptions);
   const failures = [...before.ruleFailures, ...after.ruleFailures];

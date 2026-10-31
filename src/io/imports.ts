@@ -29,6 +29,7 @@
 import { compareStrings } from '../core/compare.js';
 import { EMPTY_CONFIG } from '../core/config.js';
 import { analyze, buildArtifacts } from '../core/engine.js';
+import type { ParseCache } from '../core/parse-cache.js';
 import type { Artifact, Snapshot, SourceFile } from '../core/types.js';
 import type { ImportDialect } from '../parse/types.js';
 import {
@@ -52,8 +53,9 @@ export const MAX_IMPORTED_BYTES = 8 * 1024 * 1024;
 /**
  * Markdown the planner may parse to find imports, in characters and lines: a quarter of the
  * scan's own budget (SCAN_MARKDOWN_BUDGET, docs/adr/0003), on top of it, because the engine parses
- * the same files again. The largest corpus repository needs about 190 KB for its instruction
- * files. Past it, imports in further files are not followed, and their targets stay unread.
+ * the same files again unless it shares the planner's `parseCache`. The largest corpus repository
+ * needs about 190 KB for its instruction files. Past it, imports in further files are not
+ * followed, and their targets stay unread.
  */
 export const IMPORT_MARKDOWN_BUDGET = 4 * 1024 * 1024;
 export const IMPORT_MARKDOWN_LINE_BUDGET = 150_000;
@@ -92,6 +94,12 @@ export interface ImportPlannerOptions {
    * Default: the import graph's own cap, the one the import rules use.
    */
   readonly maxEdgeVisits?: number;
+  /**
+   * Decoded texts and parses to share with the scan of the finished snapshot. A parse the scan's
+   * own budget would analyze differently is not reused (see ParseCache), so the plan and the scan
+   * are what they are without it.
+   */
+  readonly parseCache?: ParseCache;
 }
 
 /**
@@ -120,6 +128,7 @@ export class ImportPlanner {
     const analysis = analyze(snapshot, {
       markdownBudget: IMPORT_MARKDOWN_BUDGET,
       markdownLineBudget: IMPORT_MARKDOWN_LINE_BUDGET,
+      ...(options.parseCache === undefined ? {} : { parseCache: options.parseCache }),
     });
     this.#index = new Map(analysis.index);
     this.#graph = new ImportGraph(

@@ -19,6 +19,7 @@ import { lstat, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 import { compareStrings } from '../core/compare.js';
+import type { ParseCache } from '../core/parse-cache.js';
 import type {
   SkippedEntry,
   SkipReason,
@@ -82,6 +83,11 @@ export interface WalkOptions {
    * See imports.ts for the caps. Default true.
    */
   followImports?: boolean;
+  /**
+   * Parses for the import pass to share with the scan of the snapshot (`createParseCache`), so
+   * the scan does not decode or parse the files it parsed again. Results are the same without.
+   */
+  parseCache?: ParseCache;
   /** Which files to read. Default: files that `classify()` recognizes. */
   isCandidate?: (relativePosixPath: string) => boolean;
 }
@@ -139,6 +145,7 @@ interface Settings {
   readonly respectGitignore: boolean;
   readonly scanIgnoredAgentConfig: boolean;
   readonly followImports: boolean;
+  readonly parseCache: ParseCache | undefined;
   readonly isCandidate: (relativePosixPath: string) => boolean;
   /**
    * Read candidates ahead of their turn. Only with the default isCandidate, which is pure: a
@@ -156,6 +163,7 @@ function resolveOptions(options: WalkOptions): Settings {
     respectGitignore: options.respectGitignore ?? true,
     scanIgnoredAgentConfig: options.scanIgnoredAgentConfig ?? false,
     followImports: options.followImports ?? true,
+    parseCache: options.parseCache,
     isCandidate: options.isCandidate ?? defaultIsCandidate,
     readAhead: options.isCandidate === undefined,
   };
@@ -974,7 +982,11 @@ class Walker {
    * Read files are marked `imported`; binary ones are skipped as `binary`.
    */
   async readImports(): Promise<void> {
-    const planner = new ImportPlanner(this.snapshot());
+    const { parseCache } = this.#settings;
+    const planner = new ImportPlanner(
+      this.snapshot(),
+      parseCache === undefined ? {} : { parseCache },
+    );
     for (let targets = planner.next(); targets.length > 0; targets = planner.next()) {
       for (const target of targets) planner.done(target, await this.#readImport(target));
     }

@@ -2,7 +2,7 @@
  * Invisible-character scanner for risk/hidden-unicode. Linear in the text length, one pass,
  * bounded memory: decoded payloads are capped and findings past the cap are only counted.
  */
-import type { Severity, Span } from '../../core/types.js';
+import type { DecodedText, Severity, Span } from '../../core/types.js';
 
 export type HiddenKind = 'tag' | 'bidi' | 'zero-width' | 'selector';
 
@@ -167,10 +167,28 @@ function pushDistinct(list: number[], cp: number): void {
 }
 
 /**
+ * The code points {@link hiddenKind} classifies, range by range, and the four Mongolian free
+ * variation selectors (U+180B-U+180D, U+180F), which `\p{Variation_Selector}` adds to its ranges.
+ */
+const HIDDEN_CODE_POINT =
+  /[\u{180E}\u{200B}-\u{200D}\u{202A}-\u{202E}\u{2060}-\u{2064}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}\p{Variation_Selector}]/u;
+
+/**
+ * False when `text` holds no code point {@link hiddenKind} classifies. `scanHidden` reports runs
+ * of such code points only, so it has nothing to visit in such text.
+ */
+export function mayHide(text: string): boolean {
+  return HIDDEN_CODE_POINT.test(text);
+}
+
+/**
  * Finds runs of invisible characters. `visit` is called once per finding in text order, except
  * that a line's bidi finding is emitted when the line ends. Returns nothing; callers cap output.
  */
 export function scanHidden(text: string, visit: (run: HiddenRun) => void): void {
+  // Most files have none of these characters: one pass of the regular expression engine then
+  // replaces the scan code point by code point.
+  if (!mayHide(text)) return;
   let open: OpenRun | undefined;
   let bidi: BidiLine | undefined;
   let lineHasRtl = false;
@@ -285,4 +303,24 @@ export function scanHidden(text: string, visit: (run: HiddenRun) => void): void 
   }
   closeRun(-1);
   closeBidi();
+}
+
+/** Most runs kept per file: a hostile file can hold one run every other character. */
+const MAX_KEPT_RUNS = 1024;
+const NO_RUNS: readonly HiddenRun[] = Object.freeze([]);
+const RUNS = new WeakMap<DecodedText, readonly HiddenRun[]>();
+
+/**
+ * The runs `scanHidden` finds in a decoded file, in its order. Kept per decoding, unless there are
+ * more than {@link MAX_KEPT_RUNS}: three rules ask, in every scan that `fix` runs to verify its
+ * fixes, and a file the fixes leave alone keeps its decoding.
+ */
+export function hiddenRuns(decoded: DecodedText): readonly HiddenRun[] {
+  const kept = RUNS.get(decoded);
+  if (kept !== undefined) return kept;
+  const runs: HiddenRun[] = [];
+  scanHidden(decoded.text, (run) => runs.push(run));
+  if (runs.length === 0) RUNS.set(decoded, NO_RUNS);
+  else if (runs.length <= MAX_KEPT_RUNS) RUNS.set(decoded, runs);
+  return runs;
 }

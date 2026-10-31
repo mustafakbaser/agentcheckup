@@ -177,7 +177,7 @@ export const unknownEventRule = defineRule({
         const { message, suggestion, severity } = unknownEvent(platform, event.name);
         const taken = suggestion !== undefined && declared.has(suggestion);
         const fix =
-          canEdit && !toml && suggestion !== undefined && !taken
+          canEdit && !toml && suggestion !== undefined && !taken && findings.listsNext
             ? fixFor(artifact, platform, event, suggestion)
             : undefined;
         const guidance = !canEdit

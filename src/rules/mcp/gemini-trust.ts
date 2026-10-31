@@ -52,7 +52,7 @@ export const geminiTrustRule = defineRule({
       }, 'trusted servers');
       for (const server of mcpServers(artifact, doc)) {
         if (own(server.config, 'trust') !== true) continue;
-        const fix = canEdit ? fixFor(artifact, server) : undefined;
+        const fix = canEdit && findings.listsNext ? fixFor(artifact, server) : undefined;
         findings.report({
           artifact,
           ...at(keySpanOf(doc, [...server.path, 'trust'])),

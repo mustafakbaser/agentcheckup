@@ -123,7 +123,10 @@ export const failsOpenRule = defineRule({
           continue;
         }
         const field = type === 'http' ? 'url' : 'command';
-        const fix = canEdit ? fixFor(artifact, platform, event, handler, path) : undefined;
+        const fix =
+          canEdit && findings.listsNext
+            ? fixFor(artifact, platform, event, handler, path)
+            : undefined;
         // Codex, Gemini CLI and Devin Local: the message says what to change in the script.
         findings.report({
           artifact,
