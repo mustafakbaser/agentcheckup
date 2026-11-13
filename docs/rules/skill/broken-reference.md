@@ -25,7 +25,7 @@ Fix the path, or move the file into the skill directory.
 
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-11-13
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-11-13
-- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-30
+- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-11-13
 - [Claude API: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), verified, checked 2026-10-30
 
 ## Fix

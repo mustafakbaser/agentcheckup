@@ -113,11 +113,11 @@ describe('assumption phrases', () => {
     expect(defaults.get('copilot-vscode')).toEqual([
       'Local agent harness (assumed)',
       "VS Code's default Copilot harness not modeled",
-      'instruction files on (assumed)',
+      'instruction files on (default)',
       'AGENTS.md on (default)',
       'nested AGENTS.md files off (default)',
-      'CLAUDE.md on (assumed)',
-      'Claude Code hooks off (assumed)',
+      'CLAUDE.md on (default)',
+      'Claude Code hooks off (default)',
       'trusted workspace',
     ]);
     // The heading names the surface already.

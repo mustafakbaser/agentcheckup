@@ -536,8 +536,8 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The Copilot surfaces that read a `.github/agents` file (SOURCES.vscodeCustomAgents etc.). The
- * cloud agent reads the repository's own folder, at the root (SOURCES.copilotCustomAgents).
+ * The Copilot surfaces that read a `.github/agents` file (SOURCES.vscodeCustomAgentFile etc.).
+ * The cloud agent reads the repository's own folder, at the root (SOURCES.copilotCustomAgents).
  */
 function copilotReaders(path: string): ContextAgent[] {
   const place = folderPlace(path, ['.github/agents']);
@@ -587,7 +587,7 @@ const EVIDENCE: Readonly<Record<ContextAgent, readonly SourceKey[]>> = {
   cursor: ['cursorSubagents'],
   gemini: ['geminiSubagents'],
   'copilot-cli': ['copilotCliAgents'],
-  'copilot-vscode': ['vscodeCustomAgents'],
+  'copilot-vscode': ['vscodeCustomAgents', 'vscodeCustomAgentFile'],
   'copilot-cloud': ['copilotCustomAgents'],
   windsurf: ['devinSubagents'],
   cline: [],
@@ -621,7 +621,7 @@ function placeOf(
 
 /**
  * What an agent does with a file that has no frontmatter, in its own folder:
- * - `loads`: Copilot in VS Code, whose header is optional (SOURCES.vscodeCustomAgents); Cursor and
+ * - `loads`: Copilot in VS Code, whose header is optional (SOURCES.vscodeCustomAgentFile); Cursor and
  *   Devin Local, whose fields are all optional, the name taken from the file or its directory
  *   (SOURCES.cursorSubagents, SOURCES.devinSubagents), though neither shows a file without a
  *   header, so unverified.

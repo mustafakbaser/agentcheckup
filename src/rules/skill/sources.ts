@@ -60,7 +60,7 @@ export const SKILL_SOURCES = {
   vscodeSkills: verified(
     'VS Code: Use Agent Skills (GitHub Copilot)',
     'https://code.visualstudio.com/docs/agent-customization/agent-skills',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   copilotAddSkills: verified(
     'GitHub Copilot: Add skills',

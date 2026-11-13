@@ -46,8 +46,8 @@
  * User, account and plugin scopes are listed in `hidden`, never read.
  *
  * VS Code: the plan models the Local harness, an assumption (`vscode.agent_harness`). VS Code's
- * default is now the Copilot harness, which shares the CLI's runtime (SOURCES.vscodeHarnesses);
- * it is not modeled yet.
+ * default is now the Copilot harness, which shares the CLI's runtime, and Local is deprecated, to
+ * be removed by February 2027 (SOURCES.vscodeHarnesses); the Copilot harness is not modeled yet.
  */
 import { compareStrings } from '../../core/compare.js';
 import type { ResolvedConfig } from '../../core/config.js';
@@ -155,17 +155,17 @@ type Evidence = readonly (keyof typeof SOURCES)[];
 
 const INSTRUCTIONS: Readonly<Record<Surface, Evidence>> = {
   cli: ['copilotCliInstructions'],
-  vscode: ['vscodeInstructions'],
+  vscode: ['vscodeInstructions', 'vscodeInstructionsReference'],
   cloud: ['copilotRepoInstructions', 'copilotInstructionsSupport'],
 };
 const PATH_INSTRUCTIONS: Readonly<Record<Surface, Evidence>> = {
   cli: ['copilotCliInstructions', 'copilotRepoInstructions'],
-  vscode: ['vscodeInstructions'],
+  vscode: ['vscodeInstructions', 'vscodeInstructionsReference'],
   cloud: ['copilotRepoInstructions'],
 };
 const MISPLACED: Readonly<Record<Surface, Evidence>> = {
   cli: ['copilotRepoInstructions', 'copilotCliInstructions'],
-  vscode: ['copilotRepoInstructions', 'vscodeInstructions'],
+  vscode: ['copilotRepoInstructions', 'vscodeInstructions', 'vscodeInstructionsReference'],
   cloud: ['copilotRepoInstructions'],
 };
 const SKILLS: Readonly<Record<Surface, Evidence>> = {
@@ -175,7 +175,7 @@ const SKILLS: Readonly<Record<Surface, Evidence>> = {
 };
 const CLAUDE_RULES: Readonly<Record<Surface, Evidence>> = {
   cli: ['copilotCliReference'],
-  vscode: ['vscodeInstructions'],
+  vscode: ['vscodeInstructionsReference'],
   cloud: [],
 };
 /** The CLI's `.claude/commands` files, "an alternative to skills". */
@@ -308,37 +308,38 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
       evidence: ['copilotInstructionsSupport'],
     },
     // The plan models the Local harness, which VS Code no longer picks by default: "Start with
-    // the Copilot harness", and Local shows only with experimental settings (vscodeHarnesses).
+    // the Copilot harness", and Local shows only with experimental settings. Local is deprecated
+    // and "will be removed by February 2027" (vscodeHarnesses).
     {
       key: 'vscode.agent_harness',
       value: 'local',
       origin: 'assumed',
       evidence: ['vscodeHarnesses', 'vscodeInstructions'],
     },
+    // The settings' defaults are in the AI settings reference.
     {
       key: 'vscode.chat.useAgentsMdFile',
       value: true,
       origin: 'default',
-      evidence: ['vscodeInstructions'],
+      evidence: ['vscodeInstructionsReference', 'vscodeAiSettings'],
     },
-    // Neither page says whether these three are on by default.
     {
       key: 'vscode.chat.useClaudeHooks',
       value: false,
-      origin: 'assumed',
-      evidence: ['vscodeHooks'],
+      origin: 'default',
+      evidence: ['vscodeHooks', 'vscodeAiSettings'],
     },
     {
       key: 'vscode.chat.useClaudeMdFile',
       value: true,
-      origin: 'assumed',
-      evidence: ['vscodeInstructions'],
+      origin: 'default',
+      evidence: ['vscodeInstructionsReference', 'vscodeAiSettings'],
     },
     {
       key: 'vscode.chat.useNestedAgentsMdFiles',
       value: false,
       origin: 'default',
-      evidence: ['vscodeInstructions'],
+      evidence: ['vscodeInstructionsReference', 'vscodeAiSettings'],
     },
     {
       key: 'vscode.default_agent_harness',
@@ -349,8 +350,8 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
     {
       key: 'vscode.github.copilot.chat.codeGeneration.useInstructionFiles',
       value: true,
-      origin: 'assumed',
-      evidence: ['vscodeInstructions'],
+      origin: 'default',
+      evidence: ['vscodeInstructionsReference', 'vscodeAiSettings'],
     },
     {
       key: 'vscode.workspace_trusted',
@@ -1942,7 +1943,7 @@ class CopilotLoader {
   /**
    * Claude Code's `.claude/settings.json` and `.claude/settings.local.json`: the CLI runs their
    * hooks for the events it knows. VS Code's Local harness reads them only with
-   * `chat.useClaudeHooks`, whose default its pages do not give, and its Copilot harness, the
+   * `chat.useClaudeHooks`, off by default (SOURCES.vscodeAiSettings), but its Copilot harness, the
    * default, reads them (SOURCES.vscodeHooks): the plan's skip is unverified.
    */
   #claudeHooks(): void {

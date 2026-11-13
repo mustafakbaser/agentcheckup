@@ -444,7 +444,13 @@
         {
           "title": "VS Code: Custom instructions",
           "url": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Custom instructions reference",
+          "url": "https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -465,7 +471,7 @@
     {
       "id": "copilot/instructions-misplaced",
       "title": "GitHub Copilot instructions file is not where Copilot looks for it",
-      "rationale": "GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the deprecated `chat.instructionsFilesLocations` setting can add other directories for the Local harness, so a misplaced `*.instructions.md` file is a warning.\n\nA `.github` directory inside a subdirectory is not read on GitHub.com; VS Code reads it when you open that subdirectory as the workspace folder. A subdirectory with its own `.git` counts as a repository root. Only files inside a `.github` directory are checked, except `.github/workflows` and the `.github` directories of templates, examples and fixtures. A file that is also reachable through a symlink in the right place is not reported.\n\nMove the file to `.github/copilot-instructions.md` or into `.github/instructions/`.",
+      "rationale": "GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the `chat.instructionsFilesLocations` setting can add other directories, which the editor also forwards to its Copilot harness, so a misplaced `*.instructions.md` file is a warning.\n\nA `.github` directory inside a subdirectory is not read on GitHub.com; VS Code reads it when you open that subdirectory as the workspace folder. A subdirectory with its own `.git` counts as a repository root. Only files inside a `.github` directory are checked, except `.github/workflows` and the `.github` directories of templates, examples and fixtures. A file that is also reachable through a symlink in the right place is not reported.\n\nMove the file to `.github/copilot-instructions.md` or into `.github/instructions/`.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -485,7 +491,13 @@
         {
           "title": "VS Code: Custom instructions",
           "url": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
+          "status": "verified"
+        },
+        {
+          "title": "VS Code: Custom instructions reference",
+          "url": "https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2157,7 +2169,7 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2682,7 +2694,7 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2751,7 +2763,7 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2978,7 +2990,7 @@
         {
           "title": "VS Code: Use Agent Skills (GitHub Copilot)",
           "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

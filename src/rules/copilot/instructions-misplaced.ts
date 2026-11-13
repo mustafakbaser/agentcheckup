@@ -57,7 +57,7 @@ function pathSpecific(path: string, where: Placement): Finding | undefined {
       return {
         severity: 'warn',
         message:
-          "GitHub Copilot reads path-specific instructions only from .github/instructions, so it does not load this file. Only VS Code's deprecated chat.instructionsFilesLocations setting can add another directory, for its Local harness.",
+          "GitHub Copilot reads path-specific instructions only from .github/instructions, so it does not load this file. Only VS Code's chat.instructionsFilesLocations setting can add another directory.",
       };
   }
 }
@@ -182,7 +182,7 @@ export const instructionsMisplacedRule = defineRule({
     id: ID,
     title: 'GitHub Copilot instructions file is not where Copilot looks for it',
     rationale: [
-      'GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the deprecated `chat.instructionsFilesLocations` setting can add other directories for the Local harness, so a misplaced `*.instructions.md` file is a warning.',
+      'GitHub Copilot reads repository-wide instructions from `.github/copilot-instructions.md` and path-specific instructions from `*.instructions.md` files in `.github/instructions/` and its subdirectories, both at the repository root. A `copilot-instructions.md` anywhere else in `.github` is not loaded. In VS Code, the `chat.instructionsFilesLocations` setting can add other directories, which the editor also forwards to its Copilot harness, so a misplaced `*.instructions.md` file is a warning.',
       'A `.github` directory inside a subdirectory is not read on GitHub.com; VS Code reads it when you open that subdirectory as the workspace folder. A subdirectory with its own `.git` counts as a repository root. Only files inside a `.github` directory are checked, except `.github/workflows` and the `.github` directories of templates, examples and fixtures. A file that is also reachable through a symlink in the right place is not reported.',
       'Move the file to `.github/copilot-instructions.md` or into `.github/instructions/`.',
     ].join('\n\n'),
@@ -190,7 +190,11 @@ export const instructionsMisplacedRule = defineRule({
     severity: 'error',
     appliesTo: ['copilot-instructions', 'copilot-path-instructions'],
     platforms: ['copilot'],
-    sources: [SOURCES.copilotRepoInstructions, COPILOT_SOURCES.vscodeInstructions],
+    sources: [
+      SOURCES.copilotRepoInstructions,
+      COPILOT_SOURCES.vscodeInstructions,
+      SOURCES.vscodeInstructionsReference,
+    ],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],

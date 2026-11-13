@@ -309,11 +309,11 @@ describe('the fixture repository, a session at the root', () => {
       // VS Code's default is the Copilot harness; the plan models the Local one.
       'vscode.agent_harness=local assumed',
       'vscode.chat.useAgentsMdFile=true default',
-      'vscode.chat.useClaudeHooks=false assumed',
-      'vscode.chat.useClaudeMdFile=true assumed',
+      'vscode.chat.useClaudeHooks=false default',
+      'vscode.chat.useClaudeMdFile=true default',
       'vscode.chat.useNestedAgentsMdFiles=false default',
       'vscode.default_agent_harness=copilot default',
-      'vscode.github.copilot.chat.codeGeneration.useInstructionFiles=true assumed',
+      'vscode.github.copilot.chat.codeGeneration.useInstructionFiles=true default',
       'vscode.workspace_trusted=true default',
     ]);
     expect(vscode.assumptions.find((a) => a.key === 'vscode.agent_harness')?.evidence).toContain(

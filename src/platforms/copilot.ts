@@ -2,7 +2,8 @@
  * Where GitHub Copilot reads instruction files and when it applies a path-specific one, shared by
  * the copilot/* rules and the Copilot load plans. Sources: GitHub's repository instructions page
  * and support matrix (SOURCES.copilotRepoInstructions, SOURCES.copilotInstructionsSupport) and
- * VS Code's custom instructions page (SOURCES.vscodeInstructions).
+ * VS Code's custom instructions pages (SOURCES.vscodeInstructions,
+ * SOURCES.vscodeInstructionsReference).
  */
 import { codePointLength } from '../core/measure.js';
 import { pathStatus } from '../core/paths.js';

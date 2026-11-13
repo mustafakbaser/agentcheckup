@@ -294,32 +294,42 @@ export const SOURCES = {
   vscodeInstructions: verified(
     'VS Code: Custom instructions',
     'https://code.visualstudio.com/docs/agent-customization/custom-instructions',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
+  ),
+  vscodeInstructionsReference: verified(
+    'VS Code: Custom instructions reference',
+    'https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference',
+    DRIFT_CHECKED,
+  ),
+  vscodeAiSettings: verified(
+    'VS Code: AI settings reference',
+    'https://code.visualstudio.com/docs/agents/reference/ai-settings',
+    DRIFT_CHECKED,
   ),
   vscodeSkills: verified(
     'VS Code: Agent skills',
     'https://code.visualstudio.com/docs/agent-customization/agent-skills',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeHooks: verified(
     'VS Code: Hooks',
     'https://code.visualstudio.com/docs/agent-customization/hooks',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeHooksReference: verified(
     'VS Code: Legacy Local hooks reference',
     'https://code.visualstudio.com/docs/agents/reference/hooks-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeHarnesses: verified(
     'VS Code: Agent harnesses (the Copilot harness is the default; Local is the older one)',
     'https://code.visualstudio.com/docs/agents/run/agent-harnesses',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeMcp: verified(
     'VS Code: MCP configuration reference',
     'https://code.visualstudio.com/docs/agents/reference/mcp-configuration',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeStandaloneConfigurations: verified(
     'VS Code source: configuration.ts (.vscode/mcp.json is a workspace configuration file, like tasks.json)',
@@ -329,7 +339,7 @@ export const SOURCES = {
   vscodeConfigurationParser: verified(
     'VS Code source: configurationModels.ts (configuration files are read with json.visit and its default options)',
     'https://github.com/microsoft/vscode/blob/main/src/vs/platform/configuration/common/configurationModels.ts',
-    COVERAGE_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeJsonParser: verified(
     'VS Code source: json.ts (comments are allowed, and the default options allow trailing commas)',
@@ -544,12 +554,12 @@ export const SOURCES = {
   vscodeCustomAgents: verified(
     'VS Code: Custom agents',
     'https://code.visualstudio.com/docs/agent-customization/custom-agents',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeCustomAgentFile: verified(
     'VS Code: Custom agent file reference',
     'https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference',
-    '2026-10-30',
+    DRIFT_CHECKED,
   ),
   copilotCliAgents: verified(
     'GitHub Copilot CLI: Custom agents reference',

@@ -24,7 +24,7 @@ Rename the directory or change `name` so that they match.
 ## Evidence
 
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-11-13
-- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-10-30
+- [VS Code: Use Agent Skills (GitHub Copilot)](https://code.visualstudio.com/docs/agent-customization/agent-skills), verified, checked 2026-11-13
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [Cline: Skills](https://docs.cline.bot/customization/skills), verified, checked 2026-10-17
 - [agentskills skills-ref reference validator](https://github.com/agentskills/agentskills/blob/main/skills-ref/src/skills_ref/validator.py), verified, checked 2026-10-14

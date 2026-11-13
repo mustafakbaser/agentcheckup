@@ -27,7 +27,7 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'claude-md': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-local-md': ['claude-code'],
   // The Copilot CLI and VS Code read `.claude/rules` as instructions files
-  // (SOURCES.copilotCliReference, SOURCES.vscodeInstructions).
+  // (SOURCES.copilotCliReference, SOURCES.vscodeInstructionsReference).
   'claude-rule': ['claude-code', 'copilot'],
   'claude-agent': ['claude-code'],
   // A subagent's memory, which Claude Code adds to its prompt (SOURCES.claudeSubagents).
@@ -205,7 +205,7 @@ const MATCHERS: readonly Matcher[] = [
     canonical: keepPath,
   },
   // Copilot's custom agents; the VS Code agent reads only the folder itself, the CLI subfolders
-  // too (SOURCES.vscodeCustomAgents, SOURCES.copilotCliAgents).
+  // too (SOURCES.vscodeCustomAgentFile, SOURCES.copilotCliAgents).
   {
     kind: 'copilot-agent',
     pattern: /(?:^|\/)\.github\/agents\/(?:[^/]+\/)*[^/]+\.md$/,

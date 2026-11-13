@@ -72,7 +72,7 @@ describe('copilot/instructions-misplaced', () => {
           severity: 'warn',
           path: '.github/review-tools/review.instructions.md',
           message:
-            "GitHub Copilot reads path-specific instructions only from .github/instructions, so it does not load this file. Only VS Code's deprecated chat.instructionsFilesLocations setting can add another directory, for its Local harness.",
+            "GitHub Copilot reads path-specific instructions only from .github/instructions, so it does not load this file. Only VS Code's chat.instructionsFilesLocations setting can add another directory.",
           range: WHOLE_FILE,
         },
       ]);

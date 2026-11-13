@@ -28,8 +28,8 @@ Set a value the agent documents, or remove `model` to use the default.
 - [Codex: Subagents and custom agents](https://learn.chatgpt.com/docs/agent-configuration/subagents), verified, checked 2026-10-26
 - [Cursor: Subagents](https://cursor.com/docs/subagents), verified, checked 2026-11-13
 - [Gemini CLI: Subagents](https://geminicli.com/docs/core/subagents/), verified, checked 2026-10-26
-- [VS Code: Custom agents](https://code.visualstudio.com/docs/agent-customization/custom-agents), verified, checked 2026-10-30
-- [VS Code: Custom agent file reference](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), verified, checked 2026-10-30
+- [VS Code: Custom agents](https://code.visualstudio.com/docs/agent-customization/custom-agents), verified, checked 2026-11-13
+- [VS Code: Custom agent file reference](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), verified, checked 2026-11-13
 - [GitHub Copilot CLI: Custom agents reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), verified, checked 2026-11-13
 - [Devin CLI: Subagents](https://docs.devin.ai/cli/subagents), verified, checked 2026-10-26
 

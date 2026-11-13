@@ -201,6 +201,7 @@ export const applyToRule = defineRule({
     sources: [
       SOURCES.copilotRepoInstructions,
       COPILOT_SOURCES.vscodeInstructions,
+      SOURCES.vscodeInstructionsReference,
       COPILOT_SOURCES.excludeAgentChangelog,
     ],
     since: RULESET_VERSION,
