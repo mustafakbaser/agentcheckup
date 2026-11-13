@@ -1194,7 +1194,7 @@
         {
           "title": "Git: core.symlinks",
           "url": "https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1263,7 +1263,7 @@
         {
           "title": "Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)",
           "url": "https://arxiv.org/abs/2602.11988",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1311,7 +1311,7 @@
         {
           "title": "ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)",
           "url": "https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1657,7 +1657,7 @@
         {
           "title": "Claude API: Admin API keys (sk-ant-admin01- for Claude Console; Claude Enterprise keys start with sk-ant-api01-, like API keys)",
           "url": "https://platform.claude.com/docs/en/manage-claude/admin-api-keys",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1681,13 +1681,13 @@
         {
           "title": "Stripe: API keys",
           "url": "https://docs.stripe.com/keys",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Google Cloud: API keys",
           "url": "https://docs.cloud.google.com/docs/authentication/api-keys",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1717,7 +1717,7 @@
         {
           "title": "Shopify: Access tokens",
           "url": "https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1832,7 +1832,7 @@
         {
           "title": "AGENTS.md open format",
           "url": "https://agents.md/",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2005,7 +2005,7 @@
         {
           "title": "AGENTS.md open format",
           "url": "https://agents.md/",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2039,13 +2039,13 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2145,7 +2145,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2221,7 +2221,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2245,7 +2245,7 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2285,7 +2285,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2325,13 +2325,13 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2443,7 +2443,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2644,7 +2644,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2676,7 +2676,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2706,7 +2706,7 @@
         {
           "title": "Claude API: Using Agent Skills with the API",
           "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2745,7 +2745,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2781,7 +2781,7 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2826,7 +2826,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2850,7 +2850,7 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2902,13 +2902,13 @@
         {
           "title": "Claude API: Agent Skills overview",
           "url": "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Claude API: Using Agent Skills with the API",
           "url": "https://platform.claude.com/docs/en/build-with-claude/skills-guide",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2954,7 +2954,7 @@
         {
           "title": "Agent Skills specification",
           "url": "https://agentskills.io/specification",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

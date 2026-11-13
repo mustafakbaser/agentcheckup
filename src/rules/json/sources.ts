@@ -6,6 +6,9 @@ const CHECKED = '2026-10-14';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -32,7 +35,7 @@ export const JSON_SOURCES = {
   ecmaJsonParse: verified(
     'ECMA-262: ParseJSON (duplicate names: lexically preceding values are overwritten)',
     'https://tc39.es/ecma262/multipage/structured-data.html#sec-ParseJSON',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   rfc8259Objects: verified(
     'RFC 8259, section 4: names within an object SHOULD be unique',

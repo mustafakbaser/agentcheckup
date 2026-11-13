@@ -34,7 +34,7 @@ export const SOURCES = {
   agentSkillsSpec: verified(
     'Agent Skills specification',
     'https://agentskills.io/specification',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   skillsRefValidator: verified(
     'agentskills skills-ref reference validator',
@@ -48,7 +48,7 @@ export const SOURCES = {
   claudeApiSkills: verified(
     'Claude API: Agent Skills overview',
     'https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeMemory: verified(
     'Claude Code: Memory (CLAUDE.md)',
@@ -501,7 +501,7 @@ export const SOURCES = {
     'https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts',
     COVERAGE_CHECKED,
   ),
-  agentsMd: verified('AGENTS.md open format', 'https://agents.md/', AUDIT_CHECKED),
+  agentsMd: verified('AGENTS.md open format', 'https://agents.md/', DRIFT_CHECKED),
   nodeCliEnv: verified(
     'Node.js: Command-line API, environment variables',
     'https://nodejs.org/api/cli.html',

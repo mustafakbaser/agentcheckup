@@ -35,17 +35,17 @@ In a remote server's `url` and `headers`, Claude Code reads credential variables
 - [GitHub blog: Behind GitHub's new authentication token formats](https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/), verified, checked 2026-10-14
 - [GitHub changelog: new format for GitHub App installation tokens](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/), verified, checked 2026-10-14
 - [Claude API: Get an API key (sk-ant- prefix)](https://platform.claude.com/docs/en/get-api-key), verified, checked 2026-10-30
-- [Claude API: Admin API keys (sk-ant-admin01- for Claude Console; Claude Enterprise keys start with sk-ant-api01-, like API keys)](https://platform.claude.com/docs/en/manage-claude/admin-api-keys), verified, checked 2026-10-30
+- [Claude API: Admin API keys (sk-ant-admin01- for Claude Console; Claude Enterprise keys start with sk-ant-api01-, like API keys)](https://platform.claude.com/docs/en/manage-claude/admin-api-keys), verified, checked 2026-11-13
 - [Slack: Tokens (xoxb-, xoxp-, xapp-, rotating xoxe.xapp-, workflow xwfp-)](https://docs.slack.dev/authentication/tokens), verified, checked 2026-10-30
 - [AWS IAM: Unique identifier prefixes (AKIA, ASIA)](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html), verified, checked 2026-10-14
 - [GitLab: Token prefixes](https://docs.gitlab.com/security/tokens/), verified, checked 2026-10-14
-- [Stripe: API keys](https://docs.stripe.com/keys), verified, checked 2026-10-14
-- [Google Cloud: API keys](https://docs.cloud.google.com/docs/authentication/api-keys), verified, checked 2026-10-30
+- [Stripe: API keys](https://docs.stripe.com/keys), verified, checked 2026-11-13
+- [Google Cloud: API keys](https://docs.cloud.google.com/docs/authentication/api-keys), verified, checked 2026-11-13
 - [GitHub blog: npm's new access token format](https://github.blog/2021-09-23-announcing-npms-new-access-token-format/), verified, checked 2026-10-14
 - [Hugging Face: User access tokens](https://huggingface.co/docs/hub/security-tokens), verified, checked 2026-10-30
 - [PyPI: Secret reporting API (an API token is pypi- and a base64-serialized macaroon)](https://docs.pypi.org/api/secrets/), verified, checked 2026-10-30
 - [DigitalOcean: API token format](https://docs.digitalocean.com/notes/2022/api-token-format/), verified, checked 2026-10-14
-- [Shopify: Access tokens](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens), verified, checked 2026-10-30
+- [Shopify: Access tokens](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens), verified, checked 2026-11-13
 - [Doppler: Auth token formats](https://docs.doppler.com/reference/auth-token-formats), verified, checked 2026-10-14
 - [gitleaks default rules (token lengths that vendors do not document)](https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml), unverified, checked 2026-10-14
 

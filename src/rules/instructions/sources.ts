@@ -11,6 +11,9 @@ const CHECKED = '2026-10-14';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -40,6 +43,7 @@ export const INSTRUCTION_SOURCES = {
   gitCoreSymlinks: verified(
     'Git: core.symlinks',
     'https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks',
+    DRIFT_CHECKED,
   ),
   claudeRuleImportsUndocumented: unverified(
     'Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)',
@@ -89,7 +93,7 @@ export const INSTRUCTION_SOURCES = {
   evaluatingAgentsMd: verified(
     'Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)',
     'https://arxiv.org/abs/2602.11988',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   aaifEffectiveAgentsMd: verified(
     'Agentic AI Foundation: Writing an effective AGENTS.md',

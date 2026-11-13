@@ -6,6 +6,9 @@ const CHECKED = '2026-10-14';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -52,7 +55,7 @@ export const MCP_SOURCES = {
   anthropicAdminKeys: verified(
     'Claude API: Admin API keys (sk-ant-admin01- for Claude Console; Claude Enterprise keys start with sk-ant-api01-, like API keys)',
     'https://platform.claude.com/docs/en/manage-claude/admin-api-keys',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   slackTokens: verified(
     'Slack: Tokens (xoxb-, xoxp-, xapp-, rotating xoxe.xapp-, workflow xwfp-)',
@@ -64,11 +67,11 @@ export const MCP_SOURCES = {
     'https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html',
   ),
   gitlabTokens: verified('GitLab: Token prefixes', 'https://docs.gitlab.com/security/tokens/'),
-  stripeKeys: verified('Stripe: API keys', 'https://docs.stripe.com/keys'),
+  stripeKeys: verified('Stripe: API keys', 'https://docs.stripe.com/keys', DRIFT_CHECKED),
   googleApiKeys: verified(
     'Google Cloud: API keys',
     'https://docs.cloud.google.com/docs/authentication/api-keys',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   npmTokens: verified(
     "GitHub blog: npm's new access token format",
@@ -91,7 +94,7 @@ export const MCP_SOURCES = {
   shopifyTokens: verified(
     'Shopify: Access tokens',
     'https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   dopplerTokens: verified(
     'Doppler: Auth token formats',

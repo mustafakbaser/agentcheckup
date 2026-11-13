@@ -11,6 +11,9 @@ const CHECKED = '2026-10-14';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -24,7 +27,7 @@ export const SKILL_SOURCES = {
   claudeSkillsApiGuide: verified(
     'Claude API: Using Agent Skills with the API',
     'https://platform.claude.com/docs/en/build-with-claude/skills-guide',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeSkillBestPractices: verified(
     'Claude API: Skill authoring best practices',

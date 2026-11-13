@@ -24,7 +24,7 @@ Pin the download to a version and checksum, or install from a package manager or
 ## Evidence
 
 - [Claude Code: Security (network command approval)](https://code.claude.com/docs/en/security), verified, checked 2026-10-30
-- [AGENTS.md open format](https://agents.md/), verified, checked 2026-10-30
+- [AGENTS.md open format](https://agents.md/), verified, checked 2026-11-13
 
 ## Fix
 
