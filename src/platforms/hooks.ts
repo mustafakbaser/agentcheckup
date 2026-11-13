@@ -258,6 +258,15 @@ export function devinEventInOtherCase(name: string): boolean {
 }
 
 /**
+ * Events the Devin CLI changelog names that its hook reference does not list: v3000.12.17 says
+ * "`ContextInput` hooks can observe relayed text such as subagent reports"
+ * (SOURCES.devinCliChangelog). Neither the event's input nor whether Devin Local fires it for
+ * hooks in the repository is documented, so hooks/unknown-event reports such a name as
+ * information and the plan marks the skip unverified.
+ */
+export const DEVIN_CHANGELOG_EVENTS: ReadonlySet<string> = new Set(['ContextInput']);
+
+/**
  * Keys of the `hooks` table in Codex's `config.toml` that configure hooks rather than name events.
  * Codex reads `hooks.state` only from user and session layers, so it has no effect in a project
  * file (SOURCES.codexHookState).

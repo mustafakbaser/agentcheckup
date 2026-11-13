@@ -32,9 +32,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'claude-agent': ['claude-code'],
   // A subagent's memory, which Claude Code adds to its prompt (SOURCES.claudeSubagents).
   'claude-agent-memory': ['claude-code'],
-  // The Copilot CLI reads commands as skills (SOURCES.copilotCliReference), and Devin Local
-  // imports them as skills (SOURCES.devinReadConfigFrom).
-  'claude-command': ['claude-code', 'copilot', 'windsurf'],
+  // The Copilot CLI reads commands as skills (SOURCES.copilotCliReference). Devin Local no longer
+  // lists them among the files it imports (SOURCES.devinReadConfigFrom).
+  'claude-command': ['claude-code', 'copilot'],
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-plugin-manifest': ['claude-code'],

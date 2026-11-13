@@ -6,7 +6,7 @@
  * Checked 2026-10-17 against the frontmatter references of Claude Code
  * (code.claude.com/docs/en/skills), Cursor (cursor.com/docs/skills), GitHub Copilot in VS Code
  * (code.visualstudio.com/docs/agent-customization/agent-skills) and Devin Local
- * (docs.devin.ai/cli/extensibility/skills/creating-skills, again 2026-10-30), which
+ * (docs.devin.ai/cli/extensibility/skills/creating-skills, again 2026-11-13), which
  * skill/non-portable-field cites.
  * Cline documents only `name` and `description` (docs.cline.bot/customization/skills). Each note
  * states the default the agents fall back to.

@@ -222,7 +222,7 @@ export const broadAllowedToolsRule = defineRule({
 
 GitHub Copilot warns that pre-approving \`shell\` or \`bash\` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.
 
-Devin Local auto-approves the tools in a skill's \`allowed-tools\` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and \`exec\` is every shell command. That holds for the skills it imports from \`.claude/skills\` and \`.github/skills\` as well as for its own.
+Devin Local auto-approves the tools in a skill's \`allowed-tools\` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and \`exec\` is every shell command. That holds for the skills it imports from \`.claude/skills\`, \`.github/skills\`, \`.codex/skills\` and \`.kiro/skills\` as well as for its own.
 
 Scope each rule to the commands the skill needs, such as \`Bash(git status *)\`, or leave the tool out so the agent asks.`,
     category: 'risk',

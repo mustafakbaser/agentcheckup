@@ -17,7 +17,7 @@ Hook event name is not one the agent fires.
 
 Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.
 
-Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade's snake_case events in `.devin/hooks.json` are not checked.
+Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only, as is `ContextInput`, which the Devin CLI changelog mentions but the hook reference does not list. Cascade's snake_case events in `.devin/hooks.json` are not checked.
 
 Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.
 
@@ -33,8 +33,9 @@ Rename the key to an event the agent fires.
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRegistry.ts (invalid event names are skipped)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts), verified, checked 2026-10-14
-- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-10-30
-- [Devin CLI: Lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), verified, checked 2026-10-30
+- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-11-13
+- [Devin CLI: Lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), verified, checked 2026-11-13
+- [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-11-13
 
 ## Fix
 

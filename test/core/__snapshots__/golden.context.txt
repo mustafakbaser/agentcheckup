@@ -1327,7 +1327,7 @@
         {
           "title": "Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)",
           "url": "https://docs.devin.ai/cli/extensibility/rules",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1594,7 +1594,7 @@
         {
           "title": "Devin CLI: Hooks",
           "url": "https://docs.devin.ai/cli/extensibility/hooks/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1713,7 +1713,7 @@
         {
           "title": "Devin CLI: Hooks",
           "url": "https://docs.devin.ai/cli/extensibility/hooks/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1728,7 +1728,7 @@
     {
       "id": "hooks/unknown-event",
       "title": "Hook event name is not one the agent fires",
-      "rationale": "Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an \"Invalid hook event name\" warning, and Codex without a warning.\n\nDevin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `\"hooks\"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade's snake_case events in `.devin/hooks.json` are not checked.\n\nWrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `\"hooks\"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.\n\nRename the key to an event the agent fires.",
+      "rationale": "Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an \"Invalid hook event name\" warning, and Codex without a warning.\n\nDevin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `\"hooks\"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only, as is `ContextInput`, which the Devin CLI changelog mentions but the hook reference does not list. Cascade's snake_case events in `.devin/hooks.json` are not checked.\n\nWrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `\"hooks\"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.\n\nRename the key to an event the agent fires.",
       "category": "loading",
       "severity": "error",
       "appliesTo": [
@@ -1799,13 +1799,19 @@
         {
           "title": "Devin CLI: Hooks",
           "url": "https://docs.devin.ai/cli/extensibility/hooks/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Devin CLI: Lifecycle hooks",
           "url": "https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
+          "status": "verified"
+        },
+        {
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
+          "url": "https://docs.devin.ai/cli/changelog/stable",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2112,15 +2118,15 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Devin Desktop FAQ (\"Devin Desktop reads rules from `AGENTS.md` / `agents.md` files\")",
           "url": "https://docs.devin.ai/desktop/devin-desktop-faq",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2439,7 +2445,7 @@
         {
           "title": "Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)",
           "url": "https://docs.devin.ai/desktop/devin-local/customizations",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2614,7 +2620,7 @@
         {
           "title": "Devin CLI: Configuration file (JSON with comments)",
           "url": "https://docs.devin.ai/cli/reference/configuration/config-file",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3322,7 +3328,7 @@
     {
       "id": "skill/broad-allowed-tools",
       "title": "Skill pre-approves shell commands or file edits without limits",
-      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nDevin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills` and `.github/skills` as well as for its own.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
+      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nDevin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills`, `.github/skills`, `.codex/skills` and `.kiro/skills` as well as for its own.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
       "category": "risk",
       "severity": "warn",
       "appliesTo": [
@@ -3355,19 +3361,19 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3669,7 +3675,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -4130,7 +4136,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -4240,7 +4246,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

@@ -531,7 +531,7 @@
         {
           "title": "Devin CLI: Rules (reads .cursor/rules/*.md and *.mdc)",
           "url": "https://docs.devin.ai/cli/extensibility/rules",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -958,15 +958,15 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Devin Desktop FAQ (\"Devin Desktop reads rules from `AGENTS.md` / `agents.md` files\")",
           "url": "https://docs.devin.ai/desktop/devin-desktop-faq",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1257,7 +1257,7 @@
         {
           "title": "Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)",
           "url": "https://docs.devin.ai/desktop/devin-local/customizations",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1432,7 +1432,7 @@
         {
           "title": "Devin CLI: Configuration file (JSON with comments)",
           "url": "https://docs.devin.ai/cli/reference/configuration/config-file",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2078,7 +2078,7 @@
     {
       "id": "skill/broad-allowed-tools",
       "title": "Skill pre-approves shell commands or file edits without limits",
-      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nDevin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills` and `.github/skills` as well as for its own.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
+      "rationale": "`allowed-tools` lets the agent use the listed tools without asking. In Claude Code, `Bash` or `Bash(*)` pre-approves every shell command, `PowerShell` every PowerShell command, and a bare `Write` or `Edit` every file, during the turn that invokes the skill. Workspace trust does not gate the field: Claude Code applies a project skill's `allowed-tools` even in a `-p` run in a directory that was never trusted, so a cloned repository can grant itself shell access through `.claude/skills`.\n\nGitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.\n\nDevin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills`, `.github/skills`, `.codex/skills` and `.kiro/skills` as well as for its own.\n\nScope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.",
       "category": "risk",
       "severity": "warn",
       "appliesTo": [
@@ -2111,19 +2111,19 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/overview",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2425,7 +2425,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2886,7 +2886,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -2996,7 +2996,7 @@
         {
           "title": "Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)",
           "url": "https://docs.devin.ai/cli/extensibility/skills/creating-skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

@@ -271,8 +271,10 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
     [
       ['agents_standard', 'AGENTS.md standard'],
       ['claude', 'Claude Code'],
+      ['codex', 'Codex'],
       ['copilot', 'Copilot'],
       ['cursor', 'Cursor'],
+      ['kiro', 'Kiro'],
       ['opencode', 'OpenCode'],
       ['windsurf', 'Windsurf'],
       ['zed', 'Zed'],

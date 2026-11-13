@@ -138,7 +138,7 @@ describe('loadWindsurf: instruction files', () => {
       '.clinerules/style.md': 'Cline only.\n',
       '.cursor/skills/s/SKILL.md': RULE('name: s\ndescription: Cursor only.'),
       '.gemini/skills/g/SKILL.md': RULE('name: g\ndescription: Gemini only.'),
-      '.codex/skills/c/SKILL.md': RULE('name: c\ndescription: Codex only.'),
+      '.claude/commands/ship.md': 'Claude Code and Copilot only.\n',
       '.agents/skills/team/deep/SKILL.md': RULE('name: deep\ndescription: Too deep.'),
       '.vscode/mcp.json': '{"servers":{"a":{"command":"a"}}}',
       '.cursor/hooks.json': '{"version":1,"hooks":{"stop":[{"command":"x"}]}}',
@@ -381,10 +381,31 @@ describe('loadWindsurf: skills', () => {
     expectSorted(built.plan);
   });
 
-  it('lists the commands of .claude/commands, which Devin imports as skills', () => {
+  it('imports the skills of Codex and Kiro at any depth, and those of .codeium/skills', () => {
+    const { plan } = build({
+      '.codex/skills/c/SKILL.md': RULE('name: c\ndescription: Codex.'),
+      '.kiro/skills/team/k/SKILL.md': RULE('name: k\ndescription: Kiro.'),
+      '.codeium/skills/w/SKILL.md': RULE('name: w\ndescription: Windsurf.'),
+      '.codeium/skills/team/deep/SKILL.md': RULE('name: deep\ndescription: Too deep.'),
+      '.kiro/steering/style.md': 'Kiro only.\n',
+    });
+    expect(summary(plan)).toEqual([
+      'skill:.codeium/skills/w/SKILL.md model-selected documented',
+      'skill:.codex/skills/c/SKILL.md model-selected documented',
+      'skill:.kiro/skills/team/k/SKILL.md model-selected documented',
+    ]);
+    expect(entry(plan, 'skill:.kiro/skills/team/k/SKILL.md')?.evidence).toEqual([
+      'devinCliSkills',
+      'devinLocalCustomizations',
+      'devinReadConfigFrom',
+      'agentSkillsSpec',
+    ]);
+  });
+
+  it('does not list the commands of .claude/commands, which Devin no longer imports', () => {
     const { plan } = build({ '.claude/commands/ship.md': 'Ship it.\n' });
-    expect(summary(plan)).toEqual(['command:.claude/commands/ship.md model-selected unverified']);
-    expect(entry(plan, 'command:.claude/commands/ship.md')?.name).toBe('ship');
+    expect(summary(plan)).toEqual([]);
+    expect(plan).toMatchObject({ skipped: [], outOfScope: [], incomplete: [] });
   });
 });
 
@@ -402,6 +423,9 @@ describe('loadWindsurf: read_config_from', () => {
     '.windsurf/skills/w/SKILL.md': RULE('name: w\ndescription: W.'),
     '.claude/skills/c/SKILL.md': RULE('name: c\ndescription: C.'),
     '.github/skills/g/SKILL.md': RULE('name: g\ndescription: G.'),
+    '.codex/skills/x/SKILL.md': RULE('name: x\ndescription: X.'),
+    '.kiro/skills/k/SKILL.md': RULE('name: k\ndescription: K.'),
+    '.codeium/skills/u/SKILL.md': RULE('name: u\ndescription: U.'),
     '.claude/commands/run.md': 'Run.\n',
     '.mcp.json': '{"mcpServers":{"m":{"command":"m"}}}',
     '.cursor/mcp.json': '{"mcpServers":{"c":{"command":"c"}}}',
@@ -412,7 +436,7 @@ describe('loadWindsurf: read_config_from', () => {
     '.zed/settings.json': '{"context_servers":{"z":{"command":"z"}}}',
   };
   const OFF =
-    '{"read_config_from":{"agents_standard":false,"claude":false,"copilot":false,"cursor":false,"opencode":false,"windsurf":false,"zed":false}}';
+    '{"read_config_from":{"agents_standard":false,"claude":false,"codex":false,"copilot":false,"cursor":false,"kiro":false,"opencode":false,"windsurf":false,"zed":false}}';
 
   it('turns each imported source off, and keeps Devin’s own files', () => {
     const built = build(FILES, {
@@ -425,13 +449,15 @@ describe('loadWindsurf: read_config_from', () => {
       },
     );
     expect(off.plan.skipped.map((s) => `${s.id} ${s.code} ${s.certainty}`)).toEqual([
-      'command:.claude/commands/run.md disabled documented',
       expect.stringMatching(/^hook:\.claude\/settings\.json#Stop:[0-9a-f]{8} disabled documented$/),
       'mcp-server:.claude/settings.json#s disabled documented',
       'skill:.claude/skills/c/SKILL.md disabled documented',
+      'skill:.codeium/skills/u/SKILL.md disabled documented',
+      'skill:.codex/skills/x/SKILL.md disabled documented',
       'mcp-server:.cursor/mcp.json#c disabled documented',
       'rule:.cursor/rules/c.mdc disabled documented',
       'skill:.github/skills/g/SKILL.md disabled documented',
+      'skill:.kiro/skills/k/SKILL.md disabled documented',
       'mcp-server:.mcp.json#m disabled documented',
       'instructions:.windsurf/global_rules.md disabled documented',
       'rule:.windsurf/rules/w.md disabled documented',
@@ -462,14 +488,22 @@ describe('loadWindsurf: read_config_from', () => {
       'skill:.devin/skills/own/SKILL.md model-selected documented',
     ]);
     expect(off.plan.assumptions.filter((a) => a.key.startsWith('devin.read_config_from'))).toEqual(
-      ['agents_standard', 'claude', 'copilot', 'cursor', 'opencode', 'windsurf', 'zed'].map(
-        (source) => ({
-          key: `devin.read_config_from.${source}`,
-          value: false,
-          origin: 'repository',
-          evidence: ['devinReadConfigFrom'],
-        }),
-      ),
+      [
+        'agents_standard',
+        'claude',
+        'codex',
+        'copilot',
+        'cursor',
+        'kiro',
+        'opencode',
+        'windsurf',
+        'zed',
+      ].map((source) => ({
+        key: `devin.read_config_from.${source}`,
+        value: false,
+        origin: 'repository',
+        evidence: ['devinReadConfigFrom'],
+      })),
     );
     // The rules agree: no finding names Devin Local for a source that is off.
     expect(devinFindings(off, 'instr/empty-file')).toEqual([]);
@@ -561,6 +595,28 @@ describe('loadWindsurf: hooks', () => {
       origin: 'default',
       evidence: ['devinLocal'],
     });
+  });
+
+  it('skips a ContextInput hook as unverified: only the changelog names the event', () => {
+    const built = build({
+      '.devin/hooks.v1.json': JSON.stringify({
+        ContextInput: [{ hooks: [command('./observe.sh')] }],
+        Stop: [{ hooks: [command('./stop.sh')] }],
+      }),
+    });
+    expect(built.plan.entries.map((e) => `${e.name ?? ''} ${e.certainty}`)).toEqual([
+      'Stop documented',
+    ]);
+    expect(built.plan.skipped).toEqual([
+      expect.objectContaining({
+        name: 'ContextInput',
+        code: 'unknown-event',
+        ruleId: 'hooks/unknown-event',
+        certainty: 'unverified',
+        evidence: ['devinCliHooks', 'devinCliHookEvents', 'devinCliChangelog'],
+      }),
+    ]);
+    expectSkipsReported(built);
   });
 
   it('reads hook files from the working directory up to the repository root, not below', () => {
@@ -774,8 +830,10 @@ describe('loadWindsurf: workspace and visibility', () => {
       'devin.agent=devin-local default',
       'devin.read_config_from.agents_standard=true default',
       'devin.read_config_from.claude=true default',
+      'devin.read_config_from.codex=true default',
       'devin.read_config_from.copilot=true default',
       'devin.read_config_from.cursor=true default',
+      'devin.read_config_from.kiro=true default',
       'devin.read_config_from.opencode=true default',
       'devin.read_config_from.windsurf=true default',
       'devin.read_config_from.zed=true default',
@@ -792,6 +850,8 @@ describe('loadWindsurf: workspace and visibility', () => {
       '~/.devin/global_rules.md',
       '~/.agents/skills',
       '~/.codeium/<channel>/skills',
+      '~/.codex/skills',
+      '~/.kiro/skills',
       '~/.claude/mcp_servers.json',
       '~/.config/opencode/opencode.json',
       '~/.config/zed/settings.json',

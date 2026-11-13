@@ -174,6 +174,24 @@ describe('hooks/unknown-event', () => {
     expect(run({ '.devin/hooks.v1.json': v1 }, ['claude-code'])).toEqual([]);
   });
 
+  it('reports ContextInput, which only the Devin CLI changelog names, as information', () => {
+    const v1 = json({ ContextInput: HOOK, Stop: HOOK });
+    expect(
+      run({ '.devin/hooks.v1.json': v1 }).map((finding) => [finding.severity, finding.message]),
+    ).toEqual([
+      [
+        'info',
+        '"ContextInput" is not in the Devin Local hook reference, though the Devin CLI changelog mentions "ContextInput" hooks. Whether Devin Local runs these hooks, and with what input, is not documented.',
+      ],
+    ]);
+    // Only for Devin Local: Claude Code does not fire it.
+    expect(
+      run({ '.claude/settings.json': json({ hooks: { ContextInput: HOOK } }) }).map(
+        (finding) => finding.severity,
+      ),
+    ).toEqual(['error']);
+  });
+
   it('does not compute suggestions for very long names', () => {
     expect(describeUnknownEvent('codex', 'x'.repeat(100))).toBe(
       `"${'x'.repeat(60)}…" is not a Codex hook event. Codex ignores them without a warning, so these hooks never run.`,

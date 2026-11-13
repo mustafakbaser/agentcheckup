@@ -66,10 +66,20 @@ describe('skillLocation', () => {
       'windsurf',
     ]);
     expect(skillLocation('.windsurf/skills/a/b/SKILL.md')?.platforms.size).toBe(0);
+    // Devin Local imports Codex and Kiro skills at any depth, and `.codeium/skills/<name>/SKILL.md`.
     expect(sorted(skillLocation('.codex/skills/a/b/SKILL.md')?.platforms ?? new Set())).toEqual([
       'codex',
       'cursor',
+      'windsurf',
     ]);
+    expect(sorted(skillLocation('.kiro/skills/a/b/SKILL.md')?.platforms ?? new Set())).toEqual([
+      'windsurf',
+    ]);
+    expect(
+      sorted(skillLocation('.codeium/skills/deploy/SKILL.md')?.platforms ?? new Set()),
+    ).toEqual(['windsurf']);
+    expect(skillLocation('.codeium/skills/a/b/SKILL.md')?.platforms.size).toBe(0);
+    expect(skillLocation('.kiro/steering/SKILL.md')).toBeUndefined();
     // Cline reads a SKILL.md in the root and in each folder of it.
     expect(sorted(skillLocation('.cline/skills/deploy/SKILL.md')?.platforms ?? new Set())).toEqual([
       'cline',
@@ -192,7 +202,13 @@ describe('audience', () => {
       '.gemini/skills/x/SKILL.md',
       'mirror/x/SKILL.md',
     ]);
-    expect(sorted(audience(plugin, exposed))).toEqual(['claude-code', 'codex', 'cursor', 'gemini']);
+    expect(sorted(audience(plugin, exposed))).toEqual([
+      'claude-code',
+      'codex',
+      'cursor',
+      'gemini',
+      'windsurf',
+    ]);
     const viaAlias = {
       ...artifact('.agents/skills/x/SKILL.md'),
       realPath: 'p/skills/x/SKILL.md',

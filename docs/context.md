@@ -862,9 +862,9 @@ them the same way:
 
 - GitHub Copilot and Devin Local apply a skill's `allowed-tools` too, so an entry takes effect
   wherever one of the three loads the skill. Devin Local auto-approves the tools listed there
-  while the skill runs inline, in its own skills and those it imports from `.claude/skills` and
-  `.github/skills`, unless `read_config_from` turns the import off. Its `exec` is a broad grant:
-  any shell command.
+  while the skill runs inline, in its own skills and those it imports from `.claude/skills`,
+  `.github/skills`, `.codex/skills` and `.kiro/skills`, unless `read_config_from` turns the
+  import off. Its `exec` is a broad grant: any shell command.
 - A GitHub Copilot custom agent in `.github/agents` may declare MCP servers in `mcp-servers`.
   agentcheckup does not list them yet, so such a file is incomplete: a new one trips `mcp`, and a
   policy reports `unanalyzed-config`. A `hooks` value that is not an event map makes the file

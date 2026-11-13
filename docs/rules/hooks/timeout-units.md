@@ -29,7 +29,7 @@ Write the timeout in the unit of the agent that reads the file.
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Gemini CLI: Hooks reference](https://geminicli.com/docs/hooks/reference), verified, checked 2026-10-14
 - [Gemini CLI source: hookRunner.ts (timeout in milliseconds)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRunner.ts), verified, checked 2026-10-14
-- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-10-30
+- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-11-13
 
 ## Fix
 

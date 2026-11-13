@@ -24,7 +24,7 @@ Replace it with the specific command, convention or path you mean, or delete it.
 ## Evidence
 
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-11-13
-- [Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)](https://docs.devin.ai/desktop/devin-local/customizations), verified, checked 2026-10-30
+- [Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)](https://docs.devin.ai/desktop/devin-local/customizations), verified, checked 2026-11-13
 - [Cursor: Rules](https://cursor.com/docs/rules), verified, checked 2026-10-30
 - [Agentic AI Foundation: Writing an effective AGENTS.md](https://aaif.io/blog/writing-an-effective-agents-md), verified, checked 2026-10-14
 - [Gloaguen et al., Evaluating AGENTS.md (arXiv:2602.11988)](https://arxiv.org/abs/2602.11988), verified, checked 2026-11-13

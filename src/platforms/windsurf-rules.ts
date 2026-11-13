@@ -138,6 +138,8 @@ export const DEVIN_CONFIG_SOURCES = [
   'windsurf',
   'claude',
   'copilot',
+  'codex',
+  'kiro',
   'opencode',
   'zed',
 ] as const;
@@ -202,10 +204,11 @@ function configFolder(path: string, folder: string): string | undefined {
  * The `read_config_from` source that controls whether Devin Local imports this file, or
  * undefined for Devin's own files and files no source names. Documented per source:
  * `agents_standard` AGENTS.md and `.windsurfrules`; `cursor` `.cursor/rules` and
- * `.cursor/mcp.json`; `windsurf` `.windsurf/rules` and `.windsurf/skills`; `claude` CLAUDE.md,
- * `.claude/skills`, `.claude/commands`, `.mcp.json` and the settings files `.claude/settings.json`
- * and `.claude/settings.local.json`; `copilot` `.github/skills`. `opencode` and `zed` name files
- * agentcheckup does not classify (`opencode.json`, `.zed/settings.json`).
+ * `.cursor/mcp.json`; `windsurf` `.windsurf/rules`, `.windsurf/skills` and `.codeium/skills`;
+ * `claude` CLAUDE.md, `.claude/skills`, `.mcp.json` and the settings files `.claude/settings.json`
+ * and `.claude/settings.local.json`; `copilot` `.github/skills`; `codex` `.codex/skills`; `kiro`
+ * `.kiro/skills`. `opencode` and `zed` name files agentcheckup does not classify (`opencode.json`,
+ * `.zed/settings.json`). Devin no longer lists `.claude/commands` among the files it imports.
  */
 export function devinSourceOf(
   artifact: Pick<Artifact, 'kind' | 'path'>,
@@ -215,8 +218,11 @@ export function devinSourceOf(
   }
   if (artifact.kind === 'skill') {
     if (configFolder(artifact.path, '.windsurf') === 'skills') return 'windsurf';
+    if (configFolder(artifact.path, '.codeium') === 'skills') return 'windsurf';
     if (configFolder(artifact.path, '.claude') === 'skills') return 'claude';
     if (configFolder(artifact.path, '.github') === 'skills') return 'copilot';
+    if (configFolder(artifact.path, '.codex') === 'skills') return 'codex';
+    if (configFolder(artifact.path, '.kiro') === 'skills') return 'kiro';
     return undefined;
   }
   return SOURCE_BY_KIND[artifact.kind];
@@ -230,7 +236,6 @@ const SOURCE_BY_KIND: Readonly<Partial<Record<ArtifactKind, DevinConfigSource>>>
   'cursor-rule-md': 'cursor',
   'cursor-mcp': 'cursor',
   'claude-md': 'claude',
-  'claude-command': 'claude',
   'claude-settings': 'claude',
   'mcp-json': 'claude',
 };

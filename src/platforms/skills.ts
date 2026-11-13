@@ -44,9 +44,10 @@ export interface SkillRoot {
  * skills; GitHub Copilot reads `.github`, `.claude` and `.agents` skills; Gemini CLI reads
  * `.gemini/skills` and `.agents/skills`.
  *
- * Devin Local (`windsurf`), verified 2026-10-17, reads `<name>/SKILL.md` in `.devin/skills`,
- * `.windsurf/skills` and `.agents/skills` (SOURCES.devinCliSkills), and imports
- * `.claude/skills/**\/SKILL.md` and `.github/skills/**\/SKILL.md` (SOURCES.devinReadConfigFrom).
+ * Devin Local (`windsurf`), verified 2026-11-13, reads `<name>/SKILL.md` in `.devin/skills`,
+ * `.windsurf/skills` and `.agents/skills` (SOURCES.devinCliSkills), and imports `.codeium/skills`
+ * and `**\/SKILL.md` below `.claude/skills`, `.github/skills`, `.codex/skills` and `.kiro/skills`
+ * (SOURCES.devinReadConfigFrom).
  * Cline reads `.clinerules`, `.cline`, `.claude` and `.agents` skills
  * (SOURCES.clinePathsSource, checked 2026-10-17).
  */
@@ -86,10 +87,13 @@ export const SKILL_ROOTS: readonly SkillRoot[] = [
     readers: [
       { platform: 'codex', depth: 'recursive' },
       { platform: 'cursor', depth: 'recursive' },
+      { platform: 'windsurf', depth: 'recursive' },
     ],
   },
+  { segment: '.kiro/skills', readers: [{ platform: 'windsurf', depth: 'recursive' }] },
   { segment: '.devin/skills', readers: [{ platform: 'windsurf', depth: 'direct' }] },
   { segment: '.windsurf/skills', readers: [{ platform: 'windsurf', depth: 'direct' }] },
+  { segment: '.codeium/skills', readers: [{ platform: 'windsurf', depth: 'direct' }] },
   { segment: '.cline/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
   { segment: '.clinerules/skills', readers: [{ platform: 'cline', depth: 'shallow' }] },
 ];

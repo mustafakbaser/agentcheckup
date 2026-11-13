@@ -3,7 +3,11 @@ import type { Artifact, Fix } from '../../core/types.js';
 import { jsonRenameKey } from '../../fix/edits.js';
 import { defineRule } from '../define.js';
 import type { Severity } from '../../core/types.js';
-import { codexMisplacedEvents, devinEventInOtherCase } from '../../platforms/hooks.js';
+import {
+  codexMisplacedEvents,
+  DEVIN_CHANGELOG_EVENTS,
+  devinEventInOtherCase,
+} from '../../platforms/hooks.js';
 import { configDocument, TOML_KINDS } from '../../platforms/kinds.js';
 import { at, FileFindings, keySpanOf } from '../json/access.js';
 import { editable, sharedFileGuidance } from '../json/fix-support.js';
@@ -60,6 +64,12 @@ function unknownEvent(platform: HookPlatform, name: string): UnknownEvent {
     return {
       message: `${quote(name)} is not a ${label} hook event; it is spelled ${quote(spelled)}. Devin Local documents event names in this spelling only and does not say whether it matches another, so these hooks may never run.`,
       suggestion: spelled,
+      severity: 'info',
+    };
+  }
+  if (platform === 'windsurf' && DEVIN_CHANGELOG_EVENTS.has(name)) {
+    return {
+      message: `${quote(name)} is not in the ${label} hook reference, though the Devin CLI changelog mentions ${quote(name)} hooks. Whether ${label} runs these hooks, and with what input, is not documented.`,
       severity: 'info',
     };
   }
@@ -120,7 +130,7 @@ export const unknownEventRule = defineRule({
     title: 'Hook event name is not one the agent fires',
     rationale: [
       'Each agent fires a fixed, case-sensitive set of hook events: Claude Code and Codex use PascalCase names such as `PreToolUse`, Cursor camelCase names such as `beforeShellExecution`, and Gemini CLI its own names such as `BeforeTool`. Hooks under any other name never run. Claude Code skips them with a Settings Warning, Gemini CLI with an "Invalid hook event name" warning, and Codex without a warning.',
-      'Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only. Cascade\'s snake_case events in `.devin/hooks.json` are not checked.',
+      'Devin Local fires the eight events its documentation lists, such as `PreToolUse` and `PostCompaction`, for the hooks in `.devin/hooks.v1.json` and under `"hooks"` in `.devin/config.json` and `.devin/config.local.json`; hooks under any other name never run. Whether it also matches a listed name in another letter case is not documented, so such a name is information only, as is `ContextInput`, which the Devin CLI changelog mentions but the hook reference does not list. Cascade\'s snake_case events in `.devin/hooks.json` are not checked.',
       'Wrong case (`preToolUse` in Claude Code, `PreToolUse` in `.cursor/hooks.json`) and names copied from another agent are the usual causes; the message gives the right name. In `.codex/hooks.json`, an event at the top level instead of inside `"hooks"` makes Codex skip the whole file. Inline `[hooks]` tables in `.codex/config.toml` are checked too, without a fix.',
       'Rename the key to an event the agent fires.',
     ].join('\n\n'),
@@ -147,6 +157,7 @@ export const unknownEventRule = defineRule({
       HOOK_SOURCES.geminiHookRegistry,
       SOURCES.devinCliHooks,
       SOURCES.devinCliHookEvents,
+      SOURCES.devinCliChangelog,
     ],
     since: RULESET_VERSION,
     fix: {

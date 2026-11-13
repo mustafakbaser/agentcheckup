@@ -25,7 +25,7 @@ This is documented behavior, so the finding is advice. To fail closed, set `"onF
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
 - [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-11-13
 - [Gemini CLI: Hooks](https://geminicli.com/docs/hooks/), verified, checked 2026-10-14
-- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-10-30
+- [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-11-13
 
 ## Fix
 

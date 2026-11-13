@@ -18,10 +18,11 @@
  *   is the `unknown` trigger, unverified: Devin does not document it.
  * - `.cursor/rules/*.md` and `*.mdc`: the mode comes from `cursorActivation`, shared with Cursor's
  *   plan and the cursor/* rules. Devin reads the `.md` files Cursor ignores.
- * - Skills: `<name>/SKILL.md` in `.devin/skills`, `.windsurf/skills` and `.agents/skills`, and any
- *   SKILL.md below the imported `.claude/skills` and `.github/skills` (SKILL_ROOTS in
- *   src/platforms/skills.ts), listed by name and description. `triggers` without `model` keeps a
- *   skill out of the model's reach. Commands in `.claude/commands` are imported as skills.
+ * - Skills: `<name>/SKILL.md` in `.devin/skills`, `.windsurf/skills`, `.agents/skills` and the
+ *   imported `.codeium/skills`, and any SKILL.md below the imported `.claude/skills`,
+ *   `.github/skills`, `.codex/skills` and `.kiro/skills` (SKILL_ROOTS in src/platforms/skills.ts),
+ *   listed by name and description. `triggers` without `model` keeps a skill out of the model's
+ *   reach. Devin no longer lists commands in `.claude/commands` among the files it imports.
  * - Hooks: `.devin/hooks.v1.json`, `hooks` in `.devin/config.json` and `.devin/config.local.json`,
  *   and Claude Code hooks in `.claude/settings.json` and `.claude/settings.local.json`, found in
  *   the working directory and the directories above it up to the repository root. They load with
@@ -50,6 +51,7 @@ import { isObject, own } from '../../parse/json-access.js';
 import { classify, isCandidateBasename } from '../classify.js';
 import { cursorActivation, type CursorRuleMode } from '../cursor-rules.js';
 import {
+  DEVIN_CHANGELOG_EVENTS,
   DEVIN_EVENTS,
   devinEventInOtherCase,
   hookEvents,
@@ -99,8 +101,10 @@ export interface WindsurfLoadOptions {
 const PLANNED_SOURCES: readonly DevinConfigSource[] = [
   'agents_standard',
   'claude',
+  'codex',
   'copilot',
   'cursor',
+  'kiro',
   'opencode',
   'windsurf',
   'zed',
@@ -130,6 +134,7 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.claude/settings.local.json',
       '~/.codeium/<channel>/mcp_config.json',
       '~/.codeium/<channel>/skills',
+      '~/.codex/skills',
       '~/.config/devin/AGENTS.md',
       '~/.config/devin/config.json',
       '~/.config/devin/mcp_config.json',
@@ -137,6 +142,7 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.config/opencode/opencode.json',
       '~/.config/zed/settings.json',
       '~/.copilot/skills',
+      '~/.kiro/skills',
       '~/.devin/global_rules.md',
       '~/.devin/rules',
     ],
@@ -224,8 +230,8 @@ const UNREAD_MCP_FILES: Readonly<Record<string, DevinConfigSource>> = {
 
 /**
  * True when an unlisted directory (trailing `/`) may hold files Devin Local reads: `.devin` or
- * `.windsurf` and anything below, `.cursor` and its rules, the skills and commands folders it
- * imports, and the workspace's own `.zed`.
+ * `.windsurf` and anything below, `.cursor` and its rules, the skills folders it imports, and the
+ * workspace's own `.zed`.
  */
 function mayHoldConfig(directory: string): boolean {
   const segments = directory.split('/').filter((segment) => segment !== '');
@@ -235,15 +241,21 @@ function mayHoldConfig(directory: string): boolean {
     // Devin reads `.zed/settings.json` at the workspace root only.
     if (segment === '.zed') return i === 0 && next === undefined;
     if (segment === '.cursor') return next === undefined || next === 'rules';
-    if (segment === '.agents' || segment === '.github') {
-      return next === undefined || next === 'skills';
-    }
-    if (segment === '.claude') {
-      return next === undefined || next === 'skills' || next === 'commands';
-    }
+    if (SKILL_FOLDERS.has(segment)) return next === undefined || next === 'skills';
+    // `.claude/settings.json` holds hooks and MCP servers.
+    if (segment === '.claude') return next === undefined || next === 'skills';
     return false;
   });
 }
+
+/** Folders whose `skills` folder Devin Local reads or imports, other than `.devin` and `.windsurf`. */
+const SKILL_FOLDERS: ReadonlySet<string> = new Set([
+  '.agents',
+  '.codeium',
+  '.codex',
+  '.github',
+  '.kiro',
+]);
 
 function sizeOf(bytes: number, chars: number): Size {
   return { bytes, chars, tokens: tokensOf(chars) };
@@ -566,7 +578,7 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   };
 
   // ------------------------------------------------------------------------------------------
-  // Skills and imported commands
+  // Skills
   // ------------------------------------------------------------------------------------------
 
   const skill = (path: string, artifact: Artifact, caseMismatch: boolean): void => {
@@ -633,28 +645,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     deferred.push(body);
   };
 
-  /**
-   * A command in `.claude/commands`, which Devin imports as a skill. How such a skill is invoked is
-   * not documented.
-   */
-  const command = (path: string, artifact: Artifact): void => {
-    if (!local(path).startsWith('.claude/commands/')) return;
-    const name = basename(path).replace(/\.md$/i, '');
-    const source = devinSourceOf({ kind: 'claude-command', path });
-    if (disabled('command', path, source, { id: `command:${path}`, name })) return;
-    entries.push({
-      id: `command:${path}`,
-      role: 'command',
-      trigger: 'model-selected',
-      path,
-      realPath: artifact.realPath,
-      name,
-      size: fileSize(artifact),
-      certainty: 'unverified',
-      evidence: ['devinReadConfigFrom', 'devinCliSkills'],
-    });
-  };
-
   // ------------------------------------------------------------------------------------------
   // Hooks
   // ------------------------------------------------------------------------------------------
@@ -713,15 +703,18 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     if (!claude) {
       // Devin fires only its documented events, so hooks under another name never run
       // (hooks/unknown-event). Whether it matches a name in another letter case is not
-      // documented.
+      // documented, nor whether it fires an event only its changelog names.
       for (const event of hookEvents(doc, source.platform, source.root)) {
         if (events.includes(event.name)) continue;
+        const changelog = DEVIN_CHANGELOG_EVENTS.has(event.name);
         skip(
           'hook',
           path,
           'unknown-event',
-          devinEventInOtherCase(event.name) ? 'unverified' : 'documented',
-          ['devinCliHooks', 'devinCliHookEvents'],
+          changelog || devinEventInOtherCase(event.name) ? 'unverified' : 'documented',
+          changelog
+            ? ['devinCliHooks', 'devinCliHookEvents', 'devinCliChangelog']
+            : ['devinCliHooks', 'devinCliHookEvents'],
           { name: event.name, ruleId: 'hooks/unknown-event' },
         );
       }
@@ -818,8 +811,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       cursorRule(path, artifact, kind);
     } else if (kind === 'skill') {
       skill(path, artifact, caseMismatch);
-    } else if (kind === 'claude-command') {
-      command(path, artifact);
     }
     if (Object.hasOwn(MCP_FILES, where) && MCP_FILES[where] === kind) {
       mcp(path, artifact);
@@ -909,7 +900,6 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     if (kind === 'cursor-rule' || kind === 'cursor-rule-md') {
       return cursorRulesPlace(where) !== undefined;
     }
-    if (kind === 'claude-command') return where.startsWith('.claude/commands/');
     if (kind === 'skill') {
       const location = skillLocation(path);
       return location?.platforms.has('windsurf') === true && inWorkspace(location.root);

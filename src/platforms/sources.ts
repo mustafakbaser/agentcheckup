@@ -407,67 +407,67 @@ export const SOURCES = {
   windsurfRules: verified(
     'Devin Desktop: Devin Local customizations, rules (`trigger` values, `.windsurfrules`, global rules)',
     'https://docs.devin.ai/desktop/devin-local/customizations',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinLocalCustomizations: verified(
     'Devin Desktop: Devin Local customizations ("every customization uses the Devin CLI format and discovery")',
     'https://docs.devin.ai/desktop/devin-local/customizations',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinLocal: verified(
     'Devin Desktop: Devin Local',
     'https://docs.devin.ai/desktop/devin-local/overview',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinDesktopFaq: verified(
     'Devin Desktop FAQ ("Devin Desktop reads rules from `AGENTS.md` / `agents.md` files")',
     'https://docs.devin.ai/desktop/devin-desktop-faq',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliRules: verified(
     'Devin CLI: Rules',
     'https://docs.devin.ai/cli/extensibility/rules',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinReadConfigFrom: verified(
-    'Devin CLI: read_config_from',
+    'Devin CLI: read_config_from (imports from Cursor, Windsurf, Claude Code, GitHub Copilot, Codex, Kiro, OpenCode and Zed)',
     'https://docs.devin.ai/cli/reference/configuration/read-config-from',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliSkills: verified(
     'Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)',
     'https://docs.devin.ai/cli/extensibility/skills/overview',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliSkillsCreate: verified(
     'Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)',
     'https://docs.devin.ai/cli/extensibility/skills/creating-skills',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliChangelog: verified(
-    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)',
+    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)',
     'https://docs.devin.ai/cli/changelog/stable',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliConfigFile: verified(
     'Devin CLI: Configuration file (JSON with comments)',
     'https://docs.devin.ai/cli/reference/configuration/config-file',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliHooks: verified(
     'Devin CLI: Hooks',
     'https://docs.devin.ai/cli/extensibility/hooks/overview',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliHookEvents: verified(
     'Devin CLI: Lifecycle hooks',
     'https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   devinCliMcp: verified(
     'Devin CLI: MCP configuration',
     'https://docs.devin.ai/cli/extensibility/mcp/configuration',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   clineRules: verified('Cline: Rules', 'https://docs.cline.bot/customization/cline-rules'),
   clineConfig: verified(
@@ -584,6 +584,6 @@ export const SOURCES = {
   devinSubagents: verified(
     'Devin CLI: Subagents',
     'https://docs.devin.ai/cli/subagents',
-    AGENTS_CHECKED,
+    DRIFT_CHECKED,
   ),
 } as const satisfies Record<string, RuleSource>;

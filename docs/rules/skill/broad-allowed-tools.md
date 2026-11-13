@@ -19,7 +19,7 @@ Skill pre-approves shell commands or file edits without limits.
 
 GitHub Copilot warns that pre-approving `shell` or `bash` removes the confirmation step for terminal commands and can let attacker-controlled skills or prompt injections run arbitrary commands.
 
-Devin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills` and `.github/skills` as well as for its own.
+Devin Local auto-approves the tools in a skill's `allowed-tools` while the skill runs inline, without a permission prompt; the field does not restrict which tools the skill can use. It reads its own tool names there, and `exec` is every shell command. That holds for the skills it imports from `.claude/skills`, `.github/skills`, `.codex/skills` and `.kiro/skills` as well as for its own.
 
 Scope each rule to the commands the skill needs, such as `Bash(git status *)`, or leave the tool out so the agent asks.
 
@@ -28,9 +28,9 @@ Scope each rule to the commands the skill needs, such as `Bash(git status *)`, o
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-11-13
 - [Claude Code: Configure permissions](https://code.claude.com/docs/en/permissions), verified, checked 2026-11-13
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-30
-- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-10-30
-- [Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)](https://docs.devin.ai/cli/extensibility/skills/overview), verified, checked 2026-10-30
-- [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-10-30
+- [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-11-13
+- [Devin CLI: Skills (`allowed-tools` auto-approves the tools it lists)](https://docs.devin.ai/cli/extensibility/skills/overview), verified, checked 2026-11-13
+- [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-11-13
 
 ## Fix
 
