@@ -52,7 +52,6 @@ import {
 } from '../codex-skills.js';
 import {
   CODEX_EVENTS,
-  CODEX_SOURCE_ONLY_EVENTS,
   codexMisplacedEvents,
   eventHandlers,
   hookEvents,
@@ -637,8 +636,7 @@ const UNKNOWN_EVENT_EVIDENCE: readonly SourceKey[] = ['codexHookEvents', 'codexH
 /**
  * The handlers of one hooks file: `.codex/hooks.json`, or the `[hooks]` table of a
  * `.codex/config.toml` layer. Unknown or misplaced events are skipped with hooks/unknown-event;
- * with hooks turned off, every other handler is skipped as `disabled`. A handler under an event
- * only the source names ({@link CODEX_SOURCE_ONLY_EVENTS}) cites the source.
+ * with hooks turned off, every other handler is skipped as `disabled`.
  */
 function addHandlers(
   parts: PlanParts,
@@ -671,7 +669,6 @@ function addHandlers(
       });
       return;
     }
-    const sourceOnly = CODEX_SOURCE_ONLY_EVENTS.has(handler.event);
     if (disabled) {
       parts.skip({
         id,
@@ -692,8 +689,8 @@ function addHandlers(
       realPath: artifact.realPath,
       name: handler.event,
       inventoryId: inventoryIds[i] ?? '',
-      certainty: sourceOnly ? weakest(certainty, 'source-code') : certainty,
-      evidence: sourceOnly ? [...evidence, 'codexHookEvents'] : evidence,
+      certainty,
+      evidence,
     });
   });
   // hooks/unknown-event reports event names, so an unknown or misplaced event without a

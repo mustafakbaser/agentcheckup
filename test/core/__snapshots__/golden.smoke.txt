@@ -772,7 +772,7 @@
         {
           "title": "Codex: Config basics",
           "url": "https://learn.chatgpt.com/docs/config-file/config-basic",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1477,7 +1477,7 @@
         {
           "title": "Codex: MCP",
           "url": "https://learn.chatgpt.com/docs/extend/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1548,7 +1548,7 @@
         {
           "title": "Codex: MCP",
           "url": "https://learn.chatgpt.com/docs/extend/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1627,7 +1627,7 @@
         {
           "title": "Codex: MCP",
           "url": "https://learn.chatgpt.com/docs/extend/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2291,7 +2291,7 @@
         {
           "title": "Codex: Build skills",
           "url": "https://learn.chatgpt.com/docs/build-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2383,7 +2383,7 @@
         {
           "title": "Codex: Build skills",
           "url": "https://learn.chatgpt.com/docs/build-skills",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

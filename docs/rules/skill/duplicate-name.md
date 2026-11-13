@@ -24,7 +24,7 @@ Rename one of the skills, or, when they are the same skill, keep one copy and li
 ## Evidence
 
 - [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
-- [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-10-14
+- [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-11-13
 - [Gemini CLI: Agent Skills](https://geminicli.com/docs/cli/skills/), verified, checked 2026-10-14
 - [Gemini CLI source: skillManager.ts (same-name skills override each other)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillManager.ts), verified, checked 2026-10-14
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-30

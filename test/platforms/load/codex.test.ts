@@ -614,7 +614,7 @@ describe('loadCodex: hooks and config.toml', () => {
     expectFindingsForSkips(misplaced);
   });
 
-  it('loads hooks under the model request events from the source, citing it', () => {
+  it('loads hooks under the documented model request events', () => {
     const handler = { hooks: [{ type: 'command', command }] };
     const toml = [
       '[[hooks.PostModelRequest]]',
@@ -638,11 +638,11 @@ describe('loadCodex: hooks and config.toml', () => {
       [
         '.codex/config.toml',
         'PostModelRequest',
-        'source-code',
-        ['codexHooks', 'codexConfigBasic', 'codexConfigLoader', 'codexHookEvents'],
+        'documented',
+        ['codexHooks', 'codexConfigBasic', 'codexConfigLoader'],
       ],
-      ['.codex/hooks.json', 'PostModelRequest', 'source-code', ['codexHooks', 'codexHookEvents']],
-      ['.codex/hooks.json', 'PreModelRequest', 'source-code', ['codexHooks', 'codexHookEvents']],
+      ['.codex/hooks.json', 'PostModelRequest', 'documented', ['codexHooks']],
+      ['.codex/hooks.json', 'PreModelRequest', 'documented', ['codexHooks']],
       ['.codex/hooks.json', 'Stop', 'documented', ['codexHooks']],
     ]);
     expect(findings(scanned.result, 'hooks/unknown-event')).toEqual([]);

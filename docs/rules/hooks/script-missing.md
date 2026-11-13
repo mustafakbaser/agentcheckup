@@ -25,7 +25,7 @@ Fix the path or add the script.
 
 - [Claude Code: Hooks](https://code.claude.com/docs/en/hooks), verified, checked 2026-10-30
 - [Cursor: Hooks](https://cursor.com/docs/hooks), verified, checked 2026-10-30
-- [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-10-14
+- [Codex: Hooks](https://learn.chatgpt.com/docs/hooks), verified, checked 2026-11-13
 - [Codex source: hooks/src/engine/discovery.rs (parse errors, timeouts)](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs), verified, checked 2026-10-30
 
 ## Fix

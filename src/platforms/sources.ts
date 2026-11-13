@@ -121,14 +121,19 @@ export const SOURCES = {
   codexConfigBasic: verified(
     'Codex: Config basics',
     'https://learn.chatgpt.com/docs/config-file/config-basic',
+    DRIFT_CHECKED,
   ),
   codexConfigAdvanced: verified(
     'Codex: Advanced configuration',
     'https://learn.chatgpt.com/docs/config-file/config-advanced',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
-  codexMcp: verified('Codex: MCP', 'https://learn.chatgpt.com/docs/extend/mcp', AUDIT_CHECKED),
-  codexSkills: verified('Codex: Build skills', 'https://learn.chatgpt.com/docs/build-skills'),
+  codexMcp: verified('Codex: MCP', 'https://learn.chatgpt.com/docs/extend/mcp', DRIFT_CHECKED),
+  codexSkills: verified(
+    'Codex: Build skills',
+    'https://learn.chatgpt.com/docs/build-skills',
+    DRIFT_CHECKED,
+  ),
   codexSkillParser: verified(
     'Codex source: SKILL.md frontmatter parser (parser.rs)',
     'https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs',
@@ -158,7 +163,7 @@ export const SOURCES = {
     'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs',
     DRIFT_CHECKED,
   ),
-  codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
+  codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks', DRIFT_CHECKED),
   codexHookConfig: verified(
     'Codex source: hook_config.rs (hooks.json top level: description and hooks only)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs',
@@ -177,7 +182,7 @@ export const SOURCES = {
   codexConfigReference: verified(
     'Codex: Configuration reference',
     'https://learn.chatgpt.com/docs/config-file/config-reference',
-    COVERAGE_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexMcpTypes: verified(
     'Codex source: mcp_types.rs (transport from command or url, startup timeouts)',

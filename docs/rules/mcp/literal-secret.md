@@ -30,7 +30,7 @@ In a remote server's `url` and `headers`, Claude Code reads credential variables
 - [Claude Code: MCP](https://code.claude.com/docs/en/mcp), verified, checked 2026-10-30
 - [Cursor: MCP](https://cursor.com/docs/mcp), verified, checked 2026-10-30
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
-- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-10-30
+- [Codex: MCP](https://learn.chatgpt.com/docs/extend/mcp), verified, checked 2026-11-13
 - [GitHub: About authentication to GitHub (token prefixes)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github), verified, checked 2026-10-30
 - [GitHub blog: Behind GitHub's new authentication token formats](https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/), verified, checked 2026-10-14
 - [GitHub changelog: new format for GitHub App installation tokens](https://github.blog/changelog/2026-04-24-notice-about-upcoming-new-format-for-github-app-installation-tokens/), verified, checked 2026-10-14
