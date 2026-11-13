@@ -26,7 +26,7 @@ Say what the skill does, then add a "Use when ..." clause with the situations an
 - [Claude API: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), verified, checked 2026-10-30
 - [Agent Skills specification](https://agentskills.io/specification), verified, checked 2026-11-13
 - [Codex: Build skills](https://learn.chatgpt.com/docs/build-skills), verified, checked 2026-11-13
-- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-10-30
+- [Claude Code: Skills](https://code.claude.com/docs/en/skills), verified, checked 2026-11-13
 
 ## Fix
 

@@ -800,16 +800,18 @@ covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `creden
 `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS`; `tls` covers
 `NODE_TLS_REJECT_UNAUTHORIZED` and `NODE_EXTRA_CA_CERTS`; `code-exec` covers `NODE_OPTIONS`,
 `LD_PRELOAD` and Claude Code settings that run a command, such as `apiKeyHelper` and
-`subagentStatusLine`. Following the digest rules above, a new value for an existing `credential`
-or `code-exec` override is not a change, while a new endpoint origin or TLS switch value is.
+`statusLine`, and `subagentStatusLine`, which Claude Code versions before 2.1.323 run. Following
+the digest rules above, a new value for an existing `credential` or `code-exec` override is not a
+change, while a new endpoint origin or TLS switch value is.
 
 Claude Code drops some variables from the `env` of project and local settings: those that choose
 where it writes its files, the OpenTelemetry exporter variables (such as
 `OTEL_EXPORTER_OTLP_ENDPOINT` and the other `OTEL_EXPORTER_OTLP_*` names that end in `_ENDPOINT`,
 `_HEADERS`, `_PROTOCOL`, `_CERTIFICATE`, `_CLIENT_KEY` or `_INSECURE`), `BETA_TRACING_ENDPOINT`,
-and those that change how it starts, such as `CLAUDE_CODE_PROCESS_WRAPPER`. The inventory lists
-such an override in `.claude/settings.json` or `settings.local.json` with `"effective": false`,
-and neither the gate nor a [policy](policy.md) counts it. A value that turns telemetry off, such
+those that change how it starts, such as `CLAUDE_CODE_PROCESS_WRAPPER`, the claude.ai sign-in
+variables such as `CLAUDE_CODE_OAUTH_TOKEN`, and `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE`. The
+inventory lists such an override in `.claude/settings.json` or `settings.local.json` with
+`"effective": false`, and neither the gate nor a [policy](policy.md) counts it. A value that turns telemetry off, such
 as `none` for `OTEL_TRACES_EXPORTER`, still applies. The same variable in an MCP server's `env`
 reaches the server and counts.
 

@@ -20,7 +20,7 @@ export const JSON_SOURCES = {
   claudePluginTroubleshooting: verified(
     'Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)',
     'https://code.claude.com/docs/en/plugins/troubleshooting',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexHookDiscovery: verified(
     'Codex source: hooks/src/engine/discovery.rs (failed to parse hooks config)',

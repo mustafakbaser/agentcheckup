@@ -184,7 +184,7 @@ to a new version changes the rules and trips the gate again.
   (https://agentskills.io/specification, checked 2026-10-17).
 - Claude Code skills: `allowed-tools` pre-approves tools during the turn that invokes the skill,
   as a space- or comma-separated string or a YAML list; project skills in `.claude/skills`
-  (https://code.claude.com/docs/en/skills, checked 2026-10-17).
+  (https://code.claude.com/docs/en/skills, checked 2026-11-13).
 - Claude Code permissions: a Bash rule without `*` matches one exact command, and a trailing
   ` *` also matches the bare command (https://code.claude.com/docs/en/permissions, checked
   2026-10-17).

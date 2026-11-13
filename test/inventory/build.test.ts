@@ -1367,6 +1367,25 @@ describe('env', () => {
     ]);
   });
 
+  it('marks the claude.ai sign-in and Code Mode variables as dropped from repository settings', () => {
+    const env = envOf({
+      ANTHROPIC_AUTH_TOKEN: 'x',
+      CLAUDE_CODE_EXPERIMENTAL_CODE_MODE: '0',
+      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: 'x',
+      CLAUDE_CODE_OAUTH_SCOPES: 'user:inference',
+      CLAUDE_CODE_OAUTH_TOKEN: 'x',
+    });
+    expect(env.map(({ key, class: cls, effective }) => [key, cls, effective])).toEqual([
+      // The reference does not drop the API's own credentials.
+      ['ANTHROPIC_AUTH_TOKEN', 'credential', true],
+      // Not even a `0`: only the shell, user settings and `--settings` turn Code Mode off.
+      ['CLAUDE_CODE_EXPERIMENTAL_CODE_MODE', 'other', false],
+      ['CLAUDE_CODE_OAUTH_REFRESH_TOKEN', 'credential', false],
+      ['CLAUDE_CODE_OAUTH_SCOPES', 'other', false],
+      ['CLAUDE_CODE_OAUTH_TOKEN', 'credential', false],
+    ]);
+  });
+
   it('lists subagentStatusLine only when it runs a command', () => {
     expect(envOf({}, { subagentStatusLine: { type: 'command' } })).toEqual([]);
     expect(envOf({}, { subagentStatusLine: { type: 'command', command: 'echo' } })).toEqual([

@@ -1751,7 +1751,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2554,13 +2554,13 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
           "title": "Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)",
           "url": "https://code.claude.com/docs/en/plugins/troubleshooting",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2647,7 +2647,7 @@
         {
           "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2712,7 +2712,7 @@
         {
           "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2791,7 +2791,7 @@
         {
           "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2952,7 +2952,7 @@
         {
           "title": "Claude Code: Plugin manifest reference",
           "url": "https://code.claude.com/docs/en/plugins-reference",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3187,7 +3187,7 @@
         {
           "title": "Claude Code: Security (network command approval)",
           "url": "https://code.claude.com/docs/en/security",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3215,7 +3215,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3249,7 +3249,7 @@
         {
           "title": "Claude Code: Settings",
           "url": "https://code.claude.com/docs/en/settings",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3283,7 +3283,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3331,7 +3331,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3401,7 +3401,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3465,7 +3465,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3547,7 +3547,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3599,7 +3599,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3627,7 +3627,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3699,7 +3699,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3816,7 +3816,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3876,7 +3876,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3962,7 +3962,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -4043,7 +4043,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -4112,7 +4112,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -4170,7 +4170,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -4198,7 +4198,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -4268,7 +4268,7 @@
         {
           "title": "Claude Code: Skills",
           "url": "https://code.claude.com/docs/en/skills",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

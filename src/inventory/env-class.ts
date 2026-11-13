@@ -1,9 +1,9 @@
 /**
  * What an environment override does, for the security inventory, and whether Claude Code drops
  * it from repository settings. Every name below is taken from the cited documentation (checked
- * 2026-10-15, the Claude Code pages again 2026-10-30, and the environment variable and network
- * configuration pages 2026-11-13); a name that is not listed and does not look like a credential
- * is `other`.
+ * 2026-10-15, the Claude Code pages again 2026-10-30, and the environment variable, network
+ * configuration and settings reference pages 2026-11-13); a name that is not listed and does not
+ * look like a credential is `other`.
  *
  * - Claude Code environment variables: https://code.claude.com/docs/en/env-vars
  * - Claude Code network configuration (proxies, CA certificates, mTLS):
@@ -98,8 +98,9 @@ const BY_NAME: ReadonlyMap<string, EnvClass> = new Map([
 /**
  * Claude Code settings keys that run a command: the five credential and header helpers take a
  * command line, `statusLine`, `subagentStatusLine` and `fileSuggestion` an object with a
- * `command` (SOURCES.claudeSettingsReference: `subagentStatusLine` "lets you run your own command
- * to rewrite those rows", in any file).
+ * `command` (SOURCES.claudeSettingsReference). Claude Code v2.1.323 removed `subagentStatusLine`
+ * and loads a file that still holds it (CHANGELOG.md, 2.1.323); earlier versions run its command
+ * from any file, so it stays listed.
  */
 export const COMMAND_SETTINGS: readonly string[] = [
   'apiKeyHelper',

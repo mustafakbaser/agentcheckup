@@ -6,6 +6,9 @@ const CHECKED = '2026-10-14';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 export const RISK_SOURCES = {
   trojanSource: {
     title:
@@ -35,7 +38,7 @@ export const RISK_SOURCES = {
   claudeSecurity: {
     title: 'Claude Code: Security (network command approval)',
     url: 'https://code.claude.com/docs/en/security',
-    checked: AUDIT_CHECKED,
+    checked: DRIFT_CHECKED,
     status: 'verified',
   },
   cursorRulesComments: {

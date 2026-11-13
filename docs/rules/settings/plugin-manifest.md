@@ -23,8 +23,8 @@ Fix the field the finding points to.
 
 ## Evidence
 
-- [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-10-30
-- [Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)](https://code.claude.com/docs/en/plugins/troubleshooting), verified, checked 2026-10-30
+- [Claude Code: Plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), verified, checked 2026-11-13
+- [Claude Code: Troubleshoot plugins (corrupt manifest file, Invalid JSON syntax)](https://code.claude.com/docs/en/plugins/troubleshooting), verified, checked 2026-11-13
 
 ## Fix
 

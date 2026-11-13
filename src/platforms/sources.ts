@@ -43,7 +43,7 @@ export const SOURCES = {
   claudeSkills: verified(
     'Claude Code: Skills',
     'https://code.claude.com/docs/en/skills',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeApiSkills: verified(
     'Claude API: Agent Skills overview',
@@ -58,7 +58,7 @@ export const SOURCES = {
   claudeSettings: verified(
     'Claude Code: Settings',
     'https://code.claude.com/docs/en/settings',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudePermissions: verified(
     'Claude Code: Configure permissions',
@@ -68,7 +68,7 @@ export const SOURCES = {
   claudeSettingsReference: verified(
     'Claude Code: All settings',
     'https://code.claude.com/docs/en/settings-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeEnvVars: verified(
     'Claude Code: Environment variables',
@@ -89,17 +89,17 @@ export const SOURCES = {
   claudeSubagents: verified(
     'Claude Code: Subagents',
     'https://code.claude.com/docs/en/sub-agents',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudePlugins: verified(
     'Claude Code: Plugin manifest reference',
     'https://code.claude.com/docs/en/plugins-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudePluginLoading: verified(
     'Claude Code: Plugin loading reference',
     'https://code.claude.com/docs/en/plugins/loading',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexAgentsMd: verified(
     'Codex: AGENTS.md',
