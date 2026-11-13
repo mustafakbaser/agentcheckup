@@ -809,8 +809,10 @@ where it writes its files, the OpenTelemetry exporter variables (such as
 `OTEL_EXPORTER_OTLP_ENDPOINT` and the other `OTEL_EXPORTER_OTLP_*` names that end in `_ENDPOINT`,
 `_HEADERS`, `_PROTOCOL`, `_CERTIFICATE`, `_CLIENT_KEY` or `_INSECURE`), `BETA_TRACING_ENDPOINT`,
 those that change how it starts, such as `CLAUDE_CODE_PROCESS_WRAPPER`, the claude.ai sign-in
-variables such as `CLAUDE_CODE_OAUTH_TOKEN`, and `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE`. The
-inventory lists such an override in `.claude/settings.json` or `settings.local.json` with
+variables such as `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE`, and the
+variables it reads from the launch environment only, such as
+`CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS` and the `CLAUDE_CODE_DISABLE_*_RM_*`
+switches. The inventory lists such an override in `.claude/settings.json` or `settings.local.json` with
 `"effective": false`, and neither the gate nor a [policy](policy.md) counts it. A value that turns telemetry off, such
 as `none` for `OTEL_TRACES_EXPORTER`, still applies. The same variable in an MCP server's `env`
 reaches the server and counts.

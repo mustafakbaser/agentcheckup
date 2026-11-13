@@ -1386,6 +1386,32 @@ describe('env', () => {
     ]);
   });
 
+  it('marks the variables Claude Code reads from the launch environment only as dropped', () => {
+    const env = envOf({
+      CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT: '1',
+      CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '1',
+      CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT: '1',
+      CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY: '1',
+      CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT: '1',
+      CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS: '1',
+      CLAUDE_CODE_WARN_DISK_FREE_GIB: '5',
+      CLAUDE_CODE_WARN_MEMORY_FREE_GIB: '2',
+      // A variable the repository may set stays effective.
+      CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet',
+    });
+    expect(env.map(({ key, effective }) => [key, effective])).toEqual([
+      ['CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT', false],
+      ['CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT', false],
+      ['CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT', false],
+      ['CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY', false],
+      ['CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT', false],
+      ['CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS', false],
+      ['CLAUDE_CODE_SUBAGENT_MODEL', true],
+      ['CLAUDE_CODE_WARN_DISK_FREE_GIB', false],
+      ['CLAUDE_CODE_WARN_MEMORY_FREE_GIB', false],
+    ]);
+  });
+
   it('lists subagentStatusLine only when it runs a command', () => {
     expect(envOf({}, { subagentStatusLine: { type: 'command' } })).toEqual([]);
     expect(envOf({}, { subagentStatusLine: { type: 'command', command: 'echo' } })).toEqual([
