@@ -108,6 +108,7 @@ export const SOURCES = {
   codexAgentsMdSource: verified(
     'Codex source: agents_md.rs',
     'https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs',
+    DRIFT_CHECKED,
   ),
   codexDefaults: verified(
     'Codex source: defaults.toml (project_doc_max_bytes = 32768, project_root_markers)',
@@ -135,24 +136,27 @@ export const SOURCES = {
   codexSkillLoader: verified(
     'Codex source: skill loader (default name from the directory)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs',
+    DRIFT_CHECKED,
   ),
   codexSkillDiscovery: verified(
     'Codex source: skill discovery (exact SKILL.md name, recursive scan)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/discovery.rs',
+    DRIFT_CHECKED,
   ),
   codexSkillLimits: verified(
     'Codex source: skill scan limits (MAX_SCAN_DEPTH = 6, MAX_SKILLS_DIRS_PER_ROOT = 2000)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/mod.rs',
+    DRIFT_CHECKED,
   ),
   codexSkillRoots: verified(
     'Codex source: skill roots (.agents/skills up to the project root, project config folders)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexReadFileText: verified(
     'Codex source: read_file_text decodes UTF-8 without removing a byte order mark',
     'https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexHooks: verified('Codex: Hooks', 'https://learn.chatgpt.com/docs/hooks'),
   codexHookConfig: verified(
@@ -178,12 +182,12 @@ export const SOURCES = {
   codexMcpTypes: verified(
     'Codex source: mcp_types.rs (transport from command or url, startup timeouts)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexConfigLoader: verified(
     'Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexHookState: verified(
     'Codex source: config_rules.rs (hooks.state only from user and session layers)',

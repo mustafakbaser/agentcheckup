@@ -23,7 +23,7 @@ Rename the file to the exact name if it holds agent instructions, or to a differ
 
 ## Evidence
 
-- [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
+- [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-11-13
 - [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
 - [Gemini CLI: GEMINI.md](https://geminicli.com/docs/cli/gemini-md/), verified, checked 2026-10-14
 - [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-10-30

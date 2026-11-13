@@ -21,7 +21,7 @@ Save SKILL.md as UTF-8 without a byte order mark.
 
 ## Evidence
 
-- [Codex source: read_file_text decodes UTF-8 without removing a byte order mark](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs), verified, checked 2026-10-30
+- [Codex source: read_file_text decodes UTF-8 without removing a byte order mark](https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs), verified, checked 2026-11-13
 - [Codex source: SKILL.md frontmatter parser (parser.rs)](https://github.com/openai/codex/blob/main/codex-rs/skills/src/parser.rs), verified, checked 2026-10-14
 - [Unicode PropList.txt: White_Space (U+FEFF is not whitespace, so Rust trim() keeps it)](https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt), verified, checked 2026-10-14
 - [Gemini CLI source: skillLoader.ts (byte order mark removed, FRONTMATTER_REGEX)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts), verified, checked 2026-10-30

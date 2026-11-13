@@ -754,7 +754,7 @@
         {
           "title": "Codex source: agents_md.rs",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -817,7 +817,7 @@
         {
           "title": "Codex source: agents_md.rs",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -880,7 +880,7 @@
         {
           "title": "Codex source: agents_md.rs",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -930,7 +930,7 @@
         {
           "title": "Codex source: agents_md.rs",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1826,7 +1826,7 @@
         {
           "title": "Codex source: agents_md.rs",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2502,7 +2502,7 @@
         {
           "title": "Codex source: read_file_text decodes UTF-8 without removing a byte order mark",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/file-system/src/lib.rs",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2868,7 +2868,7 @@
         {
           "title": "Codex source: skill loader (default name from the directory)",
           "url": "https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/host.rs",
-          "checked": "2026-10-14",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {

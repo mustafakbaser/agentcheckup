@@ -24,7 +24,7 @@ Delete an override you no longer need, or keep it out of version control.
 ## Evidence
 
 - [Codex: AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), verified, checked 2026-10-14
-- [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-10-14
+- [Codex source: agents_md.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs), verified, checked 2026-11-13
 
 ## Fix
 
