@@ -82,6 +82,31 @@ App token instead of the workflow token would remove this step.
   severity or above. The rule is in the pull request ruleset, not in `main: integrity`, so a
   maintainer's fast-forward is not blocked when CodeQL has not analyzed that commit yet.
 
+## Dependency alerts
+
+Dependabot security updates fix most alerts on their own. When one cannot be fixed, because the
+packages that pull in the vulnerable one still require a vulnerable range, handle it like this:
+
+1. Check that the package is not shipped. The bundle is the only code the npm package runs and it
+   has no dependencies, so a package is shipped exactly when it is listed in
+   [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). A shipped package is fixed before the
+   next release, never accepted.
+2. Check whether the vulnerable code receives input that anyone other than a maintainer controls,
+   in development or in CI.
+3. If it is not shipped and the input is maintainer-controlled, dismiss the alert as "Risk is
+   tolerable", with a comment that links to the row you add to the table below. Do not force the
+   fix with a pnpm override: an override that moves a dependency of a dependency to a major
+   version its parent does not support can break the toolchain without a failing test.
+4. Delete the row when the parents accept a fixed version. Dependabot then opens the update, or
+   reopens the alert if the version is still vulnerable.
+
+While such an alert is open, the "Dependabot Updates" run for it fails with
+`security_update_not_possible`. That failure is expected and stops once the alert is dismissed.
+
+| Advisory                                                                 | Package                            | Pulled in by                                                                                   | Why the risk is tolerable                                                                                                                                                                                                             | Revisit when                                                      | Recorded   |
+| ------------------------------------------------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------- |
+| [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) | minimatch 10.2.6 (fixed in 11.0.1) | `eslint` 10.14.0, `@eslint/config-array` 0.23.5, `@typescript-eslint/typescript-estree` 8.72.1 | Development only and not bundled. The advisory is a denial of service from attacker-chosen glob patterns, and ESLint only matches the patterns in `eslint.config.js`. A pull request that edits that file can already run code in CI. | `eslint` and `typescript-eslint` accept minimatch 11.0.1 or later | 2026-11-13 |
+
 ## The `npm` environment
 
 The release workflow's publish job runs in the `npm` environment, and npm trusted publishing is
