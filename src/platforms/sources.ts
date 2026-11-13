@@ -20,6 +20,9 @@ const AGENTS_CHECKED = '2026-10-26';
 /** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
 const AUDIT_CHECKED = '2026-10-30';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -267,7 +270,7 @@ export const SOURCES = {
   copilotHooksReference: verified(
     'GitHub Copilot: Hooks reference',
     'https://docs.github.com/en/copilot/reference/hooks-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   copilotCloudMcp: verified(
     'GitHub Copilot cloud agent: Configure MCP servers',
@@ -277,7 +280,7 @@ export const SOURCES = {
   copilotCliMcp: verified(
     'GitHub Copilot CLI: Add MCP servers',
     'https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   vscodeInstructions: verified(
     'VS Code: Custom instructions',
@@ -349,12 +352,12 @@ export const SOURCES = {
   geminiAntigravity: verified(
     'Google for Developers: Transitioning Gemini CLI to Antigravity CLI',
     'https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   geminiCliConfigSource: verified(
     'Gemini CLI source: cli/src/config/config.ts (context.fileName sets the context file names)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/config.ts',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   geminiSettingsSource: verified(
     'Gemini CLI source: settings.ts (workspace settings of the working directory)',
@@ -517,7 +520,7 @@ export const SOURCES = {
   cursorSubagents: verified(
     'Cursor: Subagents',
     'https://cursor.com/docs/subagents',
-    AGENTS_CHECKED,
+    DRIFT_CHECKED,
   ),
   geminiSubagents: verified(
     'Gemini CLI: Subagents',
@@ -542,17 +545,17 @@ export const SOURCES = {
   copilotCliAgents: verified(
     'GitHub Copilot CLI: Custom agents reference',
     'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   copilotCliReference: verified(
     'GitHub Copilot CLI: Command reference (instruction locations and imports, skill locations, commands)',
     'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   copilotCliConfigDir: verified(
     'GitHub Copilot CLI: Configuration directory (repository settings, .claude/settings.json)',
     'https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   copilotCustomAgents: verified(
     'GitHub Copilot: Custom agents configuration',

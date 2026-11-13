@@ -3,12 +3,15 @@ import type { RuleSource } from '../../core/types.js';
 /** Evidence used only by Gemini CLI rules, in addition to the shared SOURCES. */
 const CHECKED = '2026-10-17';
 
+/** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
+const DRIFT_CHECKED = '2026-11-13';
+
 export const GEMINI_SOURCES = {
   settingsValidation: {
     title:
       'Gemini CLI source: settings-validation.ts (unknown top-level settings keys are kept, not read)',
     url: 'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings-validation.ts',
-    checked: CHECKED,
+    checked: DRIFT_CHECKED,
     status: 'verified',
   },
   settingsMigration: {
