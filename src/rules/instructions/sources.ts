@@ -8,9 +8,6 @@ import { SOURCES } from '../../platforms/sources.js';
  */
 const CHECKED = '2026-10-14';
 
-/** Sources re-read on 2026-10-30, after the Source drift workflow found them changed. */
-const AUDIT_CHECKED = '2026-10-30';
-
 /** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
 const DRIFT_CHECKED = '2026-11-13';
 
@@ -48,13 +45,13 @@ export const INSTRUCTION_SOURCES = {
   claudeRuleImportsUndocumented: unverified(
     'Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)',
     'https://code.claude.com/docs/en/memory',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeSymlinkImportsUndocumented: {
     title:
       'Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)',
     url: 'https://code.claude.com/docs/en/memory',
-    checked: AUDIT_CHECKED,
+    checked: DRIFT_CHECKED,
     status: 'unverified',
   },
   geminiImportBaseSource: {
@@ -67,12 +64,12 @@ export const INSTRUCTION_SOURCES = {
   claudeImportCyclesUndocumented: unverified(
     'Claude Code: Memory (how import cycles are handled is not documented)',
     'https://code.claude.com/docs/en/memory',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeEncodingUndocumented: unverified(
     'Claude Code: Memory (file encoding is not documented)',
     'https://code.claude.com/docs/en/memory',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   // Cascade's limits were documented for Devin Desktop until its Cascade pages were removed in
   // October 2026; the JetBrains plugin's page is the one left.

@@ -23,7 +23,7 @@ Moving text into `@path` imports does not help: imported files load at launch to
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-11-13
 
 ## Fix
 

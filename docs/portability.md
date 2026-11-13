@@ -172,7 +172,7 @@ There is no shared hooks format. Keep the logic in scripts under version control
 
 | Agent       | Where to look                                                                    | Source                                                                                    |
 | ----------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Claude Code | `/context` (Memory files) and `/memory`                                          | [Memory][cc-memory]                                                                       |
+| Claude Code | `/context all` (Memory files) and `/memory`                                      | [Memory][cc-memory]                                                                       |
 | Codex       | `codex --ask-for-approval never "Summarize the current instructions."`; `/hooks` | [Codex][codex-agents-md], [Codex hooks][codex-hooks]                                      |
 | Cursor      | Customize → Rules and Customize → Skills                                         | [Cursor rules][cursor-rules], [Cursor skills][cursor-skills]                              |
 | Copilot CLI | `/instructions`, `/skills info <name>`, `/mcp`                                   | [Instructions][gh-cli-instructions], [Skills][gh-cli-skills], [CLI reference][gh-cli-ref] |

@@ -1564,7 +1564,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1621,7 +1621,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1671,7 +1671,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1745,7 +1745,7 @@
         {
           "title": "Claude Code: Hooks",
           "url": "https://code.claude.com/docs/en/hooks",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -1827,7 +1827,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1857,7 +1857,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1879,7 +1879,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -1983,7 +1983,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2052,7 +2052,7 @@
         {
           "title": "Claude Code: Memory (file encoding is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         }
       ],
@@ -2096,7 +2096,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2147,7 +2147,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2165,13 +2165,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
@@ -2183,7 +2183,7 @@
         {
           "title": "Claude Code: Memory (how import cycles are handled is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         }
       ],
@@ -2210,7 +2210,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2228,13 +2228,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
@@ -2267,7 +2267,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2285,13 +2285,13 @@
         {
           "title": "Claude Code: Memory (imports are documented for CLAUDE.md, CLAUDE.local.md, AGENTS.md and user-level rules, not for project .claude/rules files)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
           "title": "Claude Code: Memory (CLAUDE.md is read through a symlink; whether its relative imports then resolve from the link or from its target is not documented)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "unverified"
         },
         {
@@ -2376,7 +2376,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2427,7 +2427,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2566,7 +2566,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2641,7 +2641,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2718,7 +2718,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2797,7 +2797,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -2946,7 +2946,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3008,7 +3008,7 @@
         {
           "title": "Claude Code: Memory (CLAUDE.md)",
           "url": "https://code.claude.com/docs/en/memory",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -3221,7 +3221,7 @@
         {
           "title": "Claude Code: MCP",
           "url": "https://code.claude.com/docs/en/mcp",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],
@@ -3337,7 +3337,7 @@
         {
           "title": "Claude Code: Configure permissions",
           "url": "https://code.claude.com/docs/en/permissions",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         },
         {
@@ -4274,7 +4274,7 @@
         {
           "title": "Claude Code: Configure permissions",
           "url": "https://code.claude.com/docs/en/permissions",
-          "checked": "2026-10-30",
+          "checked": "2026-11-13",
           "status": "verified"
         }
       ],

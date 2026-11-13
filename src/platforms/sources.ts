@@ -53,7 +53,7 @@ export const SOURCES = {
   claudeMemory: verified(
     'Claude Code: Memory (CLAUDE.md)',
     'https://code.claude.com/docs/en/memory',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeSettings: verified(
     'Claude Code: Settings',
@@ -63,7 +63,7 @@ export const SOURCES = {
   claudePermissions: verified(
     'Claude Code: Configure permissions',
     'https://code.claude.com/docs/en/permissions',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeSettingsReference: verified(
     'Claude Code: All settings',
@@ -73,19 +73,19 @@ export const SOURCES = {
   claudeEnvVars: verified(
     'Claude Code: Environment variables',
     'https://code.claude.com/docs/en/env-vars',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeNetworkConfig: verified(
     'Claude Code: Enterprise network configuration',
     'https://code.claude.com/docs/en/network-config',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   claudeHooks: verified(
     'Claude Code: Hooks',
     'https://code.claude.com/docs/en/hooks',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
-  claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp', AUDIT_CHECKED),
+  claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp', DRIFT_CHECKED),
   claudeSubagents: verified(
     'Claude Code: Subagents',
     'https://code.claude.com/docs/en/sub-agents',
@@ -519,7 +519,7 @@ export const SOURCES = {
   claudeModelConfig: verified(
     'Claude Code: Model configuration',
     'https://code.claude.com/docs/en/model-config',
-    AUDIT_CHECKED,
+    DRIFT_CHECKED,
   ),
   codexSubagents: verified(
     'Codex: Subagents and custom agents',

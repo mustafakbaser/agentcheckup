@@ -23,7 +23,7 @@ Add the line `@AGENTS.md` to the `CLAUDE.md`; Claude Code never reads an importe
 
 ## Evidence
 
-- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-10-30
+- [Claude Code: Memory (CLAUDE.md)](https://code.claude.com/docs/en/memory), verified, checked 2026-11-13
 
 ## Fix
 

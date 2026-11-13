@@ -1,8 +1,9 @@
 /**
  * What an environment override does, for the security inventory, and whether Claude Code drops
  * it from repository settings. Every name below is taken from the cited documentation (checked
- * 2026-10-15, the Claude Code pages again 2026-10-30); a name that is not listed and does not look
- * like a credential is `other`.
+ * 2026-10-15, the Claude Code pages again 2026-10-30, and the environment variable and network
+ * configuration pages 2026-11-13); a name that is not listed and does not look like a credential
+ * is `other`.
  *
  * - Claude Code environment variables: https://code.claude.com/docs/en/env-vars
  * - Claude Code network configuration (proxies, CA certificates, mTLS):
@@ -160,7 +161,14 @@ const DROPPED_FROM_REPOSITORY: ReadonlySet<string> = new Set([
   'CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS',
   'CLAUDE_CODE_DISABLE_ATTACHMENTS',
   'CLAUDE_CODE_DISABLE_FILE_MENTIONS',
+  // The claude.ai sign-in: "Ignored in project and local settings" (env-vars, 2026-11-13).
+  'CLAUDE_CODE_OAUTH_TOKEN',
+  'CLAUDE_CODE_OAUTH_REFRESH_TOKEN',
+  'CLAUDE_CODE_OAUTH_SCOPES',
+  // Code Mode: "doesn't count in every settings file"; not from project or local settings.
+  'CLAUDE_CODE_EXPERIMENTAL_CODE_MODE',
   // Ignored from every file.
+  'CLAUDE_CODE_RESUME_HINT_COMMAND',
   'CLAUDE_CODE_REMOTE',
   'CLAUDE_CODE_ACCOUNT_UUID',
   'CLAUDE_CODE_MESSAGING_SOCKET',
