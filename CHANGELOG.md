@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.6.0...v0.6.1) (2026-11-14)
+
+
+### Bug fixes
+
+* **report:** leave files the configuration ignores out of what a scan could not check ([e5b8e07](https://github.com/mustafakbaser/agentcheckup/commit/e5b8e07eacc40d88038cb62ed44861cbc0678bd1))
+
 ## [0.6.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.5.0...v0.6.0) (2026-11-14)
 
 
