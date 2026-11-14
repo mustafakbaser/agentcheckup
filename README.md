@@ -648,8 +648,10 @@ as described in [SECURITY.md](SECURITY.md).
 - **Token counts are estimates:** characters divided by 4, shown with "≈". They are rough for
   code and non-Latin text.
 - **What is not analyzed is reported, never guessed:** a `.codex/config.toml` in UTF-16 or past
-  the parser's limits, Cline hook scripts and plugins, Cline rules in `.txt` or `.markdown`
-  files.
+  the parser's limits, a Codex `.codex/rules/*.rules` file that is more than literal rule calls
+  (agentcheckup never evaluates Starlark), Cline hook scripts and plugins, Cline rules in `.txt`
+  or `.markdown` files. A file a Codex `model_instructions_file` names is measured only when the
+  scan read it for another reason.
 - **Words and tasks are checked, not judged.** agentcheckup checks that your answer in `fix -i`
   or an agent's change resolves the finding and breaks no rule, not that the text is right.
   Review what an agent changed as you would any diff.

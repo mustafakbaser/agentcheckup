@@ -23,6 +23,9 @@ const AUDIT_CHECKED = '2026-10-30';
 /** Sources re-read on 2026-11-13, after the Source drift workflow found them changed. */
 const DRIFT_CHECKED = '2026-11-13';
 
+/** Codex source read at openai/codex 5943d7a for the permission surfaces and skill walk. */
+const CODEX_AUDIT_CHECKED = '2026-11-14';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -153,6 +156,11 @@ export const SOURCES = {
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/mod.rs',
     DRIFT_CHECKED,
   ),
+  codexSkillWalk: verified(
+    'Codex source: the file system walk of skill discovery (entries and directories it lists, directories that start with a dot pruned)',
+    'https://github.com/openai/codex/blob/main/codex-rs/exec-server/src/local_file_system.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
   codexSkillRoots: verified(
     'Codex source: skill roots (.agents/skills up to the project root, project config folders)',
     'https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs',
@@ -193,6 +201,36 @@ export const SOURCES = {
     'Codex source: config loader (.codex/config.toml from the project root down, parse errors, project key denylist)',
     'https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs',
     DRIFT_CHECKED,
+  ),
+  codexConfigToml: verified(
+    'Codex source: config_toml.rs (default_permissions, [permissions], approvals_reviewer, instructions, developer_instructions, model_instructions_file, compact_prompt)',
+    'https://github.com/openai/codex/blob/main/codex-rs/config/src/config_toml.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
+  codexConfigCore: verified(
+    'Codex source: core config (model_instructions_file wins over instructions; both files are read at startup and must not be empty)',
+    'https://github.com/openai/codex/blob/main/codex-rs/core/src/config/mod.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
+  codexPermissionProfiles: verified(
+    'Codex source: protocol models.rs (built-in permission profiles :read-only, :workspace, :danger-full-access)',
+    'https://github.com/openai/codex/blob/main/codex-rs/protocol/src/models.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
+  codexExecPolicy: verified(
+    'Codex source: exec_policy.rs (*.rules files directly in the rules folder of each trusted config layer)',
+    'https://github.com/openai/codex/blob/main/codex-rs/core/src/exec_policy.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
+  codexExecPolicyParser: verified(
+    'Codex source: execpolicy parser.rs (prefix_rule, network_rule, host_executable; decision defaults to allow)',
+    'https://github.com/openai/codex/blob/main/codex-rs/execpolicy/src/parser.rs',
+    CODEX_AUDIT_CHECKED,
+  ),
+  codexHookProtocol: verified(
+    'Codex source: protocol hooks.rs (on Windows a command hook runs commandWindows, alias command_windows, instead of command)',
+    'https://github.com/openai/codex/blob/main/codex-rs/protocol/src/hooks.rs',
+    CODEX_AUDIT_CHECKED,
   ),
   codexHookState: verified(
     'Codex source: config_rules.rs (hooks.state only from user and session layers)',

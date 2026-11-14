@@ -7,7 +7,8 @@
  *   across the chain. {@link codexChain} models the choice and the budget; instr/codex-size-budget,
  *   instr/override-shadows-agents-md and instr/empty-file report the same files.
  * - Skills: every `SKILL.md` under `.agents/skills` in each directory from the working directory up
- *   to the project root, at any depth, listed with name, description and path at session start.
+ *   to the project root, at most six levels deep and not below a directory that starts with a
+ *   dot, listed with name, description and path at session start.
  *   The source also scans `.codex/skills` in project config folders; which folders count is
  *   unverified. The functions in src/platforms/codex-skills.ts decide whether Codex skips a skill,
  *   and the skill rules use the same functions.
@@ -61,7 +62,7 @@ import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
 import { codexMcpServers } from '../mcp.js';
 import { basename, inPayloadFolder, joinPath } from '../paths.js';
-import { skillLocation } from '../skills.js';
+import { hiddenBelowSkillsRoot, skillLocation } from '../skills.js';
 import {
   agentsMdBeside,
   CODEX_DEFAULT_MAX_BYTES,
@@ -97,9 +98,16 @@ export interface CodexLoadOptions {
   readonly contextWindow?: number;
 }
 
-/** Codex's skill discovery limits per root (codex-rs/ext/skills/src/loader/mod.rs). */
+/**
+ * Codex's skill discovery limits per root: MAX_SCAN_DEPTH and MAX_SKILLS_DIRS_PER_ROOT in
+ * codex-rs/ext/skills/src/loader/mod.rs, MAX_SKILLS_ENTRIES_PER_ROOT in loader/discovery.rs. The
+ * walk (`sync_walk` in codex-rs/exec-server/src/local_file_system.rs, SOURCES.codexSkillWalk)
+ * stops listing when it has listed that many entries, and stops descending at that many
+ * directories.
+ */
 export const CODEX_SKILL_SCAN_DEPTH = 6;
 export const CODEX_SKILL_SCAN_DIRECTORIES = 2000;
+export const CODEX_SKILL_SCAN_ENTRIES = 20_000;
 /** Size of the skill listing when Codex does not know the context window. */
 export const CODEX_SKILL_LISTING_CHARS = 8000;
 /** Share of the context window the skill listing may use, in percent. */
@@ -135,6 +143,8 @@ const RULES = {
 
 const INSTRUCTION_EVIDENCE: readonly SourceKey[] = ['codexAgentsMd', 'codexAgentsMdSource'];
 const CHAIN_SOURCE: readonly SourceKey[] = ['codexAgentsMdSource'];
+/** `project_doc_max_bytes = 0` in a project `.codex/config.toml` turns AGENTS.md files off. */
+const DISABLED_EVIDENCE: readonly SourceKey[] = ['codexAgentsMdSource', 'codexConfigBasic'];
 
 const CERTAINTY_RANK: Readonly<Record<Certainty, number>> = {
   documented: 2,
@@ -252,6 +262,18 @@ function addInstructions(view: LoadView, parts: PlanParts, chain: CodexChain): v
         agentsMdBeside(view.snapshot, path) !== undefined;
       if (override) skip(path, 'empty-override', RULES.overrideShadows, 'source-code');
       else skip(path, 'blank-file', RULES.emptyFile, 'source-code');
+    } else if (file.status === 'disabled') {
+      // `project_doc_max_bytes = 0` in the repository's configuration: no rule reports it, as
+      // turning project files off is a choice, not a mistake.
+      parts.skip({
+        id: `instructions:${path}`,
+        role: 'instructions',
+        path,
+        code: 'disabled',
+        size: skippedSize(artifact),
+        certainty: 'source-code',
+        evidence: DISABLED_EVIDENCE,
+      });
     } else {
       // Cut at byte 0, cut to only whitespace, or dropped after the cut: Codex reads none of it.
       skip(
@@ -289,6 +311,169 @@ function addInstructions(view: LoadView, parts: PlanParts, chain: CodexChain): v
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Instruction text set in config.toml
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Keys of the project configuration that put text into the model's context
+ * (codex-rs/config/src/config_toml.rs; applied in codex-rs/core/src/config/mod.rs). None is on
+ * the project denylist (codex-rs/config/src/loader/mod.rs), so a trusted project's layers set
+ * them, the closest layer winning.
+ */
+const CONFIG_TEXT_EVIDENCE: readonly SourceKey[] = [
+  'codexConfigCore',
+  'codexConfigLoader',
+  'codexConfigToml',
+];
+
+/** A string setting of the merged project configuration, or undefined. */
+function textSetting(
+  config: CodexProjectConfig,
+  key: string,
+): { readonly value: string; readonly layer: CodexConfigLayer } | undefined {
+  const setting = config.setting([key]);
+  return setting !== undefined && typeof setting.value === 'string'
+    ? { value: setting.value, layer: setting.layer }
+    : undefined;
+}
+
+/**
+ * The repository path a file setting names: Codex resolves a relative path against the folder
+ * of the layer, `<dir>/.codex` (`resolve_relative_paths_in_config_toml`). Undefined for a path
+ * outside the repository: absolute, from the home directory (`~`), Windows-style, or above the
+ * scan root.
+ */
+function configFilePath(layer: CodexConfigLayer, value: string): string | undefined {
+  if (value === '' || value.startsWith('/') || value.startsWith('~') || value.includes('\\')) {
+    return undefined;
+  }
+  if (/^[a-z]:/i.test(value)) return undefined;
+  const resolved = normalizeRelative(joinPath(dirnamePosix(layer.path), value));
+  return resolved === undefined || resolved === '' ? undefined : resolved;
+}
+
+/**
+ * The text the project configuration adds at session start, as startup entries before the
+ * AGENTS.md chain:
+ *
+ * - The base instructions, which replace Codex's own: the file `model_instructions_file` names,
+ *   else the inline `instructions`. Codex reads the file at startup, trims it, and does not start
+ *   when it is missing or empty.
+ * - `developer_instructions`, added as a developer message.
+ *
+ * `compact_prompt`, or else the file `experimental_compact_prompt_file` names, replaces the
+ * prompt Codex uses when it compacts the conversation, not at session start, so it is stated
+ * as an assumption. A setting Codex reads from outside the repository is stated the same way.
+ */
+function addConfigText(
+  view: LoadView,
+  parts: PlanParts,
+  config: CodexProjectConfig,
+  assumptions: Assumption[],
+): void {
+  const inline = (key: string, setting: { value: string; layer: CodexConfigLayer }): void => {
+    if (setting.value.trim() === '') return;
+    parts.startup({
+      id: `instructions:${setting.layer.path}#${key}`,
+      role: 'instructions',
+      path: setting.layer.path,
+      realPath: setting.layer.artifact.realPath,
+      name: key,
+      size: sizeOf(utf8ByteLength(setting.value), setting.value),
+      certainty: 'source-code',
+      evidence: CONFIG_TEXT_EVIDENCE,
+    });
+  };
+  const outside = (key: string, value: string): void => {
+    assumptions.push({
+      key: `codex.${key}`,
+      value,
+      origin: 'repository',
+      evidence: CONFIG_TEXT_EVIDENCE,
+    });
+  };
+
+  const file = textSetting(config, 'model_instructions_file');
+  const instructions = textSetting(config, 'instructions');
+  if (file !== undefined) {
+    const path = configFilePath(file.layer, file.value);
+    if (path === undefined) outside('model_instructions_file', file.value);
+    else addConfigFile(view, parts, path, file.layer);
+    // The file wins over the inline text.
+    if (instructions !== undefined) {
+      parts.skip({
+        id: `instructions:${instructions.layer.path}#instructions`,
+        role: 'instructions',
+        path: instructions.layer.path,
+        name: 'instructions',
+        code: 'shadowed-by-preferred',
+        size: sizeOf(utf8ByteLength(instructions.value), instructions.value),
+        certainty: 'source-code',
+        evidence: CONFIG_TEXT_EVIDENCE,
+      });
+    }
+  } else if (instructions !== undefined) {
+    inline('instructions', instructions);
+  }
+  const developer = textSetting(config, 'developer_instructions');
+  if (developer !== undefined) inline('developer_instructions', developer);
+
+  const compact = textSetting(config, 'compact_prompt');
+  const compactFile = textSetting(config, 'experimental_compact_prompt_file');
+  if (compact !== undefined && compact.value.trim() !== '') {
+    const bytes = utf8ByteLength(compact.value.trim());
+    outside('compact_prompt', `${String(bytes)} bytes in ${compact.layer.path}`);
+  } else if (compactFile !== undefined) {
+    outside(
+      'experimental_compact_prompt_file',
+      configFilePath(compactFile.layer, compactFile.value) ?? compactFile.value,
+    );
+  }
+}
+
+/** The file `model_instructions_file` names, inside the repository. */
+function addConfigFile(
+  view: LoadView,
+  parts: PlanParts,
+  path: string,
+  layer: CodexConfigLayer,
+): void {
+  // Named after the key: the file may also be on the AGENTS.md chain.
+  const id = `instructions:${path}#model_instructions_file`;
+  const artifact = view.index.get(path);
+  const status = pathStatus(view.snapshot, path);
+  const text = artifact === undefined ? undefined : codexText(artifact.file.bytes).trim();
+  if (status === 'missing' || text === '') {
+    // Codex does not start ("failed to read model instructions file", "is empty"); no rule
+    // reports it.
+    parts.skip({
+      id,
+      role: 'instructions',
+      path,
+      name: 'model_instructions_file',
+      code: 'not-read',
+      certainty: 'source-code',
+      evidence: CONFIG_TEXT_EVIDENCE,
+    });
+    return;
+  }
+  if (artifact === undefined) parts.incomplete.add(`unread:${path}`);
+  parts.startup({
+    id,
+    role: 'instructions',
+    path,
+    realPath: artifact?.realPath ?? path,
+    name: 'model_instructions_file',
+    via: [layer.path],
+    ...(artifact === undefined || text === undefined
+      ? {}
+      : { size: sizeOf(artifact.file.bytes.length, text) }),
+    certainty: 'source-code',
+    evidence: CONFIG_TEXT_EVIDENCE,
+  });
+}
+
 /** Instruction files whose names match only case-insensitively, in the chain's directories. */
 function addCaseMismatches(
   view: LoadView,
@@ -320,10 +505,35 @@ interface SkillRootState {
   readonly path: string;
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
-  /** Directories the scan visits, the root included. */
+  /**
+   * Directories the scan visits, the root included: those at most {@link CODEX_SKILL_SCAN_DEPTH}
+   * levels below the root, without a directory that starts with a dot on the way.
+   */
   directories: number;
-  /** Deepest `SKILL.md` directory, in levels below the root. */
+  /** Files and directories listed in the directories the scan visits. */
+  entries: number;
+  /** Deepest `SKILL.md` directory Codex can reach, in levels below the root. */
   depth: number;
+}
+
+/**
+ * Where a path below a skills root sits in Codex's walk of it (`sync_walk` in
+ * codex-rs/exec-server/src/local_file_system.rs, with the options of loader/discovery.rs):
+ * - `listed`: its parent directory is visited, so it counts as an entry;
+ * - `visited`: a directory the walk also descends into;
+ * - `outside`: below a directory that starts with a dot, or deeper than the walk reads.
+ * `relative` is the path below the root, without a trailing `/`.
+ */
+function walkPlace(relative: string, directory: boolean): 'listed' | 'visited' | 'outside' {
+  const segments = relative.split('/');
+  const parents = segments.slice(0, -1);
+  if (parents.length > CODEX_SKILL_SCAN_DEPTH || parents.some((s) => s.startsWith('.'))) {
+    return 'outside';
+  }
+  const name = segments[segments.length - 1] ?? '';
+  return directory && segments.length <= CODEX_SKILL_SCAN_DEPTH && !name.startsWith('.')
+    ? 'visited'
+    : 'listed';
 }
 
 /** Each skills root among `roots` that contains `path` (a file, or a directory ending in `/`). */
@@ -360,31 +570,45 @@ function scanSkillRoots(
         continue;
       }
       if (!snapshot.paths.has(`${path}/`)) continue;
-      roots.set(path, { path, certainty, evidence, directories: 1, depth: 0 });
+      roots.set(path, { path, certainty, evidence, directories: 1, entries: 0, depth: 0 });
     }
   }
   if (roots.size === 0) return roots;
 
   const isSkillFile = (path: string): boolean => basename(path) === 'SKILL.md';
   for (const path of snapshot.paths) {
+    const directory = path.endsWith('/');
     for (const root of containingRoots(path, roots)) {
-      if (path.endsWith('/')) {
-        root.directories += 1;
-        continue;
-      }
-      if (!isSkillFile(path)) continue;
-      const depth = path.slice(root.path.length + 1).split('/').length - 1;
+      const relative = path.slice(root.path.length + 1, directory ? -1 : undefined);
+      const place = walkPlace(relative, directory);
+      if (place !== 'outside') root.entries += 1;
+      if (place === 'visited') root.directories += 1;
+      // A SKILL.md too deep for the walk still counts for the depth limit; one below a directory
+      // that starts with a dot is never looked at.
+      if (directory || !isSkillFile(path) || hiddenBelowSkillsRoot(relative)) continue;
+      const depth = relative.split('/').length - 1;
       root.depth = Math.max(root.depth, depth);
       if (!view.index.has(path)) parts.incomplete.add(`unread:${path}`);
     }
   }
   for (const path of snapshot.ignoredFiles) {
-    if (isSkillFile(path) && containingRoots(path, roots).length > 0) {
-      parts.incomplete.add(`unread:${path}`);
+    for (const root of containingRoots(path, roots)) {
+      const relative = path.slice(root.path.length + 1);
+      if (walkPlace(relative, false) !== 'outside') root.entries += 1;
+      if (isSkillFile(path) && !hiddenBelowSkillsRoot(relative)) {
+        parts.incomplete.add(`unread:${path}`);
+      }
     }
   }
   for (const directory of snapshot.opaqueDirectories) {
-    if (containingRoots(directory, roots).length > 0) parts.incomplete.add(`unread:${directory}`);
+    // Codex does not look inside a directory that starts with a dot, so what it holds is moot.
+    const reached = containingRoots(directory, roots).some((root) =>
+      directory
+        .slice(root.path.length + 1, -1)
+        .split('/')
+        .every((segment) => !segment.startsWith('.')),
+    );
+    if (reached) parts.incomplete.add(`unread:${directory}`);
   }
   return roots;
 }
@@ -524,7 +748,22 @@ function addSkills(
   for (const [path, artifact] of view.index) {
     if (artifact.kind !== 'skill') continue;
     const location = skillLocation(path);
-    if (location?.platforms.has('codex') !== true) continue;
+    if (location === undefined) continue;
+    const codexRoot = roots.get(location.root);
+    if (codexRoot !== undefined && hiddenBelowSkillsRoot(location.relative)) {
+      // Codex prunes directories that start with a dot from its walk of a skills root; no rule
+      // reports it, and the skill rules do not count Codex as a reader there.
+      parts.skip({
+        id: `skill:${path}`,
+        role: 'skill',
+        path,
+        code: 'not-read',
+        certainty: weakest(codexRoot.certainty, 'source-code'),
+        evidence: sortedKeys(['codexSkillDiscovery', 'codexSkillLoader', ...codexRoot.evidence]),
+      });
+      continue;
+    }
+    if (!location.platforms.has('codex')) continue;
     const root = roots.get(location.root);
     if (root === undefined) {
       if (isBelow(ownerOf(location.root), cwd)) {
@@ -550,12 +789,14 @@ function addSkills(
       continue;
     }
     if (location.relative.split('/').length - 1 > CODEX_SKILL_SCAN_DEPTH) {
-      // How the source counts levels is not documented.
+      // The walk lists the entries of directories at most MAX_SCAN_DEPTH levels below the root
+      // (`sync_walk` in codex-rs/exec-server/src/local_file_system.rs); the documentation does not
+      // say how levels count.
       parts.skip({
         ...base,
         code: 'not-read',
-        certainty: 'unverified',
-        evidence: ['codexSkillLimits'],
+        certainty: weakest(root.certainty, 'source-code'),
+        evidence: sortedKeys(['codexSkillLimits', 'codexSkillWalk', ...root.evidence]),
       });
       continue;
     }
@@ -589,7 +830,8 @@ function addSkills(
     const line = `- ${name}: ${description} (file: ${path})`;
     const size = sizeOf(utf8ByteLength(line), line);
     listingChars += size.chars;
-    const overLimit = root.directories > CODEX_SKILL_SCAN_DIRECTORIES;
+    const overLimit =
+      root.directories > CODEX_SKILL_SCAN_DIRECTORIES || root.entries > CODEX_SKILL_SCAN_ENTRIES;
     parts.startup({
       id: `skill:${path}`,
       role: 'skill',
@@ -941,6 +1183,10 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
   const { chain, config, settings } = configuredCodexChain(view, cwd, maxBytesOf(options.config));
   const budget = settings.maxBytes;
   const directories = chainDirectories(chain.root, cwd);
+  // The configuration's own text comes first: the base instructions are the system prompt, and
+  // developer messages come before the AGENTS.md text.
+  const configAssumptions: Assumption[] = [];
+  addConfigText(view, parts, config, configAssumptions);
   addInstructions(view, parts, chain);
   addCaseMismatches(view, parts, new Set(directories));
   const skills = addSkills(view, parts, directories, cwd);
@@ -953,17 +1199,22 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
       ? CODEX_SKILL_LISTING_CHARS
       : Math.floor((contextWindow * CODEX_SKILL_LISTING_PERCENT) / 100) * 4;
   // The chain and the listing are computed for the working directory, which identifies them.
+  // With project_doc_max_bytes = 0 there is no budget to use: the files are skipped as disabled.
   const limits: LimitUsage[] = [
-    {
-      key: 'codex.project_doc_max_bytes',
-      unit: 'bytes',
-      limit: budget.value,
-      used: chain.total,
-      subject: cwd,
-      label: 'AGENTS.md chain',
-      effect: 'truncates',
-      evidence: INSTRUCTION_EVIDENCE,
-    },
+    ...(chain.disabled
+      ? []
+      : [
+          {
+            key: 'codex.project_doc_max_bytes',
+            unit: 'bytes',
+            limit: budget.value,
+            used: chain.total,
+            subject: cwd,
+            label: 'AGENTS.md chain',
+            effect: 'truncates',
+            evidence: INSTRUCTION_EVIDENCE,
+          } satisfies LimitUsage,
+        ]),
     {
       key: 'codex.skills_listing',
       unit: 'chars',
@@ -982,7 +1233,7 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
         used: root.depth,
         subject: root.path,
         effect: 'skips',
-        evidence: ['codexSkillLimits'],
+        evidence: ['codexSkillLimits', 'codexSkillWalk'],
       },
       {
         key: 'codex.skills_scan_directories',
@@ -991,20 +1242,32 @@ export function loadCodex(view: LoadView, options: CodexLoadOptions): LoadPlan {
         used: root.directories,
         subject: root.path,
         effect: 'skips',
-        evidence: ['codexSkillLimits'],
+        evidence: ['codexSkillLimits', 'codexSkillWalk'],
+      },
+      {
+        key: 'codex.skills_scan_entries',
+        unit: 'entries',
+        limit: CODEX_SKILL_SCAN_ENTRIES,
+        used: root.entries,
+        subject: root.path,
+        effect: 'skips',
+        evidence: ['codexSkillDiscovery', 'codexSkillWalk'],
       },
     ]),
   ];
 
   const assumptions: Assumption[] = [
+    ...configAssumptions,
     {
       key: 'codex.project_doc_max_bytes',
       value: budget.value,
       origin: budget.origin,
       evidence:
-        budget.origin === 'repository'
-          ? ['codexAgentsMd', 'codexConfigBasic', 'codexConfigReference']
-          : ['codexAgentsMd', 'codexDefaults'],
+        budget.origin !== 'repository'
+          ? ['codexAgentsMd', 'codexDefaults']
+          : chain.disabled
+            ? ['codexAgentsMd', 'codexAgentsMdSource', 'codexConfigBasic', 'codexConfigReference']
+            : ['codexAgentsMd', 'codexConfigBasic', 'codexConfigReference'],
     },
     {
       key: 'codex.project_root_markers',

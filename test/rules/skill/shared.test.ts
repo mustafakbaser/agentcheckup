@@ -42,6 +42,23 @@ describe('skillLocation', () => {
     );
   });
 
+  it('drops Codex below a directory that starts with a dot, and keeps the other readers', () => {
+    const platforms = (path: string) => sorted(skillLocation(path)?.platforms ?? new Set());
+    expect(platforms('.agents/skills/.hidden/x/SKILL.md')).toEqual(['cursor']);
+    expect(platforms('.agents/skills/team/.cache/x/SKILL.md')).toEqual(['cursor']);
+    expect(platforms('.agents/skills/.system/SKILL.md')).toEqual([
+      'cline',
+      'copilot',
+      'cursor',
+      'gemini',
+      'windsurf',
+    ]);
+    expect(platforms('.codex/skills/.hidden/x/SKILL.md')).toEqual(['cursor', 'windsurf']);
+    // A dot in a file or directory name elsewhere, or above the root, is not a hidden directory.
+    expect(platforms('.agents/skills/team/deploy.v2/SKILL.md')).toEqual(['codex', 'cursor']);
+    expect(platforms('.hidden/.agents/skills/team/x/SKILL.md')).toEqual(['codex', 'cursor']);
+  });
+
   it('applies each platform search depth', () => {
     expect(
       sorted(skillLocation('.agents/skills/team/deploy/SKILL.md')?.platforms ?? new Set()),

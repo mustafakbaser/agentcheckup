@@ -191,7 +191,7 @@ function nullObject(): Record<string, unknown> {
 export type SettingOrigin = 'repository' | 'rule-option' | 'default';
 
 export interface CodexDocSettings {
-  /** `project_doc_max_bytes`: the AGENTS.md byte budget. */
+  /** `project_doc_max_bytes`: the AGENTS.md byte budget; 0 turns project AGENTS.md files off. */
   readonly maxBytes: {
     readonly value: number;
     readonly origin: SettingOrigin;
@@ -208,9 +208,11 @@ export interface CodexDocSettings {
 
 /**
  * `project_doc_max_bytes` and `project_doc_fallback_filenames` as Codex applies them in the
- * working directory: the repository's value when its configuration sets a valid one (a positive
- * integer; an array of strings), else `ruleMaxBytes` (the `maxBytes` option of
- * instr/codex-size-budget, or the default) and no fallback names.
+ * working directory: the repository's value when its configuration sets a valid one (a
+ * non-negative integer; an array of strings), else `ruleMaxBytes` (the `maxBytes` option of
+ * instr/codex-size-budget, or the default) and no fallback names. A repository value of 0 turns
+ * project AGENTS.md files off: `load_project_instructions` returns before it looks for them
+ * (codex-rs/core/src/agents_md.rs at 5943d7a, line 65, SOURCES.codexAgentsMdSource).
  */
 export function codexDocSettings(
   config: CodexProjectConfig,
@@ -221,7 +223,7 @@ export function codexDocSettings(
     max !== undefined &&
     typeof max.value === 'number' &&
     Number.isSafeInteger(max.value) &&
-    max.value > 0
+    max.value >= 0
       ? { value: max.value, origin: 'repository' as const, path: max.layer.path }
       : ruleMaxBytes;
   const names = config.setting(['project_doc_fallback_filenames']);
@@ -278,11 +280,16 @@ export const CODEX_PROJECT_DENYLIST: readonly string[] = [
 /**
  * Nested keys `sanitize_project_config` always removes from a project layer, with the same
  * warning. Keys it removes only when a credential broker is configured are not listed.
+ * `features.network_proxy.credential_broker` and `.credentials` are removed whenever
+ * `features.network_proxy` is a table; a boolean `features.network_proxy` has no such keys
+ * (codex-rs/config/src/loader/mod.rs, `sanitize_project_config`, at 5943d7a lines 1391-1400).
  */
 export const CODEX_PROJECT_REMOVED_PATHS: readonly (readonly string[])[] = [
   ['features', 'respect_system_proxy'],
   ['features', 'system_proxy_fallback'],
   ['features', 'credential_masking'],
+  ['features', 'network_proxy', 'credential_broker'],
+  ['features', 'network_proxy', 'credentials'],
   ['features', 'multi_agent_v2', 'message_board_remote'],
   ['tui', 'keymap', 'chat', 'previous_permission_mode'],
   ['tui', 'keymap', 'chat', 'next_permission_mode'],

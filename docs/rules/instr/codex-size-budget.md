@@ -19,7 +19,7 @@ Codex reads one instruction file per directory, from the project root down to th
 
 agentcheckup starts each chain at the nearest directory with a `.git` entry (a directory, or a file in submodules and worktrees). Without one, Codex reads only the working directory's file, so agentcheckup judges each file alone. It warns at 80% of the limit, and skips skills and directories that start with a dot or hold templates, examples or fixtures.
 
-A `project_doc_max_bytes` in the repository's `.codex/config.toml` files applies to the chains below it, the closest file winning, as in Codex; otherwise the `maxBytes` option, then the default. When `project_doc_fallback_filenames` names a file in a directory without `AGENTS.md`, agentcheckup stops the chain there.
+A `project_doc_max_bytes` in the repository's `.codex/config.toml` files applies to the chains below it, the closest file winning, as in Codex; otherwise the `maxBytes` option, then the default. A value of 0 there turns project `AGENTS.md` files off, so Codex reads none of them and this rule reports nothing. When `project_doc_fallback_filenames` names a file in a directory without `AGENTS.md`, agentcheckup stops the chain there.
 
 Move instructions for one part of the repository into an `AGENTS.md` in that directory, or cut content. If you raised `project_doc_max_bytes` in your user configuration, set the `maxBytes` option to the same value.
 

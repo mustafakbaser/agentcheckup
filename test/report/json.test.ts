@@ -720,6 +720,7 @@ describe('schemas/report.schema.json', () => {
       'hops',
       'levels',
       'directories',
+      'entries',
       'context-fraction',
       'tokens',
     ] as const satisfies readonly LimitUsage['unit'][];

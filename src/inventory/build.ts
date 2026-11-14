@@ -42,6 +42,7 @@ import {
 import { classify, READERS } from '../platforms/classify.js';
 import { pathAs, readingsOf } from '../platforms/readings.js';
 import { codexServerEnabled } from '../platforms/codex-config.js';
+import { codexRuleGrants } from '../platforms/codex-rules.js';
 import {
   claudeFrontmatterConfig,
   type FrontmatterReading,
@@ -329,6 +330,10 @@ class InventoryBuilder {
   add(artifact: Artifact): void {
     this.#addFrontmatter(artifact);
     if (FRONTMATTER_KINDS.has(artifact.kind)) return;
+    if (artifact.kind === 'codex-rules') {
+      this.#addCodexRules(artifact);
+      return;
+    }
     if (TOML_KINDS.has(artifact.kind)) {
       this.#addCodexConfig(artifact);
       return;
@@ -372,7 +377,10 @@ class InventoryBuilder {
       const kind = classify(entry.path)?.kind;
       if (
         kind !== undefined &&
-        (JSON_KINDS.has(kind) || TOML_KINDS.has(kind) || FRONTMATTER_KINDS.has(kind))
+        (JSON_KINDS.has(kind) ||
+          TOML_KINDS.has(kind) ||
+          FRONTMATTER_KINDS.has(kind) ||
+          kind === 'codex-rules')
       ) {
         this.#incomplete.add(entry.path);
       }
@@ -589,6 +597,9 @@ class InventoryBuilder {
       const command = hookCommandLine(handler, platform);
       const target = command === undefined ? hookTarget(handler) : undefined;
       const variants = platform === 'copilot' ? hookCommandLines(handler, platform) : [];
+      // The hook keeps its id, which `command` names; the digest covers the Windows command, so
+      // a change to either is a changed hook.
+      const windows = platform === 'codex' ? codexWindowsCommand(handler) : undefined;
       const matcher = stringOf(own(hook.group, 'matcher'));
       const script =
         root === undefined ? undefined : scriptOf(handler, hook.path, type, platform, root, syntax);
@@ -617,6 +628,7 @@ class InventoryBuilder {
           ...fields,
           ...(target === undefined ? {} : { target }),
           ...(variants.length > 1 ? { commands: variants } : {}),
+          ...(windows === undefined ? {} : { commandWindows: redactCommand(windows) }),
           ...(effective ? {} : { effective }),
         },
       });
@@ -724,9 +736,10 @@ class InventoryBuilder {
    * Codex settings that let it act without asking, as the Codex configuration reference
    * describes them (SOURCES.codexConfigReference, SOURCES.codexMcp): `approval_policy = "never"`,
    * `sandbox_mode = "danger-full-access"`, network access and extra writable roots in the
-   * workspace-write sandbox, and MCP tool approval modes other than `prompt`. Values that only
-   * restrict Codex are not listed. `shell_environment_policy.set` entries are environment
-   * overrides for every command Codex runs.
+   * workspace-write sandbox, MCP tool approval modes other than `prompt`, the permission profile
+   * (`default_permissions`, `[permissions.<name>]`) and `approvals_reviewer = "auto_review"`.
+   * Values that only restrict Codex are not listed. `shell_environment_policy.set` entries are
+   * environment overrides for every command Codex runs.
    */
   #addCodexSettings(artifact: Artifact, doc: ParsedJson): void {
     const root = doc.value;
@@ -764,6 +777,43 @@ class InventoryBuilder {
         });
       }
     }
+    // The permission profile Codex starts with: a built-in one (`:read-only`, `:workspace`,
+    // `:danger-full-access`, codex-rs/protocol/src/models.rs) or a `[permissions.<name>]` table
+    // (codex-rs/config/src/config_toml.rs). A trusted project may set both
+    // (codex-rs/config/src/loader/mod.rs, "A trusted repository can configure its sandbox").
+    // `:read-only` only restricts Codex.
+    const profile = own(root, 'default_permissions');
+    if (typeof profile === 'string' && profile !== ':read-only') {
+      const broad = profile === ':danger-full-access';
+      permission('default_permissions', profile, ['default_permissions'], broad);
+    }
+    const profiles = own(root, 'permissions');
+    if (isTable(profiles)) {
+      for (const name of Object.keys(profiles)) {
+        const table = profiles[name];
+        if (!isTable(table)) continue;
+        // One item per profile; its digest covers the profile's redacted content, so a profile
+        // that grants more under the same name is a changed item.
+        this.#pushPermission(
+          artifact,
+          {
+            key: 'permissions',
+            value: name,
+            broad: false,
+            effective: true,
+            line: lineOf(artifact, keySpanOf(doc, ['permissions', name])),
+            platforms,
+          },
+          redactedContent(table),
+        );
+      }
+    }
+    // `auto_review` (alias `guardian_subagent`) lets a reviewer subagent approve requests that
+    // would ask the user (codex-rs/protocol/src/config_types.rs); `user` is the default.
+    const reviewer = own(root, 'approvals_reviewer');
+    if (reviewer === 'auto_review' || reviewer === 'guardian_subagent') {
+      permission('approvals_reviewer', reviewer, ['approvals_reviewer'], false);
+    }
     for (const server of codexMcpServers(doc)) {
       const modes: { readonly path: JsonPath; readonly value: unknown }[] = [
         {
@@ -795,6 +845,37 @@ class InventoryBuilder {
         const path = ['shell_environment_policy', 'set', key];
         this.#pushEnv(artifact, doc, pathKey(path), envClass(key, value), value, path);
       }
+    }
+  }
+
+  /**
+   * A `.codex/rules/*.rules` exec-policy file (src/platforms/codex-rules.ts): one permission per
+   * rule that lets Codex do more without asking, keyed `rules.<built-in>`. agentcheckup reads
+   * only literal calls, never evaluates the file; a file it cannot read that way is incomplete,
+   * so `--gate permissions` fails closed on it.
+   */
+  #addCodexRules(artifact: Artifact): void {
+    const { decoded } = artifact;
+    // Codex reads the file as UTF-8 text and keeps a byte order mark, which agentcheckup's text
+    // drops, so any other file is not read as Codex reads it.
+    const reading =
+      decoded.encoding === 'utf-8' && !decoded.hasBom && !decoded.hadDecodeErrors
+        ? codexRuleGrants(decoded.text)
+        : { ok: false as const };
+    if (!reading.ok) {
+      this.#incomplete.add(artifact.path);
+      return;
+    }
+    const platforms = sortedPlatforms(artifact.readers);
+    for (const grant of reading.grants) {
+      this.#pushPermission(artifact, {
+        key: `rules.${grant.call}`,
+        value: grant.value,
+        broad: grant.broad,
+        effective: true,
+        line: lineOf(artifact, grant.span),
+        platforms,
+      });
     }
   }
 
@@ -1102,7 +1183,16 @@ class InventoryBuilder {
 
   // Items ------------------------------------------------------------------------------------
 
-  #pushPermission(artifact: Artifact, item: Omit<PermissionItem, 'id' | 'file' | 'digest'>): void {
+  /**
+   * A permission. Its digest covers what it shows; `detail`, when given, is what the value
+   * stands for, already free of credentials, such as the redacted content of a Codex permission
+   * profile: the digest covers it too, so a changed profile is a changed item.
+   */
+  #pushPermission(
+    artifact: Artifact,
+    item: Omit<PermissionItem, 'id' | 'file' | 'digest'>,
+    detail?: unknown,
+  ): void {
     const value = redactShown(item.value);
     const fields = { key: item.key, value, broad: item.broad, effective: item.effective };
     this.#permissions.push({
@@ -1111,7 +1201,7 @@ class InventoryBuilder {
       line: item.line,
       platforms: item.platforms,
       ...fields,
-      digestFields: fields,
+      digestFields: detail === undefined ? fields : { ...fields, detail },
     });
   }
 
@@ -1178,18 +1268,46 @@ function isUnparsedConfig(path: string): boolean {
 }
 
 /**
- * The raw strings a hook runs as commands, for the remote-script check: `command`, and for a
- * GitHub Copilot hook every command field (src/platforms/inventory-ids.ts).
+ * The command a Codex command hook runs on Windows instead of `command`: `commandWindows`, or its
+ * alias `command_windows` (`HookHandlerConfig::Command` in codex-rs/protocol/src/hooks.rs; the
+ * swap in codex-rs/hooks/src/engine/discovery.rs at openai/codex 5943d7a, SOURCES.codexHookProtocol).
+ */
+function codexWindowsCommand(handler: JsonObject): string | undefined {
+  return stringOf(own(handler, 'commandWindows')) ?? stringOf(own(handler, 'command_windows'));
+}
+
+/**
+ * The raw strings a hook runs as commands, for the remote-script check: `command`, for a Codex
+ * hook also its Windows command, and for a GitHub Copilot hook every command field
+ * (src/platforms/inventory-ids.ts).
  */
 function rawCommandsOf(handler: JsonObject, platform: HookPlatform): string[] {
   const fields =
     platform === 'copilot'
       ? ['bash', 'command', 'powershell', 'linux', 'osx', 'windows', 'exec']
-      : ['command'];
+      : platform === 'codex'
+        ? ['command', 'commandWindows', 'command_windows']
+        : ['command'];
   return fields.flatMap((field) => {
     const value = own(handler, field);
     return typeof value === 'string' ? [value] : [];
   });
+}
+
+/**
+ * A configuration value with every string redacted as a shown permission value
+ * ({@link redactShown}), so a digest built from it never covers a credential. Tables keep their
+ * keys as own properties, `__proto__` included.
+ */
+function redactedContent(value: unknown): unknown {
+  if (typeof value === 'string') return redactShown(value);
+  if (Array.isArray(value)) return (value as readonly unknown[]).map(redactedContent);
+  if (isTable(value)) {
+    return Object.fromEntries(
+      Object.keys(value).map((key) => [redactShown(key), redactedContent(value[key])]),
+    );
+  }
+  return value;
 }
 
 /** Removes, from `start` on, each item whose id and digest fields an earlier one has. */

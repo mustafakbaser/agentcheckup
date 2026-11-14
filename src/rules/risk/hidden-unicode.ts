@@ -167,6 +167,8 @@ export const hiddenUnicodeRule = defineRule({
       // A Codex agent file's developer_instructions is a prompt, and so is a subagent's memory.
       'codex-agent',
       'claude-agent-memory',
+      // Codex's exec-policy rules decide which commands run without asking.
+      'codex-rules',
     ] as readonly ArtifactKind[],
     platforms: PLATFORM_IDS,
     sources: [

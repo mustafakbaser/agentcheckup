@@ -491,10 +491,64 @@ describe('loadCodex: skills', () => {
       expect.objectContaining({
         path: '.agents/skills/g/h/i/j/k/l/seven/SKILL.md',
         code: 'not-read',
-        certainty: 'unverified',
+        certainty: 'source-code',
+        evidence: ['codexSkillLimits', 'codexSkillWalk', 'codexSkills'],
       }),
     ]);
     expect(limit(plan, 'codex.skills_scan_depth')?.used).toBe(7);
+    // The walk descends into directories at most six levels deep: the root, a to e and six, g to
+    // l. `seven` is listed in `l` but not entered.
+    expect(limit(plan, 'codex.skills_scan_directories')?.used).toBe(13);
+  });
+
+  it('skips skills below a directory that starts with a dot, as Codex prunes them', () => {
+    const scanned = scan({
+      '.agents/skills/visible/SKILL.md': SKILL('visible'),
+      '.agents/skills/.hidden/x/SKILL.md': SKILL('x'),
+      '.agents/skills/.system/SKILL.md': SKILL('system'),
+      '.agents/skills/tools/.cache/y/SKILL.md': '# no frontmatter\n',
+      '.agents/skills/tools/.cache/y/notes.md': 'notes\n',
+    });
+    const { plan } = scanned;
+    expect(startupPaths(plan)).toEqual(['.agents/skills/visible/SKILL.md']);
+    expect(skips(plan)).toEqual([
+      '.agents/skills/.hidden/x/SKILL.md not-read',
+      '.agents/skills/.system/SKILL.md not-read',
+      '.agents/skills/tools/.cache/y/SKILL.md not-read',
+    ]);
+    expect(plan.skipped[0]).toMatchObject({
+      certainty: 'source-code',
+      evidence: ['codexSkillDiscovery', 'codexSkillLoader', 'codexSkills'],
+    });
+    // No skill rule counts Codex as a reader there: the skill without frontmatter is not
+    // reported for Codex.
+    const hiddenFindings = scanned.result.findings.filter((finding) =>
+      finding.path.includes('/skills/.'),
+    );
+    expect(hiddenFindings.length).toBeGreaterThan(0);
+    for (const finding of hiddenFindings) expect(finding.platforms).not.toContain('codex');
+    expectFindingsForSkips(scanned);
+    // The walk lists `.hidden`, `.system` and `.cache` but enters none of them: the root,
+    // visible and tools are the directories it visits, and it lists their six entries.
+    expect(limit(plan, 'codex.skills_scan_directories')?.used).toBe(3);
+    expect(limit(plan, 'codex.skills_scan_entries')).toMatchObject({
+      unit: 'entries',
+      limit: 20_000,
+      used: 6,
+    });
+    // A hidden skills root itself is fine: `.agents` is above the root.
+    expect(limit(plan, 'codex.skills_scan_depth')?.used).toBe(1);
+  });
+
+  it('marks skills unverified once a root has more entries than the walk lists', () => {
+    const files: FileMap = { '.agents/skills/a/SKILL.md': SKILL('a') };
+    const paths = Array.from({ length: 20_000 }, (_, i) => `.agents/skills/a/f${String(i)}.txt`);
+    const plan = planOnly(snapshotOf(files, { extras: { paths } }));
+    expect(limit(plan, 'codex.skills_scan_entries')?.used).toBe(20_002);
+    expect(entry(plan, 'skill:.agents/skills/a/SKILL.md')?.certainty).toBe('unverified');
+    // Within the limit: the false-positive guard.
+    const small = planOnly(snapshotOf(files, { extras: { paths: paths.slice(0, 100) } }));
+    expect(entry(small, 'skill:.agents/skills/a/SKILL.md')?.certainty).toBe('documented');
   });
 
   it('lists .codex/skills of the chain as unverified', () => {
@@ -847,12 +901,145 @@ describe('loadCodex: hooks and config.toml', () => {
     expect(skips(pkg.plan)).toEqual(['pkg/AGENTS.md over-byte-budget instr/codex-size-budget']);
     expect(entry(pkg.plan, 'instructions:AGENTS.md')?.truncated).toEqual({ atByte: 50, line: 1 });
     expectFindingsForSkips(pkg);
-    // Not a positive integer: the rule option applies.
-    const zero = { 'AGENTS.md': 'Root.\n', '.codex/config.toml': 'project_doc_max_bytes = 0\n' };
-    expect(maxBytes(scan(zero, '', { config }).plan)).toMatchObject({
-      value: 1000,
-      origin: 'rule-option',
+    // Not a non-negative integer: the rule option applies.
+    for (const value of ['-1', '1.5', '"0"']) {
+      const bad = {
+        'AGENTS.md': 'Root.\n',
+        '.codex/config.toml': `project_doc_max_bytes = ${value}\n`,
+      };
+      expect(maxBytes(scan(bad, '', { config }).plan), value).toMatchObject({
+        value: 1000,
+        origin: 'rule-option',
+      });
+    }
+  });
+
+  it('skips every project AGENTS.md when the repository sets project_doc_max_bytes = 0', () => {
+    const files = {
+      'AGENTS.md': 'x'.repeat(100),
+      'pkg/AGENTS.override.md': 'Override.\n',
+      'pkg/AGENTS.md': 'Shadowed.\n',
+      'pkg/sub/AGENTS.md': '   \n',
+      'pkg/sub/deeper/AGENTS.md': 'y'.repeat(50_000),
+      '.codex/config.toml': 'project_doc_max_bytes = 0\n',
+    };
+    const config = { rules: { 'instr/codex-size-budget': ['error', { maxBytes: 10 }] } };
+    const scanned = scan(files, 'pkg/sub/deeper', { config });
+    const { plan } = scanned;
+    expect(startupPaths(plan)).toEqual([]);
+    expect(skips(plan)).toEqual([
+      'AGENTS.md disabled',
+      'pkg/AGENTS.md shadowed-by-override instr/override-shadows-agents-md',
+      'pkg/AGENTS.override.md disabled',
+      'pkg/sub/AGENTS.md blank-file instr/empty-file',
+      'pkg/sub/deeper/AGENTS.md disabled',
+    ]);
+    expect(plan.skipped.find((skip) => skip.path === 'AGENTS.md')).toMatchObject({
+      size: { bytes: 100 },
+      certainty: 'source-code',
+      evidence: ['codexAgentsMdSource', 'codexConfigBasic'],
     });
+    expect(plan.assumptions.find((a) => a.key === 'codex.project_doc_max_bytes')).toMatchObject({
+      value: 0,
+      origin: 'repository',
+    });
+    // Nothing is read, so there is no budget to use.
+    expect(limit(plan, 'codex.project_doc_max_bytes')).toBeUndefined();
+    expect(plan.totals.startup.bytes).toBe(0);
+    // instr/codex-size-budget reports nothing, however large the files.
+    expect(findings(scanned.result, 'instr/codex-size-budget')).toEqual([]);
+    expectFindingsForSkips(scanned);
+
+    // A file agentcheckup could not read does not stop a chain Codex never reads.
+    const unread = scan(
+      { 'pkg/AGENTS.md': 'Pkg.\n', '.codex/config.toml': 'project_doc_max_bytes = 0\n' },
+      'pkg',
+      { extras: { paths: ['AGENTS.md'] } },
+    ).plan;
+    expect(unread.incomplete).toEqual([]);
+    expect(skips(unread)).toEqual(['pkg/AGENTS.md disabled']);
+
+    // The same files with a budget of 1 are read up to it: the false-positive guard.
+    const one = scan({ ...files, '.codex/config.toml': 'project_doc_max_bytes = 1\n' }, 'pkg');
+    expect(startupPaths(one.plan)).toEqual(['AGENTS.md']);
+    expect(findings(one.result, 'instr/codex-size-budget')).toHaveLength(1);
+  });
+
+  it('lists the instruction text config.toml adds at session start, before AGENTS.md', () => {
+    const scanned = scan(
+      {
+        'AGENTS.md': 'Root.\n',
+        '.codex/config.toml': [
+          'instructions = "Base."',
+          'developer_instructions = "Be brief. ✓"',
+          'compact_prompt = "  Summarize.  "',
+          '',
+        ].join('\n'),
+        'pkg/AGENTS.md': 'Pkg.\n',
+        'pkg/.codex/config.toml': 'developer_instructions = "Closer."\n',
+      },
+      'pkg',
+    );
+    const { plan } = scanned;
+    expect(
+      plan.entries.map(({ id, position, name, size }) => [id, position, name, size?.bytes]),
+    ).toEqual([
+      ['instructions:.codex/config.toml#instructions', 1, 'instructions', 5],
+      [
+        'instructions:pkg/.codex/config.toml#developer_instructions',
+        2,
+        'developer_instructions',
+        7,
+      ],
+      ['instructions:AGENTS.md', 3, undefined, 6],
+      ['instructions:pkg/AGENTS.md', 4, undefined, 5],
+    ]);
+    expect(entry(plan, 'instructions:.codex/config.toml#instructions')).toMatchObject({
+      trigger: 'startup',
+      certainty: 'source-code',
+      evidence: ['codexConfigCore', 'codexConfigLoader', 'codexConfigToml'],
+    });
+    // The compaction prompt is not part of the session start.
+    expect(plan.assumptions.find((a) => a.key === 'codex.compact_prompt')).toMatchObject({
+      value: '10 bytes in .codex/config.toml',
+      origin: 'repository',
+    });
+    expectFindingsForSkips(scanned);
+    // Without those keys, nothing is added: the false-positive guard.
+    const plain = scan({ 'AGENTS.md': 'Root.\n', '.codex/config.toml': 'model = "o3"\n' }).plan;
+    expect(plain.entries.map((item) => item.id)).toEqual(['instructions:AGENTS.md']);
+    expect(plain.assumptions.map((a) => a.key)).not.toContain('codex.compact_prompt');
+  });
+
+  it('measures the model_instructions_file, which wins over instructions', () => {
+    const files = {
+      '.codex/config.toml': 'instructions = "Inline."\nmodel_instructions_file = "../AGENTS.md"\n',
+      'AGENTS.md': '  Base from a file.  \n',
+    };
+    const { plan } = scan(files);
+    expect(entry(plan, 'instructions:AGENTS.md#model_instructions_file')).toMatchObject({
+      position: 1,
+      via: ['.codex/config.toml'],
+      size: { bytes: 22, chars: 'Base from a file.'.length },
+    });
+    expect(skips(plan)).toEqual(['.codex/config.toml shadowed-by-preferred']);
+    // A file the scan did not read is listed without a size.
+    const unread = scan({ '.codex/config.toml': 'model_instructions_file = "prompt.md"\n' }, '', {
+      extras: { paths: ['.codex/prompt.md'] },
+    }).plan;
+    expect(entry(unread, 'instructions:.codex/prompt.md#model_instructions_file')?.size).toBe(
+      undefined,
+    );
+    expect(unread.incomplete).toEqual(['unread:.codex/prompt.md']);
+    // Missing or empty: Codex does not start.
+    const missing = scan({ '.codex/config.toml': 'model_instructions_file = "gone.md"\n' }).plan;
+    expect(skips(missing)).toEqual(['.codex/gone.md not-read']);
+    // Outside the repository: stated, not read.
+    const home = scan({ '.codex/config.toml': 'model_instructions_file = "~/base.md"\n' }).plan;
+    expect(home.entries).toEqual([]);
+    expect(home.assumptions.find((a) => a.key === 'codex.model_instructions_file')?.value).toBe(
+      '~/base.md',
+    );
   });
 
   it('states repository fallback file names and stops the chain at a file it would try', () => {
@@ -1103,7 +1290,9 @@ describe('loadCodex: hostile input', () => {
     expect(plan.entries.at(-1)?.position).toBe(2500);
     // Past 2,000 directories, which skills the walk reaches depends on its order.
     expect(plan.entries.every((skill) => skill.certainty === 'unverified')).toBe(true);
-    expect(limit(plan, 'codex.skills_scan_directories')?.used).toBe(2541);
+    // The root, the 2,500 skill directories and the first six levels of the deep path: the walk
+    // does not enter directories deeper than that.
+    expect(limit(plan, 'codex.skills_scan_directories')?.used).toBe(2507);
     expect(limit(plan, 'codex.skills_scan_depth')?.used).toBe(40);
     const listing = limit(plan, 'codex.skills_listing');
     expect(listing?.used).toBeGreaterThan(listing?.limit ?? 0);

@@ -10,6 +10,8 @@
  * - It reads at most `project_doc_max_bytes` across the chain: the file that crosses the limit is
  *   cut at that byte, and later files are dropped. When the kept bytes of the crossing file are
  *   only whitespace, Codex skips that file too and the budget carries over to the next one.
+ * - `project_doc_max_bytes = 0` turns project files off: Codex returns before it looks for them
+ *   (`load_project_instructions`, line 65 at 5943d7a), so every file of the chain is `disabled`.
  *
  * Only files agentcheckup read can be measured. When a candidate exists but was not read, or might
  * exist, the choice in that directory is unknown and the chain stops before it.
@@ -37,7 +39,7 @@ export const CODEX_FILE_NAMES: readonly string[] = ['AGENTS.override.md', 'AGENT
 export const CODEX_DEFAULT_MAX_BYTES = 32_768;
 
 export interface CodexChainOptions {
-  /** Codex's `project_doc_max_bytes`: a positive integer. */
+  /** Codex's `project_doc_max_bytes`: a non-negative integer; 0 turns project files off. */
   readonly maxBytes: number;
   /**
    * Codex's `project_doc_fallback_filenames`, as `codexFallbackNames` in ../codex-config.ts
@@ -83,9 +85,10 @@ interface ChainFileBase {
  * - `read`: read in full.
  * - `blank`: only whitespace; Codex skips it and it uses no budget.
  * - `dropped`: the budget was used up before this file.
+ * - `disabled`: `project_doc_max_bytes = 0` turns project files off, so Codex never reads it.
  */
 export interface CodexWholeFile extends ChainFileBase {
-  readonly status: 'read' | 'blank' | 'dropped';
+  readonly status: 'read' | 'blank' | 'dropped' | 'disabled';
 }
 
 /**
@@ -111,6 +114,11 @@ export interface CodexChain {
   /** False when no directory at or above the start has a `.git` entry. */
   readonly rootMarker: boolean;
   readonly maxBytes: number;
+  /**
+   * True when `maxBytes` is 0: Codex reads no project file, and every file that is not blank is
+   * `disabled`. Blank files keep their status; Codex would skip them anyway.
+   */
+  readonly disabled: boolean;
   /** The file Codex chose in each directory that has one, root first. */
   readonly files: readonly CodexChainFile[];
   /** Budget bytes Codex used: files read in full, plus the kept part of the `cut` file. */
@@ -189,6 +197,7 @@ export function codexChain(
   options: CodexChainOptions,
 ): CodexChain {
   const { maxBytes } = options;
+  const disabled = maxBytes === 0;
   const marker = nearestGitRoot(view.snapshot, startDir);
   // Without a project root marker Codex reads only the working directory's file.
   const root = marker ?? startDir;
@@ -205,6 +214,9 @@ export function codexChain(
 
   for (const directory of chainDirectories(root, startDir)) {
     const selection = selectFile(view, directory, options.fallbackNames ?? []);
+    // With project files off, Codex looks for none, so a file agentcheckup cannot tell is not
+    // read either.
+    if (selection.kind === 'unknown' && disabled) continue;
     if (selection.kind === 'unknown') {
       unknownAt = directory;
       unknownFile = { path: selection.path, fallback: selection.fallback };
@@ -219,6 +231,10 @@ export function codexChain(
     }
     total += base.size;
 
+    if (disabled) {
+      files.push({ ...base, status: 'disabled' });
+      continue;
+    }
     if (remaining === 0 && afterCut) {
       const file = { ...base, status: 'dropped' } as const;
       files.push(file);
@@ -251,6 +267,7 @@ export function codexChain(
     root,
     rootMarker: marker !== undefined,
     maxBytes,
+    disabled,
     files,
     used: maxBytes - remaining,
     total,

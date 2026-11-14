@@ -439,10 +439,19 @@ export interface LimitUsage {
   readonly key: string;
   /**
    * `levels`: directory levels below a search root. `directories`: directories a search visits.
-   * `tokens`: the estimate of `Size.tokens`, for a limit the agent sets in tokens.
+   * `entries`: files and directories a search lists. `tokens`: the estimate of `Size.tokens`, for
+   * a limit the agent sets in tokens.
    */
   readonly unit:
-    'bytes' | 'chars' | 'lines' | 'hops' | 'levels' | 'directories' | 'context-fraction' | 'tokens';
+    | 'bytes'
+    | 'chars'
+    | 'lines'
+    | 'hops'
+    | 'levels'
+    | 'directories'
+    | 'entries'
+    | 'context-fraction'
+    | 'tokens';
   /** Null when the limit depends on the model's context window and none was given. */
   readonly limit: number | null;
   readonly used: number;

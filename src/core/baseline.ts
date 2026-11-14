@@ -554,6 +554,9 @@ function gateHits(
     if (before.incomplete.has(entry)) continue;
     if (isMcpConfig(entry)) hit('mcp', entry, 'added', incompleteSummary(entry, 'MCP'));
     if (isHookConfig(entry)) hit('hooks', entry, 'added', incompleteSummary(entry, 'hooks'));
+    if (isPermissionConfig(entry)) {
+      hit('permissions', entry, 'added', incompleteSummary(entry, 'permission'));
+    }
   }
 
   // Earlier values of each setting the gate reports whenever it changes, by file and kind.
@@ -996,9 +999,21 @@ function isHookConfig(entry: string): boolean {
   return role === 'hook' || role === 'plugin';
 }
 
-function incompleteSummary(entry: string, what: 'MCP' | 'hooks'): string {
+/**
+ * An inventory `incomplete` entry for a file whose permissions the inventory cannot list: a
+ * Codex exec-policy file that is not made of literal calls agentcheckup reads, and a
+ * `.codex/config.toml` past a parser limit or in UTF-16. A `.codex/config.toml` that is not valid
+ * TOML is not one: Codex does not start in a trusted project with such a file.
+ */
+function isPermissionConfig(entry: string): boolean {
   const { path, invalid } = incompletePath(entry);
-  const items = what === 'MCP' ? 'servers' : 'hooks';
+  const kind = classify(path)?.kind;
+  return kind === 'codex-rules' || (kind === 'codex-config' && invalid === undefined);
+}
+
+function incompleteSummary(entry: string, what: 'MCP' | 'hooks' | 'permission'): string {
+  const { path, invalid } = incompletePath(entry);
+  const items = what === 'MCP' ? 'servers' : what === 'hooks' ? 'hooks' : 'permissions';
   const reason = invalid === undefined ? 'is not analyzed' : `is not valid ${invalid}`;
   return `New ${what} config ${text(path)} ${reason}, so its ${items} cannot be checked`;
 }
@@ -1063,13 +1078,23 @@ function widens(permission: PermissionItem): boolean {
 }
 
 /**
+ * Keys whose value names something the digest covers the content of: a Codex
+ * `[permissions.<name>]` profile, listed under its name. A changed digest there may grant more
+ * under the same name, so it always trips the gate.
+ */
+const CONTENT_KEYS: ReadonlySet<string> = new Set(['permissions']);
+
+/**
  * A changed entry (same key and value, another digest) that lets the agent do no more than it
  * did: it already widened, already took effect if it does now, and was already broad if it is
  * now.
  */
 function alreadyAsWide(old: PermissionItem, permission: PermissionItem): boolean {
   return (
-    widens(old) && (old.effective || !permission.effective) && (old.broad || !permission.broad)
+    !CONTENT_KEYS.has(permission.key) &&
+    widens(old) &&
+    (old.effective || !permission.effective) &&
+    (old.broad || !permission.broad)
   );
 }
 
@@ -1113,19 +1138,24 @@ const ADDITIONAL_DIRECTORIES = 'additionalDirectories';
  */
 function broadNote(permission: PermissionItem): string {
   if (!permission.broad) return '';
+  // A Codex key first: a rule's value, such as `bash`, may read as another agent's tool.
+  const codex = CODEX_BROAD_NOTES.get(permission.key);
+  if (codex !== undefined) return codex;
   const grant = broadGrant(permission.value);
   if (grant !== undefined) return ` (broad: ${grant.capability})`;
   const key = lastSegment(permission.key);
   if (key === ADDITIONAL_DIRECTORIES || key === 'writable_roots') {
     return ' (broad: the file system root or home directory)';
   }
-  return CODEX_BROAD_NOTES.get(permission.key) ?? ' (broad)';
+  return ' (broad)';
 }
 
 /** What a broad Codex setting lets Codex do (SOURCES.codexConfigReference). */
 const CODEX_BROAD_NOTES: ReadonlyMap<string, string> = new Map([
   ['approval_policy', ' (broad: never asks before running a command)'],
   ['sandbox_mode', ' (broad: commands run without a sandbox)'],
+  ['default_permissions', ' (broad: commands run without a sandbox)'],
+  ['rules.prefix_rule', ' (broad: runs any command of a shell or interpreter without asking)'],
 ]);
 
 function permissionSummary(
@@ -1143,7 +1173,9 @@ function permissionSummary(
     const nowEffective = old !== undefined && !old.effective && permission.effective;
     summary = nowEffective
       ? `${key} ${value}${broad} now takes effect`
-      : `${key} ${value} widened${broad}`;
+      : CONTENT_KEYS.has(permission.key)
+        ? `${key} ${value} changed${broad}`
+        : `${key} ${value} widened${broad}`;
   } else if (effect === undefined) summary = `${key} adds ${value}${broad}`;
   else if (lastSegment(permission.key) === 'enabledMcpjsonServers') {
     summary = `${key} adds ${value}: ${effect}`;

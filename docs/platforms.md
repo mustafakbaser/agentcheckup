@@ -128,6 +128,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 | Hooks       | `~/.codex/hooks.json`, `~/.codex/config.toml`, `<repo>/.codex/hooks.json`, `<repo>/.codex/config.toml`, plugin `hooks/hooks.json`                                                                                                                                             | [Hooks][codex-hooks]                                                   |
 | MCP         | `~/.codex/config.toml`; `.codex/config.toml` in trusted projects                                                                                                                                                                                                              | [MCP][codex-mcp]                                                       |
 | Settings    | `~/.codex/config.toml`; `.codex/config.toml` in each directory from the project root to the working directory, in trusted projects                                                                                                                                            | [Config basics][codex-config-basic], [source][codex-src-config-loader] |
+| Rules       | `~/.codex/rules/*.rules`; `*.rules` directly in the `.codex/rules/` folder of each trusted project config folder                                                                                                                                                              | [Rules][codex-rules], [source][codex-src-exec-policy]                  |
 
 ### Discovery and precedence
 
@@ -138,6 +139,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - The source takes the first candidate that exists as a file. If that file is empty or whitespace only, it is skipped and the other candidates in the directory are not tried. An empty `AGENTS.override.md` therefore hides the `AGENTS.md` next to it. [source][codex-src-agents-md]
 - Files are joined with blank lines, root first. Later files take priority because they appear later in the prompt. [AGENTS.md][codex-agents-md]
 - `project_doc_max_bytes` and `project_doc_fallback_filenames` may be set in a project `.codex/config.toml`; the file closest to the working directory wins. [AGENTS.md][codex-agents-md], [Config basics][codex-config-basic], [Configuration reference][codex-config-ref]
+- `project_doc_max_bytes = 0` turns project `AGENTS.md` files off: Codex returns before it looks for them. agentcheckup's plan lists each file of the chain as turned off in the configuration, and instr/codex-size-budget reports nothing there. [source][codex-src-agents-md]
 - In a project marked `trust_level = "untrusted"`, Codex loads no project `AGENTS.md` (source) and skips the project `.codex/` config, hooks and rules (docs). [source][codex-src-agents-md], [Config basics][codex-config-basic]
 - A fallback name that contains `/`, or that is `.` or `..`, is ignored. [source][codex-src-agents-md]
 - Skills with the same `name` are not merged; both can appear in skill selectors. Symlinked skill folders are followed. [Build skills][codex-skills]
@@ -151,7 +153,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - `project_doc_max_bytes` defaults to 32,768 bytes (32 KiB) and is one budget for all project files in the chain. The file that crosses it is cut at the byte boundary, and files after it are dropped. The global file in `CODEX_HOME` does not count. agentcheckup reports chains over the budget. [AGENTS.md][codex-agents-md], [source][codex-src-agents-md]
 - The configuration pages describe the same key as a per-file limit ("how much to read from each `AGENTS.md` file"). The source applies one budget to the whole chain. [Advanced configuration][codex-config-advanced], [Configuration reference][codex-config-ref], [source][codex-src-agents-md]
 - Skill list: at most 2% of the context window, or 8,000 characters when the window is unknown. Codex shortens descriptions first and may leave skills out, with a warning. `skills.max_context_tokens` sets another budget, up to 10,000 tokens. [Build skills][codex-skills]
-- Skill discovery stops at 6 directory levels and 2,000 directories per root (source). [source][codex-src-skill-limits]
+- Skill discovery stops at 6 directory levels, 2,000 directories and 20,000 listed files and directories per root (source). It does not enter a directory whose name starts with a dot below a repository, user or admin skills root, so it never lists `.agents/skills/.hidden/x/SKILL.md`; a visible symlink to such a directory is followed. agentcheckup lists such skills as not read and states the three limits. [limits][codex-src-skill-limits], [discovery][codex-src-skill-discovery], [walk][codex-src-skill-walk]
 - Hook output: about 2,500 tokens per model-visible message by default (`additionalContextLimit`). Larger output is saved to a file and the model gets a preview. [Hooks][codex-hooks]
 
 ### Frontmatter fields
@@ -167,11 +169,19 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - In a trusted project, a project file that is not valid TOML stops Codex at startup with "Error parsing project config file", so no session starts. agentcheckup reports this. [source][codex-src-config-loader]
 - Codex parses the file with the Rust `toml` crate. At `ce0323f` its `Cargo.lock` pins `toml` 0.9.11+spec-1.1.0 and `toml_parser` 1.1.3+spec-1.1.0, so TOML 1.1 syntax is accepted: line breaks, comments and a trailing comma inside inline tables, the `\e` and `\xHH` escapes, and times without seconds. One leading UTF-8 byte order mark is skipped. [Cargo.lock][codex-cargo-lock], [TOML 1.1][toml-spec-11], [lexer][toml-parser-lexer], [parser][toml-parser-document], [string decoder][toml-parser-strings], [toml_datetime][toml-datetime]
 - Every TOML spelling of a table is the same table: `[mcp_servers.docs]`, `[mcp_servers."docs"]`, a top-level `mcp_servers.docs.command = "..."` and an inline `mcp_servers = { docs = { ... } }` all declare the server `docs`. [TOML 1.0][toml-spec]
-- Codex removes these top-level keys from every project file and warns at startup ("Ignored unsupported project-local config keys"): `openai_base_url`, `chatgpt_base_url`, `apps_mcp_product_sku`, `responses_api_metadata`, `model_provider`, `model_providers`, `notify`, `profile`, `profiles`, `experimental_realtime_webrtc_call_base_url`, `experimental_realtime_ws_base_url` and `otel` (`PROJECT_LOCAL_CONFIG_DENYLIST`). It also removes `features.respect_system_proxy`, `features.system_proxy_fallback`, `features.credential_masking`, `features.multi_agent_v2.message_board_remote` and the two permission-mode keys of `tui.keymap.chat`. [source][codex-src-config-loader]
+- Codex removes these top-level keys from every project file and warns at startup ("Ignored unsupported project-local config keys"): `openai_base_url`, `chatgpt_base_url`, `apps_mcp_product_sku`, `responses_api_metadata`, `model_provider`, `model_providers`, `notify`, `profile`, `profiles`, `experimental_realtime_webrtc_call_base_url`, `experimental_realtime_ws_base_url` and `otel` (`PROJECT_LOCAL_CONFIG_DENYLIST`). It also removes `features.respect_system_proxy`, `features.system_proxy_fallback`, `features.credential_masking`, `features.network_proxy.credential_broker`, `features.network_proxy.credentials`, `features.multi_agent_v2.message_board_remote` and the two permission-mode keys of `tui.keymap.chat`. [source][codex-src-config-loader]
 - `project_root_markers` and `projects` have no effect in a project file: Codex reads them before it loads project files, to find the project root and decide whether to trust it. [source][codex-src-config-loader]
 - `hooks.state`, the record of the hooks a user trusts, is read only from user and session configuration, so a project file cannot trust or turn on a hook. [source][codex-src-hook-state]
 - Settings that let Codex act without asking: `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, `sandbox_workspace_write.network_access = true` and extra `sandbox_workspace_write.writable_roots`. `shell_environment_policy.set` sets environment variables for every command Codex runs. [Configuration reference][codex-config-ref]
+- A trusted project can also choose its sandbox with a permission profile: `default_permissions` names a built-in profile (`:read-only`, `:workspace`, `:danger-full-access`) or a `[permissions.<name>]` table of the configuration; neither key is on the denylist. `approvals_reviewer = "auto_review"` (alias `guardian_subagent`) lets a reviewer subagent approve requests that would otherwise ask the user. The inventory lists every `default_permissions` but `:read-only`, each `[permissions.<name>]` profile with a digest of its content, and `auto_review`. [config_toml.rs][codex-src-config-toml], [models.rs][codex-src-models], [source][codex-src-config-loader]
+- Keys that add text to the model's context are not on the denylist either: `instructions` and `model_instructions_file` replace Codex's base instructions (the file wins, and Codex does not start when it is missing or empty), and `developer_instructions` adds a developer message. A relative file path is resolved against the layer's `.codex/` folder. agentcheckup lists them as startup entries before the `AGENTS.md` chain, measured when the file is one the scan read. `compact_prompt`, or the file `experimental_compact_prompt_file` names, replaces the prompt Codex uses when it compacts the conversation; the plan states it as an assumption. [config_toml.rs][codex-src-config-toml], [config][codex-src-config-core]
 - agentcheckup reports the keys Codex ignores in a project file. Its inventory and `--gate` read the servers, hooks, permission settings and environment overrides of every `.codex/config.toml`.
+
+### Rules (`.codex/rules/*.rules`)
+
+- Codex loads every `*.rules` file directly in the `rules` folder of each trusted config layer, `~/.codex/rules/` and the project's `.codex/rules/` included, not subfolders. It evaluates them as Starlark. When one does not parse, Codex drops every rule, the user's included, with a warning. [Rules][codex-rules], [source][codex-src-exec-policy]
+- `prefix_rule(pattern, decision, ...)` gives commands that start with `pattern` a decision: `allow` (the default when `decision` is left out) runs them without asking, `prompt` asks, `forbidden` blocks them. `network_rule(host, protocol, decision)` allows or denies a host, and `host_executable(name, paths)` names the absolute paths that count as the program `name`. [parser][codex-src-exec-policy-parser]
+- agentcheckup never evaluates a rules file. It reads a file made only of these calls with literal arguments and lists each `allow` prefix rule, each `allow` network rule and each `host_executable` as a permission (`rules.prefix_rule`, `rules.network_rule`, `rules.host_executable`); a prefix rule for a shell or interpreter alone is broad. Any other file, such as one with variables, loops or `load`, is listed as not analyzed, so `--gate permissions` fails closed on it.
 
 ### Hooks
 
@@ -184,6 +194,7 @@ For a setup that shares one configuration across all seven agents, see [One conf
 - Failure: exit code 2 with a reason on stderr blocks. Errors, timeouts, missing MCP servers and unavailable tools do not block. In the source, a `PreToolUse` hook that exits 2 with empty stderr is recorded as failed and does not block. [Hooks][codex-hooks], [source][codex-src-pretooluse]
 - Trust: a non-managed hook runs only after you review and trust its exact definition in `/hooks`. A changed hook needs a new review. Project hooks load only when the project `.codex/` folder is trusted. [Hooks][codex-hooks]
 - `features.hooks = false`, or its deprecated alias `features.codex_hooks = false`, turns hooks off. [Hooks][codex-hooks], [Configuration reference][codex-config-ref]
+- A command hook may set `commandWindows` (alias `command_windows`), which runs on Windows instead of `command`. agentcheckup keeps the hook's inventory id, which `command` names, and covers the Windows command in its digest and its remote-script check, so a change to either trips `--gate hooks`. [source][codex-src-hook-protocol]
 
 ### MCP
 
@@ -551,16 +562,17 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 
 Facts marked "source" were read at these commits. Links point to the `main` branch unless they name a version.
 
-| Repository                 | Commit or version                          | Read       | What                                                             |
-| -------------------------- | ------------------------------------------ | ---------- | ---------------------------------------------------------------- |
-| `openai/codex`             | `ae11049`                                  | 2026-10-14 | `AGENTS.md`, skills, hooks                                       |
-| `openai/codex`             | `ce0323f`                                  | 2026-10-17 | `config.toml` loading, MCP server entries, `hooks.state`, crates |
-| `google-gemini/gemini-cli` | `3647e4d`                                  | 2026-10-14 | imports, discovery, skills, MCP                                  |
-| `google-gemini/gemini-cli` | `ed96fae`                                  | 2026-10-17 | `context.fileName`, workspace settings, discovery order          |
-| `cline/cline`              | `a42df8c`                                  | 2026-10-17 | rule folders, rule files, `AGENTS.md`, workflows                 |
-| `toml-rs/toml`             | `toml_parser` 1.1.3, `toml_datetime` 0.7.5 | 2026-10-17 | the TOML that Codex accepts                                      |
-| `microsoft/vscode`         | `main`                                     | 2026-10-17 | how `.vscode/mcp.json` is parsed                                 |
-| `agentskills/agentskills`  | `69ef37e`                                  | 2026-10-14 | the skills validator                                             |
+| Repository                 | Commit or version                          | Read       | What                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openai/codex`             | `ae11049`                                  | 2026-10-14 | `AGENTS.md`, skills, hooks                                                                                                                                             |
+| `openai/codex`             | `ce0323f`                                  | 2026-10-17 | `config.toml` loading, MCP server entries, `hooks.state`, crates                                                                                                       |
+| `openai/codex`             | `5943d7a`                                  | 2026-11-14 | `project_doc_max_bytes = 0`, hidden skill folders, skill walk limits, `commandWindows`, permission profiles, exec-policy rules, instruction keys, project key removals |
+| `google-gemini/gemini-cli` | `3647e4d`                                  | 2026-10-14 | imports, discovery, skills, MCP                                                                                                                                        |
+| `google-gemini/gemini-cli` | `ed96fae`                                  | 2026-10-17 | `context.fileName`, workspace settings, discovery order                                                                                                                |
+| `cline/cline`              | `a42df8c`                                  | 2026-10-17 | rule folders, rule files, `AGENTS.md`, workflows                                                                                                                       |
+| `toml-rs/toml`             | `toml_parser` 1.1.3, `toml_datetime` 0.7.5 | 2026-10-17 | the TOML that Codex accepts                                                                                                                                            |
+| `microsoft/vscode`         | `main`                                     | 2026-10-17 | how `.vscode/mcp.json` is parsed                                                                                                                                       |
+| `agentskills/agentskills`  | `69ef37e`                                  | 2026-10-14 | the skills validator                                                                                                                                                   |
 
 [cc-memory]: https://code.claude.com/docs/en/memory
 [cc-skills]: https://code.claude.com/docs/en/skills
@@ -598,6 +610,14 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [codex-src-skill-roots]: https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs
 [codex-src-pretooluse]: https://github.com/openai/codex/blob/main/codex-rs/hooks/src/events/pre_tool_use.rs
 [codex-src-config-loader]: https://github.com/openai/codex/blob/main/codex-rs/config/src/loader/mod.rs
+[codex-src-config-toml]: https://github.com/openai/codex/blob/main/codex-rs/config/src/config_toml.rs
+[codex-src-config-core]: https://github.com/openai/codex/blob/main/codex-rs/core/src/config/mod.rs
+[codex-src-models]: https://github.com/openai/codex/blob/main/codex-rs/protocol/src/models.rs
+[codex-src-exec-policy]: https://github.com/openai/codex/blob/main/codex-rs/core/src/exec_policy.rs
+[codex-src-exec-policy-parser]: https://github.com/openai/codex/blob/main/codex-rs/execpolicy/src/parser.rs
+[codex-src-hook-protocol]: https://github.com/openai/codex/blob/main/codex-rs/protocol/src/hooks.rs
+[codex-src-skill-discovery]: https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/loader/discovery.rs
+[codex-src-skill-walk]: https://github.com/openai/codex/blob/main/codex-rs/exec-server/src/local_file_system.rs
 [codex-src-mcp-types]: https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs
 [codex-src-hook-state]: https://github.com/openai/codex/blob/main/codex-rs/hooks/src/config_rules.rs
 [codex-src-hook-events]: https://github.com/openai/codex/blob/main/codex-rs/hooks/src/lib.rs

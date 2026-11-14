@@ -234,6 +234,7 @@
         "mcp-json",
         "codex-hooks",
         "codex-config",
+        "codex-rules",
         "windsurf-rule",
         "windsurf-legacy-rules",
         "devin-config",
@@ -997,7 +998,7 @@
       "properties": {
         "key": { "type": "string", "minLength": 1 },
         "unit": {
-          "description": "`levels`: directory levels below a search root. `directories`: directories a search visits.",
+          "description": "`levels`: directory levels below a search root. `directories`: directories a search visits. `entries`: files and directories a search lists.",
           "enum": [
             "bytes",
             "chars",
@@ -1005,6 +1006,7 @@
             "hops",
             "levels",
             "directories",
+            "entries",
             "context-fraction",
             "tokens"
           ]

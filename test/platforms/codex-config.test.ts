@@ -89,9 +89,18 @@ describe('codexDocSettings', () => {
     });
   });
 
+  it('takes 0 from the repository: it turns project AGENTS.md files off', () => {
+    const config = configOf({ '.codex/config.toml': 'project_doc_max_bytes = 0\n' }, ['']);
+    expect(codexDocSettings(config, RULE_DEFAULT).maxBytes).toEqual({
+      value: 0,
+      origin: 'repository',
+      path: '.codex/config.toml',
+    });
+  });
+
   it('falls back to the rule option or the default for values Codex would reject', () => {
     for (const text of [
-      'project_doc_max_bytes = 0\nproject_doc_fallback_filenames = "CLAUDE.md"\n',
+      'project_doc_max_bytes = -1\nproject_doc_fallback_filenames = "CLAUDE.md"\n',
       'project_doc_max_bytes = 1.5\nproject_doc_fallback_filenames = [1]\n',
       'project_doc_max_bytes = "4096"\n',
       '',
@@ -162,6 +171,27 @@ describe('codexIgnoredKeys', () => {
       ['hooks.state', 'user-only'],
     ]);
     expect(codexIgnoredKeys(doc('model = "o3"\n[hooks]\n'))).toEqual([]);
+  });
+
+  it('lists the credential keys of a features.network_proxy table, and nothing else there', () => {
+    const keys = codexIgnoredKeys(
+      doc(
+        [
+          '[features.network_proxy]',
+          'enabled = true',
+          'credential_broker = true',
+          'credentials = ["github"]',
+          '',
+        ].join('\n'),
+      ),
+    );
+    expect(keys.map((item) => item.path.join('.'))).toEqual([
+      'features.network_proxy.credential_broker',
+      'features.network_proxy.credentials',
+    ]);
+    // A boolean `features.network_proxy` has no keys to remove, and `enabled` stays.
+    expect(codexIgnoredKeys(doc('[features]\nnetwork_proxy = true\n'))).toEqual([]);
+    expect(codexIgnoredKeys(doc('[features.network_proxy]\nenabled = true\n'))).toEqual([]);
   });
 });
 

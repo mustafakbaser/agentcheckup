@@ -40,6 +40,7 @@ const UNIT_NAMES: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   hops: 'hop',
   levels: 'level',
   directories: 'directory',
+  entries: 'entry',
   'context-fraction': undefined,
   tokens: 'token',
 };
@@ -52,6 +53,7 @@ const UNIT_PLURALS: Readonly<Record<LimitUsage['unit'], string | undefined>> = {
   hops: 'hops',
   levels: 'levels',
   directories: 'directories',
+  entries: 'entries',
   'context-fraction': undefined,
   tokens: 'tokens',
 };

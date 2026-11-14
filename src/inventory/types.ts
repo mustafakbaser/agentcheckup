@@ -19,6 +19,7 @@ export interface Inventory {
    * Config files that could not be analyzed, so items may be missing: files in Cline's
    * `.clinerules/hooks/`, `.cline/hooks/` and `.cline/plugins/` (no documented format),
    * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, a
+   * Codex `.codex/rules/*.rules` file that is not made only of literal rule calls, a
    * skill, command or subagent whose frontmatter is past a parser limit, a Claude Code plugin
    * manifest with inline hooks in a list or naming other hook or MCP files, files the walk
    * skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
@@ -126,9 +127,12 @@ export interface HookItem extends ItemBase {
  * `enableAllProjectMcpServers`, `enabledMcpjsonServers`, the `allowed-tools` of a skill or
  * command, a subagent's `permissionMode`, the `agent` every Claude Code session starts as,
  * Gemini CLI trust, and Codex's `approval_policy`, `sandbox_mode`,
- * `sandbox_workspace_write.network_access`, `sandbox_workspace_write.writable_roots` and MCP tool
+ * `sandbox_workspace_write.network_access`, `sandbox_workspace_write.writable_roots`, MCP tool
  * approval modes (`mcp_servers.<name>.default_tools_approval_mode`,
- * `mcp_servers.<name>.tools.<tool>.approval_mode`).
+ * `mcp_servers.<name>.tools.<tool>.approval_mode`), `default_permissions`, `permissions` (one
+ * `[permissions.<name>]` profile, its digest covering the profile's redacted content),
+ * `approvals_reviewer`, and the exec-policy rules of `.codex/rules/*.rules`
+ * (`rules.prefix_rule`, `rules.network_rule`, `rules.host_executable`).
  */
 export interface PermissionItem extends ItemBase {
   readonly key: string;

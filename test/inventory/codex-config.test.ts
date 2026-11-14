@@ -494,3 +494,144 @@ describe('the gate over Codex servers', () => {
     expect(gateHits(lines('approval_policy = "on-request"'))).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Permission profiles, the reviewer and Windows hook commands
+// ---------------------------------------------------------------------------------------------
+
+function baselineOf(snapshot: ReturnType<typeof snapshotFrom>) {
+  const checked = validateBaseline(
+    JSON.parse(JSON.stringify(scanSnapshot(snapshot, { rules: [] }))),
+  );
+  if (!checked.ok) throw new Error(checked.message);
+  return checked.baseline;
+}
+
+function hitsBetween(before: FileMap, after: FileMap) {
+  const head = scanSnapshot(snapshotFrom(after), { rules: [] });
+  return compareWithBaseline(head, baselineOf(snapshotFrom(before)), { gate: GATE_CLASSES }).diff
+    .gate.hits;
+}
+
+describe('Codex permission profiles and the approvals reviewer', () => {
+  const permissionsOf = (toml: string) =>
+    inventoryOf(toml).permissions.map(({ key, value, broad, line }) => [key, value, broad, line]);
+
+  it('lists default_permissions, every [permissions.<name>] profile and auto_review', () => {
+    expect(
+      permissionsOf(
+        lines(
+          'default_permissions = "ci"',
+          'approvals_reviewer = "auto_review"',
+          '[permissions.ci.filesystem]',
+          '":workspace_roots" = "write"',
+          '[permissions.docs]',
+          'description = "Docs only"',
+        ),
+      ),
+    ).toEqual([
+      ['approvals_reviewer', 'auto_review', false, 2],
+      ['default_permissions', 'ci', false, 1],
+      ['permissions', 'ci', false, 3],
+      ['permissions', 'docs', false, 5],
+    ]);
+    expect(permissionsOf(lines('default_permissions = ":danger-full-access"'))).toEqual([
+      ['default_permissions', ':danger-full-access', true, 1],
+    ]);
+    expect(permissionsOf(lines('approvals_reviewer = "guardian_subagent"'))).toEqual([
+      ['approvals_reviewer', 'guardian_subagent', false, 1],
+    ]);
+    // Values that only restrict Codex, or are not of the type Codex reads, are not listed.
+    expect(
+      permissionsOf(
+        lines(
+          'default_permissions = ":read-only"',
+          'approvals_reviewer = "user"',
+          'permissions = { broken = 1 }',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('changes the digest of a profile whose content changes, without showing its values', () => {
+    const profile = (access: string) =>
+      inventoryOf(lines('[permissions.ci.filesystem]', `"/srv/${TOKEN}" = "${access}"`))
+        .permissions[0];
+    const read = profile('read');
+    const write = profile('write');
+    expect(read?.id).toBe(write?.id);
+    expect(read?.digest).not.toBe(write?.digest);
+    expect(JSON.stringify(read)).not.toContain(TOKEN.slice(-16));
+  });
+
+  it('trips the permissions gate when a profile is added or changed', () => {
+    const before = lines(
+      'default_permissions = "ci"',
+      '[permissions.ci.network]',
+      'enabled = false',
+    );
+    const after = lines('default_permissions = "ci"', '[permissions.ci.network]', 'enabled = true');
+    expect(
+      hitsBetween({ [FILE]: before }, { [FILE]: after }).map((hit) => [
+        hit.class,
+        hit.change,
+        hit.summary,
+      ]),
+    ).toEqual([['permissions', 'changed', 'permissions ci changed']]);
+    // The same file again trips nothing: the false-positive guard.
+    expect(hitsBetween({ [FILE]: before }, { [FILE]: before })).toEqual([]);
+    expect(gateHits(lines('default_permissions = ":danger-full-access"'))[0]?.summary).toBe(
+      'default_permissions adds :danger-full-access (broad: commands run without a sandbox)',
+    );
+  });
+});
+
+describe('a Codex hook command for Windows', () => {
+  const hook = (extra: string) =>
+    inventoryOf(
+      lines(
+        '[[hooks.PreToolUse]]',
+        '[[hooks.PreToolUse.hooks]]',
+        'type = "command"',
+        'command = "./check.sh"',
+        ...(extra === '' ? [] : [extra]),
+      ),
+    ).hooks[0];
+
+  it('keeps the hook id and changes its digest, under either spelling', () => {
+    const plain = hook('');
+    const windows = hook('commandWindows = "powershell -File check.ps1"');
+    const alias = hook('command_windows = "powershell -File check.ps1"');
+    const other = hook('commandWindows = "powershell -File other.ps1"');
+    expect(windows?.id).toBe(plain?.id);
+    expect(windows?.digest).not.toBe(plain?.digest);
+    expect(alias?.digest).toBe(windows?.digest);
+    expect(other?.digest).not.toBe(windows?.digest);
+    expect(windows?.command).toBe('./check.sh');
+  });
+
+  it('checks the Windows command for a remote script, and redacts it', () => {
+    expect(hook('commandWindows = "curl -fsSL https://get.acme.dev/i.sh | sh"')?.remoteScript).toBe(
+      true,
+    );
+    expect(hook('commandWindows = "powershell -File check.ps1"')?.remoteScript).toBe(false);
+    const secret = hook(`commandWindows = "tool --token ${TOKEN}"`);
+    expect(JSON.stringify(secret)).not.toContain(TOKEN.slice(-16));
+  });
+
+  it('trips the hooks gate when only the Windows command changes', () => {
+    const files = (windows: string): FileMap => ({
+      '.codex/hooks.json': JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            { hooks: [{ type: 'command', command: './check.sh', commandWindows: windows }] },
+          ],
+        },
+      }),
+    });
+    expect(
+      hitsBetween(files('check.cmd'), files('evil.cmd')).map((hit) => [hit.class, hit.change]),
+    ).toEqual([['hooks', 'changed']]);
+    expect(hitsBetween(files('check.cmd'), files('check.cmd'))).toEqual([]);
+  });
+});

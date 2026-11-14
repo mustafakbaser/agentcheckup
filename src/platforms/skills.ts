@@ -115,6 +115,19 @@ export interface SkillLocation {
   readonly platforms: ReadonlySet<PlatformId>;
 }
 
+/**
+ * True when a directory between the skills root and the SKILL.md starts with a dot, such as
+ * `.hidden/x/SKILL.md`. Codex prunes such directories from its walk of a repository, user or
+ * admin skills root and drops any entry below one (`HiddenDirectoryPolicy::Skip` in
+ * codex-rs/ext/skills/src/loader/host.rs and `has_hidden_ancestor_below_root` in
+ * loader/discovery.rs at openai/codex 5943d7a, SOURCES.codexSkillDiscovery). A directory that
+ * starts with a dot above the root, such as `.agents`, does not count.
+ */
+export function hiddenBelowSkillsRoot(relative: string): boolean {
+  const directories = relative.split('/').slice(0, -1);
+  return directories.some((segment) => segment.startsWith('.'));
+}
+
 function depthMatches(depth: SkillDepth, relative: string): boolean {
   const segments = relative.split('/').length;
   if (depth === 'direct') return segments === 2;
@@ -146,6 +159,7 @@ export function skillLocation(path: string, caseMismatch = false): SkillLocation
     // Codex and Cline discover only the exact file name SKILL.md (discovery.rs; the Cline SDK's
     // `includeFile`).
     if (caseMismatch && (reader.platform === 'codex' || reader.platform === 'cline')) continue;
+    if (reader.platform === 'codex' && hiddenBelowSkillsRoot(relative)) continue;
     if (depthMatches(reader.depth, relative)) platforms.add(reader.platform);
   }
   return { root: rootPath, relative, platforms };

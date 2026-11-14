@@ -63,9 +63,17 @@ function commandStrings(artifact: Artifact, doc: ParsedJson): CommandString[] {
     for (const { event, handler, path } of hookHandlers(doc, source.platform, {
       root: source.root,
     })) {
-      const command = own(handler, 'command');
-      if (typeof command === 'string') {
-        out.push({ path: [...path, 'command'], value: command, what: `This ${event} hook` });
+      // A Codex command hook runs `commandWindows` (alias `command_windows`) on Windows instead
+      // (codex-rs/protocol/src/hooks.rs), so that command runs unread too.
+      const fields =
+        source.platform === 'codex'
+          ? ['command', 'commandWindows', 'command_windows']
+          : ['command'];
+      for (const field of fields) {
+        const command = own(handler, field);
+        if (typeof command === 'string') {
+          out.push({ path: [...path, field], value: command, what: `This ${event} hook` });
+        }
       }
     }
   }
@@ -103,7 +111,7 @@ export const remoteScriptExecutionRule = defineRule({
     severity: 'warn',
     appliesTo: [...MARKDOWN_KINDS, ...COMMAND_KINDS],
     platforms: PLATFORM_IDS,
-    sources: [RISK_SOURCES.claudeSecurity, SOURCES.agentsMd],
+    sources: [RISK_SOURCES.claudeSecurity, SOURCES.agentsMd, SOURCES.codexHookProtocol],
     since: RULESET_VERSION,
   },
   defaultOptions: undefined,

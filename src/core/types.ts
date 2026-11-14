@@ -77,6 +77,7 @@ export const ARTIFACT_KINDS = [
   'mcp-json',
   'codex-hooks',
   'codex-config',
+  'codex-rules',
   'windsurf-rule',
   'windsurf-legacy-rules',
   'devin-config',

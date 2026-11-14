@@ -82,6 +82,14 @@ describe('risk/hidden-unicode', () => {
     expect(run({ '.codex/agents/y.toml': 'name = "y"\n' })).toEqual([]);
   });
 
+  it('checks a Codex exec-policy file, whose rules decide which commands run unasked', () => {
+    const rules = `prefix_rule(pattern = ["git"${tags(', "push"')}])\n`;
+    expect(run({ '.codex/rules/a.rules': rules }).map((finding) => finding.path)).toEqual([
+      '.codex/rules/a.rules',
+    ]);
+    expect(run({ '.codex/rules/b.rules': 'prefix_rule(pattern = ["git"])\n' })).toEqual([]);
+  });
+
   it("checks a subagent's memory file, which Claude Code adds to its prompt", () => {
     const path = '.claude/agent-memory/reviewer/MEMORY.md';
     expect(

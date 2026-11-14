@@ -585,12 +585,16 @@ describe('gate: mcp and mcp-unpinned', () => {
           'New MCP config .cursor/mcp.json is not valid JSON, so its servers cannot be checked',
       },
     ]);
-    // A Codex config declares hooks too, so one it could not read trips both classes.
+    // A Codex config declares hooks and permission settings too, so one it could not read trips
+    // all three classes; one that is not valid TOML stops Codex, so it grants no permission.
     const codex = report({ inventory: { incomplete: ['packages/x/.codex/config.toml'] } });
     expect(hits(report(), codex).map((hit) => [hit.class, hit.id])).toEqual([
       ['hooks', 'packages/x/.codex/config.toml'],
       ['mcp', 'packages/x/.codex/config.toml'],
+      ['permissions', 'packages/x/.codex/config.toml'],
     ]);
+    const invalid = report({ inventory: { incomplete: ['invalid-toml:.codex/config.toml'] } });
+    expect(hits(report(), invalid).map((hit) => hit.class)).toEqual(['hooks', 'mcp']);
     const gemini = report({ inventory: { incomplete: ['invalid-json:.gemini/settings.json'] } });
     expect(hits(report(), gemini)).toHaveLength(1);
     // A plugin manifest declares both, inline or in the files it names.
@@ -2502,7 +2506,7 @@ describe('properties', () => {
           const known =
             changed.has(hit.id) ||
             (hit.class === 'unicode' && fresh.has(hit.id)) ||
-            ((hit.class === 'mcp' || hit.class === 'hooks') &&
+            ((hit.class === 'mcp' || hit.class === 'hooks' || hit.class === 'permissions') &&
               hit.change === 'added' &&
               after.inventory?.incomplete.includes(hit.id));
           expect(known).toBe(true);

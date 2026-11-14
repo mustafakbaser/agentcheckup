@@ -59,6 +59,8 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'mcp-json': ['claude-code', 'copilot', 'windsurf'],
   'codex-hooks': ['codex'],
   'codex-config': ['codex'],
+  // Exec-policy rules: `.codex/rules/*.rules` (SOURCES.codexExecPolicy).
+  'codex-rules': ['codex'],
   'windsurf-rule': ['windsurf'],
   'windsurf-legacy-rules': ['cline', 'windsurf'],
   'devin-config': ['windsurf'],
@@ -183,6 +185,13 @@ const MATCHERS: readonly Matcher[] = [
   },
   { kind: 'codex-hooks', pattern: /(?:^|\/)\.codex\/hooks\.json$/, canonical: keepPath },
   { kind: 'codex-config', pattern: /(?:^|\/)\.codex\/config\.toml$/, canonical: keepPath },
+  // Exec-policy rules, directly in the folder: Codex does not look into subfolders
+  // (`collect_policy_files` in codex-rs/core/src/exec_policy.rs, SOURCES.codexExecPolicy).
+  {
+    kind: 'codex-rules',
+    pattern: /(?:^|\/)\.codex\/rules\/[^/]+\.rules$/,
+    canonical: keepPath,
+  },
   // Custom agents: one TOML file per agent, subfolders included (SOURCES.codexSubagents).
   {
     kind: 'codex-agent',
@@ -354,6 +363,8 @@ export function isCandidateBasename(name: string): boolean {
     lower.endsWith('.json') ||
     // `config.toml` and the agent files in `.codex/agents`; the classifier decides.
     lower.endsWith('.toml') ||
+    // Codex's exec-policy rules in `.codex/rules`.
+    lower.endsWith('.rules') ||
     lower === '.cursorrules' ||
     lower === '.windsurfrules'
   );

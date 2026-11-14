@@ -651,7 +651,15 @@ inventory read every such file:
 - **Hooks** in `[hooks]` tables run after the user trusts them (`Hooks, asks first`).
   `features.hooks = false` skips them as `disabled`.
 - **Settings:** `project_doc_max_bytes` and `project_doc_fallback_filenames` from the closest file
-  become assumptions with origin `repository`.
+  become assumptions with origin `repository`. `project_doc_max_bytes = 0` turns project
+  `AGENTS.md` files off: each file of the chain is skipped as `disabled`, and the plan states no
+  budget to use.
+- **Instruction text:** `instructions`, `developer_instructions` and the file
+  `model_instructions_file` names (resolved against the layer's `.codex/` folder) are startup
+  entries before the `AGENTS.md` chain; the file wins over `instructions`. A file the scan did
+  not read is listed without a size and makes the plan incomplete. `compact_prompt` and
+  `experimental_compact_prompt_file` replace the prompt Codex uses when it compacts the
+  conversation, so they become assumptions, as does a file outside the repository.
 - **A file that is not valid TOML** is skipped as `invalid-toml`: in a trusted project Codex
   stops at startup, and `codex/config-invalid` reports it as an error.
 - **A file agentcheckup cannot read** (past its parser's limits of 1 MiB, 64 levels and 100,000
@@ -789,7 +797,7 @@ to have them reviewed too.
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mcp`          | An MCP server is added or changed, a subagent's inline servers among them, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, or one of the Codex settings below. `deny` and `ask` entries never trip it                                                                                                                                                         |
+| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, or one of the Codex settings and rules below; or a new Codex rules file or `.codex/config.toml` appears that agentcheckup cannot analyze. `deny` and `ask` entries never trip it                                                   |
 | `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's hook and plugin folders, or a skill, command or subagent whose frontmatter is past agentcheckup's parser limits. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it |
 | `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it, nor do overrides the agent drops where they are set (`"effective": false`)                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -836,8 +844,20 @@ Permission widened: permissions.allow adds Bash(curl:*)
 In `.codex/config.toml` the inventory lists only settings that let Codex act without asking:
 `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`,
 `sandbox_workspace_write.network_access = true`, each `sandbox_workspace_write.writable_roots`
-entry, and MCP tool approval modes other than `prompt`. Values that only restrict Codex are not
-listed, so they never trip the gate.
+entry, MCP tool approval modes other than `prompt`, `default_permissions` other than
+`:read-only` (`:danger-full-access` is broad), each `[permissions.<name>]` profile, and
+`approvals_reviewer = "auto_review"`. Values that only restrict Codex are not listed, so they
+never trip the gate. A profile is listed under its name, and its digest covers its content
+(strings redacted), so a profile that changes under the same name trips the gate as
+`permissions <name> changed`.
+
+Codex's exec-policy files, `.codex/rules/*.rules`, are listed too: each `prefix_rule` that allows
+commands (`allow` is the default decision), each `network_rule` that allows a host and each
+`host_executable`, as `rules.prefix_rule`, `rules.network_rule` and `rules.host_executable`. A
+prefix rule for a shell or interpreter alone, such as `prefix_rule(["bash"])`, is broad.
+agentcheckup never evaluates these Starlark files: one that is not made only of such calls with
+literal arguments is listed in `incomplete`, and a new one trips `permissions`, as does a new
+`.codex/config.toml` it cannot read.
 
 An added `permissions.allow` or `allowed-tools` entry does not trip it when the same change
 removes, from the same key of the same file, an entry that provably allowed everything it

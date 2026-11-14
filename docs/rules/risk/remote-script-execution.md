@@ -25,6 +25,7 @@ Pin the download to a version and checksum, or install from a package manager or
 
 - [Claude Code: Security (network command approval)](https://code.claude.com/docs/en/security), verified, checked 2026-11-13
 - [AGENTS.md open format](https://agents.md/), verified, checked 2026-11-13
+- [Codex source: protocol hooks.rs (on Windows a command hook runs commandWindows, alias command_windows, instead of command)](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/hooks.rs), verified, checked 2026-11-14
 
 ## Fix
 
