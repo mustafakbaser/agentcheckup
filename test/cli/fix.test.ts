@@ -111,6 +111,17 @@ describe('agentcheckup fix: dry run', () => {
     expect(io.output()).toBe('Nothing to fix.\n');
   });
 
+  it('shows a manual step at its line in the file on disk, not in the fixed copy', async () => {
+    const root = await repo({
+      'AGENTS.md': '# Agents\n\nRun `pnpm test`.\nReviewed.\n',
+      'CLAUDE.md': '# Claude\n\nRead @docs/setup.md first.\n',
+    });
+    const { io } = await fix(root, []);
+    // The safe fix adds "@AGENTS.md" and a blank line above it; the file on disk has 3 lines.
+    expect(io.output()).toContain('manual  instr/import-unresolved  CLAUDE.md:3  create');
+    expect(io.output()).not.toContain('CLAUDE.md:5');
+  });
+
   it('counts the findings that need judgment, as agentcheckup tasks lists them', async () => {
     const root = await repo({
       'AGENTS.md': UNFIXED,
@@ -254,8 +265,30 @@ describe('agentcheckup fix --write', () => {
       'Applied 1 fix to 1 file. Re-scanned: 1 finding resolved, 0 new, 1 left.',
     );
     expect(out).toContain('Review the changes with git status and git diff.');
+    // What is left, by class: the review fix is not relabeled as a manual step.
+    expect(out).toContain('Left: 1 needs review (agentcheckup fix --write --review or fix -i)\n');
+    expect(out).not.toContain('manual');
     expect(io.errors()).toBe('');
     expect(await readdir(root)).toEqual(['AGENTS.md']);
+  });
+
+  it('counts what is left like the scan, and lists only the steps without a fix', async () => {
+    const root = await repo({
+      'AGENTS.md': '# Agents\n\nRun `pnpm test`.\nReviewed.\n',
+      'CLAUDE.md': '# Claude\n\nRead @docs/setup.md first.\n',
+    });
+    const { code, io } = await fix(root, ['--write']);
+    expect(code).toBe(EXIT.ok);
+    const out = io.output();
+    const rescanned = /Re-scanned: \d+ findings? resolved, \d+ new, (\d+) left\./.exec(out);
+    const left = /^Left: (.*)$/m.exec(out)?.[1] ?? '';
+    const counted = left
+      .split(' · ')
+      .reduce((sum, part) => sum + Number(part.slice(0, part.indexOf(' '))), 0);
+    expect(counted).toBe(Number(rescanned?.[1]));
+    expect(left).toContain('1 manual');
+    // The file is written, so the step is at its line on disk now: below the added import.
+    expect(out).toContain('\n  CLAUDE.md:5 instr/import-unresolved (create "docs/setup.md"');
   });
 
   it('applies review fixes too with --review, and a second run finds nothing', async () => {

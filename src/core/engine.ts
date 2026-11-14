@@ -42,7 +42,7 @@ import { PLUGIN_HOOKS_FILE, skillsDirPluginOf } from '../platforms/skills-dir-pl
 import type { PolicyReport } from '../policy/types.js';
 import type { BaselineDiff } from './baseline-types.js';
 import { compareStrings } from './compare.js';
-import { EMPTY_CONFIG, type ResolvedConfig } from './config.js';
+import { ConfigError, EMPTY_CONFIG, type ResolvedConfig, ruleOptionIssues } from './config.js';
 import {
   CAPPED_FINDINGS,
   MAX_SUGGESTED_IDS,
@@ -544,6 +544,19 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
   const { snapshot, config, targets, targetList, artifacts, frontmatter, markdown, json, toml } =
     analysis;
   const trustDirectives = options.trustDirectives ?? true;
+
+  // Rule options are checked before any rule runs, so a wrong option is a configuration error,
+  // not a rule that crashed. The CLI and scan() check them when they read the configuration;
+  // this covers a ResolvedConfig built another way.
+  const optionIssues = options.rules.flatMap((rule) =>
+    ruleOptionIssues(rule.meta, config.ruleSetting(rule.meta.id, '')?.options),
+  );
+  if (optionIssues.length > 0) {
+    throw new ConfigError([
+      'Invalid configuration:',
+      ...optionIssues.map((issue) => `  - ${issue}`),
+    ]);
+  }
 
   const pending: PendingFinding[] = [];
   const ruleFailures: RuleFailure[] = [];

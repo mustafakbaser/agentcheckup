@@ -176,6 +176,34 @@ describe('json/invalid-syntax', () => {
     ]);
   });
 
+  it('reports a file no lenient reader parses as an error, at its first other error', () => {
+    // A trailing comma first, then a missing closing brace: comments and trailing commas are
+    // only information in .mcp.json, but nothing parses this file.
+    const text = '{"mcpServers": {"a": {"command": "npx",}}';
+    expect(run({ '.mcp.json': text, '.cursor/mcp.json': text })).toEqual([
+      {
+        ruleId: ID,
+        severity: 'error',
+        path: '.cursor/mcp.json',
+        message:
+          'This file is not valid JSON (expected a closing brace). Cursor cannot load any MCP server from this file.',
+        range: { start: { line: 1, column: 42 }, end: { line: 1, column: 42 } },
+      },
+      {
+        ruleId: ID,
+        severity: 'error',
+        path: '.mcp.json',
+        message:
+          'This file is not valid JSON (expected a closing brace). Claude Code cannot load any MCP server from this file.',
+        range: { start: { line: 1, column: 42 }, end: { line: 1, column: 42 } },
+      },
+    ]);
+    // A trailing comma alone stays information.
+    expect(run({ '.mcp.json': '{"mcpServers": {"a": {"command": "npx",}}}' })[0]?.severity).toBe(
+      'info',
+    );
+  });
+
   it('reports a broken plugin manifest', () => {
     expect(run({ '.claude-plugin/plugin.json': '{ "name": "x", }' })[0]?.message).toBe(
       'JSON does not allow trailing commas, so this file does not parse. Claude Code reports a corrupt manifest file, and the plugin cannot be installed.',

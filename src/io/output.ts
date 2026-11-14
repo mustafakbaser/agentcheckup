@@ -4,7 +4,9 @@
  * report must not make agentcheckup write somewhere else on the machine.
  *
  * - An existing symlink, directory, FIFO or device at the path is refused; only a regular file
- *   is replaced.
+ *   is replaced. The one exception is the null device itself, `/dev/null` as a character device
+ *   and not reached through a symlink: `--output /dev/null` discards the report without opening
+ *   the device. A repository cannot commit a device, so it cannot plant one.
  * - The report is written to a new temporary file in the same directory, created exclusively
  *   (O_CREAT | O_EXCL, and O_NOFOLLOW where it exists), then renamed over the destination.
  *   rename() replaces the directory entry and never follows a symlink, so even a symlink
@@ -60,11 +62,12 @@ export const NO_DIRECTORY_SYNC: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Writes `text` as UTF-8 to `filePath`, replacing a regular file that is there. Throws
- * {@link OutputError} when the path is a symlink or not a regular file, its directory does not
- * exist, or writing fails.
+ * Writes `text` as UTF-8 to `filePath`, replacing a regular file that is there, or discards it
+ * for the null device ({@link NULL_DEVICE}). Throws {@link OutputError} when the path is a
+ * symlink or not a regular file, its directory does not exist, or writing fails.
  */
 export async function writeOutputFile(filePath: string, text: string): Promise<void> {
+  if (await isNullDevice(filePath)) return;
   await checkDestination(filePath);
   const directory = path.dirname(filePath);
   const temporary = path.join(
@@ -112,6 +115,23 @@ async function syncDirectory(directory: string, filePath: string): Promise<void>
     if (!NO_DIRECTORY_SYNC.has(errorCode(error) ?? '')) throw failure(filePath, error);
   } finally {
     await handle.close();
+  }
+}
+
+/** The null device, the only path --output accepts that is not a regular file. */
+export const NULL_DEVICE = '/dev/null';
+
+/**
+ * Whether `filePath` is exactly the null device: the path `/dev/null`, and a character device
+ * there rather than a symlink to one. Writing to it would discard the report, so nothing is
+ * written; a temporary file renamed over it would replace the device instead.
+ */
+async function isNullDevice(filePath: string): Promise<boolean> {
+  if (path.resolve(filePath) !== NULL_DEVICE) return false;
+  try {
+    return (await lstat(filePath)).isCharacterDevice();
+  } catch {
+    return false;
   }
 }
 

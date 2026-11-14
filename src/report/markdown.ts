@@ -46,6 +46,7 @@ import { policySection } from './policy-markdown.js';
 import { forMarkdown } from './sanitize.js';
 import {
   breakdown,
+  minScoreNote,
   plural,
   SEVERITY_LABELS,
   SEVERITY_RANK,
@@ -58,6 +59,8 @@ export interface MarkdownOptions {
   readonly maxFindings?: number | undefined;
   /** How much to show. Default `default`; `verbose` shows what `default` does. */
   readonly level?: DetailLevel | undefined;
+  /** `--min-score`: a score below it gets a line that says so, as it fails the run. */
+  readonly minScore?: number | undefined;
 }
 
 const DEFAULT_MAX_FINDINGS = 50;
@@ -329,6 +332,9 @@ export function formatMarkdown(result: ScanResult, options: MarkdownOptions = {}
     blocks.push(countsTable(result));
     const details: string[] = [];
     if (result.score.capped) details.push('**Score capped:** a risk finding limits the score.');
+    const below = minScoreNote(result.score, options.minScore);
+    // Numbers and fixed words only, so it needs no escaping.
+    if (below !== undefined) details.unshift(`**Fails the run:** ${below}`);
     const categories = categoriesLine(result);
     if (categories !== undefined) details.push(categories);
     if (details.length > 0)

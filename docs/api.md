@@ -19,7 +19,12 @@ throws `WalkError` when `root` is missing, not a directory or unreadable.
 **It does not read `agentcheckup.config.json`.** The CLI reads that file from the scanned
 directory, or the file `--config` names; `scan()` uses only the configuration you pass as
 `options.config`, the parsed JSON. `resolveConfig` validates it and throws `ConfigError` with a
-readable message. To scan as the CLI does in a repository you trust:
+readable message, one line per problem in `error.lines`. `scan()` also checks rule options
+against the options each rule declares (`RuleMeta.options`): an option a rule does not take, or a
+value of the wrong type, throws `ConfigError` before any rule runs. Pass the rules' metadata as
+the third argument of `resolveConfig` for the same check; `scanSnapshot` and `scanWithContext`
+make it too, for a configuration resolved without it. To scan as the CLI does in a repository you
+trust:
 
 ```ts
 import { readFile } from 'node:fs/promises';

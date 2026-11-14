@@ -89,6 +89,24 @@ describe('writeOutputFile', () => {
     );
   });
 
+  it.skipIf(isWindows || !existsSync('/dev/null'))(
+    'discards the report for the null device, and refuses other devices and links to it',
+    async () => {
+      await expect(writeOutputFile('/dev/null', 'x')).resolves.toBeUndefined();
+      expect((await stat('/dev/null')).isCharacterDevice()).toBe(true);
+      if (existsSync('/dev/zero')) {
+        await expect(writeOutputFile('/dev/zero', 'x')).rejects.toThrow(/not a regular file/);
+      }
+      if (symlinksSupported) {
+        const root = await makeTempDir();
+        await link(root, 'null', '/dev/null');
+        await expect(writeOutputFile(path.join(root, 'null'), 'x')).rejects.toThrow(
+          /it is a symbolic link/,
+        );
+      }
+    },
+  );
+
   it.skipIf(!canDenyPermissions)('reports a directory it cannot write to', async () => {
     const root = await makeTempDir();
     await makeDirs(root, 'locked');

@@ -51,9 +51,11 @@ import {
   breakdown,
   displayWidth,
   markdownToPlain,
+  minScoreNote,
   plural,
   SEVERITY_LABELS,
   SKIP_REASON_LABELS,
+  skippedCount,
   SYMLINK_PROBLEM_LABELS,
   truncate,
 } from './text.js';
@@ -102,6 +104,8 @@ export interface StylishOptions {
    * ids that are not plain identifiers.
    */
   readonly hyperlinks?: boolean | undefined;
+  /** `--min-score`: a score below it gets a line that says so, as it fails the run. */
+  readonly minScore?: number | undefined;
 }
 
 interface Symbols {
@@ -426,7 +430,9 @@ function renderNotices(result: ScanResult, context: Context): string[] {
       skipped.map((entry) => clean(entry.path, context)),
       context,
     );
-    lines.push(`${mark} ${plural(skipped.length, 'file')} not checked (${reasons}): ${paths}`);
+    lines.push(
+      `${mark} ${skippedCount(skipped.map((entry) => entry.path))} not checked (${reasons}): ${paths}`,
+    );
   }
   const show = (path: string): string => clean(path, context);
   for (const message of coverageMessages(
@@ -594,6 +600,18 @@ function scoreLine(result: ScanResult, context: Context): string {
   );
 }
 
+/** `✖ Score 95 is below --min-score 96.`, when the score fails `--min-score`. */
+function belowMinScore(
+  result: ScanResult,
+  minScore: number | undefined,
+  context: Context,
+): string | undefined {
+  const note = minScoreNote(result.score, minScore);
+  return note === undefined
+    ? undefined
+    : `${context.style.red(context.symbols.fail)} ${context.style.red(note)}`;
+}
+
 /** `AGENTS.md is skipped: a CLAUDE.md on the path is read instead (≈197 tokens)`. */
 function impactText(row: ImpactRow, context: Context): string {
   const { subject } = row;
@@ -739,6 +757,7 @@ export function formatStylish(result: ScanResult, options: StylishOptions): stri
     categoriesLine(result, context),
     baselineLine(result, context),
     scoreLine(result, context),
+    belowMinScore(result, options.minScore, context),
     fixesLine(result, context),
     docsLine(visible, context),
   ].filter((line) => line !== undefined);

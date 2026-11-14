@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ConfigError } from '../../../src/core/config.js';
 import { codexSizeBudgetRule } from '../../../src/rules/instructions/codex-size-budget.js';
 import { type FileMap, findings, lint, type LintOptions } from '../../helpers/lint.js';
 
@@ -310,14 +311,18 @@ describe('instr/codex-size-budget', () => {
       );
     });
 
-    it('fails loudly on an invalid maxBytes', () => {
-      const result = lintRepo(
-        { 'AGENTS.md': 'x' },
-        { config: { rules: { [RULE]: ['error', { maxBytes: 'big' }] } } },
+    it('fails loudly on an invalid maxBytes, before the rule runs', () => {
+      expect(() =>
+        lintRepo(
+          { 'AGENTS.md': 'x' },
+          { config: { rules: { [RULE]: ['error', { maxBytes: 'big' }] } } },
+        ),
+      ).toThrow(
+        new ConfigError([
+          'Invalid configuration:',
+          `  - rules["${RULE}"].maxBytes: expected a positive integer, got "big".`,
+        ]),
       );
-      expect(result.ruleFailures).toEqual([
-        { ruleId: RULE, message: 'Option "maxBytes" must be a positive integer, got "big".' },
-      ]);
     });
   });
 

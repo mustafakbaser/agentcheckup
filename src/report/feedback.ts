@@ -25,7 +25,7 @@ import {
   type SkipFix,
   type SkippedLoad,
 } from '../platforms/load/types.js';
-import { AGENT_NAMES, SKIP_LABELS } from './context-view.js';
+import { AGENT_NAMES, skipLabel } from './context-view.js';
 
 /**
  * How much a human-readable report shows.
@@ -320,7 +320,7 @@ export interface ImpactRow {
   readonly subject: SkipSubject;
   /** For a skipped import: the file that imports it. The reason reads "<importer> imports it, but <label>". */
   readonly importer?: string;
-  /** Why the agent skips it, in plain words (SKIP_LABELS). */
+  /** Why the agent skips it, in plain words (`skipLabel`). */
   readonly label: string;
   /** Estimated tokens the agent misses, when known and not zero. */
   readonly tokens?: number;
@@ -433,7 +433,7 @@ export function impactOf(result: ScanResult, options: ImpactOptions = {}): Impac
         agentName: AGENT_NAMES[plan.agent],
         subject,
         ...(importer === undefined ? {} : { importer }),
-        label: SKIP_LABELS[skip.code],
+        label: skipLabel(skip),
         ...(tokens > 0 ? { tokens } : {}),
         ...(skip.fix === undefined ? {} : { fix: skip.fix }),
         ...(skip.ruleId === undefined ? {} : { ruleId: skip.ruleId }),

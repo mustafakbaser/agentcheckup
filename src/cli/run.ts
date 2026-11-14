@@ -37,12 +37,14 @@ import { fixLabels } from '../report/feedback.js';
 import { format } from '../report/index.js';
 import { formatJson } from '../report/json.js';
 import { forTerminal, guardWorkflowCommands } from '../report/sanitize.js';
+import { minScoreNote } from '../report/text.js';
 import {
   type AgentsCommandOptions,
   commandName,
   type ContextCommandOptions,
   type TokensCommandOptions,
   type FailOn,
+  parseArgsMessage,
   parseCommand,
   type ScanCommandOptions,
   UsageError,
@@ -141,15 +143,21 @@ export async function run(argv: readonly string[], unguarded: Io): Promise<ExitC
         first === 'skill'
           ? `agentcheckup ${first} --help`
           : 'agentcheckup --help';
-      io.stderr(`${forTerminal(errorMessage(error))}\n\nRun "${help}" for usage.\n`);
+      const message =
+        error instanceof UsageError ? errorMessage(error) : parseArgsMessage(errorMessage(error));
+      io.stderr(`${forTerminal(message)}\n\nRun "${help}" for usage.\n`);
       return EXIT.usage;
     }
     if (error instanceof PolicyFileError) {
       for (const line of error.lines) io.stderr(`${forTerminal(line)}\n`);
       return EXIT.usage;
     }
+    if (error instanceof ConfigError) {
+      // One line at a time: a line break in the message is the error's own, not quoted text.
+      for (const line of error.lines) io.stderr(`${forTerminal(line)}\n`);
+      return EXIT.usage;
+    }
     if (
-      error instanceof ConfigError ||
       error instanceof WalkError ||
       error instanceof InputFileError ||
       error instanceof OutputError
@@ -217,8 +225,18 @@ const SHOWS_RULESET_NOTICE: ReadonlySet<string> = new Set([
   'text',
 ]);
 
-function warn(result: ScanResult, format: string, io: Io): void {
-  for (const warning of result.configWarnings) io.stderr(`Warning: ${forTerminal(warning)}\n`);
+/** Scan formats whose report lists the configuration warnings itself (`!` lines). */
+const SHOWS_CONFIG_WARNINGS: ReadonlySet<string> = new Set(['stylish', 'markdown']);
+
+/**
+ * Warnings on stderr that the report does not show. `scan` is true for the report of a scan,
+ * whose stylish and Markdown formats list the configuration warnings: printed there, they are
+ * not repeated here.
+ */
+function warn(result: ScanResult, format: string, io: Io, scan = false): void {
+  if (!scan || !SHOWS_CONFIG_WARNINGS.has(format)) {
+    for (const warning of result.configWarnings) io.stderr(`Warning: ${forTerminal(warning)}\n`);
+  }
   const diff = result.baseline;
   if (diff !== undefined && !diff.against.sameRuleset && !SHOWS_RULESET_NOTICE.has(format)) {
     io.stderr(
@@ -373,8 +391,14 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
           // OSC 8 links only where a terminal renders them: ANSI output to a TTY.
           hyperlinks: style === ansiStyle && io.isTTY,
           sarifCategory: options.sarifCategory,
+          minScore: options.minScore,
         });
-  warn(result, options.format, io);
+  warn(result, options.format, io, true);
+  // The human formats say it in the report; JSON and SARIF have no place for it.
+  const below = minScoreNote(result.score, options.minScore);
+  if (below !== undefined && !HUMAN_FORMATS.has(options.format))
+    io.stderr(`${below}
+`);
   await emit(report, options, io);
   return exitCodeFor(result, options.failOn, options.minScore);
 }

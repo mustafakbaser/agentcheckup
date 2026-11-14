@@ -20,11 +20,114 @@ import {
   AGENT_NAMES,
   contextView,
   SKIP_LABELS,
+  skipLabel,
 } from '../../src/report/context-view.js';
 import { builtinRules } from '../../src/rules/index.js';
 import { contextReport, entry, plan, skip, size } from '../helpers/context.js';
 import { type FileMap, snapshotFrom } from '../helpers/lint.js';
 import { emptyResult } from './fixtures.js';
+
+describe('skipLabel', () => {
+  it('gives a field the rules judge its own reason, and keeps the YAML reason otherwise', () => {
+    expect(skipLabel({ code: 'invalid-frontmatter', ruleId: 'skill/name-format' })).toBe(
+      'the name is not valid',
+    );
+    expect(skipLabel({ code: 'invalid-frontmatter', ruleId: 'skill/name-dir-mismatch' })).toBe(
+      'the name does not match its directory',
+    );
+    expect(skipLabel({ code: 'invalid-frontmatter', ruleId: 'skill/frontmatter-invalid' })).toBe(
+      'frontmatter is not valid YAML',
+    );
+    expect(skipLabel({ code: 'invalid-frontmatter' })).toBe('frontmatter is not valid YAML');
+    expect(skipLabel({ code: 'not-mdc', ruleId: 'skill/name-format' })).toBe(
+      SKIP_LABELS['not-mdc'],
+    );
+  });
+
+  it('shows a Copilot in VS Code skill skipped for its name with that reason', () => {
+    const snapshot = snapshotFrom({
+      '.github/skills/my-skill/SKILL.md':
+        '---\nname: my skill\ndescription: Does things. Use when testing.\n---\n\nBody\n',
+    });
+    const result = scanWithContext(snapshot, { rules: builtinRules, agents: ['copilot-vscode'] });
+    const text = formatContextText(result);
+    expect(text).toContain('my skill  the name is not valid  skill/name-format');
+    expect(text).not.toContain('frontmatter is not valid YAML');
+  });
+});
+
+describe('settings files', () => {
+  const settings = JSON.stringify({
+    permissions: { allow: ['Bash(npm test:*)', 'Bash(git status)'], deny: ['Bash(rm:*)'] },
+    env: { ANTHROPIC_BASE_URL: 'https://proxy.example.com' },
+  });
+
+  it('shows the settings a session reads instead of "loads nothing"', () => {
+    const snapshot = snapshotFrom({ '.claude/settings.local.json': settings, '.git/HEAD': '' });
+    const result = scanWithContext(snapshot, { rules: builtinRules, agents: ['claude-code'] });
+    const [view] = contextView(result).plans;
+    expect(view?.empty).toBe(false);
+    expect(view?.settings).toEqual([
+      {
+        path: '.claude/settings.local.json',
+        permissions: 3,
+        hooks: 0,
+        env: 1,
+        unverified: false,
+      },
+    ]);
+    const text = formatContextText(result);
+    expect(text).not.toContain('loads nothing');
+    expect(text).toContain(
+      'Settings\n  .claude/settings.local.json  3 permission entries, 1 env override\n',
+    );
+    expect(formatContextMarkdown(result)).toContain(
+      '| \\.claude/settings\\.local\\.json | 3 permission entries, 1 env override |',
+    );
+  });
+
+  it('keeps one line for a plan that reads no settings either', () => {
+    const snapshot = snapshotFrom({ 'README.md': '# x\n', '.git/HEAD': '' });
+    const result = scanWithContext(snapshot, { rules: builtinRules, agents: ['claude-code'] });
+    expect(contextView(result).plans[0]?.empty).toBe(true);
+    expect(formatContextText(result)).toContain('loads nothing from this repository');
+  });
+});
+
+describe('skills listing over its budget', () => {
+  const files: FileMap = Object.fromEntries(
+    ['a', 'b', 'c'].map((name) => [
+      `.claude/skills/${name}/SKILL.md`,
+      `---\nname: ${name}\ndescription: Skill ${name} does a thing with files. Use when the user asks about ${name}.\n---\n\nBody\n`,
+    ]),
+  );
+
+  it('says so under the session-start table, with what Claude Code does', () => {
+    const result = scanWithContext(snapshotFrom(files), {
+      rules: builtinRules,
+      agents: ['claude-code'],
+      contextWindow: 2000,
+    });
+    const text = formatContextText(result);
+    expect(text).toContain('Skills listing (3 skills, metadata, over its budget)');
+    expect(text).toContain('Skills listing over the listing budget of ≈80 characters (');
+    expect(text).toContain('Claude Code drops the descriptions of the least-used skills first.');
+    expect(formatContextMarkdown(result)).toContain('**Over budget:**');
+  });
+
+  it('says nothing when the listing fits or the window is unknown', () => {
+    for (const contextWindow of [200_000, undefined]) {
+      const result = scanWithContext(snapshotFrom(files), {
+        rules: builtinRules,
+        agents: ['claude-code'],
+        ...(contextWindow === undefined ? {} : { contextWindow }),
+      });
+      const text = formatContextText(result);
+      expect(text).toContain('Skills listing (3 skills, metadata)');
+      expect(text).not.toContain('budget');
+    }
+  });
+});
 
 describe('agent labels', () => {
   it('names every agent once, and every Copilot surface after Copilot', () => {

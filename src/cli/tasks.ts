@@ -104,6 +104,9 @@ function shown(base: string, path: string): string {
 }
 
 function statusLines(status: TaskStatus, base: string): string[] {
+  if (status.notFound === true) {
+    return [`${status.id}  done (not found: no rule and file of this scan has this id)`];
+  }
   if (status.open.length === 0) return [`${status.id}  done`];
   return status.open.map((reason) => {
     const what =
@@ -131,7 +134,13 @@ function check(scan: TaskScan, ids: readonly string[], base: string, io: Io): Ex
     const statuses = checkTasks(scan, ids);
     open = statuses.filter((status) => status.open.length > 0).length;
     for (const status of statuses) lines.push(...statusLines(status, base));
-    lines.push(`${open} of ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} open.`);
+    const notFound = statuses.filter((status) => status.notFound === true).length;
+    lines.push(
+      `${open} of ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} open.` +
+        (notFound === 0
+          ? ''
+          : ` ${notFound} not found: done if ${notFound === 1 ? 'its file was' : 'their files were'} deleted or renamed; otherwise check the ${notFound === 1 ? 'id' : 'ids'}.`),
+    );
   }
   io.stdout(guardWorkflowCommands(`${lines.join('\n')}\n`));
   return open > 0 ? EXIT.findings : EXIT.ok;

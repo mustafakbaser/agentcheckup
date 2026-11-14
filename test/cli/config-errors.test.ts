@@ -106,3 +106,75 @@ describe('a configuration file that cannot be read', () => {
     expect(await run(['--no-config', 'nested'], capture(repo))).toBe(EXIT.ok);
   });
 });
+
+describe('rule options and unknown rules', () => {
+  it('exits 2 for a wrong-typed or unknown option before any rule runs, in every command', async () => {
+    const { repo } = await repository();
+    for (const options of [{ maxLines: 'many' }, { maxLines: -5 }, { maxLine: 300 }]) {
+      await writeFile(
+        join(repo, CONFIG),
+        JSON.stringify({ rules: { 'instr/claude-md-too-long': ['warn', options] } }),
+      );
+      for (const args of COMMANDS) {
+        await expectUsageError(
+          repo,
+          args,
+          /^Invalid agentcheckup\.config\.json:\n {2}- rules\["instr\/claude-md-too-long"\]/,
+        );
+      }
+    }
+    await writeFile(
+      join(repo, CONFIG),
+      JSON.stringify({ rules: { 'instr/codex-size-budget': ['error', { maxBytes: 0 }] } }),
+    );
+    await expectUsageError(
+      repo,
+      [],
+      /rules\["instr\/codex-size-budget"\]\.maxBytes: expected a positive integer, got 0\.\n$/,
+    );
+  });
+
+  it('prints each line of the error on its own line, without a line-break marker', async () => {
+    const { repo } = await repository();
+    await writeFile(join(repo, CONFIG), '{ "targets": ["vim"], "rules": { "a/b": 3 } }\n');
+    const io = capture(repo);
+    expect(await run([], io)).toBe(EXIT.usage);
+    expect(io.errors()).not.toContain('⏎');
+    expect(io.errors().split('\n')).toEqual([
+      'Invalid agentcheckup.config.json:',
+      expect.stringMatching(/^ {2}- targets\[0\]: unknown platform "vim"/),
+      expect.stringMatching(/^ {2}- rules\["a\/b"\]: expected one of/),
+      '',
+    ]);
+  });
+
+  it('lists unknown rule ids with another error, which would hide them', async () => {
+    const { repo } = await repository();
+    await writeFile(
+      join(repo, CONFIG),
+      '{ "targets": ["vim"], "rules": { "instr/claude-md-too-lng": "warn" } }\n',
+    );
+    await expectUsageError(
+      repo,
+      [],
+      /\n {2}- rules\["instr\/claude-md-too-lng"\]: unknown rule \(alone, only a warning\)\. Did you mean "instr\/claude-md-too-long"\?\n$/,
+    );
+  });
+
+  it('warns about an unknown rule once: in the report of a stylish scan, else on stderr', async () => {
+    const { repo } = await repository();
+    await writeFile(join(repo, CONFIG), '{ "rules": { "instr/claude-md-too-lng": "warn" } }\n');
+    const stylish = capture(repo);
+    await run([], stylish);
+    expect(stylish.output()).toContain('Unknown rule "instr/claude-md-too-lng" in configuration.');
+    expect(stylish.errors()).toBe('');
+    const json = capture(repo);
+    await run(['--format', 'json'], json);
+    expect(json.errors()).toBe(
+      'Warning: Unknown rule "instr/claude-md-too-lng" in configuration.\n',
+    );
+    const context = capture(repo);
+    await run(['context'], context);
+    expect(context.errors()).toContain('Warning: Unknown rule "instr/claude-md-too-lng"');
+  });
+});

@@ -323,6 +323,59 @@ describe('formatTokensText and formatTokensMarkdown', () => {
     expect(formatTokensText(result([claude], definitions))).not.toContain('? = unverified');
   });
 
+  it('says "1 more call", and explains "?" only when a shown row has one', () => {
+    const calls = Array.from({ length: MAX_TOKEN_ROWS + 1 }, (_, i) =>
+      call(`.claude/agents/a${String(i).padStart(2, '0')}.md`, `agent${String(i)}`, 1000 - i),
+    );
+    const last = calls.at(-1);
+    const hidden = last?.ownContext
+      ? {
+          ...last,
+          ownContext: {
+            ...last.ownContext,
+            parts: last.ownContext.parts.map((part) => ({
+              ...part,
+              certainty: 'unverified' as const,
+            })),
+          },
+        }
+      : last;
+    const report = result([plan('claude-code', { entries: [...calls.slice(0, -1), hidden!] })]);
+    const text = formatTokensText(report);
+    expect(text).toContain('… and 1 more call\n');
+    // The only unverified call is the one not shown.
+    expect(text).not.toContain('?');
+    expect(formatTokensMarkdown(report)).not.toContain('? = unverified');
+  });
+
+  it('marks At start and Listings "at most" when the skills listing is over its budget', () => {
+    const over = plan('claude-code', {
+      entries: [entry('skill', '.claude/skills/a/SKILL.md', { size: size(400) })],
+      limits: [
+        {
+          key: 'claude-code.skill_listing_budget',
+          unit: 'chars',
+          limit: 80,
+          used: 400,
+          subject: '',
+          label: 'skills listing',
+          effect: 'shortens',
+          evidence: [],
+        },
+      ],
+    });
+    const text = formatTokensText(result([over]));
+    expect(text).toMatch(/Claude Code +≤\d/);
+    expect(text).toContain("≤ = at most: the skills listing is over the agent's listing budget");
+    expect(formatTokensText(result([over]), { ascii: true })).toContain('<= = at most');
+    expect(formatTokensMarkdown(result([over]))).toContain('_≤ = at most:');
+    expect(tokenSummary(result([over]))?.agents[0]?.upperBound).toBe(true);
+    // Within the budget: no mark.
+    const fits = { ...over, limits: over.limits.map((limit) => ({ ...limit, used: 40 })) };
+    expect(formatTokensText(result([fits]))).not.toContain('≤');
+    expect(tokenSummary(result([fits]))?.agents[0]?.upperBound).toBeUndefined();
+  });
+
   it('says how many start directories were not planned', () => {
     const report = result([claude]);
     const withDirectories: ScanResult = {

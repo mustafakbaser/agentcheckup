@@ -85,6 +85,13 @@ export const codexSizeBudgetRule = defineRule<CodexSizeBudgetOptions>({
       SOURCES.codexConfigBasic,
     ],
     since: RULESET_VERSION,
+    options: {
+      maxBytes: {
+        type: 'positive-integer',
+        description:
+          "Codex's project_doc_max_bytes, when your user configuration raises it. Default: 32768.",
+      },
+    },
   },
   defaultOptions: { maxBytes: CODEX_DEFAULT_MAX_BYTES },
   check(context) {

@@ -3,6 +3,7 @@ import { parseGateClasses } from '../core/baseline.js';
 import type { GateClass } from '../core/baseline-types.js';
 import { PLATFORM_IDS, type PlatformId, type Severity } from '../core/types.js';
 import { contextAgentsOf, isContextAgent } from '../platforms/load/index.js';
+import { nearest } from '../policy/text.js';
 import { ALL_CONTEXT_AGENTS, CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import type { DetailLevel } from '../report/feedback.js';
 import { DEFAULT_MAX_TASKS, MAX_TASKS, TASK_ID_PATTERN } from '../tasks/index.js';
@@ -742,6 +743,33 @@ const OPTIONS = {
   policy: { type: 'string' },
   'sarif-category': { type: 'string' },
 } as const;
+
+/** Every long flag of every command, for the suggestion after an unknown one. */
+const FLAG_NAMES: readonly string[] = [...Object.keys(OPTIONS), 'dir', 'yes'].map(
+  (name) => `--${name}`,
+);
+
+/** `Unknown option '--bogus'` and the like from node:util's parseArgs, as they start. */
+const UNKNOWN_OPTION = /^Unknown option '(-[^']*)'/;
+const MISSING_VALUE = /^Option '(?:-[a-z], )?(-[^' ]*)(?: <value>)?' argument missing/i;
+const UNEXPECTED_VALUE = /^Option '(?:-[a-z], )?(-[^' ]*)' does not take an argument/i;
+
+/**
+ * The message of a parseArgs error, written like the other argument errors: Node's own ends with
+ * advice in unbalanced quotes. An unknown flag gets the closest known one, when one is close.
+ */
+export function parseArgsMessage(message: string): string {
+  const unknown = UNKNOWN_OPTION.exec(message)?.[1];
+  if (unknown !== undefined) {
+    const close = unknown.startsWith('--') ? nearest(unknown, FLAG_NAMES) : undefined;
+    return `Unknown option "${unknown}".${close === undefined ? '' : ` Did you mean "${close}"?`}`;
+  }
+  const missing = MISSING_VALUE.exec(message)?.[1];
+  if (missing !== undefined) return `${missing} needs a value.`;
+  const unexpected = UNEXPECTED_VALUE.exec(message)?.[1];
+  if (unexpected !== undefined) return `${unexpected} does not take a value.`;
+  return message;
+}
 
 /**
  * The command `argv` names: its first argument that is neither a flag nor a flag's value, as

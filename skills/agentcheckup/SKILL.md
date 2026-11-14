@@ -101,7 +101,9 @@ Take the tasks in order, one at a time:
 npx agentcheckup@0.5.0 tasks --check TASK_ID
 ```
 
-Replace `TASK_ID` with the task's `id`. `TASK_ID  done` and exit 0: move on. `open` lines name
+Replace `TASK_ID` with the task's `id`. `TASK_ID  done` and exit 0: move on. `done (not found …)`
+means no file of the scan has that task: fine if you moved or deleted its file, otherwise copy
+the id again from the task list. `open` lines name
 the rule and `path:line` still reported. A `guard` line means the edit broke the file another way,
 such as invalid YAML: fix that, then check again. After two failed attempts, show the user
 the open lines and ask how to go on.

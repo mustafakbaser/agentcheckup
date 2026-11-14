@@ -35,8 +35,22 @@ scans, so JavaScript or TypeScript configuration files are not supported.
 
 Globs use [picomatch](https://github.com/micromatch/picomatch) syntax and match dotfiles.
 
-Unknown rule ids in the configuration produce a warning on stderr. Unknown fields are an error,
-so a typo cannot silently disable a check.
+Unknown rule ids in the configuration produce a warning: a `!` line in the report of a
+`stylish` or `markdown` scan, `Warning:` on stderr otherwise. Unknown fields are an error, so a
+typo cannot silently disable a check.
+
+Rule options are checked before any rule runs. An option the rule does not take, or a value of
+the wrong type, exits with code 2 and names the rule, the option and the type it needs:
+
+```text
+Invalid agentcheckup.config.json:
+  - rules["instr/claude-md-too-long"].maxLines: expected a positive integer, got "many".
+```
+
+The options of a rule are on its page in the [rule catalog](rules/README.md), and
+[`schemas/config.schema.json`](../schemas/config.schema.json) describes them for editors. When
+the configuration has an error, the message lists its unknown rule ids too. `scan()` in the
+[API](api.md) throws a `ConfigError` for the same configurations.
 
 ## Inline suppressions
 
@@ -231,6 +245,10 @@ from `$RUNNER_TEMP` on `"$GITHUB_WORKSPACE"` therefore annotates `.mcp.json`, no
 `.gitignore`, or one that `fix` writes: that exits 2. The file at the path is compared, so another
 name for it is refused too: one through a symlinked directory, `/tmp` for `/private/tmp`, or
 another letter case where the file system ignores case, as macOS and Windows do by default.
+`--output` replaces only a regular file, never through a symlink: a symlink, directory, FIFO or
+device at the path exits 2. The one exception is the null device itself: `--output /dev/null`
+discards the report, for a run that only needs the exit code. A symlink to `/dev/null` is still
+refused.
 
 ## Annotations and code scanning
 
@@ -280,3 +298,7 @@ results only.
 | 2    | Invalid arguments, configuration, `--cwd` or `--agent`; `--gate` without `--baseline`; a configuration, baseline or policy file that cannot be read or used; an unusable `--output`, or one that would replace a file the run read |
 | 3    | Internal error: a rule, a loader or the scanner crashed                                                                                                                                                                            |
 | 130  | Interrupted by Ctrl+C (SIGINT) while a command writes (`fix`, `--output`, `skill install`); 143 for SIGTERM, 129 for SIGHUP                                                                                                        |
+
+A score below `--min-score` says so: `Score 95 is below --min-score 96.` follows the score line
+in `stylish`, opens the details in `markdown`, and is an error annotation in `github`. The `json`
+and `sarif` reports have no place for it, so it goes to stderr.

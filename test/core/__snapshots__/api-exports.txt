@@ -32,7 +32,7 @@ scanWithContext
 stripPathBase
 validateBaseline
 
-# Type-only exports (127)
+# Type-only exports (129)
 
 AGENT_NAMES
 ALL_CONTEXT_AGENTS
@@ -131,6 +131,7 @@ Rule
 RuleContext
 RuleFailure
 RuleMeta
+RuleOptionMeta
 RuleSource
 RunRulesOptions
 ScanDirectoryOptions
@@ -138,6 +139,7 @@ ScanOptions
 ScanResult
 ScoreReport
 SecurityGateClass
+SettingsFile
 Severity
 Size
 SkipCode

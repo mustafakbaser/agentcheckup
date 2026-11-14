@@ -12,6 +12,7 @@ import {
   EMPTY_PLAN_NOTE,
   fixableNote,
   ignoredNote,
+  listingBudgetNote,
   MATRIX_CELL_LABELS,
   MATRIX_LEGEND,
   matrixView,
@@ -19,6 +20,7 @@ import {
   notShownNote,
   type Part,
   type PlanView,
+  settingsText,
   type StartupRow,
 } from './context-view.js';
 import { stripPathBase } from '../core/rebase.js';
@@ -73,8 +75,10 @@ function table(
 }
 
 function startupFile(row: StartupRow): string {
-  if (row.kind === 'skills')
-    return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
+  if (row.kind === 'skills') {
+    const over = row.overBudget === undefined ? '' : ', **over its budget**';
+    return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata${over})`;
+  }
   if (row.kind === 'subagents') {
     const warning =
       row.warnsPast === undefined
@@ -118,8 +122,15 @@ function startupSection(view: PlanView, maxRows: number): string[] {
       view.startup.length + 1,
       'row',
     ),
+    ...budgetNote(view),
     ...servicesTable(view, maxRows),
   ];
+}
+
+/** The note on a skills listing over its budget, after a blank line; nothing otherwise. */
+function budgetNote(view: PlanView): string[] {
+  const note = listingBudgetNote(view.startup);
+  return note.length === 0 ? [] : ['', `**Over budget:** ${note.map(text).join(' ')}`];
 }
 
 /** MCP servers and hooks, after a blank line; nothing when the plan has none. */
@@ -140,6 +151,22 @@ function servicesTable(view: PlanView, maxRows: number): string[] {
       view.services.length,
       'service',
     ),
+  ];
+}
+
+/** The settings files the session reads, with what each declares for the agent. */
+function settingsSection(view: PlanView, maxRows: number): string[] {
+  if (view.settings.length === 0) return [];
+  const rows = cappedRows(
+    view.settings,
+    (row) => `| ${path(row.path)} | ${text(settingsText(row))}${row.unverified ? ' ?' : ''} |`,
+    maxRows,
+    MAX_TABLE_BYTES,
+  );
+  return [
+    '### Settings',
+    '',
+    ...table('| File | Declares |', '| :--- | :------- |', rows.rows, view.settings.length, 'file'),
   ];
 }
 
@@ -298,6 +325,7 @@ function planBlocks(view: PlanView, maxRows: number): string[][] {
     paragraphs(notes),
     hiddenList(view),
     startupSection(view, maxRows),
+    settingsSection(view, maxRows),
     onDemandSection(view, maxRows),
     callsSection(view, maxRows),
     skippedSection(view, maxRows),

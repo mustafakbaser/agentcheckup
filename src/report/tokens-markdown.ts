@@ -16,6 +16,7 @@ import {
   MAX_TOKEN_ROWS,
   modelText,
   NOTES,
+  UPPER_BOUND_NOTE,
 } from './tokens-text.js';
 import { tokenSummary } from './tokens-view.js';
 
@@ -46,11 +47,13 @@ export function formatTokensMarkdown(result: ScanResult): string {
       '| :---- | ---------------: | -------: | --------: | --------: |',
       ...summary.agents.map(
         (row) =>
-          `| ${AGENT_NAMES[row.agent]} | ${number(row.startup)}${row.unverified ? '?' : ''} | ${number(row.listings)} | ${number(row.onDemand)} | ${number(row.subagents)} |`,
+          `| ${AGENT_NAMES[row.agent]} | ${row.upperBound === true ? '≤' : ''}${number(row.startup)}${row.unverified ? '?' : ''} | ${row.upperBound === true ? '≤' : ''}${number(row.listings)} | ${number(row.onDemand)} | ${number(row.subagents)} |`,
       ),
     );
   }
 
+  let shownCalls = 0;
+  let shownDirectories = 0;
   if (summary.calls.length > 0) {
     const { rows } = cappedRows(
       summary.calls,
@@ -68,6 +71,7 @@ export function formatTokensMarkdown(result: ScanResult): string {
       ...rows,
       ...omittedNote(rows.length, summary.calls.length, 'call').flatMap((note) => ['', note]),
     );
+    shownCalls = rows.length;
   }
 
   if (summary.directories !== undefined) {
@@ -91,6 +95,7 @@ export function formatTokensMarkdown(result: ScanResult): string {
       MAX_TOKEN_ROWS,
       MAX_TABLE_BYTES,
     );
+    shownDirectories = rows.length;
     const notPlanned = summary.directoriesNotPlanned ?? 0;
     lines.push(
       '',
@@ -106,7 +111,7 @@ export function formatTokensMarkdown(result: ScanResult): string {
       ...(notPlanned > 0
         ? [
             '',
-            `${formatInteger(notPlanned)} more directories hold agent configuration; plan one with \`agentcheckup tokens --cwd <dir>\`.`,
+            `${formatInteger(notPlanned)} more ${notPlanned === 1 ? 'directory holds' : 'directories hold'} agent configuration; plan one with \`agentcheckup tokens --cwd <dir>\`.`,
           ]
         : []),
     );
@@ -123,11 +128,14 @@ export function formatTokensMarkdown(result: ScanResult): string {
     );
   }
   lines.push('', ...NOTES.map((note) => `_${note}_`), '', '_≈Tokens = characters ÷ 4._');
-  if (anyUnverified(summary)) {
+  if (anyUnverified(summary, { calls: shownCalls, directories: shownDirectories })) {
     lines.push('_? = unverified: neither documentation nor source code confirms it._');
   }
-  if (summary.calls.some((call) => call.unmeasured !== undefined)) {
+  if (summary.calls.slice(0, shownCalls).some((call) => call.unmeasured !== undefined)) {
     lines.push('_+ = the call starts with more: files the scan did not read._');
+  }
+  if (summary.agents.some((row) => row.upperBound === true)) {
+    lines.push(`_≤ = at most: ${UPPER_BOUND_NOTE}._`);
   }
   return `${lines.join('\n')}\n`;
 }

@@ -30,7 +30,7 @@ safe    instr/agents-md-ignored-by-claude  Add "@AGENTS.md" as line 1 of CLAUDE.
   effect: Cursor, Copilot CLI, Copilot in VS Code, Copilot cloud agent and Devin Local session start ≈64 → ≈67 tokens
   note: GitHub Copilot CLI also reads CLAUDE.md, so it may load AGENTS.md twice ...
 
-manual  instr/import-unresolved  CLAUDE.md:5  create "docs/setup.md" or correct the path; no file named "setup.md" exists
+manual  instr/import-unresolved  CLAUDE.md:3  create "docs/setup.md" or correct the path; no file named "setup.md" exists
 Verified on an in-memory copy: 1 finding resolved, 0 new, 1 left · 1 needs judgment: agentcheckup tasks
 ```
 

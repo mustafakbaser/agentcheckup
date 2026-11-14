@@ -16,6 +16,7 @@ import {
   EMPTY_PLAN_NOTE,
   fixableNote,
   ignoredNote,
+  listingBudgetNote,
   MATRIX_CELL_LABELS,
   MATRIX_CELL_LETTERS,
   MATRIX_LEGEND,
@@ -25,6 +26,7 @@ import {
   notShownNote,
   type Part,
   type PlanView,
+  settingsText,
   type StartupRow,
 } from './context-view.js';
 import { stripPathBase } from '../core/rebase.js';
@@ -182,7 +184,8 @@ function partsText(parts: readonly Part[], context: Context): string {
 function startupLabel(row: StartupRow, context: Context): string {
   const { symbols } = context;
   if (row.kind === 'skills') {
-    return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata)`;
+    const over = row.overBudget === undefined ? '' : ', over its budget';
+    return `Skills listing (${plural(row.skills ?? 0, 'skill')}, metadata${over})`;
   }
   if (row.kind === 'subagents') {
     const warning =
@@ -261,6 +264,9 @@ function renderStartup(view: PlanView, context: Context): string[] {
       `${' '.repeat(lead)}${'Total'.padStart(labelWidth)}${numbers(totalBytes, totalTokens)}`,
     ),
   );
+  for (const note of listingBudgetNote(view.startup, symbols.approx)) {
+    lines.push(style.yellow(clean(note, context, Number.POSITIVE_INFINITY)));
+  }
   return [...lines, ...renderServices(view, context)];
 }
 
@@ -274,6 +280,20 @@ function renderServices(view: PlanView, context: Context): string[] {
     const unverified = row.unverified ? ' ?' : '';
     return `  ${label}${padding(label, groupWidth)}${GAP}${partsText(row.parts, context)}${unverified}`;
   });
+}
+
+/** The settings files the session reads, with what each declares for the agent. */
+function renderSettings(view: PlanView, context: Context): string[] {
+  if (view.settings.length === 0) return [];
+  const paths = view.settings.map((row) => cleanPath(row.path, context));
+  const width = columnWidth(paths);
+  return [
+    context.style.bold('Settings'),
+    ...view.settings.map((row, index) => {
+      const path = paths[index] ?? '';
+      return `  ${path}${padding(path, width)}${GAP}${settingsText(row)}${row.unverified ? ' ?' : ''}`;
+    }),
+  ];
 }
 
 function renderOnDemand(view: PlanView, context: Context): string[] {
@@ -423,6 +443,7 @@ function renderPlan(view: PlanView, context: Context): string[][] {
   return [
     header,
     renderStartup(view, context),
+    renderSettings(view, context),
     renderOnDemand(view, context),
     renderCalls(view, context),
     renderSkipped(view, context),

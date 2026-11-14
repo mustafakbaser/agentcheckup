@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ConfigError } from '../../../src/core/config.js';
 import { claudeMdTooLongRule } from '../../../src/rules/instructions/claude-md-too-long.js';
 import { findings, lint } from '../../helpers/lint.js';
 
@@ -59,14 +60,19 @@ describe('instr/claude-md-too-long', () => {
     ]);
   });
 
-  it('rejects an invalid maxLines option', () => {
-    const result = lint(
-      { 'CLAUDE.md': 'x' },
-      { rules, config: { rules: { [RULE]: ['warn', { maxLines: 0 }] } } },
-    );
-    expect(result.ruleFailures).toEqual([
-      { ruleId: RULE, message: 'Option "maxLines" must be a positive integer, got 0.' },
-    ]);
+  it('rejects an invalid maxLines option before the rule runs', () => {
+    expect(() =>
+      lint(
+        { 'CLAUDE.md': 'x' },
+        { rules, config: { rules: { [RULE]: ['warn', { maxLines: 0 }] } } },
+      ),
+    ).toThrow(ConfigError);
+    expect(() =>
+      lint(
+        { 'CLAUDE.md': 'x' },
+        { rules, config: { rules: { [RULE]: ['warn', { maxLines: 0 }] } } },
+      ),
+    ).toThrow(`rules["${RULE}"].maxLines: expected a positive integer, got 0.`);
   });
 
   it('counts lines of non-ASCII text the same way', () => {

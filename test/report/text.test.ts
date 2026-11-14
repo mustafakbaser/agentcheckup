@@ -3,8 +3,10 @@ import {
   breakdown,
   displayWidth,
   markdownToPlain,
+  minScoreNote,
   plural,
   SKIP_REASON_LABELS,
+  skippedCount,
   truncate,
 } from '../../src/report/text.js';
 
@@ -64,5 +66,22 @@ describe('markdownToPlain', () => {
     expect(
       markdownToPlain('Use `@path`, **not** [the docs](https://example.com/x). 1\\. \\*literal\\*'),
     ).toBe('Use @path, not the docs (https://example.com/x). 1. *literal*');
+  });
+});
+
+describe('skippedCount', () => {
+  it('counts directories as directories', () => {
+    expect(skippedCount(['a/b/c/'])).toBe('1 directory');
+    expect(skippedCount(['a.md', 'b.md'])).toBe('2 files');
+    expect(skippedCount(['a.md', 'x/', 'y/'])).toBe('1 file and 2 directories');
+  });
+});
+
+describe('minScoreNote', () => {
+  it('says why the score fails --min-score, and nothing when it does not', () => {
+    expect(minScoreNote({ score: 95 }, 96)).toBe('Score 95 is below --min-score 96.');
+    expect(minScoreNote({ score: 96 }, 96)).toBeUndefined();
+    expect(minScoreNote({ score: 95 }, undefined)).toBeUndefined();
+    expect(minScoreNote({ score: null }, 96)).toBeUndefined();
   });
 });

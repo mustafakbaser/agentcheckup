@@ -145,6 +145,12 @@ Move reference material into separate files next to SKILL.md and link to them.`,
       summary:
         'Moves the largest sections of the body into files next to SKILL.md, leaving a link under each heading, until the body fits. The start of the body stays, as do sections with commands or placeholders Claude Code replaces, hidden text, or links that would break. Other bodies are left to you.',
     },
+    options: {
+      maxLines: {
+        type: 'positive-integer',
+        description: 'Body lines a SKILL.md may have before the rule reports it. Default: 500.',
+      },
+    },
   },
   defaultOptions: { maxLines: DEFAULT_MAX_LINES },
   check(context) {

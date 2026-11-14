@@ -14,7 +14,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as prettier from 'prettier';
-import { CONFIG_JSON_SCHEMA } from '../src/core/config.js';
+import { configJsonSchema } from '../src/core/config.js';
 import { DIRECTIVE_RULES } from '../src/core/directive-rules.js';
 import { CONFIG_FILE_NAME, RULESET_VERSION } from '../src/core/meta.js';
 import type { RuleMeta } from '../src/core/types.js';
@@ -142,6 +142,34 @@ suppress one occurrence with a reason:
 \`\`\`markdown
 <!-- agentcheckup-disable-next-line ${meta.id} -- reason -->
 \`\`\`
+${optionsSection(meta)}`;
+}
+
+/** The type of an option, in words. */
+const OPTION_TYPES: Readonly<Record<NonNullable<RuleMeta['options']>[string]['type'], string>> = {
+  'positive-integer': 'positive integer',
+};
+
+/**
+ * The options a rule takes, from `meta.options`, after the configuration example: nothing for a
+ * rule without options. Any other option, or a value of another type, is a configuration error.
+ */
+function optionsSection(meta: RuleMeta): string {
+  const options = Object.entries(meta.options ?? {});
+  if (options.length === 0) return '';
+  const rows = options
+    .map(
+      ([name, option]) =>
+        `| \`${name}\` | ${OPTION_TYPES[option.type]} | ${markdownText(option.description, true)} |`,
+    )
+    .join('\n');
+  return `
+Options go second, as in \`["warn", { "${options[0]?.[0] ?? ''}": … }]\`. Any other option, or a value of
+another type, is a configuration error (exit code 2).
+
+| Option | Type | Meaning |
+| --- | --- | --- |
+${rows}
 `;
 }
 
@@ -258,7 +286,7 @@ outputs.set(
     {
       $id: 'https://raw.githubusercontent.com/mustafakbaser/agentcheckup/main/schemas/config.schema.json',
       title: 'agentcheckup configuration',
-      ...CONFIG_JSON_SCHEMA,
+      ...configJsonSchema(rules),
     },
     null,
     2,

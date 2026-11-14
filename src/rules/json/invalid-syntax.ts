@@ -232,7 +232,7 @@ export const invalidSyntaxRule = defineRule({
       'Agents read these files with strict JSON parsers, so a `//` comment or a comma after the last entry breaks the whole file. Claude Code reports a Settings Error and runs without the settings file (a `-p` run skips it silently). A `plugin.json` that does not parse is a corrupt manifest, and the plugin cannot be installed. Codex skips a `hooks.json` it cannot parse, with a warning. Gemini CLI does not start until `settings.json` parses. GitHub Copilot rejects a `.github/hooks/*.json` file that is not valid JSON, so none of its hooks run.',
       'Gemini CLI removes comments from `settings.json` before parsing, and agentcheckup reads the file the same way, so only trailing commas are reported there. Claude Code, Cursor and GitHub Copilot do not document how they treat comments and trailing commas in `.mcp.json`, `.cursor/mcp.json`, `.cursor/hooks.json` and `.github/hooks/*.json`, so those are `info` findings. Other syntax errors are errors in these files.',
       'Devin Local documents comments in `.devin/config.json` and `.devin/config.local.json`, so they are not reported there, but it does not document what it does with a file it cannot parse. Syntax errors in those files, `.devin/mcp_config.json`, `.devin/mcp_config.local.json` and `.devin/hooks.v1.json` are `info` findings.',
-      'The finding points at the first syntax error. Fix it and run agentcheckup again.',
+      'The finding points at the first syntax error. Where comments and trailing commas are only information, it points at the first other error instead, when there is one: no reader that accepts comments and trailing commas parses that file either, so it is an error. Fix it and run agentcheckup again.',
     ].join('\n\n'),
     category: 'loading',
     severity: 'error',
@@ -285,7 +285,11 @@ export const invalidSyntaxRule = defineRule({
         behavior.comments === true
           ? doc.errors.filter((error) => issueKind(error) !== 'comment')
           : doc.errors;
-      const issue = errors[0];
+      // Where the agent may read comments and trailing commas, the finding is about the first
+      // error no lenient reader accepts either, when there is one: such a file does not parse.
+      const issue =
+        (behavior.strict ? undefined : errors.find((error) => issueKind(error) === 'other')) ??
+        errors[0];
       if (issue === undefined) continue;
       const kind = issueKind(issue);
       if (kind === 'limit') continue;

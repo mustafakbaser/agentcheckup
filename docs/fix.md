@@ -86,8 +86,12 @@ input   skill/description-quality  .claude/skills/pdf/SKILL.md:3  needs your wor
 run, say what to do:
 
 ```text
-manual  instr/import-unresolved  CLAUDE.md:5  create "docs/setup.md" or correct the path; no file named "setup.md" exists
+manual  instr/import-unresolved  CLAUDE.md:3  create "docs/setup.md" or correct the path; no file named "setup.md" exists
 ```
+
+The dry run changes nothing, so a manual line gives the line in the file as it is on disk, as a
+scan does, even when a fix above it adds lines to the file. A line that a fix itself writes has
+no line on disk yet: it is shown as `CLAUDE.md, line 5 after the fixes above`.
 
 One rule can produce fixes of both classes. `cursor/md-file-ignored` only renames the file, a
 safe fix, when its frontmatter already sets `description`, `globs` or `alwaysApply`; otherwise
@@ -182,6 +186,16 @@ disk:
 
 ```text
 Applied 4 fixes to 4 files. Re-scanned: 4 findings resolved, 2 new, 1 left.
+```
+
+After `--write`, a `Left:` line counts what the scan from disk still finds by what would fix
+it, as a scan's `Fixes:` line does, with the command for each, and the counts add up to the
+number left. The manual steps of the findings without a fix follow, at their line in the files
+as written:
+
+```text
+Left: 2 need review (agentcheckup fix --write --review or fix -i) · 1 needs your words (agentcheckup fix -i) · 1 manual
+  CLAUDE.md:5 instr/import-unresolved (create "docs/setup.md" or correct the path; no file named "setup.md" exists)
 ```
 
 If the scan from disk still finds what a written fix fixed, the run says so

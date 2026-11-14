@@ -21,7 +21,7 @@ Gemini CLI removes comments from `settings.json` before parsing, and agentchecku
 
 Devin Local documents comments in `.devin/config.json` and `.devin/config.local.json`, so they are not reported there, but it does not document what it does with a file it cannot parse. Syntax errors in those files, `.devin/mcp_config.json`, `.devin/mcp_config.local.json` and `.devin/hooks.v1.json` are `info` findings.
 
-The finding points at the first syntax error. Fix it and run agentcheckup again.
+The finding points at the first syntax error. Where comments and trailing commas are only information, it points at the first other error instead, when there is one: no reader that accepts comments and trailing commas parses that file either, so it is an error. Fix it and run agentcheckup again.
 
 ## Evidence
 

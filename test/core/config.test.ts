@@ -4,11 +4,16 @@ import fc from 'fast-check';
 import {
   CONFIG_JSON_SCHEMA,
   ConfigError,
+  configJsonSchema,
   resolveConfig,
   SEVERITY_SETTINGS,
   validateConfig,
 } from '../../src/core/config.js';
-import { PLATFORM_IDS } from '../../src/core/types.js';
+import { DIRECTIVE_RULES } from '../../src/core/directive-rules.js';
+import { scanSnapshot } from '../../src/core/engine.js';
+import { PLATFORM_IDS, type RuleMeta } from '../../src/core/types.js';
+import { builtinRules } from '../../src/rules/index.js';
+import { snapshotFrom } from '../helpers/lint.js';
 
 describe('resolveConfig', () => {
   it('accepts an empty config', () => {
@@ -156,5 +161,148 @@ describe('CONFIG_JSON_SCHEMA', () => {
       }),
       { numRuns: 2000 },
     );
+  });
+});
+
+describe('rule options', () => {
+  const metas: RuleMeta[] = [...builtinRules.map((rule) => rule.meta), ...DIRECTIVE_RULES];
+
+  it('accepts the options a rule declares, with values of their type', () => {
+    const { config, issues } = validateConfig(
+      {
+        rules: {
+          'instr/claude-md-too-long': ['warn', { maxLines: 300 }],
+          'instr/codex-size-budget': ['error', { maxBytes: 65_536 }],
+          'skill/body-too-long': ['info', {}],
+          'skill/name-format': ['error', {}],
+          'unknown/rule': ['warn', { anything: true }],
+        },
+      },
+      metas,
+    );
+    expect(issues).toEqual([]);
+    expect(config).toBeDefined();
+  });
+
+  it.each([
+    ['"many"', 'many'],
+    ['-5', -5],
+    ['0', 0],
+    ['1.5', 1.5],
+    ['true', true],
+    ['null', null],
+    ['9007199254740992', 2 ** 53],
+  ])('rejects maxLines %s, naming the rule, the option and the type', (shown, value) => {
+    const { config, issues } = validateConfig(
+      { rules: { 'instr/claude-md-too-long': ['warn', { maxLines: value }] } },
+      metas,
+    );
+    expect(config).toBeUndefined();
+    expect(issues).toEqual([
+      `rules["instr/claude-md-too-long"].maxLines: expected a positive integer, got ${shown}.`,
+    ]);
+  });
+
+  it('rejects options a rule does not take', () => {
+    const { issues } = validateConfig(
+      {
+        rules: {
+          'skill/body-too-long': ['info', { maxLine: 3 }],
+          'skill/name-format': ['error', { x: 1 }],
+        },
+      },
+      metas,
+    );
+    expect(issues).toEqual([
+      'rules["skill/body-too-long"]: unknown option "maxLine". skill/body-too-long takes "maxLines".',
+      'rules["skill/name-format"]: unknown option "x". skill/name-format takes no options.',
+    ]);
+  });
+
+  it('lists unknown rule ids with the other issues, and never alone', () => {
+    expect(validateConfig({ rules: { 'instr/claude-md-too-lng': 'warn' } }, metas).issues).toEqual(
+      [],
+    );
+    const { issues } = validateConfig(
+      {
+        rules: { 'instr/claude-md-too-lng': 'warn', 'skill/name-format': ['warn', { x: 1 }] },
+        overrides: [{ files: ['a/**'], rules: { 'zz/unknown': 'off' } }],
+      },
+      metas,
+    );
+    expect(issues).toEqual([
+      'rules["skill/name-format"]: unknown option "x". skill/name-format takes no options.',
+      'rules["instr/claude-md-too-lng"]: unknown rule (alone, only a warning). Did you mean "instr/claude-md-too-long"?',
+      'rules["zz/unknown"]: unknown rule (alone, only a warning).',
+    ]);
+  });
+
+  it('throws a ConfigError with one line per issue', () => {
+    let thrown: unknown;
+    try {
+      resolveConfig(
+        { rules: { 'instr/claude-md-too-long': ['warn', { maxLines: 'many\nInjected' }] } },
+        'agentcheckup.config.json',
+        metas,
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ConfigError);
+    expect((thrown as ConfigError).lines).toEqual([
+      'Invalid agentcheckup.config.json:',
+      '  - rules["instr/claude-md-too-long"].maxLines: expected a positive integer, got "many\nInjected".',
+    ]);
+  });
+
+  it('is checked by the engine before any rule runs, for a configuration built another way', () => {
+    const config = resolveConfig({
+      rules: { 'instr/claude-md-too-long': ['warn', { maxLines: 0 }] },
+    });
+    const snapshot = snapshotFrom({ 'CLAUDE.md': '# x\n' });
+    expect(() => scanSnapshot(snapshot, { rules: builtinRules, config })).toThrow(ConfigError);
+    // A valid option runs as before.
+    const valid = resolveConfig({
+      rules: { 'instr/claude-md-too-long': ['warn', { maxLines: 1 }] },
+    });
+    expect(scanSnapshot(snapshot, { rules: builtinRules, config: valid }).ruleFailures).toEqual([]);
+  });
+
+  describe('configJsonSchema', () => {
+    const ajv = new Ajv2020({ strict: true, allErrors: true });
+    const validate = ajv.compile(configJsonSchema(metas));
+    const value = fc.oneof(
+      fc.integer({ min: -2, max: 400 }),
+      fc.constant(1.5),
+      fc.constant('many'),
+      fc.constant(2 ** 53),
+      fc.boolean(),
+    );
+    const options = fc.dictionary(fc.constantFrom('maxLines', 'maxBytes', 'other'), value, {
+      maxKeys: 2,
+    });
+    const severity = fc.constantFrom(...SEVERITY_SETTINGS, 'fatal');
+    const ruleId = fc.constantFrom(
+      'instr/claude-md-too-long',
+      'instr/codex-size-budget',
+      'skill/body-too-long',
+      'skill/name-format',
+      'unknown/rule',
+    );
+    const setting = fc.oneof(severity, fc.tuple(severity, options));
+
+    it('accepts exactly the documents the validator accepts with the rules', () => {
+      fc.assert(
+        fc.property(
+          fc.record({ rules: fc.dictionary(ruleId, setting, { maxKeys: 3 }) }),
+          (document) => {
+            const json: unknown = JSON.parse(JSON.stringify(document));
+            const accepted = validateConfig(json, metas).config !== undefined;
+            expect(validate(json)).toBe(accepted);
+          },
+        ),
+        { numRuns: 2000 },
+      );
+    });
   });
 });

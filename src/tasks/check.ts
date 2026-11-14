@@ -25,6 +25,12 @@ export interface TaskStatus {
   readonly id: string;
   /** Why the task is open, in report order; empty when it is done. */
   readonly open: readonly OpenReason[];
+  /**
+   * True when the id is not the task of any rule that ran and any file of the scan: its file was
+   * deleted or renamed, or the id belongs to another repository or was mistyped. Ids are hashes,
+   * so a scan cannot tell these apart; with no finding to keep it open, the task counts as done.
+   */
+  readonly notFound?: true;
 }
 
 /** The open tasks of a scan, as {@link buildTasks} orders paths: each with its first finding. */
@@ -90,5 +96,30 @@ export function checkTasks(scan: TaskScan, ids: readonly string[]): TaskStatus[]
       });
     }
   }
-  return [...wanted].map(([id, open]) => ({ id, open }));
+  const unmatched = [...wanted].filter(([, open]) => open.length === 0).map(([id]) => id);
+  const known = knownIds(scan, new Set(unmatched));
+  return [...wanted].map(([id, open]) =>
+    open.length > 0 || known.has(id) ? { id, open } : { id, open, notFound: true },
+  );
+}
+
+/**
+ * Which of `ids` are the task of a rule that ran and a file of the scan, for each file the rules
+ * that apply to its kind; a finding's own rule and file always count.
+ */
+function knownIds(scan: TaskScan, ids: ReadonlySet<string>): Set<string> {
+  const known = new Set<string>();
+  if (ids.size === 0) return known;
+  const consider = (ruleId: string, path: string): void => {
+    const id = taskId(ruleId, path);
+    if (ids.has(id)) known.add(id);
+  };
+  for (const finding of scan.findings) consider(finding.ruleId, finding.path);
+  for (const [path, artifact] of scan.analysis.index) {
+    for (const meta of scan.rules) {
+      if (meta.appliesTo.includes(artifact.kind)) consider(meta.id, path);
+    }
+    if (known.size === ids.size) break;
+  }
+  return known;
 }

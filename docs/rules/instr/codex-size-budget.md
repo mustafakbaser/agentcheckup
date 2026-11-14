@@ -51,3 +51,10 @@ suppress one occurrence with a reason:
 ```markdown
 <!-- agentcheckup-disable-next-line instr/codex-size-budget -- reason -->
 ```
+
+Options go second, as in `["warn", { "maxBytes": … }]`. Any other option, or a value of
+another type, is a configuration error (exit code 2).
+
+| Option     | Type             | Meaning                                                                                |
+| ---------- | ---------------- | -------------------------------------------------------------------------------------- |
+| `maxBytes` | positive integer | Codex's project_doc_max_bytes, when your user configuration raises it. Default: 32768. |

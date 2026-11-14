@@ -34,6 +34,12 @@ export const claudeMdTooLongRule = defineRule<ClaudeMdTooLongOptions>({
     platforms: ['claude-code'],
     sources: [SOURCES.claudeMemory],
     since: RULESET_VERSION,
+    options: {
+      maxLines: {
+        type: 'positive-integer',
+        description: 'Lines a CLAUDE.md may have before the rule reports it. Default: 200.',
+      },
+    },
   },
   defaultOptions: { maxLines: DOCUMENTED_MAX_LINES },
   check(context) {

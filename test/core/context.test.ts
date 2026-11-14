@@ -6,7 +6,7 @@
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { resolveConfig } from '../../src/core/config.js';
+import { ConfigError, resolveConfig } from '../../src/core/config.js';
 import { scanSnapshot, scanWithContext } from '../../src/core/engine.js';
 import { PLATFORM_IDS, type Snapshot } from '../../src/core/types.js';
 import { scan } from '../../src/index.js';
@@ -280,5 +280,12 @@ describe('scan', () => {
     const matrix = await scan(FIXTURE, { context: { agents: ['cursor'], matrix: true } });
     expect(matrix.context?.matrix?.rows.length).toBeGreaterThan(0);
     expect(withContext.findings).toEqual(plain.findings);
+  });
+  it('throws a ConfigError for a wrong rule option, before any rule runs', async () => {
+    const config = { rules: { 'instr/claude-md-too-long': ['warn', { maxLines: 'many' }] } };
+    await expect(scan(FIXTURE, { config })).rejects.toThrow(ConfigError);
+    await expect(scan(FIXTURE, { config })).rejects.toThrow(
+      'rules["instr/claude-md-too-long"].maxLines: expected a positive integer, got "many".',
+    );
   });
 });

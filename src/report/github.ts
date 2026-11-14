@@ -42,11 +42,13 @@ import { coverageMessages, coverageOf } from './coverage.js';
 import { gateLocations, gateRows } from './gate.js';
 import { policyAnnotations } from './policy-github.js';
 import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
-import { SEVERITY_RANK, truncate } from './text.js';
+import { minScoreNote, SEVERITY_RANK, truncate } from './text.js';
 
 export interface GithubOptions {
   /** How much to show. Default `default`; `verbose` shows what `default` does. */
   readonly level?: DetailLevel | undefined;
+  /** `--min-score`: a score below it gets an error annotation, as it fails the run. */
+  readonly minScore?: number | undefined;
 }
 
 /** Fix titles and guidance longer than this (code points) are cut. */
@@ -230,6 +232,16 @@ export function formatGithub(result: ScanResult, options: GithubOptions = {}): s
   );
   if (diff !== undefined) lines.push(...gateAnnotations(result, diff));
   lines.push(...policy.failing);
+  const below = minScoreNote(result.score, options.minScore);
+  if (below !== undefined) {
+    lines.push(
+      command(
+        'error',
+        [['title', forWorkflowProperty('agentcheckup score')]],
+        forWorkflowCommand(below),
+      ),
+    );
+  }
   if (diff !== undefined && !diff.against.sameRuleset) {
     lines.push(
       command(

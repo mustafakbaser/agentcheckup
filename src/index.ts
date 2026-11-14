@@ -2,6 +2,7 @@
  * Programmatic API. Pre-1.0: may change in minor versions; see CHANGELOG.md.
  */
 import { resolveConfig, type ResolvedConfig } from './core/config.js';
+import { DIRECTIVE_RULES } from './core/directive-rules.js';
 import { createParseCache } from './core/parse-cache.js';
 import {
   type ContextOptions,
@@ -33,8 +34,14 @@ export async function scan(root: string, options: ScanDirectoryOptions = {}): Pr
   // The walk's import pass and the scan share their parses.
   const parseCache = options.walk?.parseCache ?? createParseCache();
   const snapshot = await walk(root, { ...options.walk, parseCache });
+  // Rule options are checked here too, before the rules run: a ConfigError, not a rule failure.
   const config: ResolvedConfig | undefined =
-    options.config === undefined ? undefined : resolveConfig(options.config);
+    options.config === undefined
+      ? undefined
+      : resolveConfig(options.config, undefined, [
+          ...builtinRules.map((rule) => rule.meta),
+          ...DIRECTIVE_RULES,
+        ]);
   const scanOptions: ScanOptions = {
     rules: builtinRules,
     parseCache,

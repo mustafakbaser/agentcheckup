@@ -92,6 +92,8 @@ export interface FormatOptions {
   readonly maxFindings?: number | undefined;
   /** sarif: the run's category, for more than one scan of a repository (see SarifOptions). */
   readonly sarifCategory?: string | undefined;
+  /** stylish, markdown, github: `--min-score`, so a score below it says it fails the run. */
+  readonly minScore?: number | undefined;
 }
 
 /** Formats `result` as `name`. */
@@ -105,14 +107,19 @@ export function format(result: ScanResult, name: FormatName, options: FormatOpti
         maxPerFile: options.maxPerFile,
         level: options.level,
         hyperlinks: options.hyperlinks,
+        minScore: options.minScore,
       });
     case 'json':
       return formatJson(result);
     case 'sarif':
       return formatSarif(result, { category: options.sarifCategory });
     case 'github':
-      return formatGithub(result, { level: options.level });
+      return formatGithub(result, { level: options.level, minScore: options.minScore });
     case 'markdown':
-      return formatMarkdown(result, { maxFindings: options.maxFindings, level: options.level });
+      return formatMarkdown(result, {
+        maxFindings: options.maxFindings,
+        level: options.level,
+        minScore: options.minScore,
+      });
   }
 }

@@ -131,11 +131,22 @@ describe('run', () => {
     expect(report.findings.every((finding) => finding.path.startsWith('smoke/'))).toBe(true);
   });
 
-  it('honors --fail-on none and --min-score', async () => {
+  it('honors --fail-on none and --min-score, and says why --min-score fails the run', async () => {
     expect(await run([SMOKE, '--fail-on', 'none', '--format', 'json'], capture())).toBe(EXIT.ok);
+    const json = capture();
     expect(
-      await run([SMOKE, '--fail-on', 'none', '--min-score', '100', '--format', 'json'], capture()),
+      await run([SMOKE, '--fail-on', 'none', '--min-score', '100', '--format', 'json'], json),
     ).toBe(EXIT.findings);
+    expect(json.err.join('')).toMatch(/^Score \d+ is below --min-score 100\.\n$/);
+    for (const format of ['stylish', 'markdown', 'github']) {
+      const io = capture();
+      await run([SMOKE, '--fail-on', 'none', '--min-score', '100', '--format', format], io);
+      expect(io.out.join(''), format).toMatch(/Score \d+ is below --min-score 100\./);
+      expect(io.err.join(''), format).toBe('');
+    }
+    const met = capture();
+    expect(await run([SMOKE, '--fail-on', 'none', '--min-score', '0'], met)).toBe(EXIT.ok);
+    expect(met.out.join('')).not.toContain('--min-score');
   });
 
   it('loads agentcheckup.config.json and rejects invalid configs', async () => {

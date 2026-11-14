@@ -63,10 +63,31 @@ describe('checkTasks', () => {
     expect(checkTasks(scan, [DESCRIPTION_TASK])).toEqual([{ id: DESCRIPTION_TASK, open: [] }]);
   });
 
-  it('reports an unknown id as done and keeps the order of the ids', () => {
+  it('reports an unknown id as done but not found, and keeps the order of the ids', () => {
     const ids = ['ac-00000000', DESCRIPTION_TASK];
     expect(checkTasks(scanOf(SAMPLE_REPO), ids).map((status) => status.id)).toEqual(ids);
-    expect(checkTasks(scanOf(SAMPLE_REPO), ['ac-00000000'])[0]?.open).toEqual([]);
+    expect(checkTasks(scanOf(SAMPLE_REPO), ['ac-00000000'])).toEqual([
+      { id: 'ac-00000000', open: [], notFound: true },
+    ]);
+  });
+
+  it('finds the id of a done task whose rule and file are still in the scan', () => {
+    const fixed = withSkill(
+      'name: deploy\ndescription: Deploys the API to staging. Use when the user asks to deploy or roll back.',
+    );
+    // The file is still there, so the id is known: done, and not "not found".
+    expect(checkTasks(scanOf(fixed), [DESCRIPTION_TASK])[0]?.notFound).toBeUndefined();
+    // Renamed away, the id belongs to no file of the scan.
+    const renamed = Object.fromEntries(
+      Object.entries(fixed).map(([path, text]) =>
+        path === SKILL
+          ? ['.claude/skills/ship/SKILL.md', text.replace('name: deploy', 'name: ship')]
+          : [path, text],
+      ),
+    );
+    expect(checkTasks(scanOf(renamed), [DESCRIPTION_TASK])).toEqual([
+      { id: DESCRIPTION_TASK, open: [], notFound: true },
+    ]);
   });
 
   it('treats the id of a suppressed finding as done', () => {

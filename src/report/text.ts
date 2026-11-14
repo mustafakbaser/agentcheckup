@@ -127,6 +127,32 @@ export function plural(count: number, singular: string, pluralForm = `${singular
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
+/**
+ * What the walk did not check, counted by what it is: `2 files`, `1 directory`, or
+ * `2 files and 1 directory`. Directory paths end with `/`, as `SkippedEntry.path` does.
+ */
+export function skippedCount(paths: readonly string[]): string {
+  const directories = paths.filter((path) => path.endsWith('/')).length;
+  const files = paths.length - directories;
+  const parts = [
+    files === 0 ? '' : plural(files, 'file'),
+    directories === 0 ? '' : plural(directories, 'directory', 'directories'),
+  ].filter((part) => part !== '');
+  return parts.join(' and ');
+}
+
+/**
+ * `Score 95 is below --min-score 96.`, the reason a scan fails `--min-score`, or undefined when
+ * the score meets it, there is none, or nothing was scored.
+ */
+export function minScoreNote(
+  score: { readonly score: number | null },
+  minScore: number | undefined,
+): string | undefined {
+  if (minScore === undefined || score.score === null || score.score >= minScore) return undefined;
+  return `Score ${score.score} is below --min-score ${minScore}.`;
+}
+
 /** Human severity word. Severity is always spelled out, never conveyed by color alone. */
 export const SEVERITY_LABELS: Readonly<Record<Severity, string>> = {
   error: 'error',

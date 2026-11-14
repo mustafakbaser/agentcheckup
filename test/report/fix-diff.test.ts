@@ -8,6 +8,7 @@ import {
   type FixRun,
   formatFixDiff,
   formatFixSummary,
+  lineBeforeChange,
   MAX_EDIT_COST,
   NO_NEWLINE_MARKER,
   redactCredentials,
@@ -425,7 +426,90 @@ describe('formatFixDiff content', () => {
   });
 });
 
+describe('lineBeforeChange', () => {
+  const before = 'a\nb\nc\nd\ne\n';
+  it.each([
+    ['an insertion above', 'x\ny\na\nb\nc\nd\ne\n', 5, 3],
+    ['a deletion above', 'a\nc\nd\ne\n', 3, 4],
+    ['a replaced line above', 'a\nB\nB2\nc\nd\ne\n', 5, 4],
+    ['a change below', 'a\nb\nc\nd\nE\n', 2, 2],
+    ['no change', before, 4, 4],
+  ])('maps a line past %s', (_, after, line, expected) => {
+    expect(lineBeforeChange(before, after, line)).toBe(expected);
+  });
+
+  it('gives no line for a line a change wrote', () => {
+    expect(lineBeforeChange(before, 'x\na\nb\nc\nd\ne\n', 1)).toBeUndefined();
+    expect(lineBeforeChange(before, 'a\nB\nc\nd\ne\n', 2)).toBeUndefined();
+  });
+});
+
+describe('manual steps on disk', () => {
+  const step = (path: string, line: number) => ({
+    ruleId: 'instr/import-unresolved',
+    path,
+    line,
+    guidance: 'create docs/setup.md',
+  });
+  const run = (manual: FixRun['manual']): FixRun => ({
+    ...sampleRun,
+    fixes: [],
+    awaitingInput: [],
+    onDisk: true,
+    files: [
+      edited(
+        'CLAUDE.md',
+        '# A\n\nRead @docs/setup.md.\n',
+        '@AGENTS.md\n\n# A\n\nRead @docs/setup.md.\n',
+      ),
+      renamed(
+        '.cursor/rules/a.md',
+        '.cursor/rules/a.mdc',
+        'x\ny\n',
+        '---\nalwaysApply: true\n---\nx\ny\n',
+      ),
+      created('docs/new.md', 'new\n'),
+    ],
+    manual,
+  });
+
+  it('shows the line on disk, by the old path of a renamed file', () => {
+    const text = formatFixDiff(run([step('CLAUDE.md', 5), step('.cursor/rules/a.mdc', 5)]));
+    expect(text).toContain('manual  instr/import-unresolved  CLAUDE.md:3  create docs/setup.md');
+    expect(text).toContain('manual  instr/import-unresolved  .cursor/rules/a.md:2  create');
+  });
+
+  it('says "after the fixes above" for a line a fix wrote or a file it creates', () => {
+    const text = formatFixDiff(run([step('CLAUDE.md', 1), step('docs/new.md', 1)]));
+    expect(text).toContain('CLAUDE.md, line 1 after the fixes above  create');
+    expect(text).toContain('docs/new.md, line 1 after the fixes above  create');
+  });
+
+  it('keeps the line of the fixed files without onDisk, as after --write', () => {
+    const { onDisk: _onDisk, ...written } = run([step('CLAUDE.md', 5)]);
+    expect(formatFixDiff(written)).toContain('CLAUDE.md:5  create');
+  });
+});
+
 describe('formatFixSummary', () => {
+  it('counts what is left by class, then lists the manual steps', () => {
+    const text = formatFixSummary(
+      { ...writtenRun, left: { safe: 1, review: 3, input: 1, manual: 1 } },
+      { ascii: true },
+    );
+    expect(text).toContain(
+      [
+        'Left: 1 safe (agentcheckup fix --write) - 3 need review (agentcheckup fix --write --review or fix -i) - 1 needs your words (agentcheckup fix -i) - 1 manual',
+        '  CLAUDE.md:3 instr/import-unresolved (create docs/setup.md or correct the path)',
+      ].join('\n'),
+    );
+    const none = formatFixSummary(
+      { ...writtenRun, manual: [], left: { safe: 0, review: 0, input: 0, manual: 0 } },
+      { ascii: true },
+    );
+    expect(none).not.toContain('Left:');
+  });
+
   it('summarizes a write', async () => {
     const text = formatFixSummary(writtenRun);
     expect(text).toBe(

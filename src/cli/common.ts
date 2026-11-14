@@ -116,7 +116,7 @@ export async function loadConfig(
   } catch (error) {
     throw new ConfigError(`${fileName} is not valid JSON: ${errorMessage(error)}`);
   }
-  return resolveConfig(raw, fileName);
+  return resolveConfig(raw, fileName, allRuleMeta());
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveConfig } from '../../../src/core/config.js';
+import { ConfigError, resolveConfig } from '../../../src/core/config.js';
 import { decode } from '../../../src/core/text.js';
 import { fixRounds } from '../../../src/fix/verify.js';
 import { builtinRules } from '../../../src/rules/index.js';
@@ -45,14 +45,14 @@ describe('skill/body-too-long', () => {
     expect(check(body(501))[0]?.range.start.line).toBe(501);
   });
 
-  it('honors the maxLines option and ignores invalid values', () => {
+  it('honors the maxLines option and rejects invalid values before it runs', () => {
     const config = (maxLines: unknown) => ({ rules: { [ID]: ['warn', { maxLines }] } });
     expect(check(FRONTMATTER + body(101), config(100))[0]?.message).toBe(
       'The skill body is 101 lines, over the configured maximum of 100. Agents load the whole body when the skill runs, so move reference material into separate files.',
     );
-    expect(check(FRONTMATTER + body(101), config('100'))).toEqual([]);
-    expect(check(FRONTMATTER + body(101), config(-1))).toEqual([]);
-    expect(check(FRONTMATTER + body(101), config(1.5))).toEqual([]);
+    for (const value of ['100', -1, 1.5]) {
+      expect(() => check(FRONTMATTER + body(101), config(value))).toThrow(ConfigError);
+    }
   });
 
   it('reports an estimated token count over 5,000 as info', () => {

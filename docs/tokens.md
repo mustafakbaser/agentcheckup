@@ -169,7 +169,7 @@ serve as a later baseline.
 
 | Field                          | What it holds                                                                                                                                                                                        |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tokens.agents[]`              | One row per agent: `agent`, `cwd`, `startup`, `listings`, `onDemand`, `subagents`, `unverified`                                                                                                      |
+| `tokens.agents[]`              | One row per agent: `agent`, `cwd`, `startup`, `listings`, `onDemand`, `subagents`, `unverified`, and `upperBound` when the skills listing is over the agent's listing budget                         |
 | `tokens.calls[]`               | Every subagent call, those not measured first, then largest first: `agent`, `cwd`, `id`, `path`, `name`, `tokens`, `unmeasured`, `unverified`, `mayRun`, `model` (`value`, `source`, `undocumented`) |
 | `tokens.directories[]`         | With `--by-directory`: `cwd`, `largest`, and `agents[]` with each agent's `startup` and `unverified`, largest first                                                                                  |
 | `tokens.directoriesNotPlanned` | With `--by-directory`: how many more directories hold agent configuration                                                                                                                            |
@@ -214,8 +214,12 @@ agent, with OpenTelemetry for teams.
 - **A session that runs as a subagent.** The `agent` setting starts every session as one of the
   repository's subagents, whose prompt replaces the default system prompt. At start does not
   count that prompt.
-- **A listing past its budget.** When Claude Code's skills listing passes its budget, it shortens
-  descriptions; At start counts the full listing, and the plan's limits say it is over. The plan
+- **A listing past its budget.** When Claude Code's skills listing passes its budget, it drops
+  the descriptions of the least-used skills first; At start counts the full listing, so
+  `tokens` marks At start and Listings with `≤` (at most), `context` says under the session-start
+  table that the listing is over its budget, and the plan's limits say so in JSON
+  (`tokens.agents[].upperBound` in `tokens --format json`). Codex's listing is marked the same
+  way. The plan
   measures against Claude Code's defaults, 1,536 characters per skill and 1% of the context
   window: `skillListingMaxDescChars` and `skillListingBudgetFraction` in the settings are not
   applied.

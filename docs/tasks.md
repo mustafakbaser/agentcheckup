@@ -172,6 +172,13 @@ ac-a385eb5f  open  skill/body-too-long  .claude/skills/guide/SKILL.md:505
 1 of 2 tasks open.
 ```
 
+An argument that is not `ac-` and 8 hex digits exits 2. A well-formed id that is the task of no
+rule and file of the scan is listed as
+`ac-00000000  done (not found: no rule and file of this scan has this id)`, and the last line
+counts it as not found. Ids are hashes, so the scan cannot tell a task whose file was deleted or
+renamed, which is done, from an id copied from another repository or mistyped: either way no
+finding keeps it open, so it does not make `--check` exit 1.
+
 `--check` takes no other option: `--output`, `--format`, `--rule` and the rest exit 2. So a
 permission rule that lets an agent run `agentcheckup tasks --check *` without asking can never
 write a file. Arguments that start with `ac-` are task ids; at most one other argument names the

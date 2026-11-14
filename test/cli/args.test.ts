@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandName, parseCommand, UsageError } from '../../src/cli/args.js';
+import { commandName, parseArgsMessage, parseCommand, UsageError } from '../../src/cli/args.js';
 import { CONTEXT_AGENTS } from '../../src/platforms/load/types.js';
 
 describe('parseCommand', () => {
@@ -101,6 +101,26 @@ describe('parseCommand', () => {
 
   it('rejects unknown flags', () => {
     expect(() => parseCommand(['--nope'])).toThrow(/Unknown option/);
+  });
+
+  it('words parseArgs errors like the other argument errors, with the closest flag', () => {
+    const message = (argv: readonly string[]): string => {
+      try {
+        parseCommand(argv);
+      } catch (error) {
+        return parseArgsMessage((error as Error).message);
+      }
+      return '';
+    };
+    expect(message(['--bogus'])).toBe('Unknown option "--bogus".');
+    expect(message(['--verbos'])).toBe('Unknown option "--verbos". Did you mean "--verbose"?');
+    expect(message(['--min-scor', '5'])).toBe(
+      'Unknown option "--min-scor". Did you mean "--min-score"?',
+    );
+    expect(message(['-q'])).toBe('Unknown option "-q".');
+    expect(message(['--format'])).toBe('--format needs a value.');
+    expect(message(['--compact=1'])).toBe('--compact does not take a value.');
+    expect(parseArgsMessage('something else')).toBe('something else');
   });
 
   it('takes no scan flag for rules and explain, and --json only for rules', () => {

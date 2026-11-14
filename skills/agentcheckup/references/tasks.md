@@ -58,6 +58,10 @@ ac-bb0bd14d  open  guard skill/frontmatter-invalid (error)  .claude/skills/pdf/S
 2 of 3 tasks open.
 ```
 
+A well-formed id that no rule and file of the scan has is listed as
+`ac-00000000  done (not found: no rule and file of this scan has this id)`: done if its file was
+deleted or renamed, a wrong id otherwise. It does not make `--check` exit 1.
+
 A task stays open while a finding of its rule is in its file, or while an error or warning of a
 guard rule is there. Guard rules stop a task from passing because the file broke another way:
 deleting a `description` or writing invalid YAML does not close a description task. Every task is

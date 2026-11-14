@@ -20,6 +20,7 @@ import {
   type LoadPlan,
   type OwnContext,
 } from '../platforms/load/types.js';
+import { listingOverBudget } from './context-view.js';
 import { toJsonReport } from './json.js';
 import { forJsonOutput } from './sanitize.js';
 
@@ -40,6 +41,11 @@ export interface AgentTokens {
   readonly subagents: number;
   /** True when a startup entry is unverified. */
   readonly unverified: boolean;
+  /**
+   * True when the skills listing passes the agent's listing budget, which shortens it: `startup`
+   * and `listings` count the whole listing, so they are an upper bound.
+   */
+  readonly upperBound?: true;
 }
 
 /** What one subagent call starts with, and the model it runs on as far as the repository says. */
@@ -120,6 +126,7 @@ function agentTokens(plan: LoadPlan): AgentTokens {
     onDemand: plan.totals.onDemand.tokens,
     subagents,
     unverified: unverifiedAtStart(plan),
+    ...(listingOverBudget(plan) === undefined ? {} : { upperBound: true }),
   };
 }
 

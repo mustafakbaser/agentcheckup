@@ -228,7 +228,17 @@ export function withoutIgnored(
   const incomplete = plan.incomplete.filter((item) => keep(incompletePath(item)));
   // A limit measured on an ignored file, such as the import depth an ignored import reaches.
   const limits = plan.limits.filter((limit) => keep(limit.subject));
-  const kept = { ...plan, entries, skipped, outOfScope, limits, incomplete };
+  const { settings: read, ...rest } = plan;
+  const settings = read?.filter((file) => keep(file.path));
+  const kept: LoadPlan = {
+    ...rest,
+    entries,
+    skipped,
+    outOfScope,
+    limits,
+    incomplete,
+    ...(settings === undefined || settings.length === 0 ? {} : { settings }),
+  };
   // The plan over the ignored files decides for every file it lists. For the others, such as a
   // settings file that declares nothing it lists, the files this plan could not read count.
   const decided = new Set(unignored === undefined ? [] : listedPaths(unignored));
@@ -243,7 +253,8 @@ export function withoutIgnored(
     skipped.length !== plan.skipped.length ||
     outOfScope.length !== plan.outOfScope.length ||
     incomplete.length !== plan.incomplete.length ||
-    limits.length !== plan.limits.length;
+    limits.length !== plan.limits.length ||
+    (settings?.length ?? 0) !== (plan.settings?.length ?? 0);
   if (!removed && hidden.size === 0) return plan;
   return {
     ...kept,
@@ -293,6 +304,7 @@ export function citedSourceKeys(plans: readonly LoadPlan[]): SourceKey[] {
     for (const skip of plan.skipped) add(skip.evidence);
     for (const assumption of plan.assumptions) add(assumption.evidence);
     for (const limit of plan.limits) add(limit.evidence);
+    for (const file of plan.settings ?? []) add(file.evidence);
   }
   return [...keys].sort(compareStrings);
 }

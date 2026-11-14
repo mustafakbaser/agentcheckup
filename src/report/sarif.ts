@@ -37,6 +37,7 @@ import {
   plural,
   SEVERITY_RANK,
   SKIP_REASON_LABELS,
+  skippedCount,
   SYMLINK_PROBLEM_LABELS,
   truncate,
 } from './text.js';
@@ -445,7 +446,9 @@ function executionNotifications(
     );
     notifications.push({
       level: 'warning',
-      message: { text: `${plural(result.skipped.length, 'file')} not checked (${reasons}).` },
+      message: {
+        text: `${skippedCount(result.skipped.map((entry) => entry.path))} not checked (${reasons}).`,
+      },
       locations: result.skipped
         .slice(0, MAX_NOTIFICATION_LOCATIONS)
         .map((entry) => ({ physicalLocation: physicalLocation(entry.path) })),

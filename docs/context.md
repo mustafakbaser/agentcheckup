@@ -109,11 +109,18 @@ Skipped
   agent assembles it. An import is indented under the file that imports it (`└ @AGENTS.md`).
   The skills listing is one row: the names and descriptions of the skills the model can pick
   from. `Total` adds up the rows' characters and then estimates, so it can differ by one from
-  the sum of the rows' estimates.
+  the sum of the rows' estimates. When the skills listing passes the agent's listing budget, its row says
+  `over its budget`, and a note under the table gives the budget, the characters the
+  descriptions use and what the agent does: Claude Code drops the descriptions of the
+  least-used skills first. The sizes count the whole listing, so they are an upper bound.
 - **MCP and hooks:** the servers and hooks the agent starts with the session. "asks first" means
   the agent asks the user to approve or trust them before they run. Each server shows its
   transport, its command or URL origin, and whether its package is pinned. A tool-gating hook
   shows "fails open" when an error or timeout in the hook lets the tool call go ahead.
+- **Settings:** the repository's settings files the session reads, such as Claude Code's
+  `.claude/settings.json` and `.claude/settings.local.json`, with how many permission entries,
+  hooks and env overrides each declares for the agent. Only Claude Code's plan lists them so
+  far; JSON has them in the plan's `settings`, and the items in `inventory`.
 - **On demand:** what can join the context later, and what makes it load.
 - **Skipped:** files and items the agent would consider but does not load, the reason, and the
   rule that reports the problem. A skip without a rule id is one no rule reports, usually
@@ -140,8 +147,9 @@ Skipped
   .agents/skills/notes/SKILL.md  no description  skill/description-missing  needs your words (fix -i)
 ```
 
-A plan in which the agent loads nothing, skips nothing and leaves nothing unanalyzed is one
-line, and consecutive such plans share one block:
+A plan in which the agent loads nothing (no file, listing, settings file, MCP server or hook),
+skips nothing and leaves nothing unanalyzed is one line, and consecutive such plans share one
+block:
 
 ```text
 Gemini CLI context · ./: loads nothing from this repository
@@ -231,6 +239,12 @@ The plans of Copilot, Devin Local, Cline and Codex's `config.toml` added `wrong-
 `no-apply-to`, `shadowed-by-preferred`, `disabled`, `never-active` and `invalid-toml`. A Cline
 rule, workflow or skill whose frontmatter turns it off (`disabled: true`, or `enabled: false`) is
 `disabled` too.
+
+A skill skipped for one frontmatter field, whose YAML may be valid, keeps the code
+`invalid-frontmatter` in JSON, but text and Markdown give the reason of the rule that reports
+it: "the name is not valid" (`skill/name-format`), "the name does not match its directory"
+(`skill/name-dir-mismatch`), "a frontmatter field has the wrong type" (`skill/field-type`) or
+"no description" (`skill/description-missing`).
 
 ### Certainty and "?"
 

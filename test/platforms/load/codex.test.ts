@@ -1,7 +1,12 @@
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { EMPTY_CONFIG, resolveConfig, type ResolvedConfig } from '../../../src/core/config.js';
+import {
+  ConfigError,
+  EMPTY_CONFIG,
+  resolveConfig,
+  type ResolvedConfig,
+} from '../../../src/core/config.js';
 import { type Analysis, analyze, type RuleResult, runRules } from '../../../src/core/engine.js';
 import { hash53 } from '../../../src/core/fingerprint.js';
 import { PLATFORM_IDS, type Snapshot } from '../../../src/core/types.js';
@@ -290,9 +295,9 @@ describe('loadCodex: instructions', () => {
     const message = 'Option "maxBytes" must be a positive integer, got 0.';
     const snapshot = snapshotOf({ 'AGENTS.md': 'Root.\n' });
     const analysis = analyze(snapshot, { config: resolveConfig(config) });
-    expect(runRules(analysis, { rules: builtinRules }).ruleFailures).toEqual([
-      { ruleId: 'instr/codex-size-budget', message },
-    ]);
+    // The scan rejects it as a configuration error before any rule runs; the loader on its own
+    // throws the rule's message.
+    expect(() => runRules(analysis, { rules: builtinRules })).toThrow(ConfigError);
     expect(() => planOnly(snapshot, '', { config })).toThrow(message);
   });
 

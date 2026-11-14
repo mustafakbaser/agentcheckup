@@ -493,6 +493,13 @@ export interface LoadPlan {
    */
   readonly incomplete: readonly string[];
   /**
+   * The repository's settings files the session reads, which parse, sorted by path: their
+   * permissions, hooks and env overrides apply to it. Reports count the inventory items of each.
+   * Absent when the agent reads none, and from the plans of agents whose loader does not list
+   * them yet (all but Claude Code).
+   */
+  readonly settings?: readonly SettingsFile[];
+  /**
    * How many files the agent may load that the plan does not show because the configuration's
    * `ignore` matches them, or matches the only way to them: files it would otherwise list as
    * entries, unverified skips or files not analyzed, found by planning the agent again as if
@@ -500,6 +507,13 @@ export interface LoadPlan {
    * none. See `withoutIgnored` in ./index.ts.
    */
   readonly ignored?: number;
+}
+
+/** A settings file a session reads from the repository (`LoadPlan.settings`). */
+export interface SettingsFile {
+  readonly path: string;
+  readonly certainty: Certainty;
+  readonly evidence: readonly SourceKey[];
 }
 
 /**

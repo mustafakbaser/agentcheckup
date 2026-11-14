@@ -38,6 +38,7 @@ interface Context {
   readonly divide: string;
   readonly dot: string;
   readonly more: string;
+  readonly atMost: string;
 }
 
 function clean(text: string, context: Context, max = MAX_TEXT_LENGTH): string {
@@ -104,19 +105,49 @@ export const NOTES: readonly string[] = [
   'Not visible: user, managed and plugin scopes, tool definitions and the conversation.',
 ];
 
-/** Whether a number the output shows has a `?`: an agent's, or a start directory's. */
-export function anyUnverified(summary: TokenSummary): boolean {
+/** What `≤` in front of a number means. */
+export const UPPER_BOUND_NOTE =
+  "the skills listing is over the agent's listing budget, and the agent shortens it";
+
+/**
+ * The rows the output shows: the calls and start directories before `and N more`. The
+ * legends below the tables explain only marks these rows have.
+ */
+export interface ShownRows {
+  readonly calls: number;
+  readonly directories: number;
+}
+
+/**
+ * Whether a number the output shows has a `?`: an agent's, a shown call's, or a shown start
+ * directory's.
+ */
+export function anyUnverified(
+  summary: TokenSummary,
+  shown: ShownRows = { calls: MAX_TOKEN_ROWS, directories: MAX_TOKEN_ROWS },
+): boolean {
   return (
     summary.agents.some((row) => row.unverified) ||
-    summary.calls.some((call) => call.unverified) ||
-    (summary.directories ?? []).some((directory) => directory.agents.some((row) => row.unverified))
+    summary.calls.slice(0, shown.calls).some((call) => call.unverified) ||
+    (summary.directories ?? [])
+      .slice(0, shown.directories)
+      .some((directory) => directory.agents.some((row) => row.unverified))
   );
 }
 
-function more(total: number, shown: number, noun: string, context: Context): string[] {
+function more(
+  total: number,
+  shown: number,
+  noun: readonly [singular: string, plural: string],
+  context: Context,
+): string[] {
   const hidden = total - shown;
   return hidden > 0
-    ? [context.style.dim(`  ${context.more} and ${formatInteger(hidden)} more ${noun}`)]
+    ? [
+        context.style.dim(
+          `  ${context.more} and ${formatInteger(hidden)} more ${hidden === 1 ? noun[0] : noun[1]}`,
+        ),
+      ]
     : [];
 }
 
@@ -130,6 +161,7 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
     divide: ascii ? '/' : '÷',
     dot: ascii ? '-' : '·',
     more: ascii ? '...' : '…',
+    atMost: ascii ? '<=' : '≤',
   };
   // Paths relative to the scanned directory, as the context output shows them.
   const summary = tokenSummary(stripPathBase(result));
@@ -150,8 +182,8 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
         ['', 'At start', 'Listings', 'On demand', 'Subagents'],
         summary.agents.map((row) => [
           AGENT_NAMES[row.agent],
-          `${number(row.startup)}${row.unverified ? '?' : ''}`,
-          number(row.listings),
+          `${row.upperBound === true ? context.atMost : ''}${number(row.startup)}${row.unverified ? '?' : ''}`,
+          `${row.upperBound === true ? context.atMost : ''}${number(row.listings)}`,
           number(row.onDemand),
           number(row.subagents),
         ]),
@@ -175,7 +207,7 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
         ]),
         ['r', 'l', 'l', 'l', 'l'],
       ),
-      ...more(summary.calls.length, shown.length, 'calls', context),
+      ...more(summary.calls.length, shown.length, ['call', 'calls'], context),
     );
   }
 
@@ -206,12 +238,12 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
         [root, ...rows],
         ['l', ...agents.map(() => 'r' as const)],
       ),
-      ...more(summary.directories.length, shown.length, 'directories', context),
+      ...more(summary.directories.length, shown.length, ['directory', 'directories'], context),
     );
     if ((summary.directoriesNotPlanned ?? 0) > 0) {
       lines.push(
         style.dim(
-          `  ${formatInteger(summary.directoriesNotPlanned ?? 0)} more directories hold agent configuration; plan one with agentcheckup tokens --cwd <dir>`,
+          `  ${formatInteger(summary.directoriesNotPlanned ?? 0)} more ${summary.directoriesNotPlanned === 1 ? 'directory holds' : 'directories hold'} agent configuration; plan one with agentcheckup tokens --cwd <dir>`,
         ),
       );
     }
@@ -236,8 +268,11 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
   if (anyUnverified(summary)) {
     lines.push(style.dim('? = unverified: neither documentation nor source code confirms it'));
   }
-  if (summary.calls.some((call) => call.unmeasured !== undefined)) {
+  if (summary.calls.slice(0, MAX_TOKEN_ROWS).some((call) => call.unmeasured !== undefined)) {
     lines.push(style.dim('+ = the call starts with more: files the scan did not read'));
+  }
+  if (summary.agents.some((row) => row.upperBound === true)) {
+    lines.push(style.dim(`${context.atMost} = at most: ${UPPER_BOUND_NOTE}`));
   }
   return guardWorkflowCommands(`${lines.join('\n')}\n`);
 }

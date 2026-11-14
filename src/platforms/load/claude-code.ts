@@ -118,6 +118,7 @@ import type {
   LoadPlan,
   LoadRole,
   OutOfScope,
+  SettingsFile,
   Size,
   SkippedLoad,
 } from './types.js';
@@ -448,6 +449,8 @@ class ClaudeLoader {
   readonly #skipped = new Map<string, SkippedLoad>();
   readonly #outOfScope = new Map<string, OutOfScope>();
   readonly #incomplete = new Set<string>();
+  /** The project settings files the session reads that parse, by path. */
+  readonly #settings = new Map<string, SettingsFile>();
   /** Artifacts with an instructions, import or rule entry, so each file loads once. */
   readonly #loaded = new Set<Artifact>();
   /** Imported files that were not read, listed once. */
@@ -1381,6 +1384,11 @@ class ClaudeLoader {
       }
       // A local file at the repository root, above the working directory, is read from there.
       const atRoot = dirnamePosix(dirnamePosix(file.path)) !== cwd;
+      this.#settings.set(file.path, {
+        path: file.path,
+        certainty: 'documented',
+        evidence: atRoot ? ['claudePermissions', 'claudeSettings'] : ['claudeSettings'],
+      });
       this.#settingsHooks(file.path, artifact, doc, {
         certainty: file.role === 'legacy' && localHooks ? 'unverified' : 'documented',
         evidence: atRoot ? LOCAL_HOOKS : HOOKS,
@@ -1743,6 +1751,11 @@ class ClaudeLoader {
       limits: this.#limits(),
       totals: { startup: totalSize(startup), onDemand: totalSize(onDemand) },
       incomplete: [...this.#incomplete].sort(compareStrings),
+      ...(this.#settings.size === 0
+        ? {}
+        : {
+            settings: [...this.#settings.values()].sort((a, b) => compareStrings(a.path, b.path)),
+          }),
     };
   }
 }

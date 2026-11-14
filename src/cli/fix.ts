@@ -73,6 +73,7 @@ import {
   formatFixSummary,
   type FixRun as FixView,
 } from '../report/fix-diff.js';
+import { fixCounts } from '../report/feedback.js';
 import { formatFixJson } from '../report/fix-json.js';
 import { forTerminal } from '../report/sanitize.js';
 import type { Style } from '../report/stylish.js';
@@ -220,6 +221,8 @@ async function dryRun(session: Session, rounds: FixRounds): Promise<ExitCode> {
       rounds.verification,
       rounds.awaitingInput,
     ),
+    // Nothing is written: manual steps are shown at their line in the files on disk.
+    onDisk: true,
     // What `agentcheckup tasks` would hand to an agent now, for the last line of the diff.
     judgment: judgmentCount(
       rounds.before.findings,
@@ -263,26 +266,34 @@ async function write(
 ): Promise<ExitCode> {
   const needsReview = selection.classes.has('review') ? [] : rounds.skipped.filter(demoted);
   const skipped = rounds.skipped.filter((planned) => !needsReview.includes(planned));
+  // The summary lists what is left; the diff before it does not repeat it.
   const preview = viewOf(
     session,
     'dry-run',
     [...rounds.applied, ...rounds.deferred, ...skipped],
     rounds.files.map(changedFile),
-    rounds.manual,
+    [],
     rounds.verification,
   );
   const outcome = await writeAndVerify(session, rounds.applied, rounds.files, rounds.before);
   if (outcome === undefined) return EXIT.findings;
   // Fixes that need the user's words are never written: the summary says -i asks for them.
-  const view = viewOf(
-    session,
-    'write',
-    [...outcome.fixes, ...rounds.deferred, ...skipped],
-    outcome.files,
-    rounds.manual,
-    outcome.verification,
-    rounds.awaitingInput,
-  );
+  // What is left is counted by class from the scan from disk, as a scan's "Fixes:" line counts
+  // it; the manual steps are those of findings without a fix that --write --review or -i
+  // could apply.
+  const leftFindings = outcome.after.result.findings;
+  const view: FixView = {
+    ...viewOf(
+      session,
+      'write',
+      [...outcome.fixes, ...rounds.deferred, ...skipped],
+      outcome.files,
+      withoutOtherFixes(rounds.manual, leftFindings, selection),
+      outcome.verification,
+      rounds.awaitingInput,
+    ),
+    left: fixCounts(leftFindings, 'terminal'),
+  };
 
   let report: string;
   if (session.options.format === 'json') {
@@ -426,6 +437,31 @@ async function writeAndVerify(
       return problems || notApplied(all) ? EXIT.findings : EXIT.ok;
     },
   };
+}
+
+/**
+ * The manual steps without those of findings whose fix the selection left out (a fix for review,
+ * or one that needs the user's words, after `--write` alone): the `Left:` line counts those by
+ * class, with the command that applies them.
+ */
+function withoutOtherFixes(
+  steps: readonly ManualStep[],
+  findings: readonly Finding[],
+  selection: FixSelection,
+): ManualStep[] {
+  const key = (ruleId: string, path: string, line: number): string =>
+    `${ruleId} ${path} ${String(line)}`;
+  const fixable = new Set(
+    findings
+      .filter(
+        (finding) =>
+          finding.suppressed === undefined &&
+          finding.fix !== undefined &&
+          (needsInput(finding.fix) || !selection.classes.has(finding.fix.class)),
+      )
+      .map((finding) => key(finding.ruleId, finding.path, finding.range.start.line)),
+  );
+  return steps.filter((step) => !fixable.has(key(step.ruleId, step.path, step.line)));
 }
 
 /** A selected fix was left out: everything but a fix the user declined counts. */

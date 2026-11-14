@@ -45,3 +45,10 @@ suppress one occurrence with a reason:
 ```markdown
 <!-- agentcheckup-disable-next-line instr/claude-md-too-long -- reason -->
 ```
+
+Options go second, as in `["warn", { "maxLines": … }]`. Any other option, or a value of
+another type, is a configuration error (exit code 2).
+
+| Option     | Type             | Meaning                                                              |
+| ---------- | ---------------- | -------------------------------------------------------------------- |
+| `maxLines` | positive integer | Lines a CLAUDE.md may have before the rule reports it. Default: 200. |

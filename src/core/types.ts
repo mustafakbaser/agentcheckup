@@ -345,6 +345,21 @@ export interface RuleMeta {
     readonly summary: string;
     readonly input?: 'all' | 'some';
   };
+  /**
+   * The options the rule takes in the configuration (`[severity, { name: value }]`), by name.
+   * The configuration is checked against them before any rule runs: an option the rule does not
+   * declare, or a value of the wrong type, is a configuration error. They also feed the rule's
+   * entry in schemas/config.schema.json and its docs page.
+   */
+  readonly options?: Readonly<Record<string, RuleOptionMeta>>;
+}
+
+/** One option a rule takes in the configuration. */
+export interface RuleOptionMeta {
+  /** `positive-integer`: a whole number of 1 or more. */
+  readonly type: 'positive-integer';
+  /** One sentence on what the option sets, for the docs and the config schema. */
+  readonly description: string;
 }
 
 // ---------------------------------------------------------------------------------------------

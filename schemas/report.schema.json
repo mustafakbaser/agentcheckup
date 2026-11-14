@@ -1116,6 +1116,21 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "settings": {
+          "description": "The repository's settings files the session reads that parse, sorted by path: their permissions, hooks and env overrides, in `inventory`, apply to it. Absent when there are none, and from the plans of agents whose loader does not list them yet (all but Claude Code).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "certainty", "evidence"],
+            "properties": {
+              "path": { "$ref": "#/$defs/relativePath" },
+              "certainty": { "$ref": "#/$defs/certainty" },
+              "evidence": { "$ref": "#/$defs/sourceKeys" }
+            }
+          }
+        },
         "ignored": {
           "description": "How many files the agent may load that the plan does not show because the configuration's `ignore` matches them, or matches the only way to them. Absent when none.",
           "type": "integer",

@@ -38,6 +38,354 @@
             "maxItems": 2
           }
         ]
+      },
+      "properties": {
+        "agent/model-not-documented": {
+          "description": "Agent definition sets a model value the agent does not document",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "agent/subagent-model-ignored": {
+          "description": "Claude Code ignores the subagent's model",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "analysis/partial": {
+          "description": "File was only partly analyzed",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "codex/config-invalid": {
+          "description": "Codex project config is not valid",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "codex/ignored-project-key": {
+          "description": "Codex ignores this key in a project config file",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "copilot/apply-to": {
+          "description": "Path-specific GitHub Copilot instructions have no valid applyTo",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "copilot/instructions-misplaced": {
+          "description": "GitHub Copilot instructions file is not where Copilot looks for it",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "cursor/legacy-cursorrules": {
+          "description": ".cursorrules is a legacy file that Cursor plans to deprecate",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "cursor/md-file-ignored": {
+          "description": "Cursor ignores .md files in .cursor/rules",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "cursor/rule-frontmatter": {
+          "description": "Cursor rule frontmatter field is unknown or has the wrong type",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "cursor/rule-never-applied": {
+          "description": "Cursor rule is applied only when @-mentioned",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "directive/missing-reason": {
+          "description": "Suppression directive has no rule id or no reason",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "directive/unknown-rule": {
+          "description": "Suppression directive names a rule that does not exist",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "directive/unused": {
+          "description": "Suppression directive does not suppress anything",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "gemini/settings-key-ignored": {
+          "description": "Gemini CLI ignores a top-level key from its old settings format",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "hooks/fails-open": {
+          "description": "Tool-gating hook lets the tool call proceed when it fails",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "hooks/script-missing": {
+          "description": "Hook command runs a script that does not exist",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "hooks/timeout-units": {
+          "description": "Hook timeout looks like the wrong unit",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "hooks/unknown-event": {
+          "description": "Hook event name is not one the agent fires",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/agents-md-ignored-by-claude": {
+          "description": "Claude Code skips AGENTS.md because a CLAUDE.md exists",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/claude-md-too-long": {
+          "description": "CLAUDE.md is longer than 200 lines",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/severity"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/severity"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxLines": {
+                      "description": "Lines a CLAUDE.md may have before the rule reports it. Default: 200.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "instr/claude-rule-frontmatter": {
+          "description": "Claude Code rule frontmatter is invalid or ignored",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/codex-size-budget": {
+          "description": "AGENTS.md files exceed the Codex size limit",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/severity"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/severity"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxBytes": {
+                      "description": "Codex's project_doc_max_bytes, when your user configuration raises it. Default: 32768.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "instr/empty-file": {
+          "description": "Instruction file is empty",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/encoding": {
+          "description": "Instruction file is not UTF-8",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/filename-case": {
+          "description": "Instruction file name has the wrong letter case",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/import-depth": {
+          "description": "Import is nested deeper than the agent follows",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/import-outside-root": {
+          "description": "Import points outside the repository",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/import-unresolved": {
+          "description": "Imported file does not exist",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/override-shadows-agents-md": {
+          "description": "AGENTS.override.md hides AGENTS.md from Codex",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/subagent-invalid": {
+          "description": "Claude Code skips a subagent with invalid frontmatter",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/symlink-materialized": {
+          "description": "Instruction file is a symlink checked out as plain text",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/vague-directive": {
+          "description": "Instruction is generic advice that says nothing about the project",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "instr/windsurf-rule-too-long": {
+          "description": "Rule file exceeds Cascade's 12,000-character limit in JetBrains",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "json/duplicate-key": {
+          "description": "JSON object repeats a key",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "json/invalid-syntax": {
+          "description": "Configuration file is not valid JSON",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/env-syntax-mismatch": {
+          "description": "MCP configuration uses another agent's variable syntax",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/gemini-server-name": {
+          "description": "Gemini CLI MCP server name contains an underscore",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/gemini-trust": {
+          "description": "Gemini CLI MCP server is trusted and skips tool confirmations",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/insecure-transport": {
+          "description": "MCP server uses an unencrypted connection to another host",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/literal-secret": {
+          "description": "Configuration file contains a literal credential",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/url-without-type": {
+          "description": "MCP server has a \"url\" but no \"type\"",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "risk/hidden-comment": {
+          "description": "HTML comment hides instructions for the agent from human readers",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "risk/hidden-unicode": {
+          "description": "File contains invisible or text-reordering Unicode characters",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "risk/remote-script-execution": {
+          "description": "Command downloads a script and runs it in one step",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "settings/auto-approve-project-mcp": {
+          "description": "Settings approve every project MCP server automatically",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "settings/ignored-permission-mode": {
+          "description": "Claude Code ignores this permission mode in project settings",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "settings/local-file-not-ignored": {
+          "description": "CLAUDE.local.md is not gitignored",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "settings/plugin-manifest": {
+          "description": "Plugin manifest has an invalid name or component path",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/body-too-long": {
+          "description": "Skill body is longer than recommended",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/severity"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/severity"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxLines": {
+                      "description": "Body lines a SKILL.md may have before the rule reports it. Default: 500.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "skill/broad-allowed-tools": {
+          "description": "Skill pre-approves shell commands or file edits without limits",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/broken-reference": {
+          "description": "Skill links to a missing file or outside its directory",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/description-missing": {
+          "description": "Skill description is missing or empty",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/description-quality": {
+          "description": "Skill description is too short or does not say when to use it",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/description-too-long": {
+          "description": "Skill description exceeds the upload or Claude Code listing limit",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/duplicate-name": {
+          "description": "Two skills that an agent reads together have the same name",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/field-type": {
+          "description": "Skill frontmatter field has the wrong type or length",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/frontmatter-bom": {
+          "description": "Skill file starts with a byte order mark",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/frontmatter-invalid": {
+          "description": "Skill frontmatter is not valid YAML",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/frontmatter-missing": {
+          "description": "Skill has no YAML frontmatter on line 1",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/name-dir-mismatch": {
+          "description": "Skill name does not match its directory name",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/name-format": {
+          "description": "Skill name does not follow the Agent Skills naming rules",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/name-missing": {
+          "description": "Skill name is missing or empty",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/name-reserved-word": {
+          "description": "Skill name uses a reserved word or name",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/non-portable-field": {
+          "description": "Skill frontmatter uses a field outside the Agent Skills specification",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/shell-preprocessing": {
+          "description": "Skill runs a risky shell command before Claude reads it",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "skill/yaml-portability": {
+          "description": "Skill frontmatter uses YAML that parsers read differently",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        }
       }
     },
     "ignore": {
@@ -70,6 +418,32 @@
           }
         }
       }
+    }
+  },
+  "$defs": {
+    "severity": {
+      "enum": ["off", "info", "warn", "error"]
+    },
+    "ruleWithoutOptions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/severity"
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/severity"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
     }
   }
 }

@@ -422,6 +422,15 @@ function loadPlan(value: LoadPlan): LoadPlan {
     ).map(limitUsage),
     totals: { startup: size(value.totals.startup), onDemand: size(value.totals.onDemand) },
     incomplete: sortedStrings(value.incomplete),
+    ...(value.settings === undefined
+      ? {}
+      : {
+          settings: sortedBy(value.settings, (file) => file.path).map((file) => ({
+            path: file.path,
+            certainty: file.certainty,
+            evidence: sortedStrings(file.evidence),
+          })),
+        }),
     ...(value.ignored === undefined ? {} : { ignored: value.ignored }),
   };
 }

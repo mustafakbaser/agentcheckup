@@ -16,6 +16,7 @@ import type { HookItem, Inventory, McpServerItem, PackageSpec } from '../invento
 import {
   AGENT_NAMES,
   type Assumption,
+  CONTEXT_PLATFORM,
   type ContextAgent,
   type ContextReport,
   type HiddenScope,
@@ -29,6 +30,7 @@ import {
   type Size,
   type SkipCode,
   type SkipFix,
+  type SkippedLoad,
 } from '../platforms/load/types.js';
 import { joinNames } from '../rules/shared/format.js';
 import { toJsonContext, toJsonInventory } from './json.js';
@@ -96,6 +98,31 @@ export const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'invalid-toml': 'not valid TOML',
   'not-read': 'not read by this agent',
 };
+
+/**
+ * Loaders skip a skill for a frontmatter field the rules judge with code `invalid-frontmatter`,
+ * whose YAML may be valid: the reason the rule reports it, in the rule's words.
+ */
+const FRONTMATTER_RULE_LABELS: Readonly<Record<string, string>> = {
+  'skill/name-format': 'the name is not valid',
+  'skill/name-dir-mismatch': 'the name does not match its directory',
+  'skill/field-type': 'a frontmatter field has the wrong type',
+  'skill/description-missing': 'no description',
+};
+
+/** Why an agent skips a file, as a clause: {@link SKIP_LABELS}, or the rule's reason. */
+export function skipLabel(skip: {
+  readonly code: SkippedLoad['code'];
+  readonly ruleId?: string | undefined;
+}): string {
+  if (skip.code === 'invalid-frontmatter' && skip.ruleId !== undefined) {
+    const label = Object.hasOwn(FRONTMATTER_RULE_LABELS, skip.ruleId)
+      ? FRONTMATTER_RULE_LABELS[skip.ruleId]
+      : undefined;
+    if (label !== undefined) return label;
+  }
+  return SKIP_LABELS[skip.code];
+}
 
 export const MATRIX_CELL_LABELS: Readonly<Record<MatrixCell, string>> = {
   startup: 'startup',
@@ -355,6 +382,53 @@ export interface Part {
   readonly attach?: boolean;
 }
 
+/**
+ * A skills listing over the agent's listing budget (a `shortens` limit of the plan): the
+ * budget and the characters the listing's descriptions use, in characters, and what the agent
+ * does about it, as its documentation says.
+ */
+export interface ListingBudget {
+  readonly limit: number;
+  readonly used: number;
+  readonly effect: string;
+}
+
+/** The listing budgets of the plans, by limit key, with what the agent does past them. */
+const LISTING_BUDGETS: Readonly<Record<string, string>> = {
+  // docs/platforms.md: "When the listing overflows, descriptions of the least-used skills are
+  // dropped first."
+  'claude-code.skill_listing_budget':
+    'Claude Code drops the descriptions of the least-used skills first',
+  // docs/platforms.md: "Codex shortens descriptions first and may leave skills out, with a
+  // warning."
+  'codex.skills_listing': 'Codex shortens descriptions first and may leave skills out',
+};
+
+/** The listing budget the plan's skills listing passes, or undefined. */
+export function listingOverBudget(plan: Pick<LoadPlan, 'limits'>): ListingBudget | undefined {
+  for (const limit of plan.limits) {
+    const effect = Object.hasOwn(LISTING_BUDGETS, limit.key)
+      ? LISTING_BUDGETS[limit.key]
+      : undefined;
+    if (effect === undefined || limit.limit === null || limit.used <= limit.limit) continue;
+    return { limit: limit.limit, used: limit.used, effect };
+  }
+  return undefined;
+}
+
+/**
+ * The note under a session-start table whose skills listing is over budget: what the agent does,
+ * and that the numbers above count the whole listing.
+ */
+export function listingBudgetNote(rows: readonly StartupRow[], approx = '≈'): string[] {
+  const budget = rows.find((row) => row.overBudget !== undefined)?.overBudget;
+  if (budget === undefined) return [];
+  return [
+    `Skills listing over the listing budget of ${approx}${formatInteger(budget.limit)} characters (${formatInteger(budget.used)} used): ${budget.effect}.`,
+    'The sizes above count the whole listing, so they are an upper bound.',
+  ];
+}
+
 export interface StartupRow {
   readonly position?: number;
   /**
@@ -373,6 +447,8 @@ export interface StartupRow {
    * when the listing passes them (Claude Code's 15,000).
    */
   readonly warnsPast?: number;
+  /** For `skills`: set when the listing passes the agent's listing budget, which shortens it. */
+  readonly overBudget?: ListingBudget;
   /** Set when the agent reaches the file through a symlink alias. */
   readonly realPath?: string;
   /** Import depth, 1 for a file imported by an instruction file. */
@@ -428,6 +504,18 @@ export interface SkipRow {
   readonly unverified: boolean;
 }
 
+/**
+ * A settings file the session reads (`LoadPlan.settings`), with how many of the inventory's
+ * items it declares for the agent: permission entries, hooks and env overrides.
+ */
+export interface SettingsRow {
+  readonly path: string;
+  readonly permissions: number;
+  readonly hooks: number;
+  readonly env: number;
+  readonly unverified: boolean;
+}
+
 export interface IncompleteRow {
   readonly subject: string;
   readonly reason: string;
@@ -459,6 +547,8 @@ export interface PlanView {
   /** What a call also starts with that no file shows, as phrases, in a fixed order. */
   readonly callsHidden: readonly string[];
   readonly skipped: readonly SkipRow[];
+  /** The settings files the session reads, with what each declares for the agent. */
+  readonly settings: readonly SettingsRow[];
   /** Files and items the agent does not read at all (`not-read`). */
   readonly notRead: readonly { readonly path: string; readonly name?: string }[];
   readonly incomplete: readonly IncompleteRow[];
@@ -467,8 +557,9 @@ export interface PlanView {
   /** True when any row is unverified, so the "?" needs its footnote. */
   readonly unverified: boolean;
   /**
-   * True when the agent loads nothing from the repository, skips nothing, and nothing was left
-   * unanalyzed or ignored: formatters show such a plan in one line. Files it does not read at
+   * True when the agent loads nothing from the repository (no file, listing, settings file, MCP
+   * server or hook), skips nothing, and nothing was left unanalyzed or ignored: formatters show
+   * such a plan in one line. Files it does not read at
    * all may be listed in `notRead`.
    */
   readonly empty: boolean;
@@ -874,8 +965,10 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       if (!listingShown && listing.length > 0) {
         listingShown = true;
         const position = listing.find((skill) => skill.position !== undefined)?.position;
+        const overBudget = listingOverBudget(plan);
         startup.push({
           ...(position === undefined ? {} : { position }),
+          ...(overBudget === undefined ? {} : { overBudget }),
           kind: 'skills',
           path: '',
           skills: listing.length,
@@ -978,7 +1071,7 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     skipped.push({
       path: entry.path,
       ...(entry.name === undefined ? {} : { name: entry.name }),
-      reason: SKIP_LABELS[entry.code],
+      reason: skipLabel(entry),
       ...(entry.ruleId === undefined ? {} : { ruleId: entry.ruleId }),
       ...(entry.fix === undefined ? {} : { fix: entry.fix }),
       unverified: entry.certainty === 'unverified',
@@ -1005,7 +1098,9 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
     notRead,
     incomplete: plan.incomplete.map(incompleteRow),
     ignored: plan.ignored ?? 0,
+    settings: settingsRows(plan, inventory),
     empty:
+      (plan.settings ?? []).length === 0 &&
       plan.entries.length === 0 &&
       skipped.length === 0 &&
       plan.incomplete.length === 0 &&
@@ -1015,8 +1110,49 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       services.some((row) => row.unverified) ||
       onDemand.some((row) => row.unverified) ||
       calls.some((row) => row.unverified) ||
-      skipped.some((row) => row.unverified),
+      skipped.some((row) => row.unverified) ||
+      (plan.settings ?? []).some((file) => file.certainty === 'unverified'),
   };
+}
+
+/** The plan's settings files, each with the inventory items it declares for the agent. */
+function settingsRows(plan: LoadPlan, inventory: Inventory | undefined): SettingsRow[] {
+  const platform = CONTEXT_PLATFORM[plan.agent];
+  const count = (
+    items: readonly {
+      readonly file: string;
+      readonly platforms: readonly string[];
+      readonly effective: boolean;
+    }[],
+    path: string,
+  ): number =>
+    items.filter(
+      (item) => item.file === path && item.effective && item.platforms.includes(platform),
+    ).length;
+  return (plan.settings ?? []).map((file) => ({
+    path: file.path,
+    permissions: count(inventory?.permissions ?? [], file.path),
+    hooks: count(inventory?.hooks ?? [], file.path),
+    env: count(inventory?.env ?? [], file.path),
+    unverified: file.certainty === 'unverified',
+  }));
+}
+
+/**
+ * What a settings file declares for the agent, in words: `4 permission entries, 1 hook`, or
+ * that it declares none of them.
+ */
+export function settingsText(row: SettingsRow): string {
+  const parts = [
+    row.permissions === 0
+      ? ''
+      : `${formatInteger(row.permissions)} permission ${row.permissions === 1 ? 'entry' : 'entries'}`,
+    row.hooks === 0 ? '' : `${formatInteger(row.hooks)} ${row.hooks === 1 ? 'hook' : 'hooks'}`,
+    row.env === 0
+      ? ''
+      : `${formatInteger(row.env)} env ${row.env === 1 ? 'override' : 'overrides'}`,
+  ].filter((part) => part !== '');
+  return parts.length === 0 ? 'no permissions, hooks or env overrides' : parts.join(', ');
 }
 
 /** Sizes added up as the plan's totals add them: the characters first, then the estimate. */

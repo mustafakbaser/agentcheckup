@@ -115,6 +115,27 @@ export interface FixRun {
    * last line of the dry run. Absent means none.
    */
   readonly judgment?: number | undefined;
+  /**
+   * True when the files on disk are still as they were before the fixes, as in a dry run:
+   * manual steps, found in the fixed copy, are shown at their line on disk, or as a line after
+   * the fixes when a fix wrote that line. Absent: at the line in `files` after the fixes.
+   */
+  readonly onDisk?: boolean | undefined;
+  /**
+   * After `--write`: the findings the scan from disk still has, by what would fix them, for the
+   * `Left:` line. `manual` then lists only findings without a fix.
+   */
+  readonly left?: LeftCounts | undefined;
+}
+
+/** Unsuppressed findings by what would fix them, as `FixCounts` in ./feedback.ts. */
+export interface LeftCounts {
+  readonly safe: number;
+  readonly review: number;
+  /** Findings whose fix needs the user's words. */
+  readonly input: number;
+  /** Findings without a fix. */
+  readonly manual: number;
 }
 
 export interface FixDiffOptions {
@@ -802,8 +823,45 @@ export function sortedEffects(effects: readonly FixEffect[]): FixEffect[] {
   return [...effects].sort((a, b) => rank(a) - rank(b) || compareStrings(key(a), key(b)));
 }
 
-function manualLine(step: ManualStep, context: Context): string {
-  return `${classLabel('manual', context.style)}${clean(step.ruleId, context)}  ${cleanPath(step.path, context)}:${step.line}  ${clean(step.guidance, context)}`;
+/**
+ * The line in `before` that line `line` of `after` was, or undefined when a change wrote it.
+ * Lines outside every change keep their text, so they map one to one.
+ */
+export function lineBeforeChange(before: string, after: string, line: number): number | undefined {
+  let delta = 0;
+  for (const hunk of diffHunks(before, after, { context: 0 })) {
+    if (hunk.newLines > 0) {
+      if (line >= hunk.newStart && line < hunk.newStart + hunk.newLines) return undefined;
+      if (hunk.newStart > line) break;
+    } else if (hunk.newStart >= line) {
+      // A deletion after line `newStart` of the new text.
+      break;
+    }
+    delta += hunk.oldLines - hunk.newLines;
+  }
+  return line + delta;
+}
+
+/**
+ * Where a manual step is, as `path:line`. With `run.onDisk`, the step's line is mapped back to
+ * the file on disk through the change to it: `CLAUDE.md:3`, a renamed file by its old path, and
+ * `CLAUDE.md, line 5 after the fixes above` for a line a fix wrote or a file a fix creates.
+ */
+function stepLocation(step: ManualStep, run: FixRun, context: Context): string {
+  const shown = (path: string, line: number): string => `${cleanPath(path, context)}:${line}`;
+  if (run.onDisk !== true) return shown(step.path, step.line);
+  const file = run.files.find((changed) => changed.path === step.path);
+  if (file === undefined) return shown(step.path, step.line);
+  const line =
+    file.op === 'create'
+      ? undefined
+      : lineBeforeChange(file.before.text, file.after.text, step.line);
+  if (line !== undefined) return shown(file.op === 'rename' ? file.from : file.path, line);
+  return `${cleanPath(step.path, context)}, line ${step.line} after the fixes above`;
+}
+
+function manualLine(step: ManualStep, run: FixRun, context: Context): string {
+  return `${classLabel('manual', context.style)}${clean(step.ruleId, context)}  ${stepLocation(step, run, context)}  ${clean(step.guidance, context)}`;
 }
 
 /** The command that asks for the words of the fixes awaiting input. */
@@ -883,7 +941,7 @@ export function formatFixDiff(run: FixRun, options: FixDiffOptions = {}): string
   if (lines.length > 0) lines.push('');
   if (!planned && run.fixes.length === 0 && inputs.length === 0) lines.push('Nothing to fix.');
   for (const entry of inputs) lines.push(inputLine(entry, context));
-  for (const step of run.manual) lines.push(manualLine(step, context));
+  for (const step of run.manual) lines.push(manualLine(step, run, context));
   if (planned) {
     const lead = run.mode === 'dry-run' ? 'Verified on an in-memory copy' : 'Re-scanned';
     const judgment = judgmentText(run.judgment, false);
@@ -933,6 +991,30 @@ function tokenTotals(fixes: readonly PlannedFix[]): TokenTotal[] {
 }
 
 /**
+ * `1 safe (agentcheckup fix --write) · 2 need review (agentcheckup fix --write --review or fix -i)
+ * · 1 needs your words (agentcheckup fix -i) · 1 manual`, or undefined when nothing is left.
+ */
+function leftText(left: LeftCounts, context: Context): string | undefined {
+  const { style, symbols } = context;
+  const verb = (n: number): string => (n === 1 ? 'needs' : 'need');
+  const parts: string[] = [];
+  if (left.safe > 0)
+    parts.push(`${style.green(`${formatInteger(left.safe)} safe`)} (agentcheckup fix --write)`);
+  if (left.review > 0) {
+    parts.push(
+      `${style.yellow(`${formatInteger(left.review)} ${verb(left.review)} review`)} (agentcheckup fix --write --review or fix -i)`,
+    );
+  }
+  if (left.input > 0) {
+    parts.push(
+      `${style.blue(`${formatInteger(left.input)} ${verb(left.input)} your words`)} (${INPUT_COMMAND})`,
+    );
+  }
+  if (left.manual > 0) parts.push(`${formatInteger(left.manual)} manual`);
+  return parts.length === 0 ? undefined : parts.join(` ${symbols.dot} `);
+}
+
+/**
  * The summary after `--write` or `-i`: what was applied and the re-scan, the effects per agent,
  * what was not applied and why, the fixes that need the user's words, the steps left to the user,
  * and where to review the changes. Warnings of applied fixes frame the summary.
@@ -972,8 +1054,10 @@ export function formatFixSummary(run: FixRun, options: FixDiffOptions = {}): str
   const inputs = run.awaitingInput ?? [];
   for (const entry of inputs) lines.push(inputLine(entry, context));
   lines.push(...inputCount(inputs));
+  const counts = run.left === undefined ? undefined : leftText(run.left, context);
+  if (counts !== undefined) lines.push(`Left: ${counts}`);
   run.manual.forEach((step, index) => {
-    const lead = index === 0 ? 'Left: ' : '      ';
+    const lead = counts !== undefined ? '  ' : index === 0 ? 'Left: ' : '      ';
     lines.push(
       `${lead}${cleanPath(step.path, context)}:${step.line} ${clean(step.ruleId, context)} (${clean(step.guidance, context)})`,
     );
