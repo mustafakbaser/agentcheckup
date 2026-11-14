@@ -336,6 +336,7 @@ async function scan(options: ScanCommandOptions, io: Io): Promise<ExitCode> {
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   });
   await checkOutput(options, io, directory, snapshot);
@@ -412,6 +413,7 @@ async function context(options: ContextCommandOptions, io: Io): Promise<ExitCode
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
@@ -486,6 +488,7 @@ async function tokens(options: TokensCommandOptions, io: Io): Promise<ExitCode> 
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   });
   checkListedDirectory(snapshot, options.cwd, options.path);
@@ -559,6 +562,7 @@ async function agents(options: AgentsCommandOptions, io: Io): Promise<ExitCode> 
   const snapshot = await walk(root, {
     respectGitignore: options.gitignore,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   });
   await checkOutput(options, io, directory, snapshot);

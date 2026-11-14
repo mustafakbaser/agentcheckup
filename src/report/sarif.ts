@@ -26,6 +26,7 @@
 import type { ScanResult } from '../core/engine.js';
 import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Fix, FixClass, Range, RuleMeta, Severity } from '../core/types.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { fixOf, INPUT_FIX_LABEL, needsWords } from './feedback.js';
 import { isNewRuleFinding, newRuleSet } from './gate.js';
 import { policySarif } from './policy-sarif.js';
@@ -463,6 +464,19 @@ function executionNotifications(
       locations: result.unresolvedSymlinks
         .slice(0, MAX_NOTIFICATION_LOCATIONS)
         .map((link) => ({ physicalLocation: physicalLocation(link.path) })),
+    });
+  }
+  // Where the walk stopped, and the agent configuration it left out on purpose. The skipped
+  // files are the notification above.
+  const coverage = coverageOf(result);
+  for (const message of coverageMessages(
+    { ...coverage, unlisted: [] },
+    { show: (path) => path },
+    { unread: false },
+  )) {
+    notifications.push({
+      level: message.level === 'warning' ? 'warning' : 'note',
+      message: { text: forSarifMessage(message.text) },
     });
   }
   return notifications;

@@ -616,8 +616,14 @@ agentcheckup is built to run on repositories you do not trust:
   names only, endpoint overrides are cut to their URL origin, and fix diffs show a committed
   token as `ghp_…(40 chars)`.
 - `--untrusted` ignores the repository's configuration file and inline suppressions, and the
-  repository's `.gitignore` cannot hide agent configuration from the scan. A pull request that
-  adds `.mcp.json` to `.gitignore` still has its `.mcp.json` checked.
+  repository's `.gitignore` cannot hide agent configuration from the scan, at any depth. A pull
+  request that adds `.mcp.json` to `.gitignore` still has its `.mcp.json` checked. It also
+  scans `vendor`, `dist`, `build`, `out`, `target` and `coverage`. Dependency and cache
+  directories such as `node_modules` and `.venv` are never scanned
+  ([the full list](docs/configuration.md#what-no-scan-reads)).
+- A scan never reads as clean when it could not see something: a file over 4 MiB, the entry
+  limit, gitignored or vendored agent configuration. Every format says so, and `--gate` and
+  `--policy` treat it as not analyzed and fail.
 - A `--baseline` file is read as untrusted input: size-limited, never through a symlink, and
   only with a supported schema version.
 
@@ -651,8 +657,10 @@ as described in [SECURITY.md](SECURITY.md).
 - **What is not analyzed is reported, never guessed:** a `.codex/config.toml` in UTF-16 or past
   the parser's limits, a Codex `.codex/rules/*.rules` file that is more than literal rule calls
   (agentcheckup never evaluates Starlark), Cline plugins, Cline rules in `.txt` or `.markdown`
-  files. A file a Codex `model_instructions_file` names is measured only when the scan read it
-  for another reason.
+  files, files over 4 MiB, a repository past 200,000 directory entries, and, without
+  `--untrusted`, gitignored agent configuration and agent configuration in build and vendor
+  directories. A file a Codex `model_instructions_file` names is measured only when the scan
+  read it for another reason.
 - **Words and tasks are checked, not judged.** agentcheckup checks that your answer in `fix -i`
   or an agent's change resolves the finding and breaks no rule, not that the text is right.
   Review what an agent changed as you would any diff.

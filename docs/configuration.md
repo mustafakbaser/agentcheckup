@@ -88,20 +88,43 @@ checks off.
 It also does not let the repository's `.gitignore` hide agent configuration. Agents load
 committed files whether or not `.gitignore` names them, so a change could otherwise commit a
 `.mcp.json` with `git add -f`, list it in `.gitignore` and keep it out of the scan. With
-`--untrusted`, agent configuration directories such as `.claude/`, `.cursor/` and `.github/` are
-listed, and agent files such as `CLAUDE.md` and `.mcp.json` are read, even where `.gitignore`
-excludes them.
+`--untrusted`, every directory is listed even where `.gitignore` excludes it, and agent files
+such as `CLAUDE.md`, `.mcp.json` and `packages/x/.claude/settings.json` are read wherever they
+are. Other ignored files stay unread.
 
-### Limitations
+It also scans the build output and vendored directories a trusted scan leaves out: `vendor`,
+`dist`, `build`, `out`, `target` and `coverage`. A repository can commit agent configuration
+there, and agents load it: a session started in `vendor/x` reads its `.claude/settings.json`
+and `.mcp.json`. Run an untrusted scan on a fresh checkout, where these directories hold only
+committed files; in a working copy with large build output, the scan can reach its limit of
+200,000 directory entries.
 
-These stay hidden with `--untrusted` when `.gitignore` excludes them:
+### What no scan reads
 
-- Directories that are not agent configuration directories, with everything below them. If
-  `.gitignore` excludes `packages/`, the scan does not see `packages/x/.claude/settings.json`.
-- Files that instruction files import. If `.gitignore` excludes `docs/`, the scan does not read
-  `docs/guide.md` for a `CLAUDE.md` that imports `@docs/guide.md`.
+- Dependency, cache and version control directories: `node_modules`, `bower_components`,
+  `.pnpm-store`, `.yarn`, `.venv`, `venv`, `__pycache__`, `.cache`, `.next`, `.nuxt`, `.turbo`,
+  `.mcpb-cache`, `.git`, `.hg`, `.svn` and `.claude/worktrees`, outside agent configuration
+  directories. Package managers and tools write them; an agent configuration file committed
+  there is not checked.
+- Files that instruction files import, where `.gitignore` excludes them. If `.gitignore` excludes
+  `docs/`, the scan does not read `docs/guide.md` for a `CLAUDE.md` that imports
+  `@docs/guide.md`. Add `--no-gitignore` to read them.
 
-To scan everything, add `--no-gitignore`.
+### What a scan could not check is reported
+
+A scan never reads as clean when it could not see something. Every format says so: stylish and
+Markdown output with a note, GitHub output with a warning or notice annotation, SARIF with a
+tool notification, JSON in `skipped`, `unscannedConfig` and `inventory.incomplete`, and the
+`context` and `tokens` views with a note under the plans. `--gate` and `--policy` treat it as not
+analyzed and fail closed ([Baselines and the gate](context.md#what-the-scan-could-not-analyze)):
+
+- **Limits.** Files over 4 MiB (the largest file an agent documents loading in full), files past
+  the 64 MiB the scan reads in all, binary and unreadable files, directories deeper than 32
+  levels, and everything after the first 200,000 directory entries.
+- **Left out on purpose.** Without `--untrusted`, agent configuration that `.gitignore` excludes
+  or that lies in a build output or vendored directory is counted, not read: "2 agent
+  configuration files are excluded by .gitignore; add --no-gitignore to check them". The count
+  lists at most 20,000 directory entries.
 
 ## Organization policy
 

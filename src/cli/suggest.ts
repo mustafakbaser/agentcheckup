@@ -98,6 +98,7 @@ export async function suggest(options: FixCommandOptions, io: Io): Promise<ExitC
   const snapshot = await walk(root, {
     respectGitignore: true,
     scanIgnoredAgentConfig: true,
+    scanBuildDirectories: true,
     parseCache,
   });
   await checkOutput(options, io, directory, snapshot);

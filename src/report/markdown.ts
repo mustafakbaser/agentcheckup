@@ -31,6 +31,7 @@ import {
   needsWords,
   skipFixLabel,
 } from './feedback.js';
+import { coverageMessages, coverageOf, hasUncheckedConfig } from './coverage.js';
 import { newRuleSet } from './gate.js';
 import {
   cappedRows,
@@ -77,8 +78,12 @@ const MAX_LISTED = 3;
 
 function heading(result: ScanResult): string {
   const { score, grade } = result.score;
-  if (score === null || grade === null)
-    return '## agentcheckup: no agent configuration files found';
+  if (score === null || grade === null) {
+    const coverage = coverageOf(result);
+    return hasUncheckedConfig(coverage) || coverage.stoppedAt !== undefined
+      ? '## agentcheckup: no agent configuration files checked'
+      : '## agentcheckup: no agent configuration files found';
+  }
   return `## agentcheckup: agent config score ${score}/100 (${grade})`;
 }
 
@@ -126,13 +131,21 @@ function listed(items: readonly string[]): string {
 
 function notices(result: ScanResult): string[] {
   const lines: string[] = [];
-  if (result.skipped.length > 0) {
+  // Where the walk stopped and the directories it could not list have lines of their own.
+  const skipped = result.skipped.filter(
+    (entry) => entry.reason !== 'file-limit' && !entry.path.endsWith('/'),
+  );
+  if (skipped.length > 0) {
     const reasons = breakdown(
-      result.skipped.map((entry) => entry.reason),
+      skipped.map((entry) => entry.reason),
       SKIP_REASON_LABELS,
     );
-    const paths = listed(result.skipped.map((entry) => text(entry.path, MAX_PATH_LENGTH)));
-    lines.push(`**Not checked:** ${plural(result.skipped.length, 'file')} (${reasons}): ${paths}`);
+    const paths = listed(skipped.map((entry) => text(entry.path, MAX_PATH_LENGTH)));
+    lines.push(`**Not checked:** ${plural(skipped.length, 'file')} (${reasons}): ${paths}`);
+  }
+  const show = (path: string): string => text(path, MAX_PATH_LENGTH);
+  for (const message of coverageMessages(coverageOf(result), { show }, { unread: false })) {
+    lines.push(`**Not checked:** ${message.text}`);
   }
   if (result.unresolvedSymlinks.length > 0) {
     const problems = breakdown(

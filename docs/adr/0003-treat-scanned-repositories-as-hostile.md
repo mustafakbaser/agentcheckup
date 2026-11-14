@@ -6,7 +6,9 @@
   fixes to a scanned repository
 - Amended by: [0015](0015-bound-parser-work-per-scan.md) (2026-10-30), which adds a scan-wide
   budget of Markdown parser work and bounds the YAML key check and JSON fixes, and corrects the
-  time and memory a crafted repository takes
+  time and memory a crafted repository takes; [0016](0016-report-what-a-scan-could-not-see.md)
+  (2026-11-14), which raises the per-file limit to 4 MiB and reports, and fails the gate on,
+  what a limit or an exclusion keeps from the scan
 
 ## Context
 

@@ -38,6 +38,7 @@ import {
   planIndex,
   whyText,
 } from './feedback.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { gateLocations, gateRows } from './gate.js';
 import { policyAnnotations } from './policy-github.js';
 import { forWorkflowCommand, forWorkflowProperty, NEWLINE_MARKER } from './sanitize.js';
@@ -209,8 +210,9 @@ function withOverflowNotice(lines: readonly string[]): readonly string[] {
  * change under review), each change that trips `--gate` gets an error annotation, and a baseline
  * from another ruleset gets a warning. With `--policy`, violations get annotations of their own
  * (policy-github.ts). The order: rule failures, gate hits and failing policy violations (the
- * errors that decide the run), the baseline's ruleset warning, the findings ranked by severity,
- * then the other policy annotations.
+ * errors that decide the run), the baseline's ruleset warning, what the scan did not check (a
+ * warning where a limit or an unread file may hide agent configuration, a notice for what it
+ * left out on purpose), the findings ranked by severity, then the other policy annotations.
  */
 export function formatGithub(result: ScanResult, options: GithubOptions = {}): string {
   const level = options.level ?? 'default';
@@ -236,6 +238,16 @@ export function formatGithub(result: ScanResult, options: GithubOptions = {}): s
         forWorkflowCommand(
           `The baseline was written with ruleset ${diff.against.ruleset}, so findings from rules it did not run count as new.`,
         ),
+      ),
+    );
+  }
+  // What the scan did not check, so that a run without annotations never reads as clean.
+  for (const message of coverageMessages(coverageOf(result), { show: (path) => path })) {
+    lines.push(
+      command(
+        message.level,
+        [['title', forWorkflowProperty('agentcheckup: not checked')]],
+        forWorkflowCommand(message.text),
       ),
     );
   }

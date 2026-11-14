@@ -7,6 +7,7 @@ import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
 import { AGENT_COLUMNS, AGENT_NAMES } from './context-view.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { cappedRows, escaped, omittedNote } from './markdown-common.js';
 import {
   anyUnverified,
@@ -111,6 +112,16 @@ export function formatTokensMarkdown(result: ScanResult): string {
     );
   }
 
+  const unchecked = coverageMessages(coverageOf(stripPathBase(result)), { show: path });
+  if (unchecked.length > 0) {
+    lines.push(
+      '',
+      ...unchecked.flatMap((message, index) => [
+        ...(index === 0 ? [] : ['']),
+        `**Not checked:** ${message.text}`,
+      ]),
+    );
+  }
   lines.push('', ...NOTES.map((note) => `_${note}_`), '', '_≈Tokens = characters ÷ 4._');
   if (anyUnverified(summary)) {
     lines.push('_? = unverified: neither documentation nor source code confirms it._');

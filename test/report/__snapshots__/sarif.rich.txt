@@ -306,6 +306,12 @@
                   }
                 }
               ]
+            },
+            {
+              "level": "warning",
+              "message": {
+                "text": "The scan stopped at its limit of directory entries before vendor/a/AGENTS.md, so agent configuration in the directories it had not listed was not checked."
+              }
             }
           ],
           "toolConfigurationNotifications": [

@@ -243,6 +243,11 @@ export interface ScanResult {
    */
   readonly configuredSeverities?: Readonly<Record<string, Severity>>;
   readonly skipped: readonly SkippedEntry[];
+  /**
+   * Agent configuration the walk left out on purpose (Snapshot.unscannedConfig), with sorted
+   * paths. Absent when there is none.
+   */
+  readonly unscannedConfig?: UnscannedConfigReport;
   readonly unresolvedSymlinks: readonly UnresolvedSymlink[];
   readonly ruleFailures: readonly RuleFailure[];
   readonly configWarnings: readonly string[];
@@ -267,6 +272,13 @@ export interface ScanResult {
    * never change the score, and no configuration or directive can suppress them.
    */
   readonly policy?: PolicyReport;
+}
+
+/** {@link ScanResult.unscannedConfig}: the snapshot's sets as sorted lists. */
+export interface UnscannedConfigReport {
+  readonly gitignored: readonly string[];
+  readonly excluded: readonly string[];
+  readonly complete: boolean;
 }
 
 /** A scan with load plans: what {@link scanWithContext} returns. */
@@ -784,6 +796,15 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
     rules: ranRules,
     ...(Object.keys(configuredSeverities).length > 0 ? { configuredSeverities } : {}),
     skipped: snapshot.skipped,
+    ...(snapshot.unscannedConfig === undefined
+      ? {}
+      : {
+          unscannedConfig: {
+            gitignored: [...snapshot.unscannedConfig.gitignored],
+            excluded: [...snapshot.unscannedConfig.excluded],
+            complete: snapshot.unscannedConfig.complete,
+          },
+        }),
     unresolvedSymlinks: snapshot.unresolvedSymlinks,
     ruleFailures,
     configWarnings,

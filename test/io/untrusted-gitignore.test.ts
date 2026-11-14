@@ -75,7 +75,7 @@ describe('walk: .gitignore and agent configuration in untrusted mode', () => {
     expect([...snapshot.opaqueDirectories]).toEqual(['.claude/']);
   });
 
-  it('keeps ordinary ignored files and directories hidden, and the hard excludes', async () => {
+  it('lists ignored directories but keeps their other files ignored, and the hard excludes', async () => {
     const root = await makeTempDir();
     await writeTree(root, {
       '.gitignore': 'secret/\n*.log\ndocs/private.md\nnode_modules/\n.claude/worktrees/\n',
@@ -91,28 +91,47 @@ describe('walk: .gitignore and agent configuration in untrusted mode', () => {
     const snapshot = await walk(root, UNTRUSTED);
 
     expect(filePaths(snapshot)).toEqual(['.claude/settings.json']);
-    expect([...snapshot.ignoredFiles]).toEqual(['debug.log', 'docs/private.md']);
-    expect([...snapshot.opaqueDirectories]).toEqual([
-      '.claude/worktrees/',
-      'node_modules/',
-      'secret/',
-    ]);
-    // Hard-excluded directories are listed but never entered, ignored or not.
-    expect([...(snapshot.gitignoredConfig ?? [])]).toEqual(['.claude/worktrees/']);
+    expect([...snapshot.ignoredFiles]).toEqual(['debug.log', 'docs/private.md', 'secret/notes.md']);
+    expect(snapshot.paths.has('secret/')).toBe(true);
+    // Hard-excluded directories are never entered, ignored or not.
+    expect([...snapshot.opaqueDirectories]).toEqual(['.claude/worktrees/', 'node_modules/']);
+    expect(snapshot.gitignoredConfig).toBeUndefined();
+    expect(snapshot.unscannedConfig).toBeUndefined();
   });
 
-  it('leaves ignored ordinary directories and import targets hidden (docs: Limitations)', async () => {
+  it('reads agent configuration below an ignored ordinary directory, not import targets', async () => {
     const root = await makeTempDir();
     await writeTree(root, {
       '.gitignore': 'packages/\ndocs/\n',
       'packages/x/.claude/settings.json': '{"permissions":{"allow":["Bash"]}}',
+      'packages/x/.mcp.json': '{"mcpServers":{}}',
+      'packages/x/src/index.ts': 'export {};',
       'CLAUDE.md': '@docs/guide.md\n',
       'docs/guide.md': 'Guide.\n',
     });
 
     const untrusted = await walk(root, UNTRUSTED);
-    expect(filePaths(untrusted)).toEqual(['CLAUDE.md']);
-    expect([...untrusted.opaqueDirectories]).toEqual(['docs/', 'packages/']);
+    expect(filePaths(untrusted)).toEqual([
+      'CLAUDE.md',
+      'packages/x/.claude/settings.json',
+      'packages/x/.mcp.json',
+    ]);
+    expect([...(untrusted.gitignoredConfig ?? [])]).toEqual([
+      'packages/x/.claude/',
+      'packages/x/.claude/settings.json',
+      'packages/x/.mcp.json',
+    ]);
+    expect([...untrusted.ignoredFiles]).toEqual(['docs/guide.md', 'packages/x/src/index.ts']);
+    expect([...untrusted.opaqueDirectories]).toEqual([]);
+
+    // A trusted walk leaves them out and counts them.
+    const trusted = await walk(root);
+    expect(filePaths(trusted)).toEqual(['CLAUDE.md']);
+    expect(trusted.unscannedConfig).toEqual({
+      gitignored: new Set(['packages/x/.claude/settings.json', 'packages/x/.mcp.json']),
+      excluded: new Set(),
+      complete: true,
+    });
 
     // --no-gitignore scans everything.
     const everything = await walk(root, { ...UNTRUSTED, respectGitignore: false });
@@ -120,6 +139,7 @@ describe('walk: .gitignore and agent configuration in untrusted mode', () => {
       'CLAUDE.md',
       'docs/guide.md',
       'packages/x/.claude/settings.json',
+      'packages/x/.mcp.json',
     ]);
   });
 

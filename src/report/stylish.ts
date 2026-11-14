@@ -36,6 +36,7 @@ import {
   tokensText,
   whyText,
 } from './feedback.js';
+import { coverageMessages, coverageOf, hasUncheckedConfig, missedByLimit } from './coverage.js';
 import {
   gateChangeCount,
   gateLocations,
@@ -412,18 +413,28 @@ function renderNotices(result: ScanResult, context: Context): string[] {
   const lines: string[] = [];
   const mark = style.yellow(symbols.notice);
 
-  if (result.skipped.length > 0) {
+  // Where the walk stopped and the directories it could not list have lines of their own.
+  const skipped = result.skipped.filter(
+    (entry) => entry.reason !== 'file-limit' && !entry.path.endsWith('/'),
+  );
+  if (skipped.length > 0) {
     const reasons = breakdown(
-      result.skipped.map((entry) => entry.reason),
+      skipped.map((entry) => entry.reason),
       SKIP_REASON_LABELS,
     );
     const paths = listWithOverflow(
-      result.skipped.map((entry) => clean(entry.path, context)),
+      skipped.map((entry) => clean(entry.path, context)),
       context,
     );
-    lines.push(
-      `${mark} ${plural(result.skipped.length, 'file')} not checked (${reasons}): ${paths}`,
-    );
+    lines.push(`${mark} ${plural(skipped.length, 'file')} not checked (${reasons}): ${paths}`);
+  }
+  const show = (path: string): string => clean(path, context);
+  for (const message of coverageMessages(
+    coverageOf(result),
+    { show, more: context.symbols.more },
+    { unread: false },
+  )) {
+    lines.push(`${message.level === 'warning' ? mark : style.blue(symbols.info)} ${message.text}`);
   }
 
   if (result.unresolvedSymlinks.length > 0) {
@@ -535,6 +546,10 @@ function countsLine(result: ScanResult, context: Context): string | undefined {
   if (total === 0) {
     if (result.score.score === null && suppressed === 0) return undefined;
     const files = plural(result.artifacts.length, 'file');
+    if (missedByLimit(coverageOf(result))) {
+      // A limit kept agent configuration from the scan: not a clean result.
+      return `${style.yellow(`${symbols.notice} No problems found in the ${files} checked`)}; some agent configuration was not checked (see above)${suppressedNote}`;
+    }
     const ok = symbols.ok === '' ? '' : `${symbols.ok} `;
     return `${style.green(`${ok}No problems found`)} (${files} checked)${suppressedNote}`;
   }
@@ -565,7 +580,13 @@ function categoriesLine(result: ScanResult, context: Context): string | undefine
 function scoreLine(result: ScanResult, context: Context): string {
   const { style, symbols } = context;
   const { score, grade, capped } = result.score;
-  if (score === null || grade === null) return 'No agent configuration files found.';
+  if (score === null || grade === null) {
+    // Agent configuration the scan found but did not read is listed above: not "none found".
+    const coverage = coverageOf(result);
+    return hasUncheckedConfig(coverage) || coverage.stoppedAt !== undefined
+      ? 'No agent configuration files were checked; see the notes above.'
+      : 'No agent configuration files found.';
+  }
   const cap = capped ? ` ${symbols.dot} ${style.red('capped by a risk finding')}` : '';
   return (
     `Agent config score ${style.bold(`${score}/100`)} (${paintGrade(grade, style)})` +

@@ -20,6 +20,7 @@ import { isUnpinned } from '../core/baseline.js';
 import { compareStrings } from '../core/compare.js';
 import { formatInteger } from '../core/format.js';
 import { COMMAND_SETTINGS } from '../inventory/env-class.js';
+import { type IncompleteEntry, parseIncomplete } from '../inventory/incomplete.js';
 import type {
   EnvItem,
   HookItem,
@@ -222,9 +223,6 @@ function rootId(id: string, file: string, base: string): string {
     : id;
 }
 
-/** Prefixes of inventory `incomplete` entries for files that do not parse. */
-const INVALID_PREFIXES = ['invalid-json:', 'invalid-toml:'] as const;
-
 // ---------------------------------------------------------------------------------------------
 // Collection
 // ---------------------------------------------------------------------------------------------
@@ -345,15 +343,16 @@ function collectAll(policy: Policy, subject: PolicySubject, baseline: boolean): 
 
   if (readsInventory(policy)) {
     for (const entry of inventory?.incomplete ?? []) {
-      const prefix = INVALID_PREFIXES.find((candidate) => entry.startsWith(candidate)) ?? '';
-      const path = entry.slice(prefix.length);
+      const parsed = parseIncomplete(entry);
+      const prefix = parsed.tag === undefined ? '' : `${parsed.tag}:`;
+      const { path } = parsed;
       const root = stripPath(path, base);
       out.push({
         id: `unanalyzed-config:${prefix}${root}`,
         check: 'unanalyzed-config',
         entry: `${prefix}${root}`,
         path,
-        message: unanalyzedMessage(prefix),
+        message: unanalyzedMessage(parsed),
       });
     }
   }
@@ -985,10 +984,24 @@ function settingTarget(setting: ModelSetting): string {
 // Unanalyzed configuration
 // ---------------------------------------------------------------------------------------------
 
-function unanalyzedMessage(prefix: string): string {
+function unanalyzedMessage(entry: IncompleteEntry): string {
   const tail = 'so what it configures cannot be checked against the policy.';
-  if (prefix === 'invalid-json:') return `This file is not valid JSON, ${tail}`;
-  if (prefix === 'invalid-toml:') return `This file is not valid TOML, ${tail}`;
+  switch (entry.tag) {
+    case 'invalid-json':
+      return `This file is not valid JSON, ${tail}`;
+    case 'invalid-toml':
+      return `This file is not valid TOML, ${tail}`;
+    case 'unread':
+      return `The scan did not read this file (too large or unreadable), ${tail}`;
+    case 'excluded':
+      return `The scan left this file out (gitignored or in build output), ${tail}`;
+    case 'unlisted':
+      return 'The scan could not list this directory (too deep or unreadable), so the agent configuration in it cannot be checked against the policy.';
+    case 'file-limit':
+      return 'The scan stopped at its entry limit here, so the agent configuration in the directories it did not list cannot be checked against the policy.';
+    case undefined:
+      break;
+  }
   return `agentcheckup cannot analyze this file, ${tail}`;
 }
 

@@ -27,6 +27,8 @@ import {
   type PlanView,
   type StartupRow,
 } from './context-view.js';
+import { stripPathBase } from '../core/rebase.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { INPUT_FIX_LABEL } from './feedback.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle, type Style } from './stylish.js';
@@ -727,6 +729,21 @@ export function formatContextText(result: ScanResult, options: ContextTextOption
       context.style.dim(`Paths are relative to ${cleanPath(view.pathBase, context)}`),
     ]);
   }
+  const unchecked = notChecked(result, context);
+  if (unchecked.length > 0) blocks.push(unchecked);
   blocks.push(footnotes(view.plans, context));
   return finish(blocks);
+}
+
+/**
+ * What the scan did not check, which no plan can show: where the walk stopped, directories it
+ * could not list, agent configuration it did not read or left out. Paths relative to the
+ * scanned directory, as the plans show them.
+ */
+function notChecked(result: ScanResult, context: Context): string[] {
+  const show = (path: string): string => cleanPath(path, context);
+  return coverageMessages(coverageOf(stripPathBase(result)), {
+    show,
+    more: context.symbols.more,
+  }).map((message) => `${message.level === 'warning' ? '!' : 'i'} ${message.text}`);
 }

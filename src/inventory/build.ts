@@ -125,6 +125,7 @@ import {
   type EnvClass,
   ignoredInRepositorySettings,
 } from './env-class.js';
+import { incompleteEntry } from './incomplete.js';
 import { packageSpec } from './package-spec.js';
 import { redactArgs, redactCommand, redactShown, urlOrigin } from './redact.js';
 import type {
@@ -351,7 +352,15 @@ class InventoryBuilder {
     // `.vscode/mcp.json` is read as JSONC, as VS Code reads it (src/core/engine.ts).
     const doc = this.#view.json(artifact);
     if (!doc.ok) {
-      this.#incomplete.add(`invalid-json:${artifact.path}`);
+      // A limit of agentcheckup's parser (too large, too deep) is not a syntax error: the
+      // agent's JSON.parse reads the file, so it is not analyzed rather than invalid.
+      const issue = doc.errors[0];
+      const kind = issue === undefined ? 'limit' : issueKind(issue);
+      this.#incomplete.add(
+        kind === 'limit' || kind === 'unsupported'
+          ? artifact.path
+          : incompleteEntry('invalid-json', artifact.path),
+      );
       return;
     }
     if (MCP_KINDS.has(artifact.kind)) this.#addServers(artifact, doc);
@@ -367,9 +376,11 @@ class InventoryBuilder {
   }
 
   /**
-   * Cline's hook files, and configuration files whose servers and hooks are not listed: the files
-   * in Cline's plugin folders (JavaScript modules in no documented format), a hook file the walk
-   * did not read, and inventory files the walk skipped (too large or unreadable).
+   * What the inventory could not read at all (src/inventory/incomplete.ts): the files in Cline's
+   * hook and plugin folders (scripts and JavaScript modules in no documented format), the agent
+   * configuration files the walk did not read (`unread:`, too large or unreadable) or left out
+   * on purpose (`excluded:`, gitignored or in build output), the directories it could not list
+   * (`unlisted:`), and where it stopped at its entry limit (`file-limit:`).
    */
   addUnparsedConfigs(): void {
     const { snapshot } = this.#view;
@@ -386,16 +397,19 @@ class InventoryBuilder {
       else this.#addClineHookFile(path, hook, file);
     }
     for (const entry of snapshot.skipped) {
-      const kind = classify(entry.path)?.kind;
-      if (
-        kind !== undefined &&
-        (JSON_KINDS.has(kind) ||
-          TOML_KINDS.has(kind) ||
-          FRONTMATTER_KINDS.has(kind) ||
-          kind === 'codex-rules')
-      ) {
-        this.#incomplete.add(entry.path);
+      const { path, reason } = entry;
+      if (reason === 'file-limit') {
+        this.#incomplete.add(incompleteEntry('file-limit', path));
+      } else if (path.endsWith('/')) {
+        // A directory that was not listed: too deep or unreadable.
+        this.#incomplete.add(incompleteEntry('unlisted', path));
+      } else if (reason !== 'import-limit' && classify(path) !== undefined) {
+        this.#incomplete.add(incompleteEntry('unread', path));
       }
+    }
+    const unscanned = snapshot.unscannedConfig;
+    for (const path of [...(unscanned?.gitignored ?? []), ...(unscanned?.excluded ?? [])]) {
+      this.#incomplete.add(incompleteEntry('excluded', path));
     }
   }
 
@@ -761,7 +775,7 @@ class InventoryBuilder {
       this.#incomplete.add(
         kind === 'limit' || kind === 'unsupported'
           ? artifact.path
-          : `invalid-toml:${artifact.path}`,
+          : incompleteEntry('invalid-toml', artifact.path),
       );
       return;
     }

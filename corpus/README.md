@@ -145,6 +145,9 @@ Differences from scanning a checkout, all deliberate:
   not known.
 - If GitHub cannot list a directory completely, the snapshot records a `file-limit` skip, so
   missing paths are "unknown" rather than "missing", as after a walk cut short by its limits.
+- The survey that counts agent configuration in build output and vendored directories
+  (`unscannedConfig`) is not replayed: `fetch.ts` does not download those trees. It changes no
+  finding, only the notes reports print and the inventory's `excluded:` entries.
 
 Cache layout, per repository: `.corpus-cache/<owner>__<name>@<sha>/` holds `tree.json` (the path
 list), `links.json` (symlink texts), `files/<path>` (blobs at their repository path), and

@@ -126,6 +126,7 @@ export async function fix(options: FixCommandOptions, io: Io): Promise<ExitCode>
   const walkOptions: WalkOptions = {
     respectGitignore: true,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   };
   const session: Session = {

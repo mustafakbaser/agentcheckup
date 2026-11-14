@@ -24,8 +24,8 @@ import type {
 } from '../../../src/core/types.js';
 import {
   defaultIsCandidate,
+  exclusionOf,
   isAgentConfigDirectory,
-  isHardExcludedDirectory,
   looksBinary,
 } from '../../../src/io/filters.js';
 import {
@@ -50,7 +50,7 @@ import {
 } from '../../../src/io/submodules.js';
 
 export interface WalkOptions {
-  /** Larger candidates are skipped as `too-large` and never read. Default 1 MiB. */
+  /** Larger candidates are skipped as `too-large` and never read. Default 4 MiB. */
   maxFileBytes?: number;
   /** Total candidate bytes read; candidates that no longer fit are `byte-limit`. Default 64 MiB. */
   maxTotalBytes?: number;
@@ -60,8 +60,13 @@ export interface WalkOptions {
   maxDepth?: number;
   /** Honor `.gitignore` files in the tree. Default true. */
   respectGitignore?: boolean;
-  /** List and read agent configuration that `.gitignore` matches. Default false. */
+  /**
+   * List directories and read candidates that `.gitignore` matches, other than hard-excluded
+   * directories. Default false.
+   */
   scanIgnoredAgentConfig?: boolean;
+  /** List build output and vendored directories (BUILD_DIRECTORIES). Default false. */
+  scanBuildDirectories?: boolean;
   /** Read imported files after the walk. Default true. */
   followImports?: boolean;
   /** Which files to read. Default: files that `classify()` recognizes. */
@@ -69,11 +74,14 @@ export interface WalkOptions {
 }
 
 export const DEFAULT_WALK_LIMITS = {
-  maxFileBytes: 1024 * 1024,
+  maxFileBytes: 4 * 1024 * 1024,
   maxTotalBytes: 64 * 1024 * 1024,
   maxEntries: 200_000,
   maxDepth: 32,
 } as const;
+
+/** Entries the survey of unlisted directories lists. */
+export const MAX_SURVEY_ENTRIES = 20_000;
 
 /** Thrown when the scan root itself is unusable: missing, not a directory, or unreadable. */
 export class WalkError extends Error {
@@ -103,6 +111,7 @@ export async function sequentialWalk(root: string, options: WalkOptions = {}): P
   const walker = new Walker(roots, settings);
   await walker.run();
   if (settings.followImports) await walker.readImports();
+  await walker.survey();
   return walker.snapshot();
 }
 
@@ -113,6 +122,7 @@ interface Settings {
   readonly maxDepth: number;
   readonly respectGitignore: boolean;
   readonly scanIgnoredAgentConfig: boolean;
+  readonly scanBuildDirectories: boolean;
   readonly followImports: boolean;
   readonly isCandidate: (relativePosixPath: string) => boolean;
 }
@@ -125,6 +135,7 @@ function resolveOptions(options: WalkOptions): Settings {
     maxDepth: limit('maxDepth', options.maxDepth, DEFAULT_WALK_LIMITS.maxDepth),
     respectGitignore: options.respectGitignore ?? true,
     scanIgnoredAgentConfig: options.scanIgnoredAgentConfig ?? false,
+    scanBuildDirectories: options.scanBuildDirectories ?? false,
     followImports: options.followImports ?? true,
     isCandidate: options.isCandidate ?? defaultIsCandidate,
   };
@@ -246,6 +257,16 @@ class Walker {
   readonly #opaqueDirectories = new Set<string>();
   readonly #ignoredFiles = new Set<string>();
   readonly #gitignoredConfig = new Set<string>();
+  readonly #unscannedGitignored = new Set<string>();
+  readonly #unscannedExcluded = new Set<string>();
+  /** Unlisted directories to survey, in walk order. */
+  readonly #surveyRoots: {
+    relativePath: string;
+    realPath: string;
+    depth: number;
+    why: 'gitignored' | 'excluded';
+  }[] = [];
+  #surveyComplete = true;
   /** Declared in the root `.gitmodules`. */
   readonly #submodules = new Set<string>();
   readonly #unresolved: UnresolvedSymlink[] = [];
@@ -314,6 +335,17 @@ class Walker {
       ...(this.#gitignoredConfig.size === 0
         ? {}
         : { gitignoredConfig: sortedSet(this.#gitignoredConfig) }),
+      ...(this.#unscannedGitignored.size === 0 &&
+      this.#unscannedExcluded.size === 0 &&
+      this.#surveyComplete
+        ? {}
+        : {
+            unscannedConfig: {
+              gitignored: sortedSet(this.#unscannedGitignored),
+              excluded: sortedSet(this.#unscannedExcluded),
+              complete: this.#surveyComplete,
+            },
+          }),
       gitignoreApplied: this.#settings.respectGitignore && !this.#gitignorePartial,
       unresolvedSymlinks: this.#unresolved.sort(byPath),
       skipped: this.#skipped.sort(
@@ -504,21 +536,23 @@ class Walker {
     // never looks below a symlink; here, paths below one are matched as if it were a directory.
     const gitignored = this.#isIgnored(ignore, location.relativePath, kind === 'directory');
     if (gitignored) {
-      // Untrusted mode: agent configuration directories are listed and candidates read anyway.
+      // Untrusted mode: directories are listed (unless hard-excluded) and candidates read anyway.
       const scanned =
         this.#settings.scanIgnoredAgentConfig &&
         (kind === 'directory'
-          ? isAgentConfigDirectory(location.relativePath)
+          ? exclusionOf(location.relativePath, this.#settings.scanBuildDirectories) === undefined
           : (kind === 'symlink' && isAgentConfigDirectory(location.relativePath)) ||
             this.#settings.isCandidate(location.relativePath));
       if (!scanned) {
-        this.#recordIgnored(location.relativePath, kind);
+        this.#recordIgnored(frame, location, kind);
         return;
       }
     }
     switch (kind) {
       case 'directory':
-        if (gitignored) this.#gitignoredConfig.add(`${location.relativePath}/`);
+        if (gitignored && isAgentConfigDirectory(location.relativePath)) {
+          this.#gitignoredConfig.add(`${location.relativePath}/`);
+        }
         this.#enterDirectory(frame, ignore, location);
         return;
       case 'file':
@@ -542,9 +576,61 @@ class Walker {
    * Ignored entries are not listed in `paths`, but they exist. A symlink's target is not looked at,
    * so it is recorded as an ignored file whose "contents", if it leads to a directory, are unknown.
    */
-  #recordIgnored(relativePath: string, kind: EntryKind): void {
-    if (kind !== 'directory') this.#ignoredFiles.add(relativePath);
+  #recordIgnored(frame: DirectoryFrame, location: Location, kind: EntryKind): void {
+    const { relativePath } = location;
+    if (kind !== 'directory') {
+      this.#ignoredFiles.add(relativePath);
+      if (!this.#settings.scanIgnoredAgentConfig && defaultIsCandidate(relativePath)) {
+        this.#unscannedGitignored.add(relativePath);
+      }
+    }
     if (kind === 'directory' || kind === 'symlink') this.#markOpaque(relativePath);
+    if (kind !== 'directory' || exclusionOf(relativePath) === 'always') return;
+    this.#surveyRoots.push({
+      relativePath,
+      realPath: location.realPath,
+      depth: frame.depth + 1,
+      why: this.#settings.scanIgnoredAgentConfig ? 'excluded' : 'gitignored',
+    });
+  }
+
+  /** The survey, one directory at a time (see walk.ts). */
+  async survey(): Promise<void> {
+    const queue = [...this.#surveyRoots];
+    let budget = MAX_SURVEY_ENTRIES;
+    for (const frame of queue) {
+      let entries: Dirent[];
+      try {
+        const directory = await opendir(frame.realPath);
+        entries = [];
+        for await (const entry of directory) entries.push(entry);
+      } catch {
+        continue;
+      }
+      for (const entry of entries.sort((a, b) => compareStrings(a.name, b.name))) {
+        if (budget === 0) {
+          this.#surveyComplete = false;
+          return;
+        }
+        budget -= 1;
+        const relativePath = joinRelative(frame.relativePath, entry.name);
+        if (entry.isDirectory()) {
+          if (frame.depth + 1 > this.#settings.maxDepth) this.#surveyComplete = false;
+          else if (exclusionOf(relativePath, true) !== 'always') {
+            queue.push({
+              relativePath,
+              realPath: path.join(frame.realPath, entry.name),
+              depth: frame.depth + 1,
+              why: frame.why,
+            });
+          }
+        } else if (defaultIsCandidate(relativePath)) {
+          (frame.why === 'gitignored' ? this.#unscannedGitignored : this.#unscannedExcluded).add(
+            relativePath,
+          );
+        }
+      }
+    }
   }
 
   #enterDirectory(
@@ -559,8 +645,17 @@ class Walker {
     // directory seen so far: `.claude/skills -> ../.agents/skills` must be walked even though
     // `.agents/skills` is walked too, because agents load the files under the link's path.
     // Duplicated subtrees are bounded by maxDepth and maxEntries.
-    if (isHardExcludedDirectory(relativePath) || isOnWalkPath(parent, realPath)) {
+    const exclusion = exclusionOf(relativePath, this.#settings.scanBuildDirectories);
+    if (exclusion !== undefined || isOnWalkPath(parent, realPath)) {
       this.#markOpaque(relativePath);
+      if (exclusion === 'build') {
+        this.#surveyRoots.push({
+          relativePath,
+          realPath,
+          depth: parent.depth + 1,
+          why: 'excluded',
+        });
+      }
       return;
     }
     const depth = parent.depth + 1;
@@ -621,7 +716,7 @@ class Walker {
     const { stats } = resolution;
     if (stats.isDirectory()) {
       if (gitignored && !isAgentConfigDirectory(link.relativePath)) {
-        this.#recordIgnored(link.relativePath, 'symlink');
+        this.#recordIgnored(frame, link, 'symlink');
         return;
       }
       if (gitignored) this.#gitignoredConfig.add(`${link.relativePath}/`);
@@ -634,7 +729,7 @@ class Walker {
       return;
     }
     if (gitignored && !this.#settings.isCandidate(link.relativePath)) {
-      this.#recordIgnored(link.relativePath, 'symlink');
+      this.#recordIgnored(frame, link, 'symlink');
       return;
     }
     if (gitignored) this.#gitignoredConfig.add(link.relativePath);

@@ -32,7 +32,7 @@ scanWithContext
 stripPathBase
 validateBaseline
 
-# Type-only exports (126)
+# Type-only exports (127)
 
 AGENT_NAMES
 ALL_CONTEXT_AGENTS
@@ -158,5 +158,6 @@ TOML_KINDS
 TRIGGER_RANK
 TextEdit
 UnresolvedSymlink
+UnscannedConfig
 UserConfig
 WalkOptions

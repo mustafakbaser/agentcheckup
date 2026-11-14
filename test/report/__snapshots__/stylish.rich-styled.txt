@@ -21,7 +21,8 @@
   <dim>2:1</dim>  <dim>⚠ warning</dim>  <dim>No risk/remote-script finding to suppress here.</dim>  <gray>directive/unused</gray>
                   <dim>suppressed by configuration: Generated file</dim>
 
-<yellow>!</yellow> 4 files not checked (too large: 1, binary: 1, file limit reached: 2): big/AGENTS.md, assets/CLAUDE.md, vendor/a/AGENTS.md, … and 1 more
+<yellow>!</yellow> 2 files not checked (too large: 1, binary: 1): big/AGENTS.md, assets/CLAUDE.md
+<yellow>!</yellow> The scan stopped at its limit of directory entries before vendor/a/AGENTS.md, so agent configuration in the directories it had not listed was not checked.
 <yellow>!</yellow> 2 symlinks not followed (points outside the scan root: 1, broken: 1): GEMINI.md → ../../shared/GEMINI.md, .github/copilot-instructions.md → missing.md
 <yellow>!</yellow> Unknown rule "instructions/typo-rule" in configuration.
 

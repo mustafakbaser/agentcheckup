@@ -112,7 +112,7 @@ describe('exec-policy rules in the inventory', () => {
     const inventory = buildInventory(
       analyze({ ...snapshot, skipped: [{ path: FILE, reason: 'too-large', size: 9_000_000 }] }, {}),
     );
-    expect(inventory.incomplete).toEqual([FILE]);
+    expect(inventory.incomplete).toEqual([`unread:${FILE}`]);
   });
 
   it('never shows a credential written into a rule', () => {
@@ -162,7 +162,7 @@ describe('the gate over exec-policy rules', () => {
       [
         'permissions',
         FILE,
-        `New permission config ${FILE} is not analyzed, so its permissions cannot be checked`,
+        `New config ${FILE} is not analyzed, so its permissions cannot be checked`,
       ],
     ]);
   });

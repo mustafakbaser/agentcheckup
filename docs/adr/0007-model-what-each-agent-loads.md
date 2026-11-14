@@ -7,7 +7,9 @@
   Copilot, Gemini CLI, Devin Local and Cline and parses `.codex/config.toml` with a full TOML
   parser, [0011](0011-organization-policy.md), which lets an organization policy fail a run
   on startup tokens, and [0012](0012-list-hooks-servers-and-permissions-declared-in-frontmatter.md),
-  which lists hooks, MCP servers and permissions declared in frontmatter
+  which lists hooks, MCP servers and permissions declared in frontmatter, and
+  [0016](0016-report-what-a-scan-could-not-see.md), under which the gate fails closed on what the
+  scan could not analyze
 
 ## Context
 

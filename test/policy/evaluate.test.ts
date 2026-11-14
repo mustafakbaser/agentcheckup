@@ -1249,6 +1249,42 @@ describe('unanalyzed-config', () => {
     ]);
   });
 
+  it('reports what the walk did not read or list, and where it stopped', () => {
+    const snapshot: Snapshot = {
+      ...snapshotFrom({ 'AGENTS.md': '# Agents\n' }, { paths: ['.git/'] }),
+      skipped: [
+        { path: '.claude/settings.json', reason: 'too-large', size: 5_000_000 },
+        { path: 'deep/x/', reason: 'depth-limit' },
+        { path: 'zz', reason: 'file-limit' },
+      ],
+    };
+    const current = scanWithContext(snapshot, { rules: builtinRules, matrix: true });
+    expect(brief(evaluate(policyOf({ forbid: ['broad-shell'] }), { current }))).toEqual([
+      // Sorted by path.
+      {
+        check: 'unanalyzed-config',
+        entry: 'unread:.claude/settings.json',
+        at: '.claude/settings.json:-',
+        message:
+          'The scan did not read this file (too large or unreadable), so what it configures cannot be checked against the policy.',
+      },
+      {
+        check: 'unanalyzed-config',
+        entry: 'unlisted:deep/x/',
+        at: 'deep/x/:-',
+        message:
+          'The scan could not list this directory (too deep or unreadable), so the agent configuration in it cannot be checked against the policy.',
+      },
+      {
+        check: 'unanalyzed-config',
+        entry: 'file-limit:zz',
+        at: 'zz:-',
+        message:
+          'The scan stopped at its entry limit here, so the agent configuration in the directories it did not list cannot be checked against the policy.',
+      },
+    ]);
+  });
+
   it('is not checked by a policy that reads no inventory', () => {
     expect(run({ budgets: { codex: { startupTokens: 100_000 } } }, files).violations).toEqual([]);
     expect(activeChecks(policyOf({ budgets: { codex: { startupTokens: 1 } } }))).toEqual([

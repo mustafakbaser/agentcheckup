@@ -11,6 +11,7 @@ import type { ScanResult } from '../core/engine.js';
 import { formatInteger } from '../core/format.js';
 import { stripPathBase } from '../core/rebase.js';
 import { AGENT_COLUMNS, AGENT_NAMES } from './context-view.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle, type Style } from './stylish.js';
 import { displayWidth, truncate } from './text.js';
@@ -216,6 +217,17 @@ export function formatTokensText(result: ScanResult, options: TokensTextOptions 
     }
   }
 
+  // What the scan did not check, which the counts above cannot include.
+  const unchecked = coverageMessages(coverageOf(stripPathBase(result)), {
+    show: (path) => clean(path, context, MAX_PATH_LENGTH),
+    more: context.more,
+  });
+  if (unchecked.length > 0) {
+    lines.push(
+      '',
+      ...unchecked.map((message) => `${message.level === 'warning' ? '!' : 'i'} ${message.text}`),
+    );
+  }
   lines.push(
     '',
     ...NOTES.map((note) => style.dim(note)),

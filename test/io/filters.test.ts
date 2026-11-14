@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AGENT_CONFIG_DIRECTORIES,
+  BUILD_DIRECTORIES,
   BINARY_SNIFF_BYTES,
   defaultIsCandidate,
+  exclusionOf,
   HARD_EXCLUDED_DIRECTORIES,
   isAgentConfigDirectory,
   isHardExcludedDirectory,
@@ -71,6 +73,26 @@ describe('isHardExcludedDirectory', () => {
     ]) {
       expect(isHardExcludedDirectory(relativePath)).toBe(true);
     }
+  });
+
+  it('tells build directories from dependency directories (exclusionOf)', () => {
+    for (const name of BUILD_DIRECTORIES) {
+      expect(HARD_EXCLUDED_DIRECTORIES).toContain(name);
+      expect(exclusionOf(name)).toBe('build');
+      expect(exclusionOf(`packages/app/${name}/sub`)).toBe('build');
+      // An untrusted walk lists them.
+      expect(exclusionOf(name, true)).toBeUndefined();
+    }
+    for (const relativePath of ['node_modules', '.git', '.venv', '.claude/worktrees']) {
+      expect(exclusionOf(relativePath)).toBe('always');
+      expect(exclusionOf(relativePath, true)).toBe('always');
+    }
+    // Dependency directories below a build directory stay unlisted; the first exclusion wins.
+    expect(exclusionOf('vendor/x/node_modules', true)).toBe('always');
+    expect(exclusionOf('node_modules/x/vendor', true)).toBe('always');
+    expect(exclusionOf('vendor/x/node_modules')).toBe('build');
+    expect(exclusionOf('src')).toBeUndefined();
+    expect(exclusionOf('.claude/skills/build')).toBeUndefined();
   });
 
   it('is the list walk.ts still exports', () => {

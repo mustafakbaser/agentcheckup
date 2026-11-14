@@ -125,7 +125,9 @@ export interface GateHit {
    * A setting that trips the gate whenever it is set or changed, whether or not it lets the agent
    * do more: `mode` for a permission mode (`permissions.defaultMode`, a subagent's
    * `permissionMode`), `agent` for the subagent every Claude Code session starts as, and
-   * `model-setting` for a repository setting that picks a model (class `models`).
+   * `model-setting` for a repository setting that picks a model (class `models`). And
+   * `not-analyzed` for an inventory `incomplete` entry (src/inventory/incomplete.ts), whose `id`
+   * it is: a file or a part of the tree the scan could not analyze, which fails closed.
    */
-  readonly kind?: 'mode' | 'agent' | 'model-setting';
+  readonly kind?: 'mode' | 'agent' | 'model-setting' | 'not-analyzed';
 }

@@ -48,6 +48,7 @@ export async function tasks(options: TasksCommandOptions, io: Io): Promise<ExitC
   const snapshot = await walk(root, {
     respectGitignore: true,
     scanIgnoredAgentConfig: options.untrusted,
+    scanBuildDirectories: options.untrusted,
     parseCache,
   });
   await checkOutput(options, io, directory, snapshot);

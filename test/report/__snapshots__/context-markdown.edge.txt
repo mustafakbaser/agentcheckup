@@ -39,6 +39,10 @@
 | big\.md | not analyzed\: the scan's Markdown budget ran out |
 | mystery\:thing | not analyzed |
 
+**Not checked:** The scan stopped at its limit of directory entries before vendor/a/AGENTS\.md, so agent configuration in the directories it had not listed was not checked.
+
+**Not checked:** 2 agent configuration files were not checked (too large: 1, binary: 1): big/AGENTS\.md, assets/CLAUDE\.md
+
 _≈Tokens = characters ÷ 4._
 
 _? = unverified: neither documentation nor source code confirms it._

@@ -65,6 +65,9 @@ async function mixedTree(): Promise<{ root: string; entries: number }> {
     'README.md': 'readme',
     'generated/AGENTS.md': 'ignored directory',
     'node_modules/pkg/AGENTS.md': 'excluded',
+    'vendor/pkg/AGENTS.md': 'vendored',
+    'vendor/pkg/node_modules/x/AGENTS.md': 'never surveyed',
+    'dist/.claude/settings.json': '{}',
     '.claude/skills/build/SKILL.md': 'agent config is never excluded',
     '.agents/skills/demo/SKILL.md': '---\nname: demo\n---\n',
     'binary/AGENTS.md': new Uint8Array([0x41, 0, 0x42]),
@@ -112,7 +115,22 @@ describe('walk() equals the sequential oracle', () => {
       '.cursor/rules/private/',
       '.cursor/rules/private/secret.mdc',
       'CLAUDE.local.md',
+      'generated/AGENTS.md',
     ]);
+    // A trusted walk counts what it leaves out; an untrusted one reads the build directories.
+    const trusted = await walk(root);
+    expect([...(trusted.unscannedConfig?.gitignored ?? [])]).toEqual([
+      '.cursor/rules/private/secret.mdc',
+      'CLAUDE.local.md',
+      'generated/AGENTS.md',
+    ]);
+    expect([...(trusted.unscannedConfig?.excluded ?? [])]).toEqual([
+      'dist/.claude/settings.json',
+      'vendor/pkg/AGENTS.md',
+    ]);
+    const all = await walk(root, { scanIgnoredAgentConfig: true, scanBuildDirectories: true });
+    expect(all.unscannedConfig).toBeUndefined();
+    expect(all.files.map((file) => file.path)).toContain('vendor/pkg/AGENTS.md');
   });
 
   it('on a tree with every feature, under every entry limit', { timeout: 60_000 }, async () => {
@@ -134,6 +152,11 @@ describe('walk() equals the sequential oracle', () => {
       await expectSameAsSequential(root, { respectGitignore: false });
       await expectSameAsSequential(root, { scanIgnoredAgentConfig: true });
       await expectSameAsSequential(root, { scanIgnoredAgentConfig: true, maxFileBytes: 100 });
+      await expectSameAsSequential(root, { scanBuildDirectories: true });
+      await expectSameAsSequential(root, {
+        scanIgnoredAgentConfig: true,
+        scanBuildDirectories: true,
+      });
       await expectSameAsSequential(root, { followImports: false });
       // A custom predicate turns read-ahead off: it is called once per file, at its turn.
       await expectSameAsSequential(root, { isCandidate: (p) => defaultIsCandidate(p) });

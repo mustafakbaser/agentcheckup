@@ -1518,16 +1518,68 @@ describe('incomplete', () => {
       '.cline/hooks/TaskStart',
       '.cline/plugins/guard.js',
       '.clinerules/hooks/PreToolUse',
-      '.cursor/mcp.json',
       '.devin/hooks.json',
       'invalid-json:.devin/mcp_config.json',
       'invalid-json:.mcp.json',
       'invalid-json:.vscode/mcp.json',
       'invalid-toml:.codex/config.toml',
       'services/api/.codex/config.toml',
+      // A directory the walk could not list, and a file it did not read; big.bin is no agent
+      // configuration.
+      'unlisted:vendor/',
+      'unread:.cursor/mcp.json',
     ]);
     expect(inventory.mcpServers).toEqual([]);
     expect(inventory.hooks).toEqual([]);
+  });
+
+  it('lists a hook file past the JSON parser limits as not analyzed, never as invalid', () => {
+    // Agents read these files with JSON.parse, which takes any depth.
+    const deep = (hooks: object): string =>
+      JSON.stringify({ hooks, x: JSON.parse(`${'['.repeat(513)}0${']'.repeat(513)}`) as unknown });
+    const hook = { SessionStart: [{ hooks: [{ type: 'command', command: 'sh x.sh' }] }] };
+    const inventory = inventoryOf({
+      '.claude/settings.json': deep(hook),
+      '.codex/hooks.json': deep(hook),
+      '.gemini/settings.json': deep(hook),
+      // A syntax error stays invalid.
+      '.cursor/mcp.json': '{ "mcpServers": ',
+    });
+    expect(inventory.incomplete).toEqual([
+      '.claude/settings.json',
+      '.codex/hooks.json',
+      '.gemini/settings.json',
+      'invalid-json:.cursor/mcp.json',
+    ]);
+  });
+
+  it('lists every agent file the walk did not read, where it stopped and what it left out', () => {
+    const snapshot: Snapshot = {
+      ...snapshotFrom({ 'AGENTS.md': '# Agents\n' }),
+      skipped: [
+        { path: 'CLAUDE.md', reason: 'too-large', size: 5_000_000 },
+        { path: 'big/AGENTS.md', reason: 'byte-limit', size: 2_000_000 },
+        // Not agent configuration: an import, a .gitignore and an ordinary file.
+        { path: 'docs/guide.md', reason: 'import-limit' },
+        { path: '.gitignore', reason: 'too-large', size: 300_000 },
+        { path: 'notes.bin', reason: 'binary' },
+        { path: 'zz/', reason: 'file-limit' },
+      ],
+      unscannedConfig: {
+        gitignored: new Set(['.claude/settings.local.json']),
+        excluded: new Set(['vendor/.mcp.json']),
+        complete: true,
+      },
+    };
+    expect(buildInventory(analyze(snapshot, {})).incomplete).toEqual([
+      'excluded:.claude/settings.local.json',
+      'excluded:vendor/.mcp.json',
+      'file-limit:zz/',
+      'unread:CLAUDE.md',
+      'unread:big/AGENTS.md',
+    ]);
+    // A clean walk leaves nothing incomplete.
+    expect(inventoryOf({ 'AGENTS.md': '# Agents\n' }).incomplete).toEqual([]);
   });
 });
 

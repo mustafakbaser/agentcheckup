@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { CLAUDE_MAX_FILE_BYTES } from '../../src/platforms/load/claude-code.js';
 import {
   DEFAULT_WALK_LIMITS,
   HARD_EXCLUDED_DIRECTORIES,
@@ -14,10 +15,12 @@ import {
   fifosSupported,
   filePaths,
   isWindows,
+  link,
   makeDirs,
   makeFifo,
   makeTempDir,
   removeTempDirs,
+  symlinksSupported,
   textOf,
   writeTree,
 } from './helpers.js';
@@ -219,17 +222,22 @@ describe('walk: hard exclusions', () => {
 });
 
 describe('walk: per-file limits and content checks', () => {
-  it('skips candidates over the default 1 MiB limit without reading them', async () => {
+  it('skips candidates over the default 4 MiB limit without reading them', async () => {
     const root = await makeTempDir();
     await writeTree(root, {
-      'AGENTS.md': new Uint8Array(MiB).fill(0x61),
-      'CLAUDE.md': new Uint8Array(MiB + 1).fill(0x61),
+      'AGENTS.md': new Uint8Array(4 * MiB).fill(0x61),
+      'CLAUDE.md': new Uint8Array(4 * MiB + 1).fill(0x61),
+      // Past the 1 MiB that read-ahead takes, read in turn.
+      'GEMINI.md': new Uint8Array(MiB + 1).fill(0x61),
     });
     const snapshot = await walk(root);
-    expect(filePaths(snapshot)).toEqual(['AGENTS.md']);
-    expect(snapshot.skipped).toEqual([{ path: 'CLAUDE.md', reason: 'too-large', size: MiB + 1 }]);
+    expect(filePaths(snapshot)).toEqual(['AGENTS.md', 'GEMINI.md']);
+    expect(snapshot.skipped).toEqual([
+      { path: 'CLAUDE.md', reason: 'too-large', size: 4 * MiB + 1 },
+    ]);
     expect(snapshot.paths.has('CLAUDE.md')).toBe(true);
-    expect(DEFAULT_WALK_LIMITS.maxFileBytes).toBe(MiB);
+    // The largest file an agent documents loading in full: Claude Code's CLAUDE.md limit.
+    expect(DEFAULT_WALK_LIMITS.maxFileBytes).toBe(CLAUDE_MAX_FILE_BYTES);
   });
 
   it('applies a custom maxFileBytes inclusively', async () => {
@@ -526,5 +534,103 @@ describe('walk: hostile and unusual file names', () => {
       expect(entry.replace(/\/$/, '').split('/')).not.toContain('..');
       expect(entry.startsWith('./')).toBe(false);
     }
+  });
+});
+
+describe('walk: build directories and what a trusted walk leaves out', () => {
+  const tree = {
+    'AGENTS.md': 'mine',
+    'vendor/.mcp.json': '{"mcpServers":{}}',
+    'vendor/lib/.claude/settings.json': '{}',
+    'vendor/lib/src/main.go': 'package lib',
+    'build/.claude/skills/x/SKILL.md': '---\nname: x\n---\n',
+    'dist/index.js': 'no agent configuration here',
+    // Dependency directories are never listed, below build directories too.
+    'node_modules/pkg/.mcp.json': '{}',
+    'vendor/lib/node_modules/pkg/AGENTS.md': 'never',
+  };
+
+  it('leaves build directories out of a trusted walk and counts their agent configuration', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, tree);
+    const snapshot = await walk(root);
+    expect(filePaths(snapshot)).toEqual(['AGENTS.md']);
+    expect(snapshot.unscannedConfig).toEqual({
+      gitignored: new Set(),
+      excluded: new Set([
+        'build/.claude/skills/x/SKILL.md',
+        'vendor/.mcp.json',
+        'vendor/lib/.claude/settings.json',
+      ]),
+      complete: true,
+    });
+    // The survey lists nothing into the snapshot: those directories stay opaque.
+    expect([...snapshot.opaqueDirectories]).toEqual([
+      'build/',
+      'dist/',
+      'node_modules/',
+      'vendor/',
+    ]);
+  });
+
+  it('lists build directories with scanBuildDirectories, never dependency directories', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, tree);
+    const snapshot = await walk(root, { scanBuildDirectories: true });
+    expect(filePaths(snapshot)).toEqual([
+      'AGENTS.md',
+      'build/.claude/skills/x/SKILL.md',
+      'vendor/.mcp.json',
+      'vendor/lib/.claude/settings.json',
+    ]);
+    expect(snapshot.unscannedConfig).toBeUndefined();
+    expect([...snapshot.opaqueDirectories]).toEqual(['node_modules/', 'vendor/lib/node_modules/']);
+  });
+
+  it('counts gitignored agent configuration, in ignored directories too', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, {
+      '.gitignore': '.claude/settings.local.json\npackages/\n*.log\n',
+      '.claude/settings.json': '{}',
+      '.claude/settings.local.json': '{}',
+      'packages/app/.mcp.json': '{}',
+      'packages/app/src/index.ts': 'export {};',
+      'debug.log': 'not agent configuration',
+    });
+    const trusted = await walk(root);
+    expect(filePaths(trusted)).toEqual(['.claude/settings.json']);
+    expect([...(trusted.unscannedConfig?.gitignored ?? [])]).toEqual([
+      '.claude/settings.local.json',
+      'packages/app/.mcp.json',
+    ]);
+    // Without .gitignore, or in untrusted mode, they are read and nothing is left out.
+    for (const options of [{ respectGitignore: false }, { scanIgnoredAgentConfig: true }]) {
+      const snapshot = await walk(root, options);
+      expect(filePaths(snapshot)).toEqual([
+        '.claude/settings.json',
+        '.claude/settings.local.json',
+        'packages/app/.mcp.json',
+      ]);
+      expect(snapshot.unscannedConfig).toBeUndefined();
+    }
+  });
+
+  it('says when the count is incomplete', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, { 'vendor/a/b/c/AGENTS.md': 'deep', 'vendor/AGENTS.md': 'shallow' });
+    const snapshot = await walk(root, { maxDepth: 2 });
+    expect(snapshot.unscannedConfig).toEqual({
+      gitignored: new Set(),
+      excluded: new Set(['vendor/AGENTS.md']),
+      complete: false,
+    });
+  });
+
+  it.skipIf(!symlinksSupported)('never follows a symlink in a survey', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, { 'shared/.mcp.json': '{}', 'vendor/README.md': 'x' });
+    await link(root, 'vendor/linked', '../shared');
+    const snapshot = await walk(root);
+    expect(snapshot.unscannedConfig).toBeUndefined();
   });
 });

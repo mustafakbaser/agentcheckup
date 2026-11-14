@@ -791,6 +791,15 @@ export function toJsonReport(result: ScanResult): ScanResult {
       reason: entry.reason,
       ...(entry.size === undefined ? {} : { size: entry.size }),
     })),
+    ...(result.unscannedConfig === undefined
+      ? {}
+      : {
+          unscannedConfig: {
+            gitignored: [...result.unscannedConfig.gitignored],
+            excluded: [...result.unscannedConfig.excluded],
+            complete: result.unscannedConfig.complete,
+          },
+        }),
     unresolvedSymlinks: result.unresolvedSymlinks.map((link) => ({
       path: link.path,
       target: link.target,

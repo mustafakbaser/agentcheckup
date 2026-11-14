@@ -194,6 +194,25 @@ export interface SkippedEntry {
  * Everything the engine knows about the scanned tree. Built by src/io, or in memory by tests,
  * a browser playground, or an editor extension.
  */
+/** Agent configuration a walk left out on purpose: see {@link Snapshot.unscannedConfig}. */
+export interface UnscannedConfig {
+  /**
+   * Matched by a `.gitignore` in a scan that honors it (not with `--untrusted`): ignored files,
+   * and files below ignored directories.
+   */
+  readonly gitignored: ReadonlySet<string>;
+  /**
+   * Below build output and vendored directories (`vendor/`, `dist/`, `build/`, ...), which only
+   * an untrusted scan lists.
+   */
+  readonly excluded: ReadonlySet<string>;
+  /**
+   * False when the survey of the unlisted directories stopped at its entry or depth limit, so
+   * there may be more.
+   */
+  readonly complete: boolean;
+}
+
 export interface Snapshot {
   /**
    * Candidate config files that were read, and the files they import that were read for them
@@ -221,6 +240,12 @@ export interface Snapshot {
    * `ignoredFiles`. Absent or empty when the walk let `.gitignore` hide them (trusted mode).
    */
   readonly gitignoredConfig?: ReadonlySet<string>;
+  /**
+   * Agent configuration files (paths the classifier recognizes) that the walk did not read
+   * because it left them out on purpose, so a report can say what it did not check. Absent when
+   * there are none.
+   */
+  readonly unscannedConfig?: UnscannedConfig;
   /**
    * True only when every `.gitignore` the walk encountered was fully applied. False with
    * `--no-gitignore`; when any `.gitignore` was not applied or only partly (too large, over a rule

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanResult } from '../../src/core/engine.js';
 import type { PolicyViolation } from '../../src/policy/types.js';
+import { coverageMessages, coverageOf } from '../../src/report/coverage.js';
 import { gateRows } from '../../src/report/gate.js';
 import { formatGithub } from '../../src/report/github.js';
 import { forTerminal } from '../../src/report/sanitize.js';
@@ -45,7 +46,8 @@ describe('formatGithub', () => {
       const output = formatGithub(result, { level });
       const expected =
         result.findings.filter((finding) => !finding.suppressed).length +
-        result.ruleFailures.length;
+        result.ruleFailures.length +
+        coverageMessages(coverageOf(result), { show: (path) => path }).length;
       expect(lines(output)).toHaveLength(expected);
       for (const line of lines(output)) {
         expect(line).toMatch(COMMAND_LINE);
@@ -84,7 +86,8 @@ describe('formatGithub', () => {
   });
 
   it('maps severities to error, warning and notice and positions to properties', () => {
-    const output = lines(formatGithub(richResult, { level: 'compact' }));
+    // After the rule failure and the two lines on what the scan did not check.
+    const output = lines(formatGithub(richResult, { level: 'compact' })).slice(2);
     expect(output[1]).toMatch(/^::error file=AGENTS\.md,line=12,col=3,endLine=12,endColumn=9,/);
     expect(output[3]).toBe(
       '::warning file=.cursor/rules/style.mdc,line=2,col=1,endLine=2,endColumn=18,title=cursor/conflicting-activation (fix%3A safe)::`alwaysApply: true` overrides `globs`, so the rule loads in every chat.',
@@ -127,7 +130,10 @@ describe('formatGithub with a baseline', () => {
     );
     const rows = gateRows(result.baseline!);
     expect(fresh.length).toBeGreaterThan(0);
-    expect(output).toHaveLength(fresh.length + rows.length + result.ruleFailures.length);
+    const unchecked = coverageMessages(coverageOf(result), { show: (path) => path });
+    expect(output).toHaveLength(
+      fresh.length + rows.length + result.ruleFailures.length + unchecked.length,
+    );
     for (const line of output) {
       expect(line).toMatch(COMMAND_LINE);
       expect(unsafeCodePoints(line, { tab: true })).toEqual([]);

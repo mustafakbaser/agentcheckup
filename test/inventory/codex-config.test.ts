@@ -228,7 +228,7 @@ describe('.codex/config.toml in the inventory', () => {
     const inventory = buildInventory(
       analyze({ ...snapshot, skipped: [{ path: FILE, reason: 'too-large', size: 9_000_000 }] }, {}),
     );
-    expect(inventory.incomplete).toEqual([FILE]);
+    expect(inventory.incomplete).toEqual([`unread:${FILE}`]);
   });
 });
 

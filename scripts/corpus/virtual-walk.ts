@@ -16,6 +16,8 @@
  *
  * Deliberate differences, documented in corpus/README.md:
  * - `.gitignore` is not applied (`ignoredFiles` stays empty): every listed file is committed.
+ * - The survey of build output and vendored directories (`unscannedConfig`) is not replayed:
+ *   fetch.ts prunes those trees, so the cache does not have them. It changes no finding.
  * - Absolute symlink targets are outside the root: the checkout location is not known.
  * - Binary sniffing and reading `.gitmodules` need bytes and happen in snapshot.ts.
  */

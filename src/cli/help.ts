@@ -101,8 +101,11 @@ Options
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration.
-                           Use for pull requests from forks and third-party code.
+                           do not let its .gitignore hide agent configuration. Also
+                           scans vendor, dist, build, out, target and coverage;
+                           dependency and cache directories such as node_modules and
+                           .venv are never scanned. Use for pull requests from forks
+                           and third-party code.
       --no-gitignore       Also scan files excluded by .gitignore
       --show-suppressed    Include suppressed findings in stylish output
       --color, --no-color  Force or disable color (NO_COLOR and FORCE_COLOR are honored)
@@ -154,8 +157,9 @@ Options
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration.
-                           Dry run only: cannot be combined with --write or -i
+                           do not let its .gitignore hide agent configuration (see
+                           agentcheckup --help). Dry run only: cannot be combined with
+                           --write or -i
       --color, --no-color  Force or disable color
   -h, --help               Show this help
 
@@ -192,8 +196,9 @@ Options
       --max <n>            List at most n tasks, 1 to ${MAX_TASKS}. Default: ${DEFAULT_MAX_TASKS}
   -o, --output <file>      Write the tasks to a file instead of stdout
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration. Adds a
-                           banner: review the prompt before you give it to an agent
+                           do not let its .gitignore hide agent configuration (see
+                           agentcheckup --help). Adds a banner: review the prompt
+                           before you give it to an agent
       --check [ids...]     Check instead of listing: exit 0 when none of the given
                            tasks, or no task at all, is open. Takes no other option,
                            so it never writes a file. Ids look like ac-7f3c91d2
@@ -238,7 +243,8 @@ Options
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration
+                           do not let its .gitignore hide agent configuration (see
+                           agentcheckup --help)
       --no-gitignore       Also read files excluded by .gitignore
       --color, --no-color  Force or disable color
   -h, --help               Show this help
@@ -284,7 +290,8 @@ Options
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration
+                           do not let its .gitignore hide agent configuration (see
+                           agentcheckup --help)
       --no-gitignore       Also read files excluded by .gitignore
       --color, --no-color  Force or disable color
   -h, --help               Show this help
@@ -330,7 +337,8 @@ Options
   -c, --config <file>      Use this config file instead of ./${CONFIG_FILE_NAME}
       --no-config          Ignore config files
       --untrusted          Ignore the repository's config and inline suppressions, and
-                           do not let its .gitignore hide agent configuration
+                           do not let its .gitignore hide agent configuration (see
+                           agentcheckup --help)
       --no-gitignore       Also read files excluded by .gitignore
       --color, --no-color  Force or disable color
   -h, --help               Show this help

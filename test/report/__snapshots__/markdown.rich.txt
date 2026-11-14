@@ -13,7 +13,9 @@
 >
 > - `mcp/unknown-server-field`: Cannot read properties of undefined \(reading 'type'\)
 
-**Not checked:** 4 files (too large: 1, binary: 1, file limit reached: 2): big/AGENTS\.md, assets/CLAUDE\.md, vendor/a/AGENTS\.md, and 1 more
+**Not checked:** 2 files (too large: 1, binary: 1): big/AGENTS\.md, assets/CLAUDE\.md
+
+**Not checked:** The scan stopped at its limit of directory entries before vendor/a/AGENTS\.md, so agent configuration in the directories it had not listed was not checked.
 
 **Not followed:** 2 symlinks (points outside the scan root: 1, broken: 1): GEMINI\.md, \.github/copilot\-instructions\.md
 

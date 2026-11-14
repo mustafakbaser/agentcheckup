@@ -12,6 +12,7 @@
 import type { BaselineDiff, GateClass, GateHit } from '../core/baseline-types.js';
 import type { ScanResult } from '../core/engine.js';
 import type { Finding } from '../core/types.js';
+import { coversTree, parseIncomplete } from '../inventory/incomplete.js';
 import { toJsonBaseline } from './json.js';
 import { plural } from './text.js';
 
@@ -32,6 +33,7 @@ const SETTING_LABELS: Readonly<
   mode: { added: 'Permission mode set', changed: 'Permission mode changed' },
   agent: { added: 'Session agent set', changed: 'Session agent changed' },
   'model-setting': { added: 'Model setting set', changed: 'Model setting changed' },
+  'not-analyzed': { added: 'Not analyzed', changed: 'Not analyzed' },
 };
 
 export interface GateRow {
@@ -47,8 +49,10 @@ export interface GateRow {
 export function gateRows(diff: BaselineDiff): GateRow[] {
   const groups = new Map<string, GateHit[]>();
   for (const hit of toJsonBaseline(diff).gate.hits) {
-    // A unicode hit's id is a fingerprint; never merge it with an inventory item.
-    const key = `${hit.class === 'unicode' ? 'finding' : 'item'}\n${hit.id}`;
+    // A unicode hit's id is a fingerprint; never merge it with an inventory item. One that a
+    // file or directory the scan could not analyze trips has that entry as its id.
+    const finding = hit.class === 'unicode' && hit.kind !== 'not-analyzed';
+    const key = `${finding ? 'finding' : 'item'}\n${hit.id}`;
     const group = groups.get(key);
     if (group) group.push(hit);
     else groups.set(key, [hit]);
@@ -60,7 +64,10 @@ export function gateRows(diff: BaselineDiff): GateRow[] {
       hit.kind === undefined
         ? CHANGE_LABELS[hit.class][hit.change]
         : SETTING_LABELS[hit.kind][hit.change];
-    const unpinned = hit.class === 'mcp' && group.some((other) => other.class === 'mcp-unpinned');
+    const unpinned =
+      hit.kind !== 'not-analyzed' &&
+      hit.class === 'mcp' &&
+      group.some((other) => other.class === 'mcp-unpinned');
     return [{ hit, label: unpinned ? `${label}, not pinned` : label, emphasis: unpinned }];
   });
 }
@@ -113,7 +120,14 @@ export function gateLocations(result: ScanResult): (hit: GateHit) => GateLocatio
   ]) {
     if (!items.has(item.id)) items.set(item.id, { file: item.file, line: item.line });
   }
+  const base = result.pathBase ?? '';
   return (hit) => {
+    if (hit.kind === 'not-analyzed') {
+      // A file the scan did not analyze, at its first line; a part of the tree has no place.
+      const entry = parseIncomplete(hit.id);
+      if (coversTree(entry)) return undefined;
+      return { file: base === '' ? entry.path : `${base}/${entry.path}`, line: 1 };
+    }
     if (hit.class !== 'unicode') return items.get(hit.id);
     const finding = result.findings.find((candidate) => candidate.fingerprint === hit.id);
     return finding === undefined

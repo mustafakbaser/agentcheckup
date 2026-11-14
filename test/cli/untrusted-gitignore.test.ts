@@ -55,3 +55,35 @@ it('scans gitignored agent configuration with --untrusted only', async () => {
     'mcp:.mcp.json#browser',
   ]);
 });
+
+it('scans below ignored directories and in build directories with --untrusted', async () => {
+  const server = '{"mcpServers":{"browser":{"command":"npx","args":["-y","@acme/browser-mcp"]}}}';
+  await mkdir(join(work, 'packages', 'app'), { recursive: true });
+  await mkdir(join(work, 'vendor', 'lib'), { recursive: true });
+  await mkdir(join(work, 'node_modules', 'pkg'), { recursive: true });
+  await writeFile(join(work, '.gitignore'), 'packages/\n');
+  await writeFile(join(work, 'packages', 'app', '.mcp.json'), server);
+  await writeFile(join(work, 'vendor', 'lib', '.mcp.json'), server);
+  // Dependency directories stay out, as README and --help say.
+  await writeFile(join(work, 'node_modules', 'pkg', '.mcp.json'), server);
+
+  const trusted = (await scanJson([])) as unknown as {
+    readonly unscannedConfig: unknown;
+    readonly inventory: { readonly incomplete: readonly string[] };
+  };
+  expect(trusted.unscannedConfig).toEqual({
+    gitignored: ['packages/app/.mcp.json'],
+    excluded: ['vendor/lib/.mcp.json'],
+    complete: true,
+  });
+  expect(trusted.inventory.incomplete).toEqual([
+    'excluded:packages/app/.mcp.json',
+    'excluded:vendor/lib/.mcp.json',
+  ]);
+
+  const untrusted = await scanJson(['--untrusted']);
+  expect(untrusted.inventory.mcpServers.map((item) => item.id)).toEqual([
+    'mcp:packages/app/.mcp.json#browser',
+    'mcp:vendor/lib/.mcp.json#browser',
+  ]);
+});

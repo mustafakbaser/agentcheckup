@@ -74,6 +74,17 @@ const FIXTURES: readonly [string, ScanResult][] = [
   ['rich', richResult],
   ['hostile', hostileResult],
   ['context', contextResult],
+  [
+    'unscanned',
+    {
+      ...richResult,
+      unscannedConfig: {
+        gitignored: ['.claude/settings.local.json'],
+        excluded: ['vendor/.mcp.json'],
+        complete: false,
+      },
+    },
+  ],
 ];
 
 function expectValid(value: unknown): void {

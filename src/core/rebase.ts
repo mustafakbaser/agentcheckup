@@ -2,6 +2,7 @@ import type { BaselineDiff, ItemDiff } from './baseline-types.js';
 import type { ScanResult } from './engine.js';
 import type { FileChange, Fix } from './types.js';
 import type { AgentDefinition, AgentsReport } from '../agents/types.js';
+import { INCOMPLETE_TAGS as INVENTORY_INCOMPLETE_TAGS } from '../inventory/incomplete.js';
 import type { Inventory } from '../inventory/types.js';
 import type { ContextReport, LoadPlan, OwnContext } from '../platforms/load/types.js';
 import type { PolicyReport } from '../policy/types.js';
@@ -15,7 +16,7 @@ import type { PolicyReport } from '../policy/types.js';
  * where they ran the command. The CLI therefore rebases onto the working directory when
  * scanning a subdirectory; otherwise alerts would land on the wrong files.
  *
- * Rebased: finding, artifact, skipped and symlink paths; the paths a finding's fix changes
+ * Rebased: finding, artifact, skipped, unscanned and symlink paths; the paths a finding's fix changes
  * (`path`, `from` and `to`, in alternatives too); load-plan working directories, entry, skip
  * and out-of-scope paths, import chains, matrix rows and limit subjects; inventory files; the
  * files of agent definitions and model settings, of the definition that shadows one, and of the
@@ -58,8 +59,16 @@ export function stripPathBase(result: ScanResult): ScanResult {
 
 type PathMap = (path: string) => string;
 
-/** Tags of `incomplete` entries written as `<tag>:<path>`. Anything else is a plain path. */
-const INCOMPLETE_TAGS = ['markdown-budget', 'unparsed', 'unread', 'invalid-json'] as const;
+/**
+ * Tags of `incomplete` entries written as `<tag>:<path>`, in plans and in the inventory
+ * (src/inventory/incomplete.ts). Anything else is a plain path.
+ */
+const INCOMPLETE_TAGS = [
+  'markdown-budget',
+  'unparsed',
+  'fallback',
+  ...INVENTORY_INCOMPLETE_TAGS,
+] as const;
 
 /**
  * `<kind>:<path>…` with the path mapped. Adding or removing a directory prefix only touches the
@@ -257,6 +266,15 @@ function mapPaths(result: ScanResult, map: PathMap): ScanResult {
       })),
     },
     skipped: result.skipped.map((entry) => ({ ...entry, path: map(entry.path) })),
+    ...(result.unscannedConfig === undefined
+      ? {}
+      : {
+          unscannedConfig: {
+            ...result.unscannedConfig,
+            gitignored: result.unscannedConfig.gitignored.map(map),
+            excluded: result.unscannedConfig.excluded.map(map),
+          },
+        }),
     unresolvedSymlinks: result.unresolvedSymlinks.map((entry) => ({
       ...entry,
       path: map(entry.path),

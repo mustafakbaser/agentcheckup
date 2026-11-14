@@ -782,6 +782,13 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. An item is changed w
   definition or setting a later version writes with a value this one does not know is left out.
   A baseline made before agentcheckup listed them has none, so the first comparison shows every
   one as added, and `--gate models` trips for them.
+- **What the scan could not analyze.** Since agentcheckup reports what it could not see as
+  `unread:`, `unlisted:`, `file-limit:` and `excluded:` entries, a baseline made before then
+  differs in four ways. A file it skipped as too large and listed by its path matches its
+  `unread:` entry. An instruction file it skipped trips `unicode` once. A hook or settings file
+  past the JSON parser's limits was `invalid-json:` and is now not analyzed, so it trips `hooks`
+  once. Files of 1 to 4 MiB are now read, so their items and findings show as new once. Create
+  the baseline again to compare entry by entry.
 - **Agents the baseline did not plan.** Plans are compared only for agents both reports plan,
   so the session-start line leaves out an agent the baseline has no plan for. A baseline made
   before agentcheckup read the MCP and hook files of Copilot and Devin Local, such as
@@ -870,6 +877,32 @@ the [permission rule syntax](https://code.claude.com/docs/en/permissions) still 
 Each gate hit has a one-line summary for the pull request. Endpoint values are shown as their
 URL origin; credential values are never shown. Text output ends each line with the file and line
 that declare the change, as Markdown and GitHub annotations show them.
+
+### What the scan could not analyze
+
+A change the scan cannot see cannot pass the gate. The inventory lists what it could not
+analyze in `incomplete`, and each entry trips the gate as "Not analyzed" (JSON `kind`
+`not-analyzed`):
+
+| Entry                 | What                                                                                                                                                            | Trips                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `file-limit:<path>`   | The walk stopped at its limit of 200,000 directory entries before `<path>`: anything in a directory it had not listed is unknown                                | Every class, whatever the baseline says, because the change may have added anything there                                                                    |
+| `unlisted:<dir>/`     | A directory the walk could not list: deeper than 32 levels, or unreadable                                                                                       | Every class, whatever the baseline says                                                                                                                      |
+| `unread:<path>`       | An agent configuration file the walk did not read: over 4 MiB, past the 64 MiB the scan reads, binary or unreadable                                             | When new: `unicode`, and the classes the file declares: `mcp` and `hooks` as for an invalid file, `permissions` and `env` for settings files and frontmatter |
+| `excluded:<path>`     | Without `--untrusted`: agent configuration that `.gitignore` excludes, or in `vendor`, `dist`, `build`, `out`, `target` or `coverage`                           | When new, as `unread:`                                                                                                                                       |
+| `<path>`              | A file agentcheckup read but could not analyze: past a parser limit (JSON nested deeper than 512 levels or longer than 2 MiB), or in a format it does not model | When new: `mcp` and `hooks` for the files that declare them                                                                                                  |
+| `invalid-json:<path>` | A file that is not valid JSON. Claude Code, Codex and Gemini CLI run no hook from such a file                                                                   | When new: `mcp`, and `hooks` except for the files those three agents skip                                                                                    |
+| `invalid-toml:<path>` | A `.codex/config.toml` that is not valid TOML                                                                                                                   | When new: `mcp` and `hooks`                                                                                                                                  |
+
+A parser limit is never a syntax error: agents read such a file with `JSON.parse`, which has no
+depth limit, so a settings file nested 513 levels deep is not analyzed rather than invalid, and
+its hooks trip `hooks`.
+
+The scan reads files of up to 4 MiB, the largest that an agent documents loading in full
+(Claude Code's limit for `CLAUDE.md`), and at most 64 MiB in all. Run the gate on a fresh
+checkout: there, gitignored, build and vendor directories hold only committed files, so
+`--untrusted` scans them quickly. Dependency and cache directories such as `node_modules` are
+never scanned ([the list](configuration.md#what-no-scan-reads)).
 
 ### Items declared in frontmatter
 

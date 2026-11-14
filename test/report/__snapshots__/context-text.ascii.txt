@@ -89,5 +89,9 @@ partial    loaded, but cut by a limit
 skipped    not loaded; the plan says why
 -          not read by this agent
 
+! The scan stopped at its limit of directory entries before vendor/a/AGENTS.md, so agent configuration in the directories it had not listed was not checked.
+! 2 agent configuration files were not checked (too large: 1, binary: 1): big/AGENTS.md, assets/CLAUDE.md
+! 1 configuration file could not be analyzed (past a parser limit or in a format agentcheckup does not read), so its MCP servers, hooks and permissions are not listed: .codex/config.toml
+
 ~tokens = characters / 4
 ? = unverified: neither documentation nor source code confirms it

@@ -23,6 +23,12 @@ import type {
   PermissionItem,
 } from '../inventory/types.js';
 import { classify } from '../platforms/classify.js';
+import {
+  coversTree,
+  type IncompleteEntry,
+  isUnreadFile,
+  parseIncomplete,
+} from '../inventory/incomplete.js';
 import { REDACTED } from '../inventory/redact.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import { hookSourceOf } from '../platforms/hooks.js';
@@ -551,11 +557,33 @@ function gateHits(
     if (isUnpinned(server)) hit('mcp-unpinned', id, change, unpinnedSummary(server, change));
   }
   for (const entry of after.incomplete) {
-    if (before.incomplete.has(entry)) continue;
-    if (isMcpConfig(entry)) hit('mcp', entry, 'added', incompleteSummary(entry, 'MCP'));
-    if (isHookConfig(entry)) hit('hooks', entry, 'added', incompleteSummary(entry, 'hooks'));
-    if (isPermissionConfig(entry)) {
-      hit('permissions', entry, 'added', incompleteSummary(entry, 'permission'));
+    const parsed = parseIncomplete(entry);
+    if (coversTree(parsed)) {
+      // Anything may be below a directory the walk did not list, then and now: whatever the
+      // baseline says, the change cannot be checked, so every class fails closed.
+      for (const gate of GATE_CLASSES) {
+        hit(gate, entry, 'added', treeSummary(parsed), NOT_ANALYZED);
+      }
+      continue;
+    }
+    if (before.incomplete.has(entry) || wasUnanalyzed(before, parsed)) continue;
+    if (isMcpConfig(parsed))
+      hit('mcp', entry, 'added', incompleteSummary(parsed, 'servers'), NOT_ANALYZED);
+    if (isHookConfig(parsed))
+      hit('hooks', entry, 'added', incompleteSummary(parsed, 'hooks'), NOT_ANALYZED);
+    if (isPermissionConfig(parsed)) {
+      hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
+    }
+    if (isUnreadFile(parsed)) {
+      const kind = classify(parsed.path)?.kind;
+      if (kind !== undefined && SETTINGS_KINDS.has(kind)) {
+        hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
+        hit('env', entry, 'added', incompleteSummary(parsed, 'env overrides'), NOT_ANALYZED);
+      } else if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) {
+        hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
+      }
+      // Nothing of the file was read, so hidden Unicode in it was not looked for either.
+      hit('unicode', entry, 'added', incompleteSummary(parsed, 'text'), NOT_ANALYZED);
     }
   }
 
@@ -915,20 +943,41 @@ function isAssignment(word: string): boolean {
   return equals > 0 && !word.startsWith('-');
 }
 
-/** Prefixes of inventory `incomplete` entries for files that do not parse. */
-const INVALID_PREFIXES = ['invalid-json:', 'invalid-toml:'] as const;
+/** The kind of every gate hit for an inventory `incomplete` entry. */
+const NOT_ANALYZED = 'not-analyzed';
 
-/** An `incomplete` entry split into its path and the format it is not valid in, if any. */
-function incompletePath(entry: string): { readonly path: string; readonly invalid?: string } {
-  for (const prefix of INVALID_PREFIXES) {
-    if (entry.startsWith(prefix)) {
-      return {
-        path: entry.slice(prefix.length),
-        invalid: prefix === 'invalid-json:' ? 'JSON' : 'TOML',
-      };
-    }
-  }
-  return { path: entry };
+/** The format an `invalid-json:` or `invalid-toml:` entry's file is not valid in. */
+function invalidFormat(entry: IncompleteEntry): 'JSON' | 'TOML' | undefined {
+  if (entry.tag === 'invalid-json') return 'JSON';
+  if (entry.tag === 'invalid-toml') return 'TOML';
+  return undefined;
+}
+
+/**
+ * Whether the baseline already listed the file of an `unread:` entry as not analyzed. Reports
+ * before `unread:` existed listed a configuration file the walk skipped by its plain path.
+ */
+function wasUnanalyzed(before: IndexedInventory, entry: IncompleteEntry): boolean {
+  return entry.tag === 'unread' && before.incomplete.has(entry.path);
+}
+
+/**
+ * Settings files whose permissions and env overrides the inventory lists
+ * (`permissions.allow`, `env`, Codex's `approval_policy`, Gemini CLI's `trust`).
+ */
+const SETTINGS_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  'claude-settings',
+  'codex-config',
+  'gemini-settings',
+  'copilot-settings',
+]);
+
+/** The gate summary of an entry that covers part of the tree ({@link coversTree}). */
+function treeSummary(entry: IncompleteEntry): string {
+  const where = text(entry.path);
+  return entry.tag === 'file-limit'
+    ? `The scan stopped at its entry limit before ${where}, so agent configuration in the directories it did not list cannot be checked`
+    : `Directory ${where} could not be listed (too deep or unreadable), so agent configuration in it cannot be checked`;
 }
 
 /**
@@ -936,8 +985,8 @@ function incompletePath(entry: string): { readonly path: string; readonly invali
  * src/platforms/mcp.ts reads (`.codex/config.toml` among them), any `mcp.json`, and a Claude Code
  * subagent or Copilot custom agent, whose frontmatter can declare servers.
  */
-function isMcpConfig(entry: string): boolean {
-  const { path } = incompletePath(entry);
+function isMcpConfig(entry: IncompleteEntry): boolean {
+  const { path } = entry;
   if (path === 'mcp.json' || path.endsWith('/mcp.json')) return true;
   const kind = classify(path)?.kind;
   return (
@@ -980,8 +1029,9 @@ const INERT_WHEN_INVALID: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
  * and plugin folders, which have no documented format, and a skill, command or subagent whose
  * frontmatter could not be read.
  */
-function isHookConfig(entry: string): boolean {
-  const { path, invalid } = incompletePath(entry);
+function isHookConfig(entry: IncompleteEntry): boolean {
+  const { path } = entry;
+  const invalid = invalidFormat(entry);
   const kind = classify(path)?.kind;
   if (
     kind === 'codex-config' ||
@@ -1005,17 +1055,30 @@ function isHookConfig(entry: string): boolean {
  * `.codex/config.toml` past a parser limit or in UTF-16. A `.codex/config.toml` that is not valid
  * TOML is not one: Codex does not start in a trusted project with such a file.
  */
-function isPermissionConfig(entry: string): boolean {
-  const { path, invalid } = incompletePath(entry);
-  const kind = classify(path)?.kind;
-  return kind === 'codex-rules' || (kind === 'codex-config' && invalid === undefined);
+function isPermissionConfig(entry: IncompleteEntry): boolean {
+  const kind = classify(entry.path)?.kind;
+  return kind === 'codex-rules' || (kind === 'codex-config' && invalidFormat(entry) === undefined);
 }
 
-function incompleteSummary(entry: string, what: 'MCP' | 'hooks' | 'permission'): string {
-  const { path, invalid } = incompletePath(entry);
-  const items = what === 'MCP' ? 'servers' : what === 'hooks' ? 'hooks' : 'permissions';
-  const reason = invalid === undefined ? 'is not analyzed' : `is not valid ${invalid}`;
-  return `New ${what} config ${text(path)} ${reason}, so its ${items} cannot be checked`;
+/** What an entry's file may hold that the gate cannot check. */
+type Unchecked = 'servers' | 'hooks' | 'permissions' | 'env overrides' | 'text';
+
+function incompleteSummary(entry: IncompleteEntry, items: Unchecked): string {
+  const { path } = entry;
+  const invalid = invalidFormat(entry);
+  const reason =
+    invalid !== undefined
+      ? `is not valid ${invalid}`
+      : entry.tag === 'unread'
+        ? 'was not read'
+        : entry.tag === 'excluded'
+          ? 'was left out of the scan'
+          : 'is not analyzed';
+  if (items === 'text') {
+    return `New agent configuration file ${text(path)} ${reason}, so hidden Unicode in it cannot be checked`;
+  }
+  const what = items === 'servers' ? 'MCP config' : items === 'hooks' ? 'hooks config' : 'config';
+  return `New ${what} ${text(path)} ${reason}, so its ${items} cannot be checked`;
 }
 
 // Permissions ------------------------------------------------------------------------------------

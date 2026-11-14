@@ -83,6 +83,28 @@
       "type": "array",
       "items": { "$ref": "#/$defs/skippedEntry" }
     },
+    "unscannedConfig": {
+      "description": "Agent configuration files the scan left out on purpose, so it did not check them. Absent when there are none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gitignored", "excluded", "complete"],
+      "properties": {
+        "gitignored": {
+          "description": "Matched by a `.gitignore`, in a scan that honors it: add `--no-gitignore` or `--untrusted` to check them. Sorted.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "excluded": {
+          "description": "In build output and vendored directories (`vendor`, `dist`, `build`, `out`, `target`, `coverage`), which only `--untrusted` scans. Sorted.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "complete": {
+          "description": "False when the count stopped at its limit of 20,000 directory entries, so there may be more.",
+          "type": "boolean"
+        }
+      }
+    },
     "unresolvedSymlinks": {
       "description": "Symlinks that were not followed.",
       "type": "array",
@@ -1583,7 +1605,7 @@
           "items": { "$ref": "#/$defs/envItem" }
         },
         "incomplete": {
-          "description": "Config files that could not be analyzed, so items may be missing.",
+          "description": "What the inventory could not analyze, so items may be missing. A plain path: a configuration file past a parser limit or in a format agentcheckup does not model. `invalid-json:<path>`, `invalid-toml:<path>`: a file that does not parse. `unread:<path>`: an agent configuration file the scan did not read (too large, past the byte budget, binary, unreadable). `excluded:<path>`: one the scan left out on purpose (gitignored, or in build output or vendored code, without `--untrusted`). `unlisted:<dir>/`: a directory the scan could not list (too deep, unreadable). `file-limit:<path>`: the scan stopped at its entry limit before this path, so every directory it had not listed is unknown.",
           "type": "array",
           "items": { "type": "string" }
         }
@@ -1822,8 +1844,8 @@
           "type": "string"
         },
         "kind": {
-          "description": "A setting that trips the gate whenever it is set or changed: `mode` for a permission mode, `agent` for the subagent every Claude Code session starts as, `model-setting` for a repository setting that picks a model.",
-          "enum": ["mode", "agent", "model-setting"]
+          "description": "A setting that trips the gate whenever it is set or changed: `mode` for a permission mode, `agent` for the subagent every Claude Code session starts as, `model-setting` for a repository setting that picks a model. `not-analyzed` for an `inventory.incomplete` entry, which is the hit's `id`: a file or a part of the tree the scan could not analyze, so the change cannot be checked.",
+          "enum": ["mode", "agent", "model-setting", "not-analyzed"]
         }
       }
     },

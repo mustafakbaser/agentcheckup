@@ -7,15 +7,20 @@ import { mayBeClineHookFile } from '../platforms/cline-hooks.js';
 import { TEXT_EXTENSIONS } from '../platforms/load/imports.js';
 
 /**
- * Directories the walker never lists. An entry without `/` matches a directory name at any depth,
- * except below agent configuration (see isHardExcludedDirectory); an entry with `/` matches a
- * path ending in it.
+ * Directories a trusted scan never lists. An entry without `/` matches a directory name at any
+ * depth, except below agent configuration (see isHardExcludedDirectory); an entry with `/`
+ * matches a path ending in it.
  *
  * They hold version control internals, dependencies, virtualenvs, caches and build output.
  * Vendored and generated copies of agent configs (a package's own AGENTS.md or SKILL.md under
  * node_modules, a whole checkout under .claude/worktrees) would bury the user's own files in
  * findings they cannot act on, and linting build output is pointless. The directory itself still
  * appears in `paths` and in `opaqueDirectories`; nothing below it is listed.
+ *
+ * Two groups: {@link BUILD_DIRECTORIES}, which a repository commits often enough (`vendor/` in Go
+ * and PHP, `dist/` in GitHub Actions) that an untrusted scan lists them
+ * (WalkOptions.scanBuildDirectories), and the rest, dependency and cache directories that no scan
+ * lists (see {@link isHardExcludedDirectory}).
  */
 export const HARD_EXCLUDED_DIRECTORIES: readonly string[] = [
   '.git',
@@ -40,6 +45,23 @@ export const HARD_EXCLUDED_DIRECTORIES: readonly string[] = [
   '.yarn',
   '.mcpb-cache',
   '.claude/worktrees',
+];
+
+/**
+ * The build output and vendored code among {@link HARD_EXCLUDED_DIRECTORIES}. A trusted scan
+ * leaves them out and counts the agent configuration in them (Snapshot.unscannedConfig); an
+ * untrusted scan lists them like any other directory, because a repository can commit agent
+ * configuration there and agents load it from there: a session started in `vendor/x` reads its
+ * `.claude/settings.json` and `.mcp.json`, and Claude Code finds the skills of a nested
+ * `.claude/skills` when it works on files below it.
+ */
+export const BUILD_DIRECTORIES: readonly string[] = [
+  'vendor',
+  'dist',
+  'build',
+  'out',
+  'target',
+  'coverage',
 ];
 
 /**
@@ -68,6 +90,7 @@ const EXCLUDED_NAMES: ReadonlySet<string> = new Set(
 const EXCLUDED_SUFFIXES: readonly string[] = HARD_EXCLUDED_DIRECTORIES.filter((entry) =>
   entry.includes('/'),
 );
+const BUILD_NAMES: ReadonlySet<string> = new Set(BUILD_DIRECTORIES);
 const AGENT_CONFIG_NAMES: ReadonlySet<string> = new Set(AGENT_CONFIG_DIRECTORIES);
 
 /**
@@ -76,37 +99,52 @@ const AGENT_CONFIG_NAMES: ReadonlySet<string> = new Set(AGENT_CONFIG_DIRECTORIES
  */
 const ALWAYS_EXCLUDED_NAMES: ReadonlySet<string> = new Set(['.git']);
 
+/** Which group of {@link HARD_EXCLUDED_DIRECTORIES} leaves a directory out. */
+export type ExclusionGroup = 'always' | 'build';
+
 /**
- * Whether the walker never lists the directory at `relativePath` (root-relative POSIX; a trailing
- * slash is allowed), because it or one of its ancestors is hard-excluded. Read top-down:
+ * The group of the exclusion that leaves the directory at `relativePath` (root-relative POSIX; a
+ * trailing slash is allowed) unlisted, or undefined when the walker lists it. Read top-down:
  * - an entry of HARD_EXCLUDED_DIRECTORIES matching a directory name, unless an agent-config
  *   directory (AGENT_CONFIG_DIRECTORIES) is above it: `.claude/skills/build/` is listed, while
  *   `node_modules/x/.claude/` is not, because `node_modules` comes first;
  * - `.git` and multi-segment entries (`.claude/worktrees`), everywhere.
- * Names match exactly (case-sensitive).
+ * With `scanBuildDirectories`, {@link BUILD_DIRECTORIES} names exclude nothing, while dependency
+ * and cache directories below them still do. Names match exactly (case-sensitive).
  */
-export function isHardExcludedDirectory(relativePath: string): boolean {
+export function exclusionOf(
+  relativePath: string,
+  scanBuildDirectories = false,
+): ExclusionGroup | undefined {
   const directory = relativePath.endsWith('/') ? relativePath.slice(0, -1) : relativePath;
   let prefix = '';
   let belowAgentConfig = false;
   for (const name of directory.split('/')) {
     prefix = prefix === '' ? name : `${prefix}/${name}`;
     if (EXCLUDED_SUFFIXES.some((suffix) => prefix === suffix || prefix.endsWith(`/${suffix}`))) {
-      return true;
+      return 'always';
     }
     if (EXCLUDED_NAMES.has(name) && (!belowAgentConfig || ALWAYS_EXCLUDED_NAMES.has(name))) {
-      return true;
+      if (!BUILD_NAMES.has(name)) return 'always';
+      if (!scanBuildDirectories) return 'build';
     }
     if (AGENT_CONFIG_NAMES.has(name)) belowAgentConfig = true;
   }
-  return false;
+  return undefined;
+}
+
+/**
+ * Whether a trusted walk never lists the directory at `relativePath`, because it or one of its
+ * ancestors is hard-excluded ({@link exclusionOf}).
+ */
+export function isHardExcludedDirectory(relativePath: string): boolean {
+  return exclusionOf(relativePath) !== undefined;
 }
 
 /**
  * Whether the directory at `relativePath` (root-relative POSIX; a trailing slash is allowed) is
  * an agent configuration directory or lies below one: one of its names is in
- * AGENT_CONFIG_DIRECTORIES. In untrusted mode the walker lists these even when a `.gitignore`
- * matches them (see WalkOptions.scanIgnoredAgentConfig). Names match exactly (case-sensitive).
+ * AGENT_CONFIG_DIRECTORIES. Names match exactly (case-sensitive).
  */
 export function isAgentConfigDirectory(relativePath: string): boolean {
   const directory = relativePath.endsWith('/') ? relativePath.slice(0, -1) : relativePath;

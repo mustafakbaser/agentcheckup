@@ -567,6 +567,7 @@ describe('gate: mcp and mcp-unpinned', () => {
         class: 'hooks',
         id: '.github/hooks/*.json',
         change: 'added',
+        kind: 'not-analyzed',
         summary:
           'New hooks config .github/hooks/*.json is not analyzed, so its hooks cannot be checked',
       },
@@ -574,6 +575,7 @@ describe('gate: mcp and mcp-unpinned', () => {
         class: 'mcp',
         id: '.vscode/mcp.json',
         change: 'added',
+        kind: 'not-analyzed',
         summary:
           'New MCP config .vscode/mcp.json is not analyzed, so its servers cannot be checked',
       },
@@ -581,6 +583,7 @@ describe('gate: mcp and mcp-unpinned', () => {
         class: 'mcp',
         id: 'invalid-json:.cursor/mcp.json',
         change: 'added',
+        kind: 'not-analyzed',
         summary:
           'New MCP config .cursor/mcp.json is not valid JSON, so its servers cannot be checked',
       },
@@ -613,6 +616,7 @@ describe('gate: mcp and mcp-unpinned', () => {
         class: 'hooks',
         id: 'invalid-toml:.codex/config.toml',
         change: 'added',
+        kind: 'not-analyzed',
         summary:
           'New hooks config .codex/config.toml is not valid TOML, so its hooks cannot be checked',
       },
@@ -620,6 +624,7 @@ describe('gate: mcp and mcp-unpinned', () => {
         class: 'mcp',
         id: 'invalid-toml:.codex/config.toml',
         change: 'added',
+        kind: 'not-analyzed',
         summary:
           'New MCP config .codex/config.toml is not valid TOML, so its servers cannot be checked',
       },
@@ -2441,6 +2446,8 @@ const reportArb = fc
       'invalid-json:.mcp.json',
       '.codex/config.toml',
       '.github/hooks/*.json',
+      'unread:CLAUDE.md',
+      'excluded:vendor/.mcp.json',
     ]),
     plans: fc.array(planArb, { maxLength: 3 }),
     pathBase: fc.option(fc.constantFrom('', '.', 'packages/api', 'packages/api/'), {
@@ -2506,7 +2513,7 @@ describe('properties', () => {
           const known =
             changed.has(hit.id) ||
             (hit.class === 'unicode' && fresh.has(hit.id)) ||
-            ((hit.class === 'mcp' || hit.class === 'hooks' || hit.class === 'permissions') &&
+            (hit.kind === 'not-analyzed' &&
               hit.change === 'added' &&
               after.inventory?.incomplete.includes(hit.id));
           expect(known).toBe(true);
@@ -2515,5 +2522,77 @@ describe('properties', () => {
       }),
       { numRuns: RUNS },
     );
+  });
+});
+
+describe('gate: what the scan could not analyze', () => {
+  it('fails every class closed where the walk stopped or could not list a directory', () => {
+    for (const entry of ['file-limit:a/99999', 'unlisted:deep/x/']) {
+      // In the baseline too: nothing tells whether the change added something there.
+      const both = report({ inventory: { incomplete: [entry] } });
+      const found = hits(both, both);
+      expect(found.map((hit) => hit.class)).toEqual([...GATE_CLASSES].sort());
+      for (const hit of found) {
+        expect(hit).toMatchObject({ id: entry, change: 'added', kind: 'not-analyzed' });
+      }
+      expect(hits(both, both, ['unicode']).map((hit) => hit.class)).toEqual(['unicode']);
+    }
+    const stopped = report({ inventory: { incomplete: ['file-limit:a/99999'] } });
+    expect(hits(report(), stopped)[0]?.summary).toBe(
+      'The scan stopped at its entry limit before a/99999, so agent configuration in the directories it did not list cannot be checked',
+    );
+  });
+
+  it('fails unicode closed for a new agent file the scan did not read', () => {
+    const after = report({ inventory: { incomplete: ['unread:CLAUDE.md'] } });
+    expect(hits(report(), after)).toEqual([
+      {
+        class: 'unicode',
+        id: 'unread:CLAUDE.md',
+        change: 'added',
+        kind: 'not-analyzed',
+        summary:
+          'New agent configuration file CLAUDE.md was not read, so hidden Unicode in it cannot be checked',
+      },
+    ]);
+    // Not new: the same file was not read in the baseline either.
+    expect(hits(after, after)).toEqual([]);
+  });
+
+  it('fails every class a settings file declares closed when it was not read', () => {
+    const after = report({ inventory: { incomplete: ['unread:.claude/settings.json'] } });
+    expect(hits(report(), after).map((hit) => hit.class)).toEqual([
+      'env',
+      'hooks',
+      'permissions',
+      'unicode',
+    ]);
+    const skill = report({
+      inventory: { incomplete: ['excluded:vendor/.claude/skills/x/SKILL.md'] },
+    });
+    expect(hits(report(), skill).map((hit) => hit.class)).toEqual([
+      'hooks',
+      'permissions',
+      'unicode',
+    ]);
+    expect(hits(report(), skill)[0]?.summary).toBe(
+      'New hooks config vendor/.claude/skills/x/SKILL.md was left out of the scan, so its hooks cannot be checked',
+    );
+  });
+
+  it('matches an unread file with a baseline that listed it by its path', () => {
+    // Reports before `unread:` listed a configuration file the walk skipped by its plain path.
+    const before = report({ inventory: { incomplete: ['.mcp.json'] } });
+    const after = report({ inventory: { incomplete: ['unread:.mcp.json'] } });
+    expect(hits(before, after)).toEqual([]);
+    expect(hits(report(), after).map((hit) => hit.class)).toEqual(['mcp', 'unicode']);
+  });
+
+  it('treats a settings file past a parser limit as not analyzed, not as invalid', () => {
+    // Claude Code's JSON.parse reads a file nested deeper than agentcheckup parses.
+    const after = report({ inventory: { incomplete: ['.claude/settings.json'] } });
+    expect(hits(report(), after).map((hit) => hit.class)).toEqual(['hooks']);
+    const invalid = report({ inventory: { incomplete: ['invalid-json:.claude/settings.json'] } });
+    expect(hits(report(), invalid)).toEqual([]);
   });
 });

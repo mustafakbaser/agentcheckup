@@ -258,9 +258,11 @@ A configuration file agentcheckup cannot analyze, such as a `.mcp.json` that is 
 `.codex/config.toml` that is not valid TOML, or a skill, command or subagent whose frontmatter
 agentcheckup cannot read as Claude Code may (see
 [Items declared in frontmatter](context.md#items-declared-in-frontmatter)), may hide a
-violation. The policy fails
-closed: each such file is a violation of its own whenever a check of MCP servers, settings,
-grants or hooks is on.
+violation. So may what the scan could not read at all: a file over its size limit
+(`unread:<path>`), a directory past its depth limit or unreadable (`unlisted:<dir>/`), and where
+it stopped at its entry limit (`file-limit:<path>`). The policy fails closed: each such entry of
+the inventory's `incomplete` list is a violation of its own whenever a check of MCP servers,
+settings, grants or hooks is on.
 
 ## Allowlist entries
 
@@ -386,8 +388,10 @@ from it.
   never the pull request. A policy read from the checkout of a pull request is whatever the pull
   request says it is. When the policy file lies inside the scanned directory, the report notes it.
 - **The repository cannot switch checks off.** `--policy` implies `--untrusted`: the
-  repository's configuration and inline directives are ignored, and its `.gitignore` cannot hide
-  agent configuration. `--policy` with `--config` exits with code 2.
+  repository's configuration and inline directives are ignored, and neither its `.gitignore`
+  nor a build or vendor directory can hide agent configuration. What the scan could not analyze
+  (a file over its size limit, a directory past its depth or entry limit) is an
+  `unanalyzed-config` violation. `--policy` with `--config` exits with code 2.
 - **The baseline comes from the base commit too**, never from a file in the pull request.
 - **Run agentcheckup from outside the checkout** in CI, so a package committed to the repository
   cannot stand in for it.

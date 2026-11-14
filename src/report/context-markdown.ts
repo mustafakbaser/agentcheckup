@@ -21,6 +21,8 @@ import {
   type PlanView,
   type StartupRow,
 } from './context-view.js';
+import { stripPathBase } from '../core/rebase.js';
+import { coverageMessages, coverageOf } from './coverage.js';
 import { skipFixLabel } from './feedback.js';
 import { cappedRows, escaped, omittedNote, paragraphs, ruleLink } from './markdown-common.js';
 import { plural } from './text.js';
@@ -382,6 +384,11 @@ export function formatContextMarkdown(
   if (matrix.length > 0) blocks.push(matrix);
   if (blocks.length === 0) return 'No load plans in this report.\n';
   if (view.pathBase !== '') blocks.unshift([`Paths are relative to ${path(view.pathBase)}`]);
+  // What the scan did not check, which no plan can show.
+  const unchecked = coverageMessages(coverageOf(stripPathBase(result)), { show: path });
+  if (unchecked.length > 0) {
+    blocks.push(paragraphs(unchecked.map((message) => `**Not checked:** ${message.text}`)));
+  }
   blocks.push(footnotes(view.plans));
   return `${blocks.map((block) => block.join('\n')).join('\n\n')}\n`;
 }

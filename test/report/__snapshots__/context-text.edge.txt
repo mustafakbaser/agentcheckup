@@ -26,5 +26,8 @@ Incomplete
   big.md         not analyzed: the scan's Markdown budget ran out
   mystery:thing  not analyzed
 
+! The scan stopped at its limit of directory entries before vendor/a/AGENTS.md, so agent configuration in the directories it had not listed was not checked.
+! 2 agent configuration files were not checked (too large: 1, binary: 1): big/AGENTS.md, assets/CLAUDE.md
+
 ≈tokens = characters ÷ 4
 ? = unverified: neither documentation nor source code confirms it

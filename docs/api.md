@@ -35,17 +35,18 @@ repository you do not trust.
 
 The other options:
 
-| Option            | Default                        | Meaning                                                                                                                    |
-| ----------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `config`          | none                           | The parsed configuration. Its `targets`, `rules`, `ignore` and `overrides` apply as in the CLI.                            |
-| `targets`         | the config's, else every agent | The agents to check against. Overrides the config's `targets`, as `--targets` does.                                        |
-| `trustDirectives` | `true`                         | Honor inline suppressions such as `agentcheckup-disable-next-line`.                                                        |
-| `walk`            | `.gitignore` honored           | Limits and switches of the walk: `respectGitignore`, `scanIgnoredAgentConfig`, `maxFileBytes`, `maxTotalBytes` and others. |
-| `context`         | `false`                        | `true` adds the load plans of the modeled agents among the targets, at the root, to `result.context`; or their options.    |
+| Option            | Default                        | Meaning                                                                                                                                            |
+| ----------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`          | none                           | The parsed configuration. Its `targets`, `rules`, `ignore` and `overrides` apply as in the CLI.                                                    |
+| `targets`         | the config's, else every agent | The agents to check against. Overrides the config's `targets`, as `--targets` does.                                                                |
+| `trustDirectives` | `true`                         | Honor inline suppressions such as `agentcheckup-disable-next-line`.                                                                                |
+| `walk`            | `.gitignore` honored           | Limits and switches of the walk: `respectGitignore`, `scanIgnoredAgentConfig`, `scanBuildDirectories`, `maxFileBytes`, `maxTotalBytes` and others. |
+| `context`         | `false`                        | `true` adds the load plans of the modeled agents among the targets, at the root, to `result.context`; or their options.                            |
 
 The CLI's `--untrusted` corresponds to no `config`, `trustDirectives: false` and
-`walk: { scanIgnoredAgentConfig: true }`: the repository can then neither switch rules off nor
-hide agent configuration behind its `.gitignore`.
+`walk: { scanIgnoredAgentConfig: true, scanBuildDirectories: true }`: the repository can then
+neither switch rules off nor hide agent configuration behind its `.gitignore` or in a build or
+vendor directory.
 
 ## Other exports
 
