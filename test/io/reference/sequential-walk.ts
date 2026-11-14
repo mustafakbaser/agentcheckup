@@ -80,6 +80,13 @@ export const DEFAULT_WALK_LIMITS = {
   maxDepth: 32,
 } as const;
 
+/** As in src/io/walk.ts: a `.env` never counts in `unscannedConfig`. */
+function countsAsUnscanned(relativePath: string): boolean {
+  return (
+    defaultIsCandidate(relativePath) && relativePath !== '.env' && !relativePath.endsWith('/.env')
+  );
+}
+
 /** Entries the survey of unlisted directories lists. */
 export const MAX_SURVEY_ENTRIES = 20_000;
 
@@ -580,7 +587,7 @@ class Walker {
     const { relativePath } = location;
     if (kind !== 'directory') {
       this.#ignoredFiles.add(relativePath);
-      if (!this.#settings.scanIgnoredAgentConfig && defaultIsCandidate(relativePath)) {
+      if (!this.#settings.scanIgnoredAgentConfig && countsAsUnscanned(relativePath)) {
         this.#unscannedGitignored.add(relativePath);
       }
     }
@@ -624,7 +631,7 @@ class Walker {
               why: frame.why,
             });
           }
-        } else if (defaultIsCandidate(relativePath)) {
+        } else if (countsAsUnscanned(relativePath)) {
           (frame.why === 'gitignored' ? this.#unscannedGitignored : this.#unscannedExcluded).add(
             relativePath,
           );

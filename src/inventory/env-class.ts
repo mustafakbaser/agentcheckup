@@ -101,6 +101,36 @@ const BY_NAME: ReadonlyMap<string, EnvClass> = new Map([
 ]);
 
 /**
+ * Gemini CLI's own variables, for the `.env` files it loads (SOURCES.geminiConfiguration,
+ * "Environment variables and `.env` files", checked 2026-11-14): the base URLs it sends API
+ * requests to, the Code Assist server and the telemetry collector, the collector's headers, and
+ * the IDE server command it starts (SOURCES.geminiIdeConnectionSource). `GEMINI_API_KEY`,
+ * `GOOGLE_API_KEY` and `GOOGLE_APPLICATION_CREDENTIALS` look like credentials by name already.
+ */
+const GEMINI_BY_NAME: ReadonlyMap<string, EnvClass> = new Map([
+  ['GOOGLE_GEMINI_BASE_URL', 'endpoint'],
+  ['GOOGLE_VERTEX_BASE_URL', 'endpoint'],
+  ['CODE_ASSIST_ENDPOINT', 'endpoint'],
+  ['GEMINI_TELEMETRY_OTLP_ENDPOINT', 'endpoint'],
+  ['GEMINI_TELEMETRY_OTLP_HEADERS', 'credential'],
+  ['GEMINI_CLI_IDE_SERVER_STDIO_COMMAND', 'code-exec'],
+]);
+
+/**
+ * Variables Gemini CLI does not load from a project `.env` file: the settings schema's default for
+ * `advanced.excludedEnvVars`, which the merged settings always hold, so a list in the workspace
+ * settings adds to it (`MergeStrategy.UNION`; SOURCES.geminiSettingsSchemaSource). The longer
+ * `DEFAULT_EXCLUDED_ENV_VARS` in settings.ts applies only when the merged list is missing, which
+ * it never is. A `.gemini/.env` file is never filtered (SOURCES.geminiSettingsSource).
+ */
+export const GEMINI_EXCLUDED_ENV_VARS: readonly string[] = ['DEBUG', 'DEBUG_MODE'];
+
+/** The class of a variable in a `.env` file Gemini CLI loads: its own names first. */
+export function geminiEnvClass(name: string, value: string | undefined): EnvClass {
+  return GEMINI_BY_NAME.get(name) ?? envClass(name, value);
+}
+
+/**
  * Claude Code settings keys that run a command: the five credential and header helpers take a
  * command line, `statusLine`, `subagentStatusLine` and `fileSuggestion` an object with a
  * `command` (SOURCES.claudeSettingsReference). Claude Code v2.1.323 removed `subagentStatusLine`
@@ -248,6 +278,9 @@ export const ENV_CLASS_SOURCES: readonly RuleSource[] = [
   SOURCES.nodeCliEnv,
   SOURCES.ldSo,
   SOURCES.posixEnvironmentVariables,
+  SOURCES.geminiConfiguration,
+  SOURCES.geminiIdeConnectionSource,
+  SOURCES.geminiSettingsSchemaSource,
 ];
 
 const OTLP_PREFIX = 'OTEL_EXPORTER_OTLP_';

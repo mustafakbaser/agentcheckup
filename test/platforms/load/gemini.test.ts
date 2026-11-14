@@ -482,18 +482,20 @@ describe('loadGemini: settings', () => {
 }
 `;
 
-  it('starts MCP servers at session start and runs hooks once accepted', () => {
+  it('starts MCP servers and hooks at session start in a trusted folder', () => {
     const { plan, analysis } = build(
       { '.gemini/settings.json': SETTINGS },
       { paths: ['guard.sh'] },
     );
+    // Gemini CLI warns about a new project hook once and runs it without asking.
     expect(entries(plan)).toEqual([
+      expect.stringMatching(/^hook:\.gemini\/settings\.json#BeforeTool:\w+ startup - documented$/),
       'mcp-server:.gemini/settings.json#db startup - documented',
       'mcp-server:.gemini/settings.json#docs startup - documented',
-      expect.stringMatching(
-        /^hook:\.gemini\/settings\.json#BeforeTool:\w+ on-approval - documented$/,
-      ),
     ]);
+    expect(plan.entries.find((e) => e.role === 'hook')?.evidence).toContain(
+      'geminiHookRegistrySource',
+    );
     expect(skips(plan)).toEqual([
       'hook:.gemini/settings.json#BeforeCommit unknown-event hooks/unknown-event documented',
       'mcp-server:.gemini/settings.json#blocked disabled - documented',
@@ -549,10 +551,178 @@ describe('loadGemini: settings', () => {
     expect(plan.assumptions.map((a) => `${a.key}=${String(a.value)} (${a.origin})`)).toEqual([
       'gemini.access=paid API key or Gemini Code Assist license (default)',
       'gemini.context.fileName=GEMINI.md (default)',
-      'gemini.folder_trust=false (default)',
+      'gemini.context.memoryBoundaryMarkers=[".git"] (default)',
+      'gemini.folder_trust=true (default)',
+      'gemini.trusted_folder=true (default)',
     ]);
+    // The released source turns folder trust on; the trusted folders page says it is off.
+    const trust = plan.assumptions.find((a) => a.key === 'gemini.folder_trust');
+    expect(trust?.evidence).toEqual([
+      'geminiConfiguration',
+      'geminiTrustedFoldersSource',
+      'geminiSettingsSchemaSource',
+    ]);
+    expect(plan.assumptions.find((a) => a.key === 'gemini.trusted_folder')?.evidence).toContain(
+      'geminiTrustSource',
+    );
     expect(plan.hidden.map((h) => h.scope)).toEqual(['managed', 'plugin', 'user']);
     expect(plan.hidden.flatMap((h) => h.locations)).toContain('~/.gemini/settings.json');
+    expect(plan.hidden.flatMap((h) => h.locations)).toContain('~/.gemini/commands/');
+  });
+});
+
+describe('loadGemini: settings that change what loads', () => {
+  const tree = (settings: object): FileMap => ({
+    'GEMINI.md': 'Root.\n',
+    'pkg/GEMINI.md': 'Package.\n',
+    'pkg/package.json': '{}\n',
+    'pkg/app/GEMINI.md': 'App.\n',
+    'pkg/app/.gemini/settings.json': JSON.stringify(settings),
+  });
+
+  it('reads from the .git root down by default, and from the working directory with no markers', () => {
+    const standard = build(tree({}), {}, 'pkg/app').plan;
+    expect(entries(standard).filter((e) => e.startsWith('instructions:'))).toEqual([
+      'instructions:GEMINI.md startup 1 documented',
+      'instructions:pkg/GEMINI.md startup 2 documented',
+      'instructions:pkg/app/GEMINI.md startup 3 documented',
+    ]);
+    const none = build(tree({ context: { memoryBoundaryMarkers: [] } }), {}, 'pkg/app').plan;
+    expect(entries(none).filter((e) => e.startsWith('instructions:'))).toEqual([
+      'instructions:pkg/app/GEMINI.md startup 1 documented',
+    ]);
+    const assumption = none.assumptions.find(
+      (a) => a.key === 'gemini.context.memoryBoundaryMarkers',
+    );
+    expect(assumption).toMatchObject({ value: '[]', origin: 'repository' });
+  });
+
+  it('stops at the nearest directory with one of the markers the settings list', () => {
+    const marked = build(
+      tree({ context: { memoryBoundaryMarkers: ['package.json', '../escape', '/abs'] } }),
+      {},
+      'pkg/app',
+    ).plan;
+    expect(entries(marked).filter((e) => e.startsWith('instructions:'))).toEqual([
+      'instructions:pkg/GEMINI.md startup 1 documented',
+      'instructions:pkg/app/GEMINI.md startup 2 documented',
+    ]);
+    // The explicit default reads like no setting at all.
+    const explicit = build(tree({ context: { memoryBoundaryMarkers: ['.git'] } }), {}, 'pkg/app');
+    expect(explicit.plan.entries.filter((e) => e.role === 'instructions')).toHaveLength(3);
+  });
+
+  it('marks imports unverified under markers the import rules do not use', () => {
+    const files = {
+      'GEMINI.md': '@docs/a.md\n',
+      'docs/a.md': 'A.\n',
+      '.gemini/settings.json': '{ "context": { "memoryBoundaryMarkers": ["package.json"] } }',
+    };
+    expect(entries(build(files).plan)).toContain('import:docs/a.md startup 2 unverified');
+    const standard = { ...files, '.gemini/settings.json': '{}' };
+    expect(entries(build(standard).plan)).toContain('import:docs/a.md startup 2 documented');
+  });
+
+  it('turns skills off with skills.enabled and skills.disabled, ignoring case', () => {
+    const files = {
+      '.gemini/skills/deploy/SKILL.md': SKILL('deploy', 'Deploys.'),
+      '.gemini/skills/lint/SKILL.md': SKILL('lint', 'Lints.'),
+      '.agents/skills/deploy/SKILL.md': SKILL('deploy', 'Deploys better.'),
+    };
+    const some = build({
+      ...files,
+      '.gemini/settings.json': '{ "skills": { "disabled": ["DEPLOY"] } }',
+    }).plan;
+    expect(entries(some)).toEqual(['skill:.gemini/skills/lint/SKILL.md startup 1 documented']);
+    expect(skips(some)).toEqual([
+      'skill:.agents/skills/deploy/SKILL.md disabled - documented',
+      'skill:.gemini/skills/deploy/SKILL.md shadowed-by-preferred - documented',
+    ]);
+    const none = build({ ...files, '.gemini/settings.json': '{ "skills": { "enabled": false } }' });
+    expect(none.plan.entries).toEqual([]);
+    expect(skips(none.plan).filter((s) => s.includes(' disabled '))).toHaveLength(2);
+    // Other values leave every skill on.
+    const on = build({ ...files, '.gemini/settings.json': '{ "skills": { "enabled": "no" } }' });
+    expect(on.plan.entries).toHaveLength(2);
+  });
+
+  it('states include directories, which it does not follow', () => {
+    const settings = {
+      context: {
+        includeDirectories: ['../shared', 'docs'],
+        loadMemoryFromIncludeDirectories: true,
+      },
+    };
+    const { plan } = build({ '.gemini/settings.json': JSON.stringify(settings) });
+    expect(
+      plan.assumptions
+        .filter((a) => a.origin === 'repository')
+        .map((a) => `${a.key}=${String(a.value)}`),
+    ).toEqual([
+      'gemini.context.includeDirectories=["../shared","docs"]',
+      'gemini.context.loadMemoryFromIncludeDirectories=true',
+    ]);
+    expect(build({ 'GEMINI.md': 'x\n' }).plan.assumptions.map((a) => a.key)).not.toContain(
+      'gemini.context.includeDirectories',
+    );
+  });
+});
+
+describe('loadGemini: custom commands', () => {
+  it('lists every .toml file below the working directory commands folder as a command', () => {
+    const { plan } = build({
+      '.gemini/commands/review.toml': 'description = "Review"\nprompt = "Review {{args}}."\n',
+      '.gemini/commands/deploy/prod env.toml': "prompt = '''\nDeploy to prod.\n'''\n",
+      '.gemini/commands/notes.md': 'Not a command.\n',
+    });
+    expect(
+      plan.entries.map((e) => `${e.id} ${e.trigger} ${e.name ?? ''} ${String(e.size?.chars)}`),
+    ).toEqual([
+      'command:.gemini/commands/deploy/prod env.toml manual deploy:prod_env 16',
+      'command:.gemini/commands/review.toml manual review 16',
+    ]);
+    expect(plan.totals.startup.chars).toBe(0);
+    expect(plan.totals.onDemand.chars).toBe(32);
+  });
+
+  it('skips files Gemini CLI rejects, which no rule reports', () => {
+    const files = {
+      '.gemini/commands/broken.toml': 'prompt = "unterminated\n',
+      '.gemini/commands/empty.toml': 'description = "No prompt"\n',
+      '.gemini/commands/typed.toml': 'prompt = 1\n',
+      '.gemini/commands/described.toml': 'prompt = "x"\ndescription = 2\n',
+      '.gemini/commands/ok.toml': 'prompt = "x"\n',
+    };
+    const { plan } = build(files);
+    expect(entries(plan)).toEqual(['command:.gemini/commands/ok.toml manual - documented']);
+    expect(skips(plan)).toEqual([
+      'command:.gemini/commands/broken.toml#broken invalid-toml - source-code',
+      'command:.gemini/commands/described.toml#described invalid-command - documented',
+      'command:.gemini/commands/empty.toml#empty invalid-command - documented',
+      'command:.gemini/commands/typed.toml#typed invalid-command - documented',
+    ]);
+    expectConsistent(files);
+  });
+
+  it('leaves commands of other directories to sessions started there', () => {
+    const files = {
+      '.gemini/commands/root.toml': 'prompt = "r"\n',
+      'pkg/.gemini/commands/pkg.toml': 'prompt = "p"\n',
+    };
+    const root = build(files).plan;
+    expect(entries(root)).toEqual(['command:.gemini/commands/root.toml manual - documented']);
+    expect(outOfScope(root)).toEqual(['pkg/.gemini/commands/pkg.toml below-start-dir']);
+    const pkg = build(files, {}, 'pkg').plan;
+    expect(entries(pkg)).toEqual(['command:pkg/.gemini/commands/pkg.toml manual - documented']);
+    expect(skips(pkg)).toEqual(['command:.gemini/commands/root.toml not-read - source-code']);
+  });
+
+  it('lists command files the walk did not read as incomplete', () => {
+    const { plan } = build(
+      { '.gemini/commands/ok.toml': 'prompt = "x"\n' },
+      { ignoredFiles: ['.gemini/commands/local.toml', '.gemini/commands/readme.txt'] },
+    );
+    expect(plan.incomplete).toEqual(['unread:.gemini/commands/local.toml']);
   });
 });
 
@@ -570,11 +740,9 @@ describe('loadGemini on a fixture repository', () => {
       'import:docs/style.md startup 2 documented',
       'instructions:GEMINI.md startup 3 documented',
       'skill:.agents/skills/release/SKILL.md startup 4 documented',
+      expect.stringMatching(/^hook:\.gemini\/settings\.json#BeforeTool:\w+ startup - documented$/),
       'mcp-server:.gemini/settings.json#docs startup - documented',
       'instructions:packages/api/GEMINI.md on-path - documented',
-      expect.stringMatching(
-        /^hook:\.gemini\/settings\.json#BeforeTool:\w+ on-approval - documented$/,
-      ),
     ]);
     expect(skips(plan)).toEqual([
       'skill:.agents/skills/tools/lint/SKILL.md not-read - source-code',

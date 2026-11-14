@@ -678,6 +678,7 @@ describe('schemas/report.schema.json', () => {
       'disabled',
       'never-active',
       'invalid-toml',
+      'invalid-command',
       'not-read',
     ] as const satisfies readonly SkipCode[];
     const MATRIX_CELLS = [

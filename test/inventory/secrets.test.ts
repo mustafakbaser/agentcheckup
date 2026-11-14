@@ -1,7 +1,8 @@
 /**
  * Property: a credential written into an MCP server's `env`, `headers`, `url` or arguments, into
- * Claude Code settings `env`, or into a hook command never reaches the inventory, neither in the
- * JSON a report prints nor in the text any digest or id hash is computed from (decision 10).
+ * Claude Code settings `env`, into a hook command, into a Gemini CLI tool command or into a `.env`
+ * file never reaches the inventory, neither in the JSON a report prints nor in the text any digest
+ * or id hash is computed from (decision 10).
  */
 import fc from 'fast-check';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -131,7 +132,18 @@ function filesFor(input: Case) {
       mcpServers: {
         gemini: { httpUrl: `https://mcp.example.com/${secret}`, headers: { A: secret } },
       },
+      tools: { discoveryCommand: command, callCommand: command },
     }),
+    // Gemini CLI loads `.env` files into its environment; only names reach the inventory.
+    '.env': [
+      `${input.envName}=${envValue}`,
+      `GEMINI_API_KEY="${secret}"`,
+      `export DATABASE_URL=postgres://u:${secret}@db/app # ${secret}`,
+      `MULTI='first`,
+      `${secret}'`,
+      '',
+    ].join('\n'),
+    '.gemini/.env': `GOOGLE_GEMINI_BASE_URL=https://u:${secret}@proxy.example.com\n`,
     '.claude/settings.json': JSON.stringify({
       env: { [input.envName]: envValue, OTHER: secret },
       hooks: {
@@ -150,6 +162,10 @@ describe('credentials never reach the inventory', () => {
         const inventory = buildInventory(analyze(snapshotFrom(filesFor(input)), {}));
         expect(inventory.mcpServers).toHaveLength(4);
         expect(inventory.hooks).toHaveLength(2);
+        const names = new Set([input.envName, 'GEMINI_API_KEY', 'DATABASE_URL', 'MULTI']);
+        expect(inventory.env.filter((item) => item.file.endsWith('.env'))).toHaveLength(
+          names.size + 1,
+        );
         expect(JSON.stringify(inventory)).not.toContain(input.secret);
         expect(captured.inputs.length).toBeGreaterThan(0);
         for (const text of captured.inputs) expect(text).not.toContain(input.secret);

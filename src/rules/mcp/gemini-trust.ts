@@ -27,14 +27,14 @@ export const geminiTrustRule = defineRule({
     id: ID,
     title: 'Gemini CLI MCP server is trusted and skips tool confirmations',
     rationale: [
-      'In Gemini CLI, `"trust": true` on an MCP server "bypasses all tool call confirmations for this server". Every tool the server offers, including tools a later version adds, runs without the user approving the call. In a committed `.gemini/settings.json` this applies to everyone who opens the project, unless folder trust is on and the project is not trusted.',
+      'In Gemini CLI, `"trust": true` on an MCP server "bypasses all tool call confirmations for this server". Every tool the server offers, including tools a later version adds, runs without the user approving the call. In a committed `.gemini/settings.json` this applies to everyone who trusts the project, which Gemini CLI asks about the first time it opens a folder: folder trust is on by default.',
       "Remove `trust`, or allow only the specific tools you need with the server's `includeTools` list and Gemini CLI's policy rules.",
     ].join('\n\n'),
     category: 'risk',
     severity: 'warn',
     appliesTo: ['gemini-settings'],
     platforms: ['gemini'],
-    sources: [SOURCES.geminiMcp],
+    sources: [SOURCES.geminiMcp, SOURCES.geminiTrustedFoldersSource],
     since: RULESET_VERSION,
     fix: {
       classes: ['review'],

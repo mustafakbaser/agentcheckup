@@ -15,13 +15,14 @@ Gemini CLI MCP server is trusted and skips tool confirmations.
 
 ## Why
 
-In Gemini CLI, `"trust": true` on an MCP server "bypasses all tool call confirmations for this server". Every tool the server offers, including tools a later version adds, runs without the user approving the call. In a committed `.gemini/settings.json` this applies to everyone who opens the project, unless folder trust is on and the project is not trusted.
+In Gemini CLI, `"trust": true` on an MCP server "bypasses all tool call confirmations for this server". Every tool the server offers, including tools a later version adds, runs without the user approving the call. In a committed `.gemini/settings.json` this applies to everyone who trusts the project, which Gemini CLI asks about the first time it opens a folder: folder trust is on by default.
 
 Remove `trust`, or allow only the specific tools you need with the server's `includeTools` list and Gemini CLI's policy rules.
 
 ## Evidence
 
 - [Gemini CLI: MCP servers](https://geminicli.com/docs/tools/mcp-server/), verified, checked 2026-10-14
+- [Gemini CLI source: cli/src/config/trustedFolders.ts (folder trust is on unless security.folderTrust.enabled is false)](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/trustedFolders.ts), verified, checked 2026-11-14
 
 ## Fix
 

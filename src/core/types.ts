@@ -74,6 +74,8 @@ export const ARTIFACT_KINDS = [
   'vscode-mcp',
   'gemini-md',
   'gemini-settings',
+  'gemini-command',
+  'gemini-env',
   'mcp-json',
   'codex-hooks',
   'codex-config',

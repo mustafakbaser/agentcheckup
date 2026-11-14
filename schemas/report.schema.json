@@ -253,6 +253,8 @@
         "vscode-mcp",
         "gemini-md",
         "gemini-settings",
+        "gemini-command",
+        "gemini-env",
         "mcp-json",
         "codex-hooks",
         "codex-config",
@@ -938,6 +940,7 @@
         "disabled",
         "never-active",
         "invalid-toml",
+        "invalid-command",
         "not-read"
       ]
     },

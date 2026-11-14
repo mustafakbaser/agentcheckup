@@ -77,7 +77,10 @@ The sources disagree or are silent in several places
 - **Where the sources disagree, the plan follows the source code when it is published and marks
   the rest unverified.** Gemini CLI reads `GEMINI.md` with the names `context.fileName` adds, and
   the new rule `gemini/settings-key-ignored` reports old top-level keys. Cline follows its SDK.
-  Plans assume folder trust off for Gemini CLI, after the trusted folders page.
+  Plans assumed folder trust off for Gemini CLI, after the trusted folders page. Amended on
+  2026-11-14: the released source (v0.68.0) turns folder trust on, so plans now assume it on and
+  a trusted folder, as they assume a trusted project for Codex, and docs/platforms.md states the
+  disagreement.
 - **Undocumented order is unverified.** When no source documents the order of the startup
   context, a plan does not invent one. Copilot plans list files in a fixed order, per directory
   from the root down and then the skills listing, and mark every position unverified ("?").

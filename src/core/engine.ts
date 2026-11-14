@@ -962,18 +962,29 @@ function fingerprints(
 
 /**
  * The files the score covers: every artifact, except that a file read only because an
- * instruction file imports it (`imported-file`) counts once it has an error or a warning. Its
- * problems lower the score like any file's, but following imports never raises the score by
- * adding clean files that are not agent configuration.
+ * instruction file imports it (`imported-file`), and a file no rule judges (UNSCORED_KINDS),
+ * counts once it has an error or a warning. Its problems lower the score like any file's, but
+ * following imports or reading such files never raises the score by adding clean files.
  */
 function scoredPaths(artifacts: readonly Artifact[], active: readonly Finding[]): string[] {
   const penalized = new Set(
     active.filter((finding) => finding.severity !== 'info').map((finding) => finding.path),
   );
   return artifacts
-    .filter((artifact) => artifact.kind !== 'imported-file' || penalized.has(artifact.path))
+    .filter((artifact) => !UNSCORED_KINDS.has(artifact.kind) || penalized.has(artifact.path))
     .map((artifact) => artifact.path);
 }
+
+/**
+ * Kinds read for the security inventory and the load plans that no rule judges: a `.env` file
+ * Gemini CLI loads, which is not agent configuration for any other agent, and Gemini CLI custom
+ * commands. Imported files are scored only when penalized too.
+ */
+const UNSCORED_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
+  'imported-file',
+  'gemini-env',
+  'gemini-command',
+]);
 
 /** Number of lines that start before `offset` (binary search over sorted line starts). */
 function countLineStartsBefore(lineStarts: readonly number[], offset: number): number {

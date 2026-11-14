@@ -14,6 +14,7 @@ import { buildInventory } from '../../src/inventory/build.js';
 import type { Inventory } from '../../src/inventory/types.js';
 import { walk } from '../../src/io/walk.js';
 import { canonicalJson } from '../../src/platforms/inventory-ids.js';
+import { builtinRules } from '../../src/rules/index.js';
 import { findSecret } from '../../src/rules/mcp/secrets.js';
 import { type FileMap, type SnapshotExtras, snapshotFrom } from '../helpers/lint.js';
 
@@ -322,6 +323,116 @@ describe('MCP servers', () => {
     expect(inventory.permissions.map((item) => item.id)).toEqual([
       'perm:.gemini/settings.json#mcpServers.remote.trust=true',
     ]);
+  });
+
+  it('reads the Gemini CLI tool commands, allowed tools and approval mode', () => {
+    const inventory = inventoryOf({
+      '.gemini/settings.json': json({
+        tools: {
+          discoveryCommand: './bin/tools --token abc123secret',
+          callCommand: './bin/call',
+          allowed: ['run_shell_command(git status)', 'run_shell_command', 'read_file', '*', 7],
+        },
+        general: { defaultApprovalMode: 'auto_edit' },
+      }),
+      'pkg/.gemini/settings.json': json({
+        general: { defaultApprovalMode: 'yolo' },
+        tools: { discoveryCommand: 7 },
+      }),
+      'web/.gemini/settings.json': json({ general: { defaultApprovalMode: 'plan' } }),
+    });
+    expect(
+      inventory.env.map((item) => `${item.id} ${item.class} ${String(item.effective)}`),
+    ).toEqual([
+      'env:.gemini/settings.json#tools.callCommand code-exec true',
+      'env:.gemini/settings.json#tools.discoveryCommand code-exec true',
+    ]);
+    expect(
+      inventory.permissions.map(
+        (item) => `${item.id} broad=${String(item.broad)} effective=${String(item.effective)}`,
+      ),
+    ).toEqual([
+      'perm:.gemini/settings.json#general.defaultApprovalMode=auto_edit broad=false effective=true',
+      'perm:.gemini/settings.json#tools.allowed=* broad=true effective=true',
+      'perm:.gemini/settings.json#tools.allowed=read_file broad=false effective=true',
+      'perm:.gemini/settings.json#tools.allowed=run_shell_command broad=true effective=true',
+      'perm:.gemini/settings.json#tools.allowed=run_shell_command(git status) broad=false effective=true',
+      // Only the command line turns YOLO mode on.
+      'perm:pkg/.gemini/settings.json#general.defaultApprovalMode=yolo broad=false effective=false',
+    ]);
+    expect(JSON.stringify(inventory)).not.toContain('abc123secret');
+    expect(byId(inventory.permissions, 'perm:.gemini/settings.json#tools.allowed=*').line).toBe(9);
+  });
+
+  it('lists the names in .env files for Gemini CLI alone, never their values', () => {
+    const inventory = inventoryOf({
+      '.env': [
+        '# Local settings',
+        'GEMINI_API_KEY=AIzaSyFakeValueForTests',
+        'export NODE_OPTIONS="--require ./x.js"',
+        'GOOGLE_GEMINI_BASE_URL=https://proxy.example.com/v1',
+        'DEBUG=1',
+        'PLAIN_SETTING=hello',
+        'DATABASE_URL=postgres://user:hunter2@db/app',
+        'PLAIN_SETTING=again',
+        '',
+      ].join('\r\n'),
+      'api/.env': 'LOG_LEVEL=debug\nEXTRA=1\n',
+      'api/.gemini/settings.json': json({ advanced: { excludedEnvVars: ['EXTRA'] } }),
+      'web/.env': 'TOKEN=1\n',
+      'web/.gemini/.env': 'DEBUG=1\nGEMINI_CLI_IDE_SERVER_STDIO_COMMAND=node\n',
+      'ops/.env': 'OPS_TOKEN=1\n',
+      'ops/.gemini/settings.json': json({ advanced: { ignoreLocalEnv: true } }),
+      '.env.example': 'GEMINI_API_KEY=\n',
+    });
+    expect(
+      inventory.env.map(
+        (item) =>
+          `${item.id} ${item.class} ${String(item.effective)} line ${String(item.line)} ${item.platforms.join(',')}`,
+      ),
+    ).toEqual([
+      'env:.env#DATABASE_URL credential true line 7 gemini',
+      // Gemini CLI does not load DEBUG and DEBUG_MODE from a project .env file.
+      'env:.env#DEBUG other false line 5 gemini',
+      'env:.env#GEMINI_API_KEY credential true line 2 gemini',
+      'env:.env#GOOGLE_GEMINI_BASE_URL endpoint true line 4 gemini',
+      'env:.env#NODE_OPTIONS code-exec true line 3 gemini',
+      'env:.env#PLAIN_SETTING other true line 8 gemini',
+      'env:api/.env#EXTRA other false line 2 gemini',
+      'env:api/.env#LOG_LEVEL other true line 1 gemini',
+      // ignoreLocalEnv: Gemini CLI skips the directory's .env.
+      'env:ops/.env#OPS_TOKEN credential false line 1 gemini',
+      // A .gemini/.env is never filtered, and wins over the .env next to it.
+      'env:web/.env#TOKEN credential false line 1 gemini',
+      'env:web/.gemini/.env#DEBUG other true line 1 gemini',
+      'env:web/.gemini/.env#GEMINI_CLI_IDE_SERVER_STDIO_COMMAND code-exec true line 2 gemini',
+    ]);
+    for (const item of inventory.env) expect(item.shown).toBeUndefined();
+    const text = JSON.stringify(inventory);
+    for (const value of [
+      'AIzaSyFakeValueForTests',
+      'hunter2',
+      'proxy.example.com',
+      'x.js',
+      'hello',
+    ]) {
+      expect(text).not.toContain(value);
+    }
+  });
+
+  it('reports nothing on a .env file and leaves it out of the score', () => {
+    const result = scanSnapshot(
+      snapshotFrom({
+        '.env': 'GEMINI_API_KEY=AIzaSyFakeValueForTests\u200b\n# <!-- hidden -->\n',
+        'AGENTS.md': '# A\n',
+      }),
+      { rules: builtinRules },
+    );
+    expect(result.findings.filter((finding) => finding.path === '.env')).toEqual([]);
+    expect(result.artifacts.find((artifact) => artifact.path === '.env')?.kind).toBe('gemini-env');
+    // A .env file is not scored: a clean one would raise the score.
+    expect(result.score.artifacts.map((artifact) => artifact.path)).not.toContain('.env');
+    expect(JSON.stringify(result)).not.toContain('AIzaSyFakeValueForTests');
   });
 
   it('lists only sensitive names from an MCP server env', () => {

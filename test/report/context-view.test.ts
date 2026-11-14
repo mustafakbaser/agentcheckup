@@ -227,7 +227,9 @@ describe('assumption phrases', () => {
     expect(defaults.get('copilot-cloud')).toEqual([]);
     expect(defaults.get('gemini')).toEqual([
       'context file GEMINI.md (default)',
-      'folder trust off (default)',
+      'root marker .git (default)',
+      'folder trust on (default)',
+      'trusted folder',
       'access through paid API key or Gemini Code Assist license',
     ]);
     expect(defaults.get('windsurf')).toEqual([
@@ -264,12 +266,19 @@ describe('assumption phrases', () => {
 
     const configured = phrases({
       'AGENTS.md': 'Rules.\n',
-      '.gemini/settings.json': '{ "context": { "fileName": ["AGENTS.md"] } }\n',
+      '.gemini/settings.json':
+        '{ "context": { "fileName": ["AGENTS.md"], "memoryBoundaryMarkers": [], "includeDirectories": ["../lib"], "loadMemoryFromIncludeDirectories": true } }\n',
       '.devin/config.json': '{ "read_config_from": { "cursor": false } }\n',
     });
-    expect(configured.get('gemini')?.[0]).toBe(
+    expect(configured.get('gemini')).toEqual([
       'context files AGENTS.md and GEMINI.md (from the repository)',
-    );
+      'no root markers (from the repository)',
+      'include directories ["../lib"] (from the repository)',
+      'context files from include directories on (from the repository)',
+      'folder trust on (default)',
+      'trusted folder',
+      'access through paid API key or Gemini Code Assist license',
+    ]);
     expect(configured.get('windsurf')).toContain('Cursor files not imported (from the repository)');
   });
 

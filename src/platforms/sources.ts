@@ -35,6 +35,13 @@ const CODEX_AUDIT_CHECKED = '2026-11-14';
  */
 const CLINE_RELEASE_CHECKED = '2026-11-14';
 
+/**
+ * Gemini CLI source read on 2026-11-14 at google-gemini/gemini-cli 4ed06ed, for folder trust,
+ * project hooks, `.env` files, the settings that change what loads and custom commands. Each
+ * behavior cited is also in release v0.68.0.
+ */
+const GEMINI_SOURCE_CHECKED = '2026-11-14';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -423,12 +430,12 @@ export const SOURCES = {
   geminiCliConfigSource: verified(
     'Gemini CLI source: cli/src/config/config.ts (context.fileName sets the context file names)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/config.ts',
-    DRIFT_CHECKED,
+    GEMINI_SOURCE_CHECKED,
   ),
   geminiSettingsSource: verified(
-    'Gemini CLI source: settings.ts (workspace settings of the working directory)',
+    'Gemini CLI source: settings.ts (workspace settings of the working directory, .env files)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts',
-    AUDIT_CHECKED,
+    GEMINI_SOURCE_CHECKED,
   ),
   geminiMemoryToolSource: verified(
     'Gemini CLI source: memoryTool.ts (GEMINI.md is the default context file name)',
@@ -438,7 +445,7 @@ export const SOURCES = {
   geminiDiscoverySource: verified(
     'Gemini CLI source: memoryDiscovery.ts (context files from the root down)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/memoryDiscovery.ts',
-    COVERAGE_CHECKED,
+    GEMINI_SOURCE_CHECKED,
   ),
   geminiImportSource: verified(
     'Gemini CLI source: memoryImportProcessor.ts (import depth 5, path traversal)',
@@ -449,6 +456,61 @@ export const SOURCES = {
     'Gemini CLI source: skillLoader.ts (SKILL.md one level deep, name and description required)',
     'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillLoader.ts',
     AUDIT_CHECKED,
+  ),
+  geminiCustomCommands: verified(
+    'Gemini CLI: Custom commands',
+    'https://geminicli.com/docs/cli/custom-commands/',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiTrustedFoldersSource: verified(
+    'Gemini CLI source: cli/src/config/trustedFolders.ts (folder trust is on unless security.folderTrust.enabled is false)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/trustedFolders.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiTrustSource: verified(
+    'Gemini CLI source: core/src/utils/trust.ts (a folder with no trust decision is not trusted)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/trust.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiSettingsSchemaSource: verified(
+    'Gemini CLI source: settingsSchema.ts (setting defaults and accepted values)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settingsSchema.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiHookRegistrySource: verified(
+    'Gemini CLI source: hookRegistry.ts (project hooks warned about, then run, in a trusted folder)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiSkillManagerSource: verified(
+    'Gemini CLI source: skillManager.ts (workspace skills in a trusted folder, skills.disabled)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/skills/skillManager.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiMemoryContextSource: verified(
+    'Gemini CLI source: memoryContextManager.ts (project context files in a trusted folder)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/context/memoryContextManager.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiToolRegistrySource: verified(
+    'Gemini CLI source: tool-registry.ts (tools.discoveryCommand and tools.callCommand run as commands)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/tools/tool-registry.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiPolicyConfigSource: verified(
+    'Gemini CLI source: policy/config.ts (tools.allowed entries skip confirmation)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/policy/config.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiCommandLoaderSource: verified(
+    'Gemini CLI source: FileCommandLoader.ts (custom commands in .gemini/commands)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/services/FileCommandLoader.ts',
+    GEMINI_SOURCE_CHECKED,
+  ),
+  geminiIdeConnectionSource: verified(
+    'Gemini CLI source: ide-connection-utils.ts (GEMINI_CLI_IDE_SERVER_STDIO_COMMAND starts a process)',
+    'https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/ide/ide-connection-utils.ts',
+    GEMINI_SOURCE_CHECKED,
   ),
   // The Cascade memories page this key cited redirects here since October 2026.
   windsurfRules: verified(

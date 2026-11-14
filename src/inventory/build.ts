@@ -19,7 +19,7 @@
  * credentials in them (docs/adr/0017).
  */
 import { compareStrings } from '../core/compare.js';
-import { dirnamePosix } from '../core/paths.js';
+import { dirnamePosix, pathStatus } from '../core/paths.js';
 import { sha256Hex } from '../core/sha256.js';
 import { decode, positionAt } from '../core/text.js';
 import {
@@ -44,6 +44,14 @@ import {
   type SpannedDocument,
 } from '../parse/json-access.js';
 import { classify, READERS } from '../platforms/classify.js';
+import { parseDotenv } from '../parse/dotenv.js';
+import {
+  GEMINI_ENV_FILE,
+  geminiEnvPlace,
+  geminiSetting,
+  geminiSettingsOf,
+  geminiStrings,
+} from '../platforms/gemini.js';
 import { pathAs, readingsOf } from '../platforms/readings.js';
 import { codexServerEnabled } from '../platforms/codex-config.js';
 import { codexRuleGrants } from '../platforms/codex-rules.js';
@@ -127,6 +135,8 @@ import {
   COMMAND_SETTINGS,
   envClass,
   type EnvClass,
+  GEMINI_EXCLUDED_ENV_VARS,
+  geminiEnvClass,
   ignoredInRepositorySettings,
 } from './env-class.js';
 import { incompleteEntry } from './incomplete.js';
@@ -205,6 +215,14 @@ interface HookPlacement {
   readonly scope?: HookItem['scope'];
   readonly effective?: boolean;
 }
+
+/**
+ * Gemini CLI `tools.allowed` entries that let every call of a tool through: the shell tool by
+ * either name without a command prefix, which allows any command, and `*`, which matches every
+ * tool (SOURCES.geminiPolicyConfigSource; `SHELL_TOOL_NAMES` in shell-utils.ts, `*` in
+ * policy-engine.ts).
+ */
+const GEMINI_BROAD_TOOLS: ReadonlySet<string> = new Set(['run_shell_command', 'ShellTool', '*']);
 
 /** What each agent does with one MCP server ({@link McpServerItem.status}). */
 type ServerStatus = (server: McpServer) => McpServerItem['status'];
@@ -365,6 +383,10 @@ class InventoryBuilder {
       this.#addCodexRules(artifact);
       return;
     }
+    if (artifact.kind === 'gemini-env') {
+      this.#addGeminiEnv(artifact);
+      return;
+    }
     if (TOML_KINDS.has(artifact.kind)) {
       this.#addCodexConfig(artifact);
       return;
@@ -400,6 +422,7 @@ class InventoryBuilder {
     // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
     else if (artifact.kind === 'devin-hooks') this.#incomplete.add(artifact.path);
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
+    if (artifact.kind === 'gemini-settings') this.#addGeminiSettings(artifact, doc);
   }
 
   /**
@@ -577,8 +600,9 @@ class InventoryBuilder {
    * project's settings approve or reject it; a plugin's server starts once the user installs and
    * enables the plugin, which is that approval. A `.mcp.json` of another agent's plugin is not
    * Claude Code's. Cursor connects project servers and asks before each tool call; Gemini CLI
-   * connects them unless folder trust is on and the folder is not trusted (off by default). Codex
-   * starts a project's servers in a trusted project, unless `enabled = false` in this file.
+   * connects them in a trusted folder, which the load plans assume: folder trust is on by default,
+   * and an untrusted folder's workspace settings are not read (SOURCES.geminiSettingsSource).
+   * Codex starts a project's servers in a trusted project, unless `enabled = false` in this file.
    */
   #statusOf(artifact: Artifact, server: McpServer): McpServerItem['status'] {
     if (artifact.kind === 'cursor-mcp') return { cursor: 'loads' };
@@ -1068,6 +1092,103 @@ class InventoryBuilder {
       const command = isObject(value) ? stringOf(own(value, 'command')) : stringOf(value);
       if (command === undefined) continue;
       this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], { command });
+    }
+  }
+
+  // Gemini CLI settings and .env files --------------------------------------------------------
+
+  /**
+   * Gemini CLI workspace settings beyond MCP servers and hooks, which it applies in a trusted
+   * folder: the commands `tools.discoveryCommand` and `tools.callCommand` run, Gemini CLI running
+   * the first at startup and the second for every tool the first found
+   * (SOURCES.geminiToolRegistrySource); `tools.allowed`, tools that skip the confirmation
+   * (SOURCES.geminiPolicyConfigSource), broad for the shell tool without a command prefix and for
+   * `*`; and `general.defaultApprovalMode` set to `auto_edit`, which approves edits without asking.
+   * `yolo` there is ignored: only the command line turns YOLO mode on
+   * (SOURCES.geminiCliConfigSource), so it is listed with `effective: false`. `plan` and `default`
+   * only restrict, so they are not listed.
+   */
+  #addGeminiSettings(artifact: Artifact, doc: ParsedJson): void {
+    const root = doc.value;
+    if (!isObject(root)) return;
+    const platforms = sortedPlatforms(artifact.readers);
+    for (const key of ['discoveryCommand', 'callCommand']) {
+      const path = ['tools', key];
+      const command = stringOf(geminiSetting(root, `tools.${key}`));
+      if (command === undefined) continue;
+      this.#pushEnv(artifact, doc, pathKey(path), 'code-exec', undefined, path, {
+        command: redactCommand(command),
+      });
+    }
+    const allowed = geminiSetting(root, 'tools.allowed');
+    if (Array.isArray(allowed)) {
+      (allowed as unknown[]).forEach((tool, index) => {
+        if (typeof tool !== 'string') return;
+        this.#pushPermission(artifact, {
+          key: 'tools.allowed',
+          value: tool,
+          broad: GEMINI_BROAD_TOOLS.has(tool),
+          effective: true,
+          line: lineOf(artifact, spanOf(doc, ['tools', 'allowed', index])),
+          platforms,
+        });
+      });
+    }
+    const mode = geminiSetting(root, 'general.defaultApprovalMode');
+    if (mode === 'auto_edit' || mode === 'yolo') {
+      this.#pushPermission(artifact, {
+        key: 'general.defaultApprovalMode',
+        value: mode,
+        broad: false,
+        effective: mode === 'auto_edit',
+        line: lineOf(artifact, spanOf(doc, ['general', 'defaultApprovalMode'])),
+        platforms,
+      });
+    }
+  }
+
+  /**
+   * The variables of a `.env` file, names only: Gemini CLI loads the first `.gemini/.env` or
+   * `.env` it finds from the working directory upward into its environment, where every command
+   * it runs inherits them (SOURCES.geminiSettingsSource, `findEnvFile` and `loadEnvironment`). A
+   * value is read only to tell whether it looks like a credential; it is never stored, shown or
+   * hashed, so the digest covers the name and the class. A variable is not `effective` in a
+   * project `.env` that Gemini CLI never loads, because the same directory has a `.gemini/.env`,
+   * which wins in a trusted folder, or because its settings set `advanced.ignoreLocalEnv`; nor
+   * when the variable is excluded from project `.env` files (`DEBUG`, `DEBUG_MODE` and the
+   * directory's `advanced.excludedEnvVars`). A variable already set in the shell keeps its value,
+   * which the repository cannot show.
+   */
+  #addGeminiEnv(artifact: Artifact): void {
+    const { directory, geminiFile } = geminiEnvPlace(artifact.path);
+    const settings = geminiSettingsOf(this.#view, directory);
+    const ignored =
+      !geminiFile &&
+      (geminiSetting(settings, 'advanced.ignoreLocalEnv') === true ||
+        pathStatus(this.#view.snapshot, joinPath(directory, GEMINI_ENV_FILE)) === 'exists');
+    // Gemini CLI filters a file whose path does not contain `.gemini` (`isProjectEnvFile`).
+    const excluded = new Set(
+      artifact.path.includes('.gemini')
+        ? []
+        : [
+            ...GEMINI_EXCLUDED_ENV_VARS,
+            ...(geminiStrings(geminiSetting(settings, 'advanced.excludedEnvVars')) ?? []),
+          ],
+    );
+    const platforms = sortedPlatforms(artifact.readers);
+    for (const { name, value, line } of parseDotenv(artifact.decoded.text)) {
+      const cls = geminiEnvClass(name, value);
+      const effective = !ignored && !excluded.has(name);
+      const fields = { key: name, class: cls };
+      this.#env.push({
+        id: envInventoryId(artifact.path, name),
+        file: artifact.path,
+        line,
+        platforms,
+        ...fields,
+        effective,
+        digestFields: { ...fields, ...(effective ? {} : { effective }) },
+      });
     }
   }
 

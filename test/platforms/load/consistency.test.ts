@@ -368,6 +368,21 @@ describe('allowances', () => {
     ]);
   });
 
+  it('skip-without-rule: Gemini CLI custom commands, which no rule judges', () => {
+    const files = {
+      '.gemini/commands/broken.toml': 'prompt = [\n',
+      '.gemini/commands/empty.toml': 'description = "No prompt"\n',
+      '.gemini/commands/ok.toml': 'prompt = "Fine."\n',
+    };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed['skip-without-rule']).toBe(2);
+    expect(brief(check(files, {}, ['skip-without-rule']).report.mismatches).sort()).toEqual([
+      'skip-without-rule - gemini .gemini/commands/broken.toml',
+      'skip-without-rule - gemini .gemini/commands/empty.toml',
+    ]);
+  });
+
   it('skip-without-rule: an AGENTS.md copied into CLAUDE.md, which the rule leaves alone', () => {
     const files = { 'CLAUDE.md': 'Same rules.\n', 'AGENTS.md': 'Same rules.\n' };
     const allowed = check(files);

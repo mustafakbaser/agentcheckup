@@ -96,6 +96,7 @@ export const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   disabled: 'turned off in the configuration',
   'never-active': 'its settings keep it from ever applying',
   'invalid-toml': 'not valid TOML',
+  'invalid-command': 'invalid command definition',
   'not-read': 'not read by this agent',
 };
 
@@ -279,10 +280,26 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
     setting: true,
   },
   {
+    key: 'gemini.context.memoryBoundaryMarkers',
+    phrase: (value) => listPhrase(value, 'root marker'),
+    setting: true,
+  },
+  {
+    key: 'gemini.context.includeDirectories',
+    phrase: (value) => `include directories ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'gemini.context.loadMemoryFromIncludeDirectories',
+    phrase: (value) => `context files from include directories ${onOff(value)}`,
+    setting: true,
+  },
+  {
     key: 'gemini.folder_trust',
     phrase: (value) => `folder trust ${onOff(value)}`,
     setting: true,
   },
+  { key: 'gemini.trusted_folder', phrase: (value) => trusted(value, 'folder') },
   { key: 'gemini.access', phrase: (value) => `access through ${valueText(value)}` },
   {
     key: 'devin.agent',

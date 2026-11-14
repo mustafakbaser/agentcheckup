@@ -60,7 +60,7 @@ Save this as `.gemini/settings.json`:
 
 - Without it, Gemini CLI reads only `GEMINI.md`. [GEMINI.md][gemini-md]
 - Gemini CLI concatenates every context file it finds and inlines `@` imports. Do not also import `AGENTS.md` from `GEMINI.md`, or the same text loads twice. [GEMINI.md][gemini-md], [Memory import processor][gemini-memport], [source][gemini-src-discovery]
-- When folder trust is on, Gemini CLI ignores `.gemini/settings.json` in untrusted folders. The same setting also works in `~/.gemini/settings.json`. [Trusted folders][gemini-trust], [GEMINI.md][gemini-md]
+- Gemini CLI reads `.gemini/settings.json` only once the folder is trusted: folder trust is on by default in the released source, although the trusted folders page says otherwise. The same setting also works in `~/.gemini/settings.json`. [Trusted folders][gemini-trust], [Configuration][gemini-config], [GEMINI.md][gemini-md]
 
 ### Stay inside every agent's limits
 

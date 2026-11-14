@@ -352,6 +352,18 @@ const READ_AHEAD_CONCURRENCY = 16;
 const MAX_READ_AHEADS = 32;
 /** Larger candidates are not read ahead, only in turn, so read-aheads hold at most 32 MiB. */
 const READ_AHEAD_MAX_BYTES = 1024 * 1024;
+/**
+ * Whether an agent configuration file that a scan leaves unread counts in `unscannedConfig`. A
+ * `.env` does not: Gemini CLI loads it, but a gitignored one or one in build output holds local
+ * secrets on purpose, and a notice must not ask to scan it. `--untrusted` still reads one Gemini
+ * CLI loads, and lists only its variable names.
+ */
+function countsAsUnscanned(relativePath: string): boolean {
+  return (
+    defaultIsCandidate(relativePath) && relativePath !== '.env' && !relativePath.endsWith('/.env')
+  );
+}
+
 /** Directories the survey lists at once. */
 const SURVEY_BATCH = 32;
 
@@ -840,7 +852,7 @@ class Walker {
     const { relativePath } = location;
     if (kind !== 'directory') {
       this.#ignoredFiles.add(relativePath);
-      if (!this.#settings.scanIgnoredAgentConfig && defaultIsCandidate(relativePath)) {
+      if (!this.#settings.scanIgnoredAgentConfig && countsAsUnscanned(relativePath)) {
         this.#unscannedGitignored.add(relativePath);
       }
     }
@@ -1098,7 +1110,7 @@ class Walker {
                 why: frame.why,
               });
             }
-          } else if (defaultIsCandidate(relativePath)) {
+          } else if (countsAsUnscanned(relativePath)) {
             const found =
               frame.why === 'gitignored' ? this.#unscannedGitignored : this.#unscannedExcluded;
             found.add(relativePath);

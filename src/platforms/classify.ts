@@ -58,6 +58,11 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'vscode-mcp': ['copilot'],
   'gemini-md': ['copilot', 'gemini'],
   'gemini-settings': ['gemini'],
+  // Custom commands in `.gemini/commands/**/*.toml` (SOURCES.geminiCustomCommands).
+  'gemini-command': ['gemini'],
+  // `.env` and `.gemini/.env`, which Gemini CLI loads into its environment
+  // (SOURCES.geminiSettingsSource). No other agent reads them.
+  'gemini-env': ['gemini'],
   'mcp-json': ['claude-code', 'copilot', 'windsurf'],
   'codex-hooks': ['codex'],
   'codex-config': ['codex'],
@@ -100,6 +105,9 @@ interface Matcher {
 }
 
 const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+/** Whether `path` has the segments `segments` (ending in `/`) at its start or after a `/`. */
+const hasSegments = (path: string, segments: string): boolean =>
+  path.startsWith(segments) || path.includes(`/${segments}`);
 const keepPath = (path: string): string => path;
 
 /**
@@ -272,6 +280,23 @@ const MATCHERS: readonly Matcher[] = [
   // Gemini CLI
   { kind: 'gemini-md', pattern: /(?:^|\/)gemini\.md$/, canonical: withBase('GEMINI.md') },
   { kind: 'gemini-settings', pattern: /(?:^|\/)\.gemini\/settings\.json$/, canonical: keepPath },
+  // Every `.toml` file below `.gemini/commands`, at any depth (FileCommandLoader.ts, `**/*.toml`).
+  // The folder and the extension are matched as written: the glob is case-sensitive on Linux.
+  {
+    kind: 'gemini-command',
+    pattern: /(?:^|\/)\.gemini\/commands\/(?:[^/]+\/)*[^/]+\.toml$/,
+    where: (path) => path.endsWith('.toml') && hasSegments(path, '.gemini/commands/'),
+    canonical: keepPath,
+  },
+  // `.env` in any directory, `.gemini/.env` among them: Gemini CLI looks for both from the working
+  // directory upward (settings.ts, `findEnvFile`). Only the exact name: `.env.example` and
+  // `.env.local` are never loaded.
+  {
+    kind: 'gemini-env',
+    pattern: /(?:^|\/)\.env$/,
+    where: (path) => basename(path) === '.env',
+    canonical: keepPath,
+  },
 
   // Windsurf / Devin Desktop
   {
@@ -382,6 +407,8 @@ export function isCandidateBasename(name: string): boolean {
     // Codex's exec-policy rules in `.codex/rules`.
     lower.endsWith('.rules') ||
     lower === '.cursorrules' ||
-    lower === '.windsurfrules'
+    lower === '.windsurfrules' ||
+    // Gemini CLI's environment files; the classifier takes only the exact name.
+    lower === '.env'
   );
 }

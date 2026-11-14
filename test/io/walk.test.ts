@@ -587,6 +587,24 @@ describe('walk: build directories and what a trusted walk leaves out', () => {
     expect([...snapshot.opaqueDirectories]).toEqual(['node_modules/', 'vendor/lib/node_modules/']);
   });
 
+  it('never counts a gitignored or build-directory .env as left-out agent configuration', async () => {
+    const root = await makeTempDir();
+    await writeTree(root, {
+      '.gitignore': '.env\nsecrets/\n',
+      'AGENTS.md': 'mine',
+      '.env': 'GEMINI_API_KEY=x',
+      'secrets/.env': 'TOKEN=x',
+      'vendor/.env': 'TOKEN=x',
+      'vendor/.mcp.json': '{"mcpServers":{}}',
+    });
+    const snapshot = await walk(root);
+    expect(snapshot.unscannedConfig).toEqual({
+      gitignored: new Set(),
+      excluded: new Set(['vendor/.mcp.json']),
+      complete: true,
+    });
+  });
+
   it('counts gitignored agent configuration, in ignored directories too', async () => {
     const root = await makeTempDir();
     await writeTree(root, {

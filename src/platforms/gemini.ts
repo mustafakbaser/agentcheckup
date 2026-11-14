@@ -12,7 +12,7 @@
  */
 import { dirnamePosix, normalizeRelative } from '../core/paths.js';
 import type { Artifact, ParseServices } from '../core/types.js';
-import { isObject, own } from '../parse/json-access.js';
+import { isObject, type JsonObject, own } from '../parse/json-access.js';
 import { joinPath } from './paths.js';
 
 /** The context file name Gemini CLI uses when the settings name none (`DEFAULT_CONTEXT_FILENAME`). */
@@ -199,3 +199,86 @@ export const GEMINI_LEGACY_SETTINGS_KEYS: Readonly<Record<string, string>> = {
   useRipgrep: 'tools.useRipgrep',
   vimMode: 'general.vimMode',
 };
+
+/**
+ * The parsed workspace settings of a session started in `cwd`: the top-level object of
+ * `<cwd>/.gemini/settings.json`, or undefined when the scan has no such file or it does not
+ * parse.
+ */
+export function geminiSettingsOf(view: GeminiSettingsView, cwd: string): JsonObject | undefined {
+  const artifact = view.index.get(joinPath(cwd, GEMINI_SETTINGS_FILE));
+  if (artifact?.kind !== 'gemini-settings') return undefined;
+  const doc = view.json(artifact);
+  return doc.ok && isObject(doc.value) ? doc.value : undefined;
+}
+
+/** The value at a dotted settings key such as `context.memoryBoundaryMarkers`. */
+export function geminiSetting(settings: JsonObject | undefined, key: string): unknown {
+  let value: unknown = settings;
+  for (const part of key.split('.')) {
+    if (!isObject(value)) return undefined;
+    value = own(value, part);
+  }
+  return value;
+}
+
+/** The strings of a list setting; undefined when the value is not a list. */
+export function geminiStrings(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return (value as unknown[]).filter((item): item is string => typeof item === 'string');
+}
+
+/** Where Gemini CLI looks for its own `.env`, relative to a directory. */
+export const GEMINI_ENV_FILE = '.gemini/.env';
+
+/**
+ * A `.env` file Gemini CLI may load: the directory whose turn it is in the upward search, and
+ * whether it is that directory's `.gemini/.env`, which wins over its `.env` in a trusted folder
+ * and from which no variable is excluded (settings.ts, `findEnvFile` and `loadEnvironment`).
+ */
+export function geminiEnvPlace(path: string): {
+  readonly directory: string;
+  readonly geminiFile: boolean;
+} {
+  if (isNamed(path, GEMINI_ENV_FILE)) {
+    const directory = path.slice(0, Math.max(0, path.length - GEMINI_ENV_FILE.length - 1));
+    return { directory, geminiFile: true };
+  }
+  return { directory: dirnamePosix(path), geminiFile: false };
+}
+
+/** Where Gemini CLI looks for project commands, relative to the working directory. */
+export const GEMINI_COMMANDS_DIR = '.gemini/commands';
+
+/**
+ * The name of the command in `<commands>/<relative>`, as FileCommandLoader.ts builds it: each
+ * folder and the file name without `.toml`, with characters other than letters, digits, `_`, `-`
+ * and `.` replaced by `_`, cut to 47 characters and `...` when longer than 50, joined by `:`. The
+ * file `deploy/prod.toml` is the command `deploy:prod`.
+ */
+export function geminiCommandName(relative: string): string {
+  const stem = relative.endsWith('.toml') ? relative.slice(0, -'.toml'.length) : relative;
+  return stem
+    .split('/')
+    .map((segment) => {
+      // UTF-16 code units, as JavaScript's `replace` sees them.
+      let safe = '';
+      for (let i = 0; i < segment.length; i++) {
+        safe += isCommandNameChar(segment.charCodeAt(i)) ? segment.charAt(i) : '_';
+      }
+      return safe.length > 50 ? `${safe.slice(0, 47)}...` : safe;
+    })
+    .join(':');
+}
+
+/** `[a-zA-Z0-9_\-.]`. */
+function isCommandNameChar(code: number): boolean {
+  return (
+    (code >= 0x30 && code <= 0x39) ||
+    (code >= 0x41 && code <= 0x5a) ||
+    (code >= 0x61 && code <= 0x7a) ||
+    code === 0x5f ||
+    code === 0x2d ||
+    code === 0x2e
+  );
+}

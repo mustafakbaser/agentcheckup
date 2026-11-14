@@ -1,34 +1,65 @@
 /**
  * What Gemini CLI loads for a session started in one directory (docs/platforms.md, "Gemini CLI",
- * and the sources it cites; source code read at google-gemini/gemini-cli ed96fae):
+ * and the sources it cites; source code read at google-gemini/gemini-cli ed96fae, and at 4ed06ed
+ * for trust, hooks, `.env` files, the settings below and custom commands, all of it in release
+ * v0.68.0):
  *
+ * - Trust: the plan assumes a trusted folder, as the Codex plan assumes a trusted project. Folder
+ *   trust is on unless the user or system settings turn it off: `isFolderTrustEnabled` reads
+ *   `security.folderTrust.enabled ?? true`, and the merged settings start from the schema's
+ *   default `true` (packages/cli/src/config/trustedFolders.ts lines 32-35, settingsSchema.ts
+ *   `folderTrust.enabled`). The trust check reads no workspace settings (settings.ts lines
+ *   1070-1080). A folder no one decided on is not trusted (`checkPathTrust` in
+ *   packages/core/src/utils/trust.ts returns `isTrusted: undefined`, read as `?? false` in
+ *   settings.ts line 707 and config.ts line 697); interactive sessions ask first. In an untrusted
+ *   folder the workspace settings become `{}` (settings.ts line 1127), so their MCP servers,
+ *   hooks, `context.fileName` and every other key are ignored; project context files, workspace
+ *   skills and project commands are not loaded (memoryContextManager.ts lines 55-61,
+ *   skillManager.ts lines 82-87, FileCommandLoader.ts lines 218-226); project hooks are disabled
+ *   (hookRegistry.ts lines 172-187); a `.env` file loads only GEMINI_API_KEY, GOOGLE_API_KEY,
+ *   GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION, and never `.gemini/.env`. The documentation
+ *   disagrees: the trusted folders page says the feature is "disabled by default", while the
+ *   configuration reference gives the default `true`. The released source wins, and the plan
+ *   states the disagreement in docs/platforms.md.
  * - Context file names: `context.fileName` from `<cwd>/.gemini/settings.json`, then GEMINI.md
  *   (src/platforms/gemini.ts). `setGeminiMdFilename` adds the configured names in front of the
  *   ones it already holds, which at startup is GEMINI.md, so GEMINI.md is always read
  *   (packages/core/src/tools/memoryTool.ts lines 22-48, `setGeminiMdFilename`;
  *   packages/cli/src/config/config.ts lines 620-628, where `settings.context?.fileName` is the
- *   only key read). The configuration reference and the trusted folders page disagree on the
- *   default of folder trust, and the source merges the schema's default (on); the plan follows
- *   the trusted folders page, which says it is off.
+ *   only key read).
  * - At startup: every name in every directory from the project root (the nearest directory with
  *   `.git`) down to the working directory. The source sorts the paths it found
  *   (`getEnvironmentMemoryPaths` in memoryDiscovery.ts), which puts the root first unless a
  *   directory name sorts before the file name; positions follow that sort. A file that is blank
- *   once trimmed adds nothing (`concatenateInstructions`).
+ *   once trimmed adds nothing (`concatenateInstructions`). `context.memoryBoundaryMarkers`
+ *   replaces `.git` as the root marker; `[]` stops the search at the working directory
+ *   (`findProjectRoot`, memoryDiscovery.ts lines 150-206). The import rules judge imports against
+ *   the `.git` root, so imports under other markers are unverified.
  * - Imports: `@path` in each context file, up to five hops, through the shared import graph
  *   (./imports.ts). An import outside the project root, or of a file that does not exist, becomes
  *   an "Import failed" comment (memoryImportProcessor.ts).
  * - Just in time: the same names in directories below the working directory, when a tool
  *   accesses a path there (`loadJitSubdirectoryMemory`).
+ * - `context.includeDirectories` adds workspace directories after the user trusts them, and with
+ *   `context.loadMemoryFromIncludeDirectories` their context files too. The plan does not follow
+ *   them; it states both settings as assumptions.
  * - Skills: `SKILL.md` and `<name>/SKILL.md` in the working directory's `.gemini/skills` and
  *   `.agents/skills`; `.agents/skills` wins on a name. The listing is in the prompt at startup;
  *   the body loads when the model activates the skill and the user consents. Whether a skill is
  *   listed is decided by src/platforms/gemini-skills.ts, which the skill rules share.
- * - MCP servers in the working directory's settings connect at startup: folder trust is off by
- *   default, so no trust prompt comes first. `mcp.excluded` and `mcp.allowed` turn servers off.
- * - Hooks in the same settings run after the user accepts them: Gemini CLI fingerprints project
- *   hooks and warns before a new or changed one runs. `hooksConfig.enabled: false` and
+ *   `skills.enabled: false` turns every skill off, and `skills.disabled` the skills it names,
+ *   ignoring case (config.ts `skillsSupport`, skillManager.ts `setDisabledSkills`).
+ * - Custom commands: every `.toml` file below the working directory's `.gemini/commands`, named
+ *   after its path (`deploy/prod.toml` is `/deploy:prod`), with a string `prompt`
+ *   (FileCommandLoader.ts). They load when the user runs them.
+ * - MCP servers in the working directory's settings connect at startup in a trusted folder.
+ *   `mcp.excluded` and `mcp.allowed` turn servers off.
+ * - Hooks in the same settings run from startup in a trusted folder. Gemini CLI fingerprints
+ *   project hooks and warns once about a new or changed one, "These hooks will be executed", then
+ *   trusts it without asking (hookRegistry.ts lines 136-167). `hooksConfig.enabled: false` and
  *   `hooksConfig.disabled` turn them off.
+ * - `.env` files add no context, so the plan leaves them out: the security inventory lists the
+ *   names of the variables each sets (src/inventory/build.ts, `#addGeminiEnv`).
  *
  * Every decision a rule also makes goes through the function that rule uses, and a skip carries
  * the rule's id only when that rule reports the same file. User, system and extension scopes are
@@ -39,14 +70,19 @@ import type { ResolvedConfig } from '../../core/config.js';
 import { codePointLength, estimateTokens, tokensOf, utf8ByteLength } from '../../core/measure.js';
 import { dirnamePosix, pathStatus } from '../../core/paths.js';
 import type { Artifact } from '../../core/types.js';
-import { isObject, issueKind, own, ownObject } from '../../parse/json-access.js';
+import { isObject, issueKind, type JsonObject, own, ownObject } from '../../parse/json-access.js';
 import type { ImportReference, JsonDocument, MarkdownDocument } from '../../parse/types.js';
 import { classify } from '../classify.js';
 import {
+  GEMINI_COMMANDS_DIR,
   GEMINI_SETTINGS_FILE,
+  geminiCommandName,
   type GeminiContextFiles,
   geminiContextFileNames,
   geminiNamingDirectories,
+  geminiSetting,
+  geminiSettingsOf,
+  geminiStrings,
   isNamed,
 } from '../gemini.js';
 import { type GeminiSkipReason, geminiSkillVerdict } from '../gemini-skills.js';
@@ -105,9 +141,25 @@ const IMPORTS: Evidence = ['geminiImports', 'geminiImportSource'];
 const SKILLS: Evidence = ['geminiSkills', 'geminiSkillLoaderSource'];
 /** The workspace settings are those of the working directory. */
 const SETTINGS: Evidence = ['geminiSettingsSource'];
-const MCP: Evidence = ['geminiMcp', 'geminiTrustedFolders'];
-const HOOKS: Evidence = ['geminiHooks'];
+const MCP: Evidence = ['geminiMcp', 'geminiTrustedFoldersSource', 'geminiSettingsSource'];
+const HOOKS: Evidence = ['geminiHooks', 'geminiHookRegistrySource'];
 const CONFIGURATION: Evidence = ['geminiConfiguration'];
+/** `context.memoryBoundaryMarkers`: what ends the upward search for context files. */
+const MARKERS: Evidence = ['geminiDiscoverySource', 'geminiSettingsSchemaSource'];
+/** `skills.enabled` and `skills.disabled`. */
+const SKILL_SETTINGS: Evidence = [
+  'geminiConfiguration',
+  'geminiSkillManagerSource',
+  'geminiCliConfigSource',
+];
+const COMMANDS: Evidence = ['geminiCustomCommands', 'geminiCommandLoaderSource'];
+/** Folder trust is on by default, and a folder no one decided on is not trusted. */
+const TRUST: Evidence = [
+  'geminiConfiguration',
+  'geminiTrustedFoldersSource',
+  'geminiSettingsSchemaSource',
+];
+const TRUSTED: Evidence = ['geminiTrustedFolders', 'geminiTrustSource', 'geminiSettingsSource'];
 
 /** Scopes outside the repository that add to what Gemini CLI loads. Listed, never read. */
 const HIDDEN: readonly HiddenScope[] = [
@@ -124,19 +176,20 @@ const HIDDEN: readonly HiddenScope[] = [
   {
     scope: 'plugin',
     locations: ['Gemini CLI extensions'],
-    roles: ['hook', 'instructions', 'mcp-server', 'skill'],
+    roles: ['command', 'hook', 'instructions', 'mcp-server', 'skill'],
   },
   {
     scope: 'user',
     locations: [
       '~/.agents/skills/',
       '~/.gemini/GEMINI.md',
+      '~/.gemini/commands/',
       '~/.gemini/mcp-server-enablement.json',
       '~/.gemini/settings.json',
       '~/.gemini/skills/',
       '~/.gemini/tmp/<project>/memory/',
     ],
-    roles: ['hook', 'instructions', 'mcp-server', 'skill'],
+    roles: ['command', 'hook', 'instructions', 'mcp-server', 'skill'],
   },
 ];
 
@@ -241,7 +294,12 @@ class GeminiLoader {
   readonly #names: GeminiContextFiles;
   /** Directories Gemini CLI looks in at startup, the project root first. */
   readonly #chain: readonly string[];
+  /** The directory that ends the upward search, when the scan shows it. */
   readonly #gitRoot: string | undefined;
+  /** The working directory's settings, when they parse. */
+  readonly #settingsValue: JsonObject | undefined;
+  /** `context.memoryBoundaryMarkers` when the settings set it to a list, else undefined (`.git`). */
+  readonly #markers: readonly string[] | undefined;
 
   readonly #entries = new Map<string, LoadEntry>();
   readonly #skipped = new Map<string, SkippedLoad>();
@@ -262,7 +320,11 @@ class GeminiLoader {
     this.#cwd = options.cwd;
     this.#graph = new ImportGraph(view);
     this.#names = geminiContextFileNames(view, options.cwd);
-    this.#gitRoot = nearestGitRoot(view.snapshot, options.cwd);
+    this.#settingsValue = geminiSettingsOf(view, options.cwd);
+    this.#markers = geminiStrings(
+      geminiSetting(this.#settingsValue, 'context.memoryBoundaryMarkers'),
+    );
+    this.#gitRoot = this.#searchRoot();
     const upward = selfAndAncestors(options.cwd);
     const top = this.#gitRoot === undefined ? upward.length : upward.indexOf(this.#gitRoot) + 1;
     this.#chain = upward.slice(0, top).reverse();
@@ -272,7 +334,34 @@ class GeminiLoader {
     this.#settings();
     this.#instructions();
     this.#skills();
+    this.#commands();
     return this.#plan();
+  }
+
+  /** Whether `context.memoryBoundaryMarkers` sets markers other than the default `[".git"]`. */
+  #customMarkers(): boolean {
+    const markers = this.#markers;
+    return markers !== undefined && !(markers.length === 1 && markers[0] === '.git');
+  }
+
+  /**
+   * The nearest directory at or above the working directory that holds a boundary marker: `.git`
+   * by default, the names `context.memoryBoundaryMarkers` lists otherwise, skipping absolute ones
+   * and ones with `..` as the source does. `[]` ends the search at the working directory.
+   */
+  #searchRoot(): string | undefined {
+    const markers = this.#markers;
+    const { snapshot } = this.#view;
+    if (markers === undefined || !this.#customMarkers()) return nearestGitRoot(snapshot, this.#cwd);
+    if (markers.length === 0) return this.#cwd;
+    const usable = markers.filter((marker) => !marker.startsWith('/') && !marker.includes('..'));
+    for (const candidate of selfAndAncestors(this.#cwd)) {
+      const found = usable.some(
+        (marker) => pathStatus(snapshot, joinPath(candidate, marker)) === 'exists',
+      );
+      if (found) return candidate;
+    }
+    return undefined;
   }
 
   // -------------------------------------------------------------------------------------------
@@ -439,8 +528,10 @@ class GeminiLoader {
     if (!this.#graph.hasBudget()) this.#incomplete.add(`import-budget:${root.path}`);
     // Without a `.git` at or above the file, Gemini CLI rejects every import as outside the
     // project, unless a `.git` lies above the scan root.
+    // Under other boundary markers the project root may differ from the one the rules use.
     const projectRoot = nearestGitRoot(this.#view.snapshot, dirnamePosix(root.path));
-    const certainty = projectRoot === undefined ? 'unverified' : root.certainty;
+    const certainty =
+      projectRoot === undefined || this.#customMarkers() ? 'unverified' : root.certainty;
     const child: Root = { ...root, certainty };
     const visited = new Set<Artifact>([root.artifact]);
     const stack: Frame[] = [this.#frame(root.artifact, root.path, [])];
@@ -693,6 +784,15 @@ class GeminiLoader {
       winner.set(skill.name, Math.max(winner.get(skill.name) ?? -1, skill.root));
     }
     listed.sort((a, b) => a.root - b.root || compareStrings(a.path, b.path));
+    // `skills.enabled: false` loads no skill; `skills.disabled` names skills to leave out,
+    // ignoring case. Both apply to the skill that won its name.
+    const settings = this.#settingsValue;
+    const allOff = geminiSetting(settings, 'skills.enabled') === false;
+    const disabled = new Set(
+      (geminiStrings(geminiSetting(settings, 'skills.disabled')) ?? []).map((name) =>
+        name.toLowerCase(),
+      ),
+    );
     for (const skill of listed) {
       const { path, artifact } = skill;
       if ((winner.get(skill.name) ?? skill.root) > skill.root) {
@@ -704,6 +804,18 @@ class GeminiLoader {
           code: 'shadowed-by-preferred',
           certainty: 'documented',
           evidence: ['geminiSkills'],
+        });
+        continue;
+      }
+      if (allOff || disabled.has(skill.name.toLowerCase())) {
+        this.#skip({
+          id: `skill:${path}`,
+          role: 'skill',
+          path,
+          name: skill.name,
+          code: 'disabled',
+          certainty: skill.certainty,
+          evidence: SKILL_SETTINGS,
         });
         continue;
       }
@@ -741,6 +853,104 @@ class GeminiLoader {
       if (roots.some((root) => within(directory.slice(0, -1), root))) {
         this.#incomplete.add(`unread:${directory}`);
       }
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Custom commands
+  // -------------------------------------------------------------------------------------------
+
+  /**
+   * Custom commands: every `.toml` file below the working directory's `.gemini/commands`, at any
+   * depth. Gemini CLI skips a file that is not valid TOML, and one without a string `prompt` or
+   * with a `description` that is not a string; no rule reports either. A command adds its
+   * `prompt` to the conversation when the user runs it.
+   */
+  #commands(): void {
+    const { index, snapshot } = this.#view;
+    const folder = joinPath(this.#cwd, GEMINI_COMMANDS_DIR);
+    for (const [path, artifact] of index) {
+      if (artifact.kind !== 'gemini-command') continue;
+      if (!path.startsWith(`${folder}/`)) {
+        // Another directory's commands: a session started there runs them.
+        const marker = path.startsWith(`${GEMINI_COMMANDS_DIR}/`)
+          ? 0
+          : path.indexOf(`/${GEMINI_COMMANDS_DIR}/`) + 1;
+        const owner = marker === 0 ? '' : path.slice(0, marker - 1);
+        if (below(owner, this.#cwd)) this.#out(path, 'below-start-dir');
+        else if (within(this.#cwd, owner)) {
+          this.#skip({
+            role: 'command',
+            path,
+            code: 'not-read',
+            certainty: 'source-code',
+            evidence: COMMANDS,
+          });
+        }
+        continue;
+      }
+      const name = geminiCommandName(path.slice(folder.length + 1));
+      const doc = this.#view.toml(artifact);
+      if (!doc.ok) {
+        const issue = doc.errors[0];
+        const kind = issue === undefined ? 'limit' : issueKind(issue);
+        if (kind === 'limit' || kind === 'unsupported') {
+          this.#incomplete.add(`unparsed:${artifact.path}`);
+          continue;
+        }
+        this.#skip({
+          role: 'command',
+          path,
+          name,
+          code: 'invalid-toml',
+          size: fileSize(artifact),
+          certainty: 'source-code',
+          evidence: COMMANDS,
+        });
+        continue;
+      }
+      const root = doc.value;
+      const prompt = isObject(root) ? own(root, 'prompt') : undefined;
+      const description = isObject(root) ? own(root, 'description') : undefined;
+      if (
+        typeof prompt !== 'string' ||
+        (description !== undefined && typeof description !== 'string')
+      ) {
+        this.#skip({
+          role: 'command',
+          path,
+          name,
+          code: 'invalid-command',
+          size: fileSize(artifact),
+          certainty: 'documented',
+          evidence: COMMANDS,
+        });
+        continue;
+      }
+      this.#add({
+        id: `command:${path}`,
+        role: 'command',
+        trigger: 'manual',
+        path,
+        realPath: artifact.realPath,
+        name,
+        size: size(prompt),
+        certainty: 'documented',
+        evidence: COMMANDS,
+      });
+    }
+
+    // Command files Gemini CLI would read that the walk did not.
+    const unread = new Set<string>([
+      ...snapshot.ignoredFiles,
+      ...snapshot.skipped.map((s) => s.path),
+    ]);
+    for (const path of unread) {
+      if (index.has(path) || !path.endsWith('.toml') || !path.startsWith(`${folder}/`)) continue;
+      this.#incomplete.add(`unread:${path}`);
+    }
+    for (const directory of snapshot.opaqueDirectories) {
+      if (within(directory.slice(0, -1), folder)) this.#incomplete.add(`unread:${directory}`);
     }
   }
 
@@ -886,10 +1096,11 @@ class GeminiLoader {
         });
         return;
       }
+      // A trusted folder runs project hooks without asking; new ones get a warning.
       this.#add({
         id,
         role: 'hook',
-        trigger: 'on-approval',
+        trigger: 'startup',
         path,
         realPath: artifact.realPath,
         name: handler.event,
@@ -948,6 +1159,22 @@ class GeminiLoader {
   }
 
   #assumptions(): Assumption[] {
+    // Include directories as the settings give them: a list of paths, and a switch.
+    const settings = this.#settingsValue;
+    const directories = geminiStrings(geminiSetting(settings, 'context.includeDirectories'));
+    const fromIncluded = geminiSetting(settings, 'context.loadMemoryFromIncludeDirectories');
+    const included: Assumption[] = [
+      ...(directories === undefined
+        ? []
+        : [{ key: 'gemini.context.includeDirectories', value: JSON.stringify(directories) }]),
+      ...(typeof fromIncluded === 'boolean'
+        ? [{ key: 'gemini.context.loadMemoryFromIncludeDirectories', value: fromIncluded }]
+        : []),
+    ].map((item) => ({
+      ...item,
+      origin: 'repository',
+      evidence: ['geminiConfiguration', 'geminiCliConfigSource'],
+    }));
     return [
       {
         key: 'gemini.access',
@@ -962,10 +1189,23 @@ class GeminiLoader {
         evidence: NAMES,
       },
       {
+        key: 'gemini.context.memoryBoundaryMarkers',
+        value: JSON.stringify(this.#markers ?? ['.git']),
+        origin: this.#markers === undefined ? 'default' : 'repository',
+        evidence: MARKERS,
+      },
+      ...included,
+      {
         key: 'gemini.folder_trust',
-        value: false,
+        value: true,
         origin: 'default',
-        evidence: ['geminiTrustedFolders'],
+        evidence: TRUST,
+      },
+      {
+        key: 'gemini.trusted_folder',
+        value: true,
+        origin: 'default',
+        evidence: TRUSTED,
       },
     ];
   }

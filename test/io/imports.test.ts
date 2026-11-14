@@ -252,11 +252,11 @@ describe('walk: import pass', () => {
     await writeTree(root, {
       '.gitignore': 'private.md\n',
       'CLAUDE.md':
-        '@private.md @package.json @logo.png @.env @notes.txt @./LICENSE @bin.md @docs\n',
+        '@private.md @package.json @logo.png @.npmrc @notes.txt @./LICENSE @bin.md @docs\n',
       'private.md': 'ignored by .gitignore',
       'package.json': '{}',
       'logo.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0]),
-      '.env': 'TOKEN=secret',
+      '.npmrc': 'TOKEN=secret',
       'notes.txt': 'plain text',
       LICENSE: 'MIT',
       'bin.md': new Uint8Array([0x41, 0, 0x42]),

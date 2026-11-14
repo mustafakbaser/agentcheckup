@@ -312,6 +312,8 @@ export type OwnContextHidden =
  * - `never-active`: the file's own settings keep it from ever applying, such as an MCP server
  *   only an SDK host application registers, which no Claude Code session starts.
  * - `invalid-toml`: the config file is not valid TOML.
+ * - `invalid-command`: a custom command file fails the agent's validation, such as a Gemini CLI
+ *   command without a string `prompt`.
  * - `not-read`: the agent does not read the file here, and no rule reports it as a problem.
  */
 export type SkipCode =
@@ -341,6 +343,7 @@ export type SkipCode =
   | 'disabled'
   | 'never-active'
   | 'invalid-toml'
+  | 'invalid-command'
   | 'not-read';
 
 /**

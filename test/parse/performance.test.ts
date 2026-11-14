@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { parseDotenv } from '../../src/parse/dotenv.js';
 import { parseFrontmatter } from '../../src/parse/frontmatter.js';
 import { findImports } from '../../src/parse/imports.js';
 import { parseJson, parseJsonWithComments } from '../../src/parse/json.js';
@@ -69,6 +70,11 @@ const CASES: Record<string, () => string> = {
   'JSON commas': () => `[${fill(',', MiB - 2)}]`,
   'JSON comments': () => fill('/**/'),
   'JSON strings with backslashes': () => fill('"\\\\\\"'),
+  '.env escaped quotes without a closing one': () => `A='${fill("\\'", MiB - 4)}`,
+  '.env quoted values that never close a line': () => fill("A='\\' x\n"),
+  '.env blank lines before a name without a value': () => `${fill('\n', MiB - 2)}A`,
+  '.env names without separators': () => fill('export A\n'),
+  '.env separators across lines': () => fill('A\n=\n'),
 };
 
 /** Runs every parser over `text` and returns the elapsed milliseconds. */
@@ -80,6 +86,7 @@ function parseAll(text: string): number {
   findImports(text, doc, 'gemini');
   parseJson(text);
   parseJsonWithComments(text);
+  parseDotenv(text);
   return performance.now() - started;
 }
 
@@ -107,11 +114,14 @@ const BENIGN = fill(
 describe('performance on hostile 1 MiB inputs', () => {
   let limit = BUDGET_MS;
 
+  // The calibration parses the benign input with every parser three times. Under coverage on a
+  // loaded runner that can pass the 10 s default hook timeout; the limit it computes is relative
+  // to what it measures, so a longer timeout does not loosen any budget.
   beforeAll(() => {
     parseAll(BENIGN);
     const baseline = Math.min(parseAll(BENIGN), parseAll(BENIGN));
     limit = Math.max(BUDGET_MS, MAX_RATIO * baseline);
-  });
+  }, 120_000);
 
   it.each(Object.keys(CASES))(
     '%s',

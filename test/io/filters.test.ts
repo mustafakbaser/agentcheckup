@@ -134,8 +134,24 @@ describe('defaultIsCandidate', () => {
       '.cursorrules',
       '.mcp.json',
       'skills/x/SKILL.md',
+      // Gemini CLI's environment files and custom commands.
+      '.env',
+      'api/.gemini/.env',
+      '.gemini/commands/deploy/prod.toml',
     ];
-    const rejected = ['README.md', 'package.json', 'src/index.ts', '.claude/notes.txt', 'mdc'];
+    const rejected = [
+      'README.md',
+      'package.json',
+      'src/index.ts',
+      '.claude/notes.txt',
+      'mdc',
+      '.env.example',
+      '.env.local',
+      '.ENV',
+      'x.env',
+      '.gemini/commands/notes.md',
+      'config.toml',
+    ];
     for (const relativePath of accepted) expect(defaultIsCandidate(relativePath)).toBe(true);
     for (const relativePath of rejected) expect(defaultIsCandidate(relativePath)).toBe(false);
     for (const relativePath of [...accepted, ...rejected]) {

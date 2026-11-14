@@ -413,6 +413,18 @@ export const ALLOWANCES = {
       reason:
         'No rule judges Codex agent files: `agentcheckup agents` lists one that is not valid TOML (docs/adr/0013). codex/config-invalid judges config.toml alone.',
     },
+    {
+      agent: 'gemini',
+      code: 'invalid-toml',
+      reason:
+        'No rule judges Gemini CLI custom command files: Gemini CLI skips one that is not valid TOML.',
+    },
+    {
+      agent: 'gemini',
+      code: 'invalid-command',
+      reason:
+        'No rule judges Gemini CLI custom command files: Gemini CLI skips one without a string `prompt` or with a `description` that is not a string.',
+    },
   ] satisfies readonly {
     readonly agent: ContextAgent;
     readonly code: SkipCode;
