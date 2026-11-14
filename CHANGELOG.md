@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.6.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.5.0...v0.6.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **platforms:** The security inventory now lists Gemini CLI `tools.allowed` entries and `general.defaultApprovalMode` (`auto_edit`, and `yolo` as not effective) as permissions. It lists `tools.discoveryCommand` and `tools.callCommand` as code-exec env overrides, and the variable names of every `.env` and `.gemini/.env` file as Gemini CLI env overrides (names only). Against a baseline made by an earlier version, these show as added, and `--gate permissions` and `--gate env` trip for them. The Gemini CLI load plan now assumes folder trust on and a trusted folder (`gemini.folder_trust: true`, new `gemini.trusted_folder`), runs project hooks at `startup` instead of `on-approval`, and lists custom commands. Reports add the artifact kinds `gemini-env` and `gemini-command` and the skip code `invalid-command`. Create the baseline again to compare item by item.
+* **baseline:** Reports now have `fingerprintVersion` 3, and `--baseline` refuses a baseline written by an earlier agentcheckup with exit code 2. Inventory digests are now SHA-256 (64 hex digits) of what each item shows and, unshown, of its whole command, arguments and URLs and the values of its endpoint, TLS and code-exec env overrides, without credentials. A change that redaction hides, such as another download path on the same host or another `NODE_OPTIONS` or `PATH`, now trips the gate, labeled "(changed in a redacted part)". `PATH` is now a code-exec env override. A removed `deny` or `ask` entry trips `--gate permissions`, and gate hits can carry `change: "removed"`. Policy violation ids carry the new digest. Create the baseline again with this version; the GitHub Action does so on every run. SARIF `partialFingerprints` keep the key `agentcheckup/v2`.
+* **gate:** `--gate` fails closed on what the scan could not analyze. A scan that stops at its 200,000-entry limit, or meets a directory it cannot list (deeper than 32 levels, unreadable), trips every gate class on every run, whatever the baseline holds. Agent files the scan did not read appear in `inventory.incomplete` as `unread:<path>` (before: a plain path, and only for MCP, hook and frontmatter files) and trip `unicode` and the classes they declare when new. Without `--untrusted`, gitignored agent configuration and agent configuration in vendor, dist, build, out, target and coverage is listed as `excluded:<path>`. A hook or settings file past the JSON parser limits is now a plain "not analyzed" entry instead of `invalid-json:`, so it trips `hooks`. Gate hits for these entries carry `kind: "not-analyzed"` and the label "Not analyzed". `--untrusted` now scans below gitignored directories and in build and vendor directories, and files of 1 to 4 MiB are now read, so against an existing baseline new findings, items and gate hits can appear once. The JSON report gains `unscannedConfig`. Create baselines again with this version.
+* **platforms:** Against an earlier baseline, `--gate hooks` trips once for each Cline hook file (`.clinerules/hooks/<Event>`, `.cline/hooks/<event>[.ext]`). These are now inventory hooks `hook:<file>#<Event>` whose digest covers the file's content, instead of `inventory.incomplete` entries. After that, any change to such a script trips it. Files in Cline hook folders that no Cline release runs leave `inventory.incomplete`. `--gate unicode` can trip for a managed plugin folder's `rules.md` or workflows, which are now scanned. In JSON, Cline plans load rules with `paths` at startup: no `on-path`, `unknown` or `never-active` for Cline. Positions follow rule names, `.cursorrules` and `.windsurfrules` are `not-read`, rules with invalid frontmatter are skipped, plans gain hook entries and new assumptions, and findings on `.cursorrules`/`.windsurfrules` no longer list `cline`.
+* **platforms:** The security inventory now lists Codex permission surfaces it did not see before: `default_permissions` (any value but `:read-only`), each `[permissions.<name>]` profile, `approvals_reviewer = "auto_review"`, and the allow rules, network rules and `host_executable` entries of `.codex/rules/*.rules` (new artifact kind `codex-rules`). A baseline written by an earlier version lacks these items, so the first comparison trips `--gate permissions` for each one already in the repository. A new rules file agentcheckup cannot read, or a new `.codex/config.toml` it cannot parse (not invalid TOML), now also trips `permissions`. Codex hooks that set `commandWindows` get a new digest and trip `hooks` once as changed. Context JSON gains the `codex.skills_scan_entries` limit and the `entries` unit, omits `codex.project_doc_max_bytes` from `limits` when the repository sets it to 0, and no longer lists Codex skills below folders whose names start with a dot. Refresh baselines after upgrading.
+
+### Features
+
+* **baseline:** digest what redaction hides, gate removed deny and ask entries, and redact more credentials ([681858d](https://github.com/mustafakbaser/agentcheckup/commit/681858d3b58f0a8b11fd20894fec5ead458407c5))
+* **platforms:** follow the Codex source at 5943d7a and list its permission surfaces ([070acef](https://github.com/mustafakbaser/agentcheckup/commit/070acef27402d8792a57cc84e13b617df275dbfd))
+
+
+### Bug fixes
+
+* **cli:** exit 2 on bad rule options, and explain --min-score, fix --write and context ([552b580](https://github.com/mustafakbaser/agentcheckup/commit/552b580a1870e9afeebc1136010070d142e74f67))
+* **gate:** fail closed on what a scan could not analyze, and read what agents load ([d8196d8](https://github.com/mustafakbaser/agentcheckup/commit/d8196d8f10d7029b9933eccf15e12e5319b4df4e))
+* **platforms:** follow the Gemini CLI source on folder trust, hooks, .env files and commands ([41d5848](https://github.com/mustafakbaser/agentcheckup/commit/41d58482bcecf19c5e5c4ca779955e9d63f1bb89))
+* **platforms:** follow the released Cline 4.1.26 rules, plugin folders and hook files ([bede509](https://github.com/mustafakbaser/agentcheckup/commit/bede50915b883a745446d70b3fdfb1e97efa4c00))
+
+
+### Documentation
+
+* **corpus:** refresh the aggregate results for the source-accuracy changes ([37ac782](https://github.com/mustafakbaser/agentcheckup/commit/37ac7824029275c656bdc3d4fad1b5c08e9c44a1))
+* pin the Action example to v0.5.0 ([2469e5d](https://github.com/mustafakbaser/agentcheckup/commit/2469e5d1367639663fdf44772451ef5dde9455f0))
+
 ## [0.5.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.1...v0.5.0) (2026-11-13)
 
 
