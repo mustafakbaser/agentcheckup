@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.3.1 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.5.0 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -10,10 +10,10 @@ Aggregate results of agentcheckup 0.3.1 (rule set 2026.10, 64 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7645 |
+| Artifacts                   | 7706 |
 | Errors                      |  698 |
-| Warnings                    | 1287 |
-| Infos                       | 1554 |
+| Warnings                    | 1301 |
+| Infos                       | 1566 |
 | Repositories with findings  |   70 |
 | Rules that crashed          |    0 |
 
@@ -52,7 +52,7 @@ In ≈tokens. "Instructions" are instruction files, imports and rules, after doc
 | -------------------------------------------- | -----------: | -----: | --------------: | ------: |
 | Claude Code: instructions                    |           70 |  2,020 |           9,743 |  27,396 |
 | Claude Code: with the skills listing         |           70 |  2,788 |          10,365 |  29,908 |
-| Codex: instructions                          |           58 |  2,200 |           7,323 |   8,189 |
+| Codex: instructions                          |           58 |  2,200 |           7,323 |   8,298 |
 | Codex: with the skills listing               |           59 |  2,892 |           8,186 |  48,675 |
 | Cursor: instructions                         |           70 |  2,966 |          10,941 |  27,396 |
 | Cursor: with the skills listing              |           71 |  3,997 |          12,380 |  71,481 |
@@ -65,9 +65,9 @@ In ≈tokens. "Instructions" are instruction files, imports and rules, after doc
 | Gemini CLI: instructions                     |            7 |  1,967 |           4,136 |   4,136 |
 | Gemini CLI: with the skills listing          |           33 |    959 |           4,136 |  50,794 |
 | Devin Local: instructions                    |           70 |  2,918 |          10,941 |  27,396 |
-| Devin Local: with the skills listing         |           72 |  3,997 |          12,380 |  53,119 |
+| Devin Local: with the skills listing         |           72 |  3,997 |          12,397 |  69,689 |
 | Cline: instructions                          |           58 |  2,238 |           9,610 |  27,141 |
-| Cline: with the skills listing               |           64 |  2,557 |          11,977 |  42,508 |
+| Cline: with the skills listing               |           64 |  2,522 |          11,977 |  42,063 |
 
 ### Why agents skip files
 
@@ -95,13 +95,13 @@ From the security inventory, which lists every item whether or not an agent load
 | Local MCP servers (started from a command) |           23 |    98 |
 | Unpinned local MCP servers                 |           20 |    86 |
 | Remote MCP servers (URL)                   |           17 |    35 |
-| Hooks                                      |           28 |   228 |
-| Hooks that fail open                       |           12 |    37 |
+| Hooks                                      |           28 |   230 |
+| Hooks that fail open                       |           13 |    39 |
 | Broad permissions                          |           25 |   763 |
 | Env overrides: endpoint                    |            0 |     0 |
-| Env overrides: credential                  |            2 |    21 |
+| Env overrides: credential                  |            8 |    50 |
 | Env overrides: tls                         |            0 |     0 |
-| Env overrides: code-exec                   |            3 |     5 |
+| Env overrides: code-exec                   |            5 |     7 |
 | `.codex/config.toml`, not analyzed         |            0 |     - |
 
 ### Agent definitions and models
@@ -161,7 +161,9 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | `mcp-json`                  |        53 |           25 |
 | `cursor-rule`               |        49 |           10 |
 | `claude-settings`           |        44 |           38 |
+| `gemini-env`                |        41 |           11 |
 | `imported-file`             |        21 |            5 |
+| `gemini-command`            |        20 |            2 |
 | `copilot-instructions`      |        19 |           16 |
 | `gemini-md`                 |        15 |            8 |
 | `copilot-agent`             |        12 |            6 |
@@ -256,7 +258,7 @@ Repository columns count repositories with at least one finding of that severity
 | `skill/description-missing`         | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/description-quality`         | info     |      0 |        0 |   657 |                 0 |                   0 |               40 |             40 |               72 |
 | `skill/description-too-long`        | error    |      2 |        0 |     0 |                 2 |                   0 |                0 |              2 |               72 |
-| `skill/duplicate-name`              | warn     |      0 |       35 |    12 |                 0 |                   4 |                1 |              5 |               72 |
+| `skill/duplicate-name`              | warn     |      0 |       35 |    24 |                 0 |                   4 |                1 |              5 |               72 |
 | `skill/field-type`                  | warn     |      1 |       79 |     0 |                 1 |                   7 |                0 |              7 |               72 |
 | `skill/frontmatter-bom`             | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/frontmatter-invalid`         | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
@@ -265,7 +267,7 @@ Repository columns count repositories with at least one finding of that severity
 | `skill/name-format`                 | error    |     84 |        2 |     0 |                 3 |                   1 |                0 |              4 |               72 |
 | `skill/name-missing`                | error    |      9 |        1 |     0 |                 2 |                   1 |                0 |              2 |               72 |
 | `skill/name-reserved-word`          | warn     |      0 |        6 |     0 |                 0 |                   3 |                0 |              3 |               72 |
-| `skill/non-portable-field`          | warn     |      0 |      639 |     0 |                 0 |                  29 |                0 |             29 |               72 |
+| `skill/non-portable-field`          | warn     |      0 |      653 |     0 |                 0 |                  29 |                0 |             29 |               72 |
 | `skill/shell-preprocessing`         | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               72 |
 | `skill/yaml-portability`            | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |               72 |
 
@@ -277,8 +279,8 @@ What agentcheckup offers for the findings above, as the scan reports it: a safe 
 | -------------------------------- | ----: | ----: | -----------: |
 | With a safe fix                  |   148 |    4% |           18 |
 | With a fix that needs review     | 1,528 |   43% |           54 |
-| With a fix that needs your words |   843 |   24% |           44 |
-| A task for a coding agent        |   954 |   27% |           51 |
+| With a fix that needs your words |   857 |   24% |           44 |
+| A task for a coding agent        |   966 |   27% |           51 |
 | None of these: left to you       |    66 |    2% |           24 |
 
 Scores after applying the fixes in memory and verifying them, as `agentcheckup fix --write` and `fix --write --review` do. `mcp/literal-secret` stays opt-in and is not applied. The median gain is over the repositories whose score rises.
@@ -300,10 +302,10 @@ The replay (`run.ts --fix-replay --answers synthetic`) applies every fix to an i
 | Safe fixes that verification made review      |     0 |
 | Files changed                                 | 2,027 |
 | Repositories with a changed file              |    57 |
-| Fixes that need your words                    |   843 |
+| Fixes that need your words                    |   857 |
 | Answered with synthetic text and verified     |   600 |
 | Answers refused or dropped by verification    |     0 |
-| Not answered: no synthetic text for the field |   243 |
+| Not answered: no synthetic text for the field |   257 |
 | Violations                                    |     0 |
 
 ## Rule crashes
