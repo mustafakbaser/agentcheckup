@@ -372,7 +372,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - uses: mustafakbaser/agentcheckup-action@93300091ec6b2785133fd125ccc2c0dd61830b0a # v0.4.1
+      - uses: mustafakbaser/agentcheckup-action@3c3b030a3b1cc64d121189a75c859fbdd37da8fd # v0.5.0
 ```
 
 The gate looks at what changed since the base commit. By default it fails the check when a
