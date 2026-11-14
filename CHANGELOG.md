@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.5.0](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.1...v0.5.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **platforms:** Against an earlier baseline, `--gate permissions` can trip once for the allowed-tools of `.claude/commands` files, which no longer list Devin Local, and of skills in `.codex/skills`, `.kiro/skills` and `.codeium/skills`, which now do.
+
+### Bug fixes
+
+* **inventory:** follow the November Claude Code documentation changes ([bb14ad5](https://github.com/mustafakbaser/agentcheckup/commit/bb14ad5b58cfe686f0f9ad97203373b67b4c4210)), closes [#112](https://github.com/mustafakbaser/agentcheckup/issues/112) [#113](https://github.com/mustafakbaser/agentcheckup/issues/113) [#114](https://github.com/mustafakbaser/agentcheckup/issues/114) [#115](https://github.com/mustafakbaser/agentcheckup/issues/115) [#116](https://github.com/mustafakbaser/agentcheckup/issues/116) [#117](https://github.com/mustafakbaser/agentcheckup/issues/117) [#118](https://github.com/mustafakbaser/agentcheckup/issues/118)
+* **inventory:** follow the November Claude Code settings reference changes ([0f447ab](https://github.com/mustafakbaser/agentcheckup/commit/0f447abe53ae28bbd26fdfb4698a12f044dda7f1)), closes [#119](https://github.com/mustafakbaser/agentcheckup/issues/119) [#120](https://github.com/mustafakbaser/agentcheckup/issues/120) [#121](https://github.com/mustafakbaser/agentcheckup/issues/121) [#122](https://github.com/mustafakbaser/agentcheckup/issues/122) [#123](https://github.com/mustafakbaser/agentcheckup/issues/123) [#124](https://github.com/mustafakbaser/agentcheckup/issues/124) [#125](https://github.com/mustafakbaser/agentcheckup/issues/125) [#168](https://github.com/mustafakbaser/agentcheckup/issues/168)
+* **inventory:** mark the variables Claude Code reads from the launch environment only as dropped ([6f6cae7](https://github.com/mustafakbaser/agentcheckup/commit/6f6cae7106b73cc4fd11e9d0abdbd6345729d220))
+* **platforms:** follow the November Codex documentation changes ([c1501a5](https://github.com/mustafakbaser/agentcheckup/commit/c1501a52630c35b4145277d9a9e4707e0b1f2ffa)), closes [#156](https://github.com/mustafakbaser/agentcheckup/issues/156) [#157](https://github.com/mustafakbaser/agentcheckup/issues/157) [#158](https://github.com/mustafakbaser/agentcheckup/issues/158) [#159](https://github.com/mustafakbaser/agentcheckup/issues/159) [#160](https://github.com/mustafakbaser/agentcheckup/issues/160) [#161](https://github.com/mustafakbaser/agentcheckup/issues/161)
+* **platforms:** follow the November Devin documentation changes ([1e57d6a](https://github.com/mustafakbaser/agentcheckup/commit/1e57d6af856e987a36ddcf38f7df6c4ffa005b16)), closes [#136](https://github.com/mustafakbaser/agentcheckup/issues/136) [#137](https://github.com/mustafakbaser/agentcheckup/issues/137) [#138](https://github.com/mustafakbaser/agentcheckup/issues/138) [#139](https://github.com/mustafakbaser/agentcheckup/issues/139) [#140](https://github.com/mustafakbaser/agentcheckup/issues/140) [#141](https://github.com/mustafakbaser/agentcheckup/issues/141) [#142](https://github.com/mustafakbaser/agentcheckup/issues/142) [#143](https://github.com/mustafakbaser/agentcheckup/issues/143) [#144](https://github.com/mustafakbaser/agentcheckup/issues/144) [#145](https://github.com/mustafakbaser/agentcheckup/issues/145) [#146](https://github.com/mustafakbaser/agentcheckup/issues/146) [#147](https://github.com/mustafakbaser/agentcheckup/issues/147) [#170](https://github.com/mustafakbaser/agentcheckup/issues/170)
+* **rules:** follow the November VS Code documentation changes ([aed5a12](https://github.com/mustafakbaser/agentcheckup/commit/aed5a12adc3c8fcdab8d729b5342885cc16f7681)), closes [#126](https://github.com/mustafakbaser/agentcheckup/issues/126) [#127](https://github.com/mustafakbaser/agentcheckup/issues/127) [#128](https://github.com/mustafakbaser/agentcheckup/issues/128) [#129](https://github.com/mustafakbaser/agentcheckup/issues/129) [#130](https://github.com/mustafakbaser/agentcheckup/issues/130) [#131](https://github.com/mustafakbaser/agentcheckup/issues/131) [#132](https://github.com/mustafakbaser/agentcheckup/issues/132) [#169](https://github.com/mustafakbaser/agentcheckup/issues/169) [#176](https://github.com/mustafakbaser/agentcheckup/issues/176)
+
+
+### Documentation
+
+* pin the Action example to v0.4.1 and name its sarif-category input ([bb08dfb](https://github.com/mustafakbaser/agentcheckup/commit/bb08dfb1195016acbe7f5a4ae820d640b119b84d))
+* **platforms:** record the November source re-check in the last-verified note ([cbac075](https://github.com/mustafakbaser/agentcheckup/commit/cbac07519e33702f86864fb1af6795a76549cf27))
+* record how unfixable development-only dependency alerts are accepted ([c2c3211](https://github.com/mustafakbaser/agentcheckup/commit/c2c32116b7bc33e0d1d8b119d4e72a88d068b578))
+
 ## [0.4.1](https://github.com/mustafakbaser/agentcheckup/compare/v0.4.0...v0.4.1) (2026-10-31)
 
 
