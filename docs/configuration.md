@@ -140,6 +140,11 @@ analyzed and fail closed ([Baselines and the gate](context.md#what-the-scan-coul
   configuration files are excluded by .gitignore; add --no-gitignore to check them". The count
   lists at most 20,000 directory entries.
 
+A file the configuration's `ignore` matches is left out of these notes, of `skipped`,
+`unscannedConfig` and `inventory.incomplete` too: you chose not to check it. Directory entries,
+such as where the walk stopped, stay, because they cover the whole tree. `--untrusted` and
+`--policy` read no configuration, so `ignore` never hides anything from the gate.
+
 ## Organization policy
 
 `--policy <file>` checks a scan against rules your organization sets: which MCP servers may run,

@@ -119,6 +119,68 @@ describe('buildArtifacts', () => {
   });
 });
 
+describe('scanSnapshot: configuration ignore and what a scan could not check', () => {
+  const snapshot = {
+    ...snapshotFrom(
+      { 'CLAUDE.md': '# x\n' },
+      {
+        paths: ['fixtures/.cline/plugins/guard.ts', '.cline/plugins/guard.ts'],
+      },
+    ),
+    skipped: [
+      { path: 'fixtures/big/CLAUDE.md', reason: 'too-large' as const, size: 9_000_000 },
+      { path: 'docs/big/CLAUDE.md', reason: 'too-large' as const, size: 9_000_000 },
+      { path: 'fixtures/deep/', reason: 'depth-limit' as const },
+    ],
+    unscannedConfig: {
+      gitignored: new Set(['fixtures/.claude/settings.local.json', '.claude/settings.local.json']),
+      excluded: new Set<string>(),
+      complete: true,
+    },
+  };
+
+  it('reports nothing about files ignore matches, and keeps the rest', () => {
+    const result = scanSnapshot(snapshot, {
+      rules: [],
+      config: resolveConfig({ ignore: ['fixtures/**'] }),
+    });
+    expect(result.skipped.map((entry) => entry.path)).toEqual([
+      'docs/big/CLAUDE.md',
+      'fixtures/deep/',
+    ]);
+    expect([...(result.unscannedConfig?.gitignored ?? [])]).toEqual([
+      '.claude/settings.local.json',
+    ]);
+    expect(result.inventory.incomplete).toEqual(
+      expect.not.arrayContaining([
+        'fixtures/.cline/plugins/guard.ts',
+        'unread:fixtures/big/CLAUDE.md',
+        'excluded:fixtures/.claude/settings.local.json',
+      ]),
+    );
+    expect(result.inventory.incomplete).toEqual(
+      expect.arrayContaining([
+        '.cline/plugins/guard.ts',
+        'unread:docs/big/CLAUDE.md',
+        'unlisted:fixtures/deep/',
+        'excluded:.claude/settings.local.json',
+      ]),
+    );
+  });
+
+  it('keeps every entry without a configuration, as --untrusted scans', () => {
+    const result = scanSnapshot(snapshot, { rules: [], config: EMPTY_CONFIG });
+    expect(result.skipped).toHaveLength(3);
+    expect(result.inventory.incomplete).toEqual(
+      expect.arrayContaining([
+        'fixtures/.cline/plugins/guard.ts',
+        'unread:fixtures/big/CLAUDE.md',
+        'excluded:fixtures/.claude/settings.local.json',
+      ]),
+    );
+  });
+});
+
 describe('scanSnapshot', () => {
   it('runs rules, sorts findings and scores the result', () => {
     const result = lint({ 'z/AGENTS.md': 'bad', 'AGENTS.md': 'ok' }, { rules: [everyFile] });

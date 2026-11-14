@@ -1,6 +1,7 @@
 import { buildAgents } from '../agents/build.js';
 import type { AgentsReport } from '../agents/types.js';
 import { buildInventory } from '../inventory/build.js';
+import { parseIncomplete } from '../inventory/incomplete.js';
 import type { Inventory } from '../inventory/types.js';
 import { parseFrontmatter } from '../parse/frontmatter.js';
 import { parseJson, parseJsonc, parseJsonWithComments } from '../parse/json.js';
@@ -808,13 +809,17 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
     },
     rules: ranRules,
     ...(Object.keys(configuredSeverities).length > 0 ? { configuredSeverities } : {}),
-    skipped: snapshot.skipped,
+    skipped: snapshot.skipped.filter((entry) => !ignoredFile(config, entry.path)),
     ...(snapshot.unscannedConfig === undefined
       ? {}
       : {
           unscannedConfig: {
-            gitignored: [...snapshot.unscannedConfig.gitignored],
-            excluded: [...snapshot.unscannedConfig.excluded],
+            gitignored: [...snapshot.unscannedConfig.gitignored].filter(
+              (path) => !config.isIgnored(path),
+            ),
+            excluded: [...snapshot.unscannedConfig.excluded].filter(
+              (path) => !config.isIgnored(path),
+            ),
             complete: snapshot.unscannedConfig.complete,
           },
         }),
@@ -825,13 +830,37 @@ export function runRules(analysis: Analysis, options: RunRulesOptions): RuleResu
 }
 
 /**
+ * True for a file, not a directory, that the configuration's `ignore` matches. The scan reports
+ * nothing about such a file: no "not checked" note, no gitignore count, no inventory entry.
+ * Directory entries stay: the walk's entry limit and directories it could not list are about the
+ * whole tree, which `ignore` does not cover. `--untrusted` and `--policy` read no configuration,
+ * so this never hides anything from the gate there.
+ */
+function ignoredFile(config: Analysis['config'], path: string): boolean {
+  return !path.endsWith('/') && config.isIgnored(path);
+}
+
+/** The security inventory of `analysis`, without entries for files `ignore` matches. */
+function inventoryOf(analysis: Analysis): Inventory {
+  const inventory = buildInventory(analysis);
+  const incomplete = inventory.incomplete.filter((entry) => {
+    const { tag, path } = parseIncomplete(entry);
+    if (tag === 'file-limit') return true;
+    return !ignoredFile(analysis.config, path.replace(/^invalid-(?:json|toml):/u, ''));
+  });
+  return incomplete.length === inventory.incomplete.length
+    ? inventory
+    : { ...inventory, incomplete };
+}
+
+/**
  * Runs every applicable rule over a snapshot, then lists its security inventory. Pure: no I/O,
  * deterministic output.
  */
 export function scanSnapshot(snapshot: Snapshot, options: ScanOptions): ScanResult {
   const analysis = analyze(snapshot, options);
   const result = runRules(analysis, options);
-  return { ...result, inventory: buildInventory(analysis), agents: buildAgents(analysis) };
+  return { ...result, inventory: inventoryOf(analysis), agents: buildAgents(analysis) };
 }
 
 /**
@@ -863,7 +892,7 @@ export function scanWithContext(
 
   const analysis = analyze(snapshot, options);
   const result = runRules(analysis, options);
-  const inventory = buildInventory(analysis);
+  const inventory = inventoryOf(analysis);
   const definitions = buildAgents(analysis);
   const agents = options.agents ?? contextAgentsOf(analysis.targetList);
   const shared = {
