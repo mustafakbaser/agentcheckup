@@ -363,7 +363,7 @@ describe('schemas/fix.schema.json', () => {
       (value) => (at(value, 'fixes', 0, 'effects', 0)['kind'] = 'size'),
       (value) => (at(value, 'fixes', 0, 'effects', 0)['agent'] = 'copilot'),
       (value) => (at(value, 'fixes', 1, 'effects', 0)['class'] = 'security'),
-      (value) => (at(value, 'fixes', 1, 'effects', 0)['change'] = 'removed'),
+      (value) => (at(value, 'fixes', 1, 'effects', 0)['change'] = 'deleted'),
       (value) => (at(value, 'files', 0)['op'] = 'delete'),
       (value) => (at(value, 'files', 0)['from'] = 'OLD.md'),
       (value) => delete at(value, 'files', 0)['before'],

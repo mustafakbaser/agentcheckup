@@ -106,7 +106,7 @@ describe('.codex/config.toml in the inventory', () => {
       ['shell_environment_policy.set.GITHUB_TOKEN', 'credential', undefined],
       ['shell_environment_policy.set.HTTPS_PROXY', 'endpoint', 'http://proxy.local:8080'],
       ['shell_environment_policy.set.NODE_OPTIONS', 'code-exec', undefined],
-      ['shell_environment_policy.set.PATH', 'other', undefined],
+      ['shell_environment_policy.set.PATH', 'code-exec', undefined],
     ]);
     // A changed helper command is a changed item, as for a settings command.
     const changed = inventoryOf(

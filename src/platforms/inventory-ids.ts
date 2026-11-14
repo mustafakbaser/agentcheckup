@@ -18,7 +18,13 @@
  */
 import { compareStrings } from '../core/compare.js';
 import { hash53 } from '../core/fingerprint.js';
-import { redactArgs, redactCommand, urlOrigin } from '../inventory/redact.js';
+import {
+  argsWithoutCredentials,
+  redactArgs,
+  redactCommand,
+  urlOrigin,
+  withoutCredentials,
+} from '../inventory/redact.js';
 import { type JsonObject, own } from '../parse/json-access.js';
 import type { HookHandler, HookPlatform } from './hooks.js';
 import type { McpServer } from './mcp.js';
@@ -114,7 +120,7 @@ function execLine(program: string, args: unknown): string {
   const redacted = redactCommand(program);
   if (!Array.isArray(args)) return redacted;
   const strings = args.filter((arg): arg is string => typeof arg === 'string');
-  return [redacted, ...redactArgs(strings).map(quoteArg)].join(' ');
+  return [redacted, ...redactArgs(strings, program).map(quoteArg)].join(' ');
 }
 
 /**
@@ -176,6 +182,50 @@ export function hookTarget(handler: JsonObject): object | undefined {
   const tool = stringOf(own(handler, 'tool'));
   if (server !== undefined || tool !== undefined) return { server, tool };
   return undefined;
+}
+
+/**
+ * What a hook handler runs or calls, as its digest covers it (docs/adr/0017): every command
+ * field with its arguments, the URL of an HTTP hook, the server and tool of an MCP tool hook, and
+ * the prompt and model of a prompt or agent hook, whole but for their credentials
+ * ({@link withoutCredentials}). Never shown: only hashed, so a change that redaction hides, such
+ * as another path on the same host, still changes the digest. Header values are left out.
+ */
+export function hookExact(handler: JsonObject, platform?: HookPlatform): object {
+  const fields = platform === 'copilot' ? COPILOT_EXACT_FIELDS : ['command'];
+  const commands: Record<string, string> = {};
+  for (const field of fields) {
+    const value = stringOf(own(handler, field));
+    if (value === undefined) continue;
+    const args = own(handler, 'args');
+    commands[field] =
+      (field === 'command' && platform !== 'copilot') || field === 'exec'
+        ? exactExecLine(value, args)
+        : withoutCredentials(value);
+  }
+  const text = (key: string): string | undefined => {
+    const value = stringOf(own(handler, key));
+    return value === undefined ? undefined : withoutCredentials(value.trim());
+  };
+  return {
+    commands,
+    url: text('url'),
+    server: stringOf(own(handler, 'server')),
+    tool: stringOf(own(handler, 'tool')),
+    prompt: text('prompt'),
+    model: text('model'),
+  };
+}
+
+/** Command fields of a Copilot hook ({@link COPILOT_COMMAND_FIELDS}) and `exec`. */
+const COPILOT_EXACT_FIELDS = [...COPILOT_COMMAND_FIELDS, 'exec'];
+
+/** `program` and its string arguments without credentials, as {@link execLine} joins them. */
+function exactExecLine(program: string, args: unknown): string {
+  const line = withoutCredentials(program);
+  if (!Array.isArray(args)) return line;
+  const strings = args.filter((arg): arg is string => typeof arg === 'string');
+  return [line, ...argsWithoutCredentials(strings, program).map(quoteArg)].join(' ');
 }
 
 /** JSON with object keys sorted by code point and `undefined` fields left out. */

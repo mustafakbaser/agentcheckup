@@ -19,6 +19,7 @@ import type { FrontmatterResult } from '../parse/types.js';
 import { JSON_KINDS, TOML_KINDS } from '../platforms/kinds.js';
 import { forTerminal } from '../report/sanitize.js';
 import { plural, truncate } from '../report/text.js';
+import { redactPermission } from '../inventory/redact.js';
 import { redactSecrets } from './redact.js';
 import type { ExcerptSpec } from './templates.js';
 import type { TaskExcerpt } from './types.js';
@@ -65,7 +66,11 @@ function valueExcerpt(
     if (span === undefined) return undefined;
     raw = artifact.decoded.text.slice(span.offset, span.offset + span.length);
   }
-  const { text, redacted } = redactSecrets(truncate(raw, MAX_SCANNED_CHARS, ''));
+  const secrets = redactSecrets(truncate(raw, MAX_SCANNED_CHARS, ''));
+  // Tool rules are commands: they lose their credentials as the inventory's permissions do,
+  // such as the password of `Bash(mysql -ppw *)`.
+  const text = key === 'allowed-tools' ? redactPermission(secrets.text) : secrets.text;
+  const redacted = secrets.redacted || text !== secrets.text;
   const lines = text.split(LINE_BREAK);
   const kept = lines.slice(0, MAX_VALUE_LINES).join('\n');
   const cut = truncate(kept, MAX_VALUE_CHARS, '');

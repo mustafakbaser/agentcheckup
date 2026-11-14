@@ -12,6 +12,7 @@ import { type BaselineReport, validateBaseline } from '../../src/core/baseline-i
 import type { AgentDefinition, AgentsReport, ModelSetting } from '../../src/agents/types.js';
 import type { GateClass } from '../../src/core/baseline-types.js';
 import { FINGERPRINT_VERSION } from '../../src/core/meta.js';
+import { gateRows } from '../../src/report/gate.js';
 import type { Finding, RuleMeta } from '../../src/core/types.js';
 import type {
   EnvItem,
@@ -709,6 +710,38 @@ describe('gate: permissions', () => {
   const after = (...permissions: PermissionItem[]): Report =>
     report({ inventory: { permissions } });
 
+  it('reports a deny or ask entry removed, or no longer taking effect', () => {
+    const deny = permission('permissions.deny', 'Bash(rm:*)');
+    const ask = permission('permissions.ask', 'WebFetch');
+    expect(hits(after(deny, ask), after(ask))).toEqual([
+      {
+        class: 'permissions',
+        id: 'perm:.claude/settings.json#permissions.deny=Bash(rm:*)',
+        change: 'removed',
+        summary: 'permissions.deny entry removed: Bash(rm:*)',
+      },
+    ]);
+    const off = permission('permissions.ask', 'WebFetch', { effective: false, digest: 'off' });
+    expect(hits(after(ask), after(off)).map((hit) => [hit.change, hit.summary])).toEqual([
+      ['changed', 'permissions.ask WebFetch no longer takes effect'],
+    ]);
+    // An entry that did not take effect, or that no agent reads, restricted nothing.
+    expect(hits(after(off), after())).toEqual([]);
+    expect(hits(after({ ...deny, platforms: [] }), after())).toEqual([]);
+    // Added or narrowed restrictions never trip it.
+    expect(hits(after(ask), after(ask, deny))).toEqual([]);
+    expect(hits(after(off), after(ask))).toEqual([]);
+  });
+
+  it('labels a removed deny entry as a widened permission', () => {
+    const deny = permission('permissions.deny', 'Bash(rm:*)');
+    const scan = report({ inventory: { permissions: [] } });
+    const rows = gateRows(compare(after(deny), scan, ['permissions']).diff);
+    expect(rows.map((row) => `${row.label}: ${row.hit.summary}`)).toEqual([
+      'Permission widened: permissions.deny entry removed: Bash(rm:*)',
+    ]);
+  });
+
   it('reports a narrow entry added to an allow list', () => {
     expect(hits(report(), after(permission('permissions.allow', 'Bash(curl:*)')))).toEqual([
       {
@@ -935,7 +968,7 @@ describe('gate: hooks', () => {
         class: 'hooks',
         id: 'hook:.claude/settings.json#Stop:00c0ffee',
         change: 'changed',
-        summary: 'Changed hook Stop Bash → scripts/hooks/guard.sh',
+        summary: 'Changed hook Stop Bash → scripts/hooks/guard.sh (changed in a redacted part)',
       },
     ]);
   });
@@ -1364,7 +1397,7 @@ describe('gate: env', () => {
     expect(hits(before, after).map((hit) => [hit.change, hit.summary])).toEqual([
       [
         'changed',
-        'Changed env override NODE_TLS_REJECT_UNAUTHORIZED → 0 changes TLS certificate checks',
+        'Changed env override NODE_TLS_REJECT_UNAUTHORIZED → 0 (was 1) changes TLS certificate checks',
       ],
     ]);
   });
@@ -1376,7 +1409,7 @@ describe('gate: env', () => {
     });
     expect(hits(before, after)[0]).toMatchObject({
       change: 'changed',
-      summary: 'Changed env override HTTPS_PROXY → another endpoint',
+      summary: 'Changed env override HTTPS_PROXY → another endpoint (changed in a redacted part)',
     });
   });
 });
@@ -2041,9 +2074,14 @@ describe('validateBaseline', () => {
     const { fingerprintVersion: _version, ...old } = json(full) as Record<string, unknown>;
     expect(invalid(old)).toEqual({
       reason: 'unsupported-schema',
-      message: `Baseline report: its finding fingerprints have version 1, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so no finding could be matched. Create the baseline again with this agentcheckup version.`,
+      message: `Baseline report: its finding fingerprints and inventory digests have version 1, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so findings and inventory items could not be matched. Create the baseline again with this agentcheckup version.`,
     });
-    expect(invalid({ ...(json(full) as object), fingerprintVersion: 3 }).reason).toBe(
+    // Version 2 computed the same finding fingerprints, but inventory digests from the redacted
+    // form alone, so its items would all look changed.
+    expect(invalid({ ...(json(full) as object), fingerprintVersion: 2 }).reason).toBe(
+      'unsupported-schema',
+    );
+    expect(invalid({ ...(json(full) as object), fingerprintVersion: 4 }).reason).toBe(
       'unsupported-schema',
     );
     expect(invalid({ ...(json(full) as object), fingerprintVersion: '2' })).toEqual({
@@ -2495,7 +2533,7 @@ describe('properties', () => {
     );
   });
 
-  it('every hit is for a selected class and an added or changed item', () => {
+  it('every hit is for a selected class and an added, changed or removed item', () => {
     fc.assert(
       fc.property(reportArb, reportArb, fc.subarray([...GATE_CLASSES]), (before, after, gate) => {
         const { diff } = compare(before, after, gate);
@@ -2503,6 +2541,7 @@ describe('properties', () => {
           ...diff.inventory.added,
           ...diff.inventory.changed.map((c) => c.id),
         ]);
+        const removed = new Set(diff.inventory.removed);
         const fresh = new Set(
           compareWithBaseline(after, before)
             .findings.filter((f) => f.baseline === 'new')
@@ -2511,7 +2550,7 @@ describe('properties', () => {
         for (const hit of diff.gate.hits) {
           expect(gate).toContain(hit.class);
           const known =
-            changed.has(hit.id) ||
+            (hit.change === 'removed' ? removed.has(hit.id) : changed.has(hit.id)) ||
             (hit.class === 'unicode' && fresh.has(hit.id)) ||
             (hit.kind === 'not-analyzed' &&
               hit.change === 'added' &&

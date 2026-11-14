@@ -477,7 +477,7 @@ describe('schemas/report.schema.json', () => {
       (value) => (at(value, 'inventory', 'hooks', 0)['scope'] = 'session'),
       (value) => (at(value, 'inventory', 'mcpServers', 0)['scope'] = 'skill'),
       (value) => (at(value, 'baseline', 'gate', 'classes')[0] = 'security'),
-      (value) => (at(value, 'baseline', 'gate', 'hits', 0)['change'] = 'removed'),
+      (value) => (at(value, 'baseline', 'gate', 'hits', 0)['change'] = 'deleted'),
       (value) => (at(value, 'baseline', 'gate', 'hits', 0)['kind'] = 'setting'),
       (value) => (at(value, 'baseline', 'findings', 'resolved', 0)['fingerprint'] = 'x'),
     ];

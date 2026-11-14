@@ -12,7 +12,11 @@
  *   ` ::stop-commands::x` would otherwise be a workflow command in a GitHub Actions log.
  * - Credentials are redacted before anything is shown, as `ghp_…(40 chars)`: the spans that a
  *   credential fix (mcp/literal-secret, or any fix with a rotation warning) replaces, wherever
- *   they appear, and anything mcp/literal-secret's detector matches.
+ *   they appear, and anything mcp/literal-secret's detector matches. Before that, every line of
+ *   file content, changed or context, is masked as the inventory masks it
+ *   (src/report/credential-mask.ts): `env` and `headers` values of JSON and TOML configuration,
+ *   credential arguments, and the user names, passwords and credential-like query values of
+ *   URLs. The diff is computed on the real text, so a masked line still shows as changed.
  *
  * The diff:
  * - Lines are compared whole, with their line ending. Myers' O(ND) algorithm after trimming the
@@ -54,6 +58,7 @@ import { CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { findSecret } from '../rules/mcp/secrets.js';
 import { joinNames } from '../rules/shared/format.js';
 import { AGENT_NAMES } from './context-view.js';
+import { credentialMasks, type LineMasks, maskLine } from './credential-mask.js';
 import { GATE_CLASS_ORDER } from './json.js';
 import { forTerminal, guardWorkflowCommands } from './sanitize.js';
 import { plainStyle, type Style } from './stylish.js';
@@ -175,6 +180,8 @@ type Mark = ' ' | '-' | '+';
 interface Entry {
   readonly mark: Mark;
   readonly line: Line;
+  /** 0-based index of the line in its text: the old text for `-`, the new one otherwise. */
+  readonly index: number;
 }
 
 interface Hunk {
@@ -328,12 +335,14 @@ function entriesOf(before: string, after: string, ignoreCr: boolean): Entry[] {
   let j = 0;
   for (const mark of marks) {
     if (mark === '-') {
-      const line = oldLines[i++];
-      if (line !== undefined) entries.push({ mark, line });
+      const index = i++;
+      const line = oldLines[index];
+      if (line !== undefined) entries.push({ mark, line, index });
     } else {
-      const line = newLines[j++];
+      const index = j++;
+      const line = newLines[index];
       if (mark === ' ') i++;
-      if (line !== undefined) entries.push({ mark, line });
+      if (line !== undefined) entries.push({ mark, line, index });
     }
   }
   return entries;
@@ -377,10 +386,33 @@ function hunksOf(entries: readonly Entry[], context: number): Hunk[] {
   return hunks;
 }
 
-function toDiffHunk(hunk: Hunk, redact: Redact): DiffHunk {
+/** The credential masks of a changed file's text before and after (src/report/credential-mask.ts). */
+interface FileMasks {
+  readonly before: LineMasks;
+  readonly after: LineMasks;
+}
+
+function fileMasksOf(file: ChangedFile): FileMasks {
+  return {
+    before:
+      file.op === 'create'
+        ? new Map()
+        : credentialMasks(file.op === 'rename' ? file.from : file.path, file.before.text),
+    after: credentialMasks(file.path, file.after.text),
+  };
+}
+
+/** An entry's text with its credentials masked, as every output of a fix shows it. */
+function maskedText(entry: Entry, masks: FileMasks, ellipsis?: string): string {
+  const lines = entry.mark === '-' ? masks.before : masks.after;
+  return maskLine(entry.line.text, lines.get(entry.index), ellipsis);
+}
+
+function toDiffHunk(hunk: Hunk, redact: Redact, masks?: FileMasks): DiffHunk {
   const lines: string[] = [];
   for (const entry of hunk.entries) {
-    lines.push(`${entry.mark}${redact(entry.line.text)}`);
+    const text = masks === undefined ? entry.line.text : maskedText(entry, masks);
+    lines.push(`${entry.mark}${redact(text)}`);
     if (!entry.line.eol) lines.push(NO_NEWLINE_MARKER);
   }
   return {
@@ -421,9 +453,13 @@ function fileHunksOf(file: ChangedFile): Hunk[] {
   return hunksOf(entriesOf(before, file.after.text, uniformCrlf(file)), DIFF_CONTEXT);
 }
 
-/** The hunks of one changed file as `fix --format json` reports them: redacted, no line endings. */
+/**
+ * The hunks of one changed file as `fix --format json` reports them: masked and redacted, no line
+ * endings.
+ */
 export function changedFileHunks(file: ChangedFile, redact: Redact): DiffHunk[] {
-  return fileHunksOf(file).map((hunk) => toDiffHunk(hunk, redact));
+  const masks = fileMasksOf(file);
+  return fileHunksOf(file).map((hunk) => toDiffHunk(hunk, redact, masks));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -611,7 +647,7 @@ function hunkRange(start: number, lines: number): string {
   return lines === 1 ? `${start}` : `${start},${lines}`;
 }
 
-function hunkLines(hunk: Hunk, showCr: boolean, context: Context): string[] {
+function hunkLines(hunk: Hunk, showCr: boolean, context: Context, masks: FileMasks): string[] {
   const { style, symbols } = context;
   const lines = [
     style.blue(
@@ -620,7 +656,8 @@ function hunkLines(hunk: Hunk, showCr: boolean, context: Context): string[] {
   ];
   for (const entry of hunk.entries) {
     const cr = showCr && entry.line.cr ? symbols.cr : '';
-    const text = `${entry.mark}${clean(entry.line.text, context, MAX_LINE_LENGTH)}${cr}`;
+    const shown = maskedText(entry, masks, symbols.more);
+    const text = `${entry.mark}${clean(shown, context, MAX_LINE_LENGTH)}${cr}`;
     if (entry.mark === '+') lines.push(style.green(text));
     else if (entry.mark === '-') lines.push(style.red(text));
     else lines.push(text);
@@ -661,7 +698,8 @@ function fileLines(file: ChangedFile, context: Context): string[] {
       : `a/${cleanPath(file.op === 'rename' ? file.from : file.path, context)}`;
   header(`--- ${from}`);
   header(`+++ b/${cleanPath(file.path, context)}`);
-  for (const hunk of hunks) lines.push(...hunkLines(hunk, showsCr, context));
+  const masks = fileMasksOf(file);
+  for (const hunk of hunks) lines.push(...hunkLines(hunk, showsCr, context, masks));
   return lines;
 }
 

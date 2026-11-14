@@ -12,12 +12,15 @@
  * broad grants and settings/ignored-permission-mode's modes (src/platforms/permissions.ts).
  *
  * Credentials never enter the inventory. Commands and arguments are redacted (./redact.ts),
- * `env` and `headers` keep names only, endpoint values are cut to their URL origin, and every
- * digest is built from that redacted form alone (decision 10).
+ * `env` and `headers` keep names only, and endpoint values are cut to their URL origin
+ * (decision 10). Digests cover more than items show, so that a change redaction hides still
+ * changes the digest: SHA-256 of the shown fields and of an `exact` part, the whole command,
+ * arguments and URLs and the values of endpoint, TLS and code-exec env overrides, without the
+ * credentials in them (docs/adr/0017).
  */
 import { compareStrings } from '../core/compare.js';
-import { hash53 } from '../core/fingerprint.js';
 import { dirnamePosix } from '../core/paths.js';
+import { sha256Hex } from '../core/sha256.js';
 import { decode, positionAt } from '../core/text.js';
 import {
   type Artifact,
@@ -66,6 +69,7 @@ import {
   envInventoryId,
   hookCommandLine,
   hookCommandLines,
+  hookExact,
   hookInventoryIds,
   hookTarget,
   mcpInventoryIds,
@@ -127,7 +131,14 @@ import {
 } from './env-class.js';
 import { incompleteEntry } from './incomplete.js';
 import { packageSpec } from './package-spec.js';
-import { redactArgs, redactCommand, redactShown, urlOrigin } from './redact.js';
+import {
+  argsWithoutCredentials,
+  redactArgs,
+  redactCommand,
+  redactShown,
+  urlOrigin,
+  withoutCredentials,
+} from './redact.js';
 import type {
   EnvItem,
   HookItem,
@@ -215,8 +226,24 @@ export function buildInventory(view: LoadView): Inventory {
 // Digests
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * SHA-256 of an item's digest fields in canonical JSON. The fields hold no credential: a hash of a
+ * short password in a published baseline could be found by trying candidates (docs/adr/0017).
+ */
 function digestOf(fields: object): string {
-  return hash53(canonicalJson(fields));
+  return sha256Hex(canonicalJson(fields));
+}
+
+/** Env classes whose values the digest covers: they decide where requests go and what runs. */
+const EXACT_CLASSES: ReadonlySet<EnvClass> = new Set(['endpoint', 'tls', 'code-exec']);
+
+/**
+ * The value of an env override as its digest covers it: for an endpoint, TLS or code-exec
+ * override, the value without credentials; undefined for a credential or any other value, which
+ * may be a secret under a name that does not say so.
+ */
+function exactEnvValue(cls: EnvClass, value: string | undefined): string | undefined {
+  return value === undefined || !EXACT_CLASSES.has(cls) ? undefined : withoutCredentials(value);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -467,7 +494,8 @@ class InventoryBuilder {
       const rawCommand = stringOf(own(config, 'command'));
       const rawArgs = own(config, 'args');
       const command = rawCommand === undefined ? undefined : redactCommand(rawCommand);
-      const args = Array.isArray(rawArgs) ? redactArgs(stringsOf(rawArgs)) : undefined;
+      const rawStrings = Array.isArray(rawArgs) ? stringsOf(rawArgs) : undefined;
+      const args = rawStrings === undefined ? undefined : redactArgs(rawStrings, rawCommand);
       const spec: PackageSpec | undefined =
         command === undefined
           ? undefined
@@ -490,13 +518,21 @@ class InventoryBuilder {
         status: statusOf(server),
         ...(scope === undefined ? {} : { scope }),
       };
+      const exact = {
+        command: rawCommand === undefined ? undefined : withoutCredentials(rawCommand),
+        args: rawStrings === undefined ? undefined : argsWithoutCredentials(rawStrings, rawCommand),
+        url: urlText === undefined ? undefined : withoutCredentials(urlText.trim()),
+        cwd: stringOf(own(config, 'cwd')),
+        envFile: stringOf(own(config, 'envFile')),
+        env: exactEnvOf(env),
+      };
       this.#servers.push({
         id: ids[index] ?? '',
         file: artifact.path,
         line: lineOf(artifact, keySpanOf(doc, server.path)),
         platforms,
         ...fields,
-        digestFields: fields,
+        digestFields: { ...fields, exact },
       });
 
       if (isObject(env)) {
@@ -515,9 +551,8 @@ class InventoryBuilder {
       const helper = own(config, 'http_headers_helper');
       if (artifact.kind === 'codex-config' && typeof helper === 'string') {
         const path = [...server.path, 'http_headers_helper'];
-        const command = redactCommand(helper);
         this.#pushEnv(artifact, doc, pathKey(path), 'code-exec', undefined, path, {
-          command,
+          command: helper,
           platforms,
         });
       }
@@ -683,6 +718,7 @@ class InventoryBuilder {
           ...(variants.length > 1 ? { commands: variants } : {}),
           ...(windows === undefined ? {} : { commandWindows: redactCommand(windows) }),
           ...(effective ? {} : { effective }),
+          exact: hookExact(handler, platform),
         },
       });
     });
@@ -1031,9 +1067,7 @@ class InventoryBuilder {
       const value = own(root, key);
       const command = isObject(value) ? stringOf(own(value, 'command')) : stringOf(value);
       if (command === undefined) continue;
-      this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], {
-        command: redactCommand(command),
-      });
+      this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], { command });
     }
   }
 
@@ -1261,12 +1295,15 @@ class InventoryBuilder {
   /**
    * An environment override. Its digest covers what the item shows: key, class, the URL origin of
    * an endpoint, and a `tls` switch value, so that NODE_TLS_REJECT_UNAUTHORIZED going from 1 to 0
-   * is a changed item. Any other value may be a secret, so it is neither shown nor hashed
-   * (decision 10): a changed NODE_OPTIONS value under the same key is not a changed item. A settings key that runs a
-   * command passes `command`, its redacted command line, which the digest also covers, as it
-   * covers a hook's command: a changed helper command is a changed item. An override the agent
-   * drops is `effective: false`, which only such items' digests cover, so the digests of the
-   * others stay as they were.
+   * is a changed item. It also covers, unshown, the value of an endpoint, TLS or code-exec
+   * override without its credentials ({@link exactEnvValue}): another path on the same origin or
+   * another NODE_OPTIONS value is a changed item. A credential's value is neither shown nor
+   * hashed (decision 10), nor is the value of an `other` override, which may be a secret under a
+   * name that does not say so. A settings key that runs a command passes `command`, its raw
+   * command line: the digest covers its redacted form and, unshown, its form without
+   * credentials, as it covers a hook's command. An override the agent drops is
+   * `effective: false`, which only such items' digests cover, so the digests of the others stay
+   * as they were.
    */
   #pushEnv(
     artifact: Artifact,
@@ -1281,11 +1318,16 @@ class InventoryBuilder {
       readonly effective?: boolean;
     } = {},
   ): void {
-    const { command, effective = true } = options;
+    const { effective = true } = options;
+    const command = options.command === undefined ? undefined : redactCommand(options.command);
     const platforms = options.platforms ?? sortedPlatforms(artifact.readers);
     const shown =
       cls === 'endpoint' ? endpointShown(value) : cls === 'tls' ? switchShown(value) : undefined;
     const fields = { key, class: cls, ...(shown === undefined ? {} : { shown }) };
+    const exact = {
+      value: exactEnvValue(cls, value),
+      command: options.command === undefined ? undefined : withoutCredentials(options.command),
+    };
     this.#env.push({
       id: envInventoryId(artifact.path, key),
       file: artifact.path,
@@ -1293,9 +1335,24 @@ class InventoryBuilder {
       platforms,
       ...fields,
       effective,
-      digestFields: { ...fields, command, ...(effective ? {} : { effective }) },
+      digestFields: { ...fields, command, ...(effective ? {} : { effective }), exact },
     });
   }
+}
+
+/**
+ * The values of a server's endpoint, TLS and code-exec env overrides, by name, as its digest
+ * covers them ({@link exactEnvValue}); credentials and other values are left out.
+ */
+function exactEnvOf(env: unknown): Readonly<Record<string, string>> | undefined {
+  if (!isObject(env)) return undefined;
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(env)) {
+    const value = stringOf(env[key]);
+    const exact = exactEnvValue(envClass(key, value), value);
+    if (exact !== undefined) out[key] = exact;
+  }
+  return out;
 }
 
 /**
@@ -1310,14 +1367,17 @@ function switchShown(value: string | undefined): string | undefined {
 
 const SWITCH_VALUES: ReadonlySet<string> = new Set(['0', '1', 'true', 'false', 'yes', 'no']);
 
-/** hash53 of a file's bytes, for a digest that changes whenever the file does. */
+/**
+ * SHA-256 of a file's bytes, one code unit per byte, for a digest that changes whenever the file
+ * does (docs/adr/0017).
+ */
 function bytesDigest(bytes: Uint8Array): string {
   const CHUNK = 8192;
   let binary = '';
   for (let start = 0; start < bytes.length; start += CHUNK) {
     binary += String.fromCharCode(...bytes.subarray(start, start + CHUNK));
   }
-  return hash53(binary);
+  return sha256Hex(binary);
 }
 
 /** The start and end offset of each line of `text`. */

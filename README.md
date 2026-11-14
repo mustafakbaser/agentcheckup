@@ -375,12 +375,15 @@ jobs:
       - uses: mustafakbaser/agentcheckup-action@93300091ec6b2785133fd125ccc2c0dd61830b0a # v0.4.1
 ```
 
-The gate looks at what changed since the base commit; removals never trip it. By default it
-fails the check when a pull request adds or changes an MCP server (or an MCP config file
-agentcheckup cannot analyze), a hook, a permission that lets an agent do more without asking
-(a `permissions.allow` entry, a skill's or command's `allowed-tools`, auto-approved MCP
-servers, `defaultMode`), an env override that sets an endpoint, a credential, TLS behavior or
-code execution, or hidden Unicode. Hooks, MCP servers and permission modes that skills,
+The gate looks at what changed since the base commit. By default it fails the check when a
+pull request adds or changes an MCP server (or an MCP config file agentcheckup cannot analyze),
+a hook, a permission that lets an agent do more without asking (a `permissions.allow` entry, a
+skill's or command's `allowed-tools`, auto-approved MCP servers, `defaultMode`, or a removed
+`permissions.deny` or `permissions.ask` entry), an env override that sets an endpoint, a
+credential, TLS behavior or code execution, or hidden Unicode. Other removals never trip it. A
+change counts even where reports do not show it: another path on the same host in a hook's
+download URL, another `NODE_OPTIONS` or `PATH` value, an endpoint with another path. A new
+credential value under the same name does not count. Hooks, MCP servers and permission modes that skills,
 commands and subagents declare in their frontmatter count too, and so does the subagent that
 Claude Code's `agent` setting starts every session as. New lint findings at or above `error` fail
 it too; findings already on the base branch do not. Agent definitions and model settings are not
@@ -397,8 +400,9 @@ by the session-start context per agent and the findings:
 > | New hook                       | .claude/settings.json › SessionStart | New hook SessionStart → scripts/hooks/session-start.sh               |
 > | Env override                   | .claude/settings.json                | Env override ANTHROPIC_BASE_URL → https://llm-proxy.example.net      |
 
-Endpoint values are shown as their URL origin. Credential values never appear in reports. The
-gate does not approve anything: pair the required check with
+Endpoint values are shown as their URL origin. Credential values never appear in reports or
+baseline files, and never enter the digests that tell a changed item: see
+[ADR 0017](docs/adr/0017-digest-what-redaction-hides.md). The gate does not approve anything: pair the required check with
 [CODEOWNERS](https://github.com/mustafakbaser/agentcheckup-action#requiring-the-check-and-codeowners)
 on agent-config paths, so a person who owns that configuration reviews each change. The Action's
 README covers SARIF upload, pull request comments, forks and the full list of inputs.
@@ -612,9 +616,15 @@ agentcheckup is built to run on repositories you do not trust:
   it is a pinned agentcheckup command, never one from the repository.
 - Parsers and rules are bounded against crafted input, and every output format escapes
   terminal control sequences, CI workflow commands and Markdown.
-- Reports and fix diffs never contain credential values: MCP `env` and `headers` keep their
-  names only, endpoint overrides are cut to their URL origin, and fix diffs show a committed
-  token as `ghp_…(40 chars)`.
+- Reports, baseline files and fix diffs never contain credential values: MCP `env` and
+  `headers` keep their names only, endpoint overrides are cut to their URL origin, the value
+  after a credential-like flag, the password of `sshpass -p`, `mysql -p…` or `redis-cli -a`,
+  URL user names, passwords and credential-like query values, the passwords of data source
+  names and connection strings are removed, and fix diffs mask `env` and `headers` values and
+  show a committed token as `ghp_…(40 chars)`. Suggested changes for a pull request skip any
+  line that holds one. Digests are built without credentials, so a published baseline cannot be
+  used to guess one. Redaction goes by names, programs and formats: a password passed in a form
+  it does not know, such as an unknown program's own flag, is shown as written.
 - `--untrusted` ignores the repository's configuration file and inline suppressions, and the
   repository's `.gitignore` cannot hide agent configuration from the scan, at any depth. A pull
   request that adds `.mcp.json` to `.gitignore` still has its `.mcp.json` checked. It also

@@ -214,19 +214,22 @@ agentcheckup --baseline base.json --gate security                         # on t
   above, re-indentation, trailing commas and reordered JSON keys.
 - `--gate` names the changes that fail the run: the security-relevant classes `mcp`,
   `mcp-unpinned`, `permissions`, `hooks`, `env` and `unicode`, `models` for agent definitions
-  and model settings, `security` for every class but `models`, or `none`. Removals never trip
-  it. `--gate` without `--baseline` is a usage error.
+  and model settings, `security` for every class but `models`, or `none`. Removals trip it
+  only for a `deny` or `ask` permission entry (`permissions`) and a model setting (`models`).
+  `--gate` without `--baseline` is a usage error.
 - `permissions` trips on every entry that lets an agent do more without asking: any
   `permissions.allow` entry, narrow ones such as `Bash(curl:*)` included, extra directories, a
   skill's `allowed-tools`, MCP auto-approval, Gemini CLI `trust`, a new `defaultMode`, and
   Codex settings such as `approval_policy = "never"`. The
-  summary marks broad entries, such as `Bash (broad: runs any shell command)`. `deny` and `ask`
-  entries never trip it. [Gate classes](context.md#gate-classes) has every class.
+  summary marks broad entries, such as `Bash (broad: runs any shell command)`. A removed
+  `deny` or `ask` entry trips it; an added one never does.
+  [Gate classes](context.md#gate-classes) has every class.
 - `--context` on the base scan adds the load plans, so the comparison also shows the change in
   session-start context per agent.
 - The baseline is read as untrusted input: at most 64 MiB, a regular file (not a symlink), and
   only a report with a supported `schemaVersion` and the same `fingerprintVersion`. Anything
-  else exits with code 2: a baseline written before fingerprint version 2 must be created again.
+  else exits with code 2: a baseline written before fingerprint version 3, which changed how
+  inventory items are digested, must be created again.
   A baseline written with another ruleset is accepted with a warning: findings from rules it did
   not run count as new.
 

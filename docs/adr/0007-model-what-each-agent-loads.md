@@ -9,7 +9,9 @@
   on startup tokens, and [0012](0012-list-hooks-servers-and-permissions-declared-in-frontmatter.md),
   which lists hooks, MCP servers and permissions declared in frontmatter, and
   [0016](0016-report-what-a-scan-could-not-see.md), under which the gate fails closed on what the
-  scan could not analyze
+  scan could not analyze,
+  and [0017](0017-digest-what-redaction-hides.md), whose digests cover what redaction hides and
+  whose gate trips when a `deny` or `ask` entry is removed
 
 ## Context
 

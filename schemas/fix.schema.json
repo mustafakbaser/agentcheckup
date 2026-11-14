@@ -147,7 +147,7 @@
               "type": "string",
               "minLength": 1
             },
-            "change": { "enum": ["added", "changed"] },
+            "change": { "enum": ["added", "changed", "removed"] },
             "summary": { "type": "string" }
           }
         }

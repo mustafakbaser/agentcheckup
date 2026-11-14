@@ -262,13 +262,14 @@ function readReport(value: unknown): BaselineReport {
     );
   }
 
-  // Findings match by fingerprint: with another scheme, every finding would look new and every
-  // baseline finding resolved, so refuse instead of failing the run on findings nobody added.
+  // Findings match by fingerprint and inventory items by digest: with another scheme, every
+  // finding would look new or every item changed, so refuse instead of failing the run on
+  // changes nobody made.
   const fingerprintVersion = optional(value, 'fingerprintVersion', '', finite) ?? 1;
   if (fingerprintVersion !== FINGERPRINT_VERSION) {
     throw new BaselineError(
       'unsupported-schema',
-      `Baseline report: its finding fingerprints have version ${String(fingerprintVersion)}, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so no finding could be matched. Create the baseline again with this agentcheckup version.`,
+      `Baseline report: its finding fingerprints and inventory digests have version ${String(fingerprintVersion)}, and this agentcheckup computes version ${String(FINGERPRINT_VERSION)}, so findings and inventory items could not be matched. Create the baseline again with this agentcheckup version.`,
     );
   }
 

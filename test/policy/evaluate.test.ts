@@ -106,7 +106,7 @@ describe('mcp-not-allowed', () => {
           'MCP server "fetch" runs npm package mcp-fetch-server, which the policy does not allow.',
       },
     ]);
-    expect(report.violations[0]?.id).toMatch(/^mcp-not-allowed:mcp:\.mcp\.json#fetch@[\da-f]{14}$/);
+    expect(report.violations[0]?.id).toMatch(/^mcp-not-allowed:mcp:\.mcp\.json#fetch@[\da-f]{64}$/);
   });
 
   it('allows scoped and unscoped npm packages by name, and by exact version', () => {

@@ -8,6 +8,7 @@ import {
 import { validateBaseline } from '../../src/core/baseline-input.js';
 import { analyze, scanSnapshot } from '../../src/core/engine.js';
 import { hash53 } from '../../src/core/fingerprint.js';
+import { sha256Hex } from '../../src/core/sha256.js';
 import type { Snapshot } from '../../src/core/types.js';
 import { buildInventory } from '../../src/inventory/build.js';
 import type { Inventory } from '../../src/inventory/types.js';
@@ -96,7 +97,7 @@ describe('the context fixture', () => {
   it('describes MCP servers', async () => {
     const { mcpServers } = await contextFixture();
     const { digest, ...github } = byId(mcpServers, 'mcp:.mcp.json#github');
-    expect(digest).toMatch(/^[\da-f]{14}$/);
+    expect(digest).toMatch(/^[\da-f]{64}$/);
     expect(github).toEqual({
       id: 'mcp:.mcp.json#github',
       file: '.mcp.json',
@@ -469,15 +470,55 @@ describe('hooks', () => {
     expect(JSON.stringify(hooks)).not.toContain('secret-path');
   });
 
-  it('changes the digest of an HTTP hook only when its origin changes', () => {
-    const digestFor = (url: string): string | undefined =>
+  it('changes the digest of an HTTP hook with its whole URL, but not with its credentials', () => {
+    const hookFor = (url: string, headers: object = {}) =>
       inventoryOf({
         '.claude/settings.json': json({
-          hooks: { Stop: [{ hooks: [{ type: 'http', url }] }] },
+          hooks: { Stop: [{ hooks: [{ type: 'http', url, headers }] }] },
         }),
-      }).hooks[0]?.digest;
-    expect(digestFor('https://a.example.com/one')).toBe(digestFor('https://a.example.com/two'));
+      }).hooks[0];
+    const digestFor = (url: string, headers?: object): string | undefined =>
+      hookFor(url, headers)?.digest;
+    expect(digestFor('https://a.example.com/one')).not.toBe(digestFor('https://a.example.com/two'));
     expect(digestFor('https://a.example.com/one')).not.toBe(digestFor('https://b.example.com/one'));
+    // The id stays: it covers only what reports show, the origin.
+    expect(hookFor('https://a.example.com/one')?.id).toBe(hookFor('https://a.example.com/two')?.id);
+    // Credentials never reach the digest: user, password, credential-like query values, headers.
+    expect(digestFor('https://u:pw1@a.example.com/x?sig=one&page=1')).toBe(
+      digestFor('https://v:pw2@a.example.com/x?sig=two&page=1'),
+    );
+    expect(digestFor('https://a.example.com/x?page=1')).not.toBe(
+      digestFor('https://a.example.com/x?page=2'),
+    );
+    expect(digestFor('https://a.example.com/x', { Authorization: 'Bearer one' })).toBe(
+      digestFor('https://a.example.com/x', { Authorization: 'Bearer two' }),
+    );
+  });
+
+  it('changes the digest of a command hook with anything but a credential', () => {
+    const hookFor = (command: string) =>
+      inventoryOf({
+        '.claude/settings.json': json({
+          hooks: { Stop: [{ hooks: [{ type: 'command', command }] }] },
+        }),
+      }).hooks[0];
+    const digestFor = (command: string): string | undefined => hookFor(command)?.digest;
+    const fetch = (path: string): string =>
+      `curl -fsSL https://raw.githubusercontent.com/acme/tools/main/${path} | bash`;
+    expect(hookFor(fetch('setup.sh'))?.id).toBe(hookFor(fetch('other.sh'))?.id);
+    expect(digestFor(fetch('setup.sh'))).not.toBe(digestFor(fetch('other.sh')));
+    expect(
+      digestFor('npx -y @acme/setup@1.0.0 --config https://cfg.example.com/acme.json'),
+    ).not.toBe(digestFor('npx -y @acme/setup@1.0.0 --config https://cfg.example.com/other.json'));
+    for (const [one, two] of [
+      ['deploy --token one', 'deploy --token two'],
+      ['sshpass -p one ssh host', 'sshpass -p two ssh host'],
+      ['mysql -pone db', 'mysql -ptwo db'],
+      ['curl https://u:one@a.example.com/x', 'curl https://u:two@a.example.com/x'],
+    ] as const) {
+      expect(digestFor(one)).toBe(digestFor(two));
+    }
+    expect(digestFor('ssh -p 2222 host')).not.toBe(digestFor('ssh -p 2223 host'));
   });
 
   it('resolves scripts as hooks/script-missing does', () => {
@@ -1269,15 +1310,18 @@ describe('env', () => {
     }
   });
 
-  it('changes digests only with what the reports show', () => {
+  it('changes digests with what decides where requests go and what runs, never credentials', () => {
     const digest = (key: string, value: string): string | undefined =>
       envOf({ [key]: value })[0]?.digest;
     // Credentials and `other` values never enter the digest.
     expect(digest('DEPLOY_TOKEN', 'one')).toBe(digest('DEPLOY_TOKEN', 'two'));
     expect(digest('DEBUG', '1')).toBe(digest('DEBUG', '2'));
-    // Endpoints change with their origin, not their path or credentials.
-    expect(digest('ANTHROPIC_BASE_URL', 'https://a.example.com/x')).toBe(
-      digest('ANTHROPIC_BASE_URL', 'https://u:p@a.example.com/y'),
+    // Endpoints change with their whole URL, not with its credentials.
+    expect(digest('ANTHROPIC_BASE_URL', 'https://a.example.com/x')).not.toBe(
+      digest('ANTHROPIC_BASE_URL', 'https://a.example.com/y'),
+    );
+    expect(digest('ANTHROPIC_BASE_URL', 'https://u:p@a.example.com/x?sig=1')).toBe(
+      digest('ANTHROPIC_BASE_URL', 'https://v:q@a.example.com/x?sig=2'),
     );
     expect(digest('ANTHROPIC_BASE_URL', 'https://a.example.com')).not.toBe(
       digest('ANTHROPIC_BASE_URL', 'https://b.example.com'),
@@ -1286,13 +1330,18 @@ describe('env', () => {
     expect(digest('NODE_TLS_REJECT_UNAUTHORIZED', '1')).not.toBe(
       digest('NODE_TLS_REJECT_UNAUTHORIZED', '0'),
     );
-    // Any other TLS or code-running value may be a secret: neither shown nor hashed.
-    expect(digest('NODE_EXTRA_CA_CERTS', '/etc/a.pem')).toBe(
+    // Any other TLS or code-running value is hashed, not shown, without its credentials.
+    expect(digest('NODE_EXTRA_CA_CERTS', '/etc/a.pem')).not.toBe(
       digest('NODE_EXTRA_CA_CERTS', '/etc/b.pem'),
     );
-    expect(digest('NODE_OPTIONS', '--require ./a.js')).toBe(
+    expect(digest('NODE_OPTIONS', '--require ./a.js')).not.toBe(
       digest('NODE_OPTIONS', '--require ./b.js'),
     );
+    expect(digest('PATH', '/usr/bin:/bin')).not.toBe(digest('PATH', './bin:/usr/bin:/bin'));
+    expect(digest('NODE_OPTIONS', '--secret-token=one')).toBe(
+      digest('NODE_OPTIONS', '--secret-token=two'),
+    );
+    expect(JSON.stringify(envOf({ NODE_OPTIONS: '--require ./evil.js' }))).not.toContain('evil');
     // A settings key that runs a command is covered by its redacted command, like a hook.
     const helper = (command: string): string | undefined =>
       envOf({}, { apiKeyHelper: command })[0]?.digest;
@@ -1442,14 +1491,15 @@ describe('env', () => {
       gate: SECURITY_GATE_CLASSES,
     }).diff.gate.hits.map((hit) => [hit.class, hit.id]);
     expect(hits).toEqual([['env', 'env:.claude/settings.json#ANTHROPIC_BASE_URL']]);
-    // An effective item's digest is the one earlier versions wrote.
+    // An effective item's digest has no `effective` field, as in earlier versions.
     const item = head.inventory.env.find((e) => e.key === 'ANTHROPIC_BASE_URL');
     expect(item?.digest).toBe(
-      hash53(
+      sha256Hex(
         canonicalJson({
           key: 'ANTHROPIC_BASE_URL',
           class: 'endpoint',
           shown: 'https://proxy.example.org',
+          exact: { value: 'https://proxy.example.org' },
         }),
       ),
     );

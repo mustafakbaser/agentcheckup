@@ -5,7 +5,7 @@
     "version": "0.0.0-golden"
   },
   "ruleset": "2026.10",
-  "fingerprintVersion": 2,
+  "fingerprintVersion": 3,
   "targets": [
     "claude-code",
     "cline",
@@ -3129,7 +3129,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "05faebb29e94d9",
+        "digest": "7b77bd1b8db224df817bc036dc213cce2e21022527818c7d247b8521fc2f12bf",
         "name": "docs",
         "transport": "unknown",
         "url": {

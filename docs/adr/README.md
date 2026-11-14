@@ -21,5 +21,6 @@ changed by adding a new record that supersedes the old one, never by editing his
 | [0014](0014-measure-subagent-calls-and-sum-up-context-cost.md)             | Measure subagent calls and sum up what configuration costs in context  | Accepted |
 | [0015](0015-bound-parser-work-per-scan.md)                                 | Bound parser work per scan                                             | Accepted |
 | [0016](0016-report-what-a-scan-could-not-see.md)                           | Report what a scan could not see                                       | Accepted |
+| [0017](0017-digest-what-redaction-hides.md)                                | Digest what redaction hides, and gate removed deny and ask entries     | Accepted |
 
 New records use [the template](template.md).

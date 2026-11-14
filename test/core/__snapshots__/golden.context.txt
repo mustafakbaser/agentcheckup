@@ -5,7 +5,7 @@
     "version": "0.0.0-golden"
   },
   "ruleset": "2026.10",
-  "fingerprintVersion": 2,
+  "fingerprintVersion": 3,
   "targets": [
     "claude-code",
     "cline",
@@ -4377,7 +4377,7 @@
         "platforms": [
           "codex"
         ],
-        "digest": "0583e25f4239f4",
+        "digest": "3d14d3bd154e1425d36d4c5de7aa042bd4228f6fd0936c4791b8d3ec88cf62f9",
         "name": "docs",
         "transport": "stdio",
         "command": "npx",
@@ -4405,7 +4405,7 @@
           "cursor",
           "windsurf"
         ],
-        "digest": "17b001729a6f12",
+        "digest": "fbeb21f5d6ba82cfb228f24b10ba603c48a9422a3979d6a8024eefe37a164eb1",
         "name": "linear",
         "transport": "unknown",
         "url": {
@@ -4427,7 +4427,7 @@
           "cursor",
           "windsurf"
         ],
-        "digest": "11330540e20b22",
+        "digest": "1bf28e18ef507e8e71fa03b9073b9ac7ea7908a81d6a6a9ec364387ace282494",
         "name": "postgres",
         "transport": "stdio",
         "command": "npx",
@@ -4459,7 +4459,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "0e3d0c791f75ab",
+        "digest": "c490c32cf6a1cc5f0b0fd5c307a12aaa1d9d1c3150977414afd3cff036ce0304",
         "name": "docs",
         "transport": "unknown",
         "url": {
@@ -4482,7 +4482,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "1f1e0407e53bec",
+        "digest": "c0dabd656cf39984400fa6ec8d8df2bfcc24cdc4129285f9f684cdfad432bdb9",
         "name": "filesystem",
         "transport": "stdio",
         "command": "npx",
@@ -4512,7 +4512,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "0ce6b113f10c1a",
+        "digest": "f82c42b06e80494e58756f6b13280b3774271a34bc77de6fc8aaf694800d9212",
         "name": "github",
         "transport": "stdio",
         "command": "npx",
@@ -4547,7 +4547,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "0188e921928a59",
+        "digest": "5164b1779f2ca3a382010ba7ea895d9871f27f373eaefd1a46b0be900019c170",
         "event": "BeforeCommit",
         "known": false,
         "type": "command",
@@ -4566,7 +4566,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "19f4d1c5787071",
+        "digest": "53c9ea85a7a7d12504cc12e8a7a4acf35878bfda9a7d0e93810de9c122c447ee",
         "event": "PreToolUse",
         "known": true,
         "matcher": "Bash",
@@ -4584,7 +4584,7 @@
         "platforms": [
           "cursor"
         ],
-        "digest": "06d3827721263a",
+        "digest": "4467a6b5e4bb4fa7813c621d8645e242a84a05a7289a32fb316052cd1c2510b9",
         "event": "beforeShellExecution",
         "known": true,
         "type": "command",
@@ -4606,7 +4606,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "19e08f0dfd18ce",
+        "digest": "59034eef5937a9c83d576cde4f8312a58fb71d1ff7dabb323d889f6852073363",
         "key": "permissions.allow",
         "value": "Bash",
         "broad": true,
@@ -4622,7 +4622,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "17c87ea8d3de20",
+        "digest": "eae3a184ea05582c1cddac617845623a1d376bf1e5f9af915dc05104c221a1c6",
         "key": "permissions.allow",
         "value": "Bash(pnpm test:*)",
         "broad": false,
@@ -4638,7 +4638,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "069be934cabe86",
+        "digest": "a4718b907ece9d77953c35aaa86791aee77d21a4624ddc0406b9c946254ec890",
         "key": "permissions.allow",
         "value": "Read(./packages/**)",
         "broad": false,
@@ -4654,7 +4654,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "15a506b43c799e",
+        "digest": "7bec272f7993be0b404817c1fd78813e37a273294e281ac80cc0f0217033f27c",
         "key": "permissions.deny",
         "value": "Read(./.env)",
         "broad": false,
@@ -4672,7 +4672,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "13305b26e7472a",
+        "digest": "f82b5e2a3c950210d24d965e00685e0a3a6bb7e54e93b11aeca43ef4a2fdc6ab",
         "key": "ANTHROPIC_BASE_URL",
         "class": "endpoint",
         "shown": "https://llm-gateway.example.com",
@@ -4688,7 +4688,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "0a4885b61b0920",
+        "digest": "7b733da5a10aa82bac775bb820b5d8dc463f9fd4cdf1d391f2e4f1ed89200b41",
         "key": "DISABLE_TELEMETRY",
         "class": "other",
         "effective": true
@@ -4702,7 +4702,7 @@
           "copilot",
           "windsurf"
         ],
-        "digest": "18976cac861cc8",
+        "digest": "84cce7d5870645c0f7cc5f8afb81c868807dd656ed7ff5c710e0fb9795fff1d1",
         "key": "mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN",
         "class": "credential",
         "effective": true

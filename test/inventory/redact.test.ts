@@ -1,11 +1,17 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { envClass, looksLikeCredentialName } from '../../src/inventory/env-class.js';
 import {
+  argsWithoutCredentials,
   isSecretFlag,
+  isSecretName,
+  maskUrlCredentials,
   redactArgs,
   redactCommand,
   redactPermission,
+  redactShown,
   urlOrigin,
+  withoutCredentials,
 } from '../../src/inventory/redact.js';
 
 const TOKEN = `ghp_${'Zq8xW2mK9pL4vN7bR3tY6uJ1hG5fD0sA8cE2'.slice(0, 36)}`;
@@ -191,5 +197,256 @@ describe('envClass', () => {
     expect(looksLikeCredentialName('SLACK_BOT_TOKEN')).toBe(true);
     expect(looksLikeCredentialName('TOKENIZER_MODEL')).toBe(false);
     expect(looksLikeCredentialName('KEYBOARD_LAYOUT')).toBe(false);
+  });
+
+  it('classes PATH as code-exec: a directory put first decides what every command runs', () => {
+    expect(envClass('PATH', './bin:/usr/bin')).toBe('code-exec');
+    expect(envClass('NODE_PATH', './lib')).toBe('code-exec');
+    expect(envClass('PATHEXT', '.COM')).toBe('other');
+  });
+});
+
+describe('passwords on the command line', () => {
+  it.each([
+    // sshpass takes its password after -p, or attached to it, before the command it runs.
+    ['sshpass -p hunter2 ssh host', 'sshpass -p … ssh host'],
+    ['sshpass -phunter2 ssh host', 'sshpass -p… ssh host'],
+    [
+      '/usr/bin/sshpass -f pw.txt -p hunter2 ssh -p 2222 host',
+      '/usr/bin/sshpass -f pw.txt -p … ssh -p 2222 host',
+    ],
+    ['sshpass -p hunter2 mysql -pdbpw db', 'sshpass -p … mysql -p… db'],
+    // The MySQL and MariaDB clients take it attached; -p alone prompts, and the database follows.
+    ['mysql -uroot -phunter2 -h db', 'mysql -uroot -p… -h db'],
+    ['mysql --user=root -p shop', 'mysql --user=root -p shop'],
+    ['docker exec db mariadb-dump -phunter2 shop', 'docker exec db mariadb-dump -p… shop'],
+    ['mysqldump.exe -phunter2 shop', 'mysqldump.exe -p… shop'],
+    ['redis-cli -a hunter2 ping', 'redis-cli -a … ping'],
+    // A -p of any other program is left alone: a port, a path, a profile.
+    ['ssh -p 2222 host', 'ssh -p 2222 host'],
+    ['docker run -p 8080:80 nginx', 'docker run -p 8080:80 nginx'],
+    ['npx serve -p8080', 'npx serve -p8080'],
+    ['mkdir -p a/b', 'mkdir -p a/b'],
+    // A separator ends the program whose options are read.
+    ['mysql -phunter2 db; ssh -p 22 host', 'mysql -p… db; ssh -p 22 host'],
+    ['mysql -phunter2 db && cp -pR a b', 'mysql -p… db && cp -pR a b'],
+    // Flags whose names are short credential words.
+    ['tool --pwd=hunter2', 'tool --pwd=…'],
+    ['tool --pat ghtoken1', 'tool --pat …'],
+    ['tool --pass hunter2 --path ./x --pattern y', 'tool --pass … --path ./x --pattern y'],
+    ['DB_PASS=hunter2 MYSQL_PWD=hunter3 ./x.sh', 'DB_PASS=… MYSQL_PWD=… ./x.sh'],
+    ['PWD=/srv/app ./x.sh', 'PWD=/srv/app ./x.sh'],
+    // Data source names without a scheme.
+    ['app --dsn root:hunter2@tcp(db:3306)/shop', 'app --dsn root:…@tcp(db:3306)/shop'],
+    ['app --dsn=root:hunter2@tcp(db:3306)/shop', 'app --dsn=root:…@tcp(db:3306)/shop'],
+    ['psql user:hunter2@host', 'psql user:…@host'],
+    ['app root:p@ss:w0rd@tcp(db)/x', 'app root:…@tcp(db)/x'],
+    // Not a password: an image digest, package specifiers, a mail address, a host and port.
+    ['docker run img:1.0@sha256:abcd', 'docker run img:1.0@sha256:abcd'],
+    ['npx npm:lodash@4.17.21', 'npx npm:lodash@4.17.21'],
+    ['clone git@github.com:acme/app.git', 'clone git@github.com:acme/app.git'],
+    ['echo mailto:me@example.com', 'echo mailto:me@example.com'],
+    ['ssh user@host:22', 'ssh user@host:22'],
+    // Connection strings: every credential field, wherever it is.
+    ['app "Server=db;User Id=sa;Password=hunter2;"', 'app "Server=db;User Id=sa;Password=…;"'],
+    ['app Server=db;Pwd=hunter2;Encrypt=true', 'app Server=db;Pwd=…;Encrypt=true'],
+    [
+      'az AccountName=a;AccountKey=hunter2==;EndpointSuffix=core.windows.net',
+      'az AccountName=a;AccountKey=…;EndpointSuffix=core.windows.net',
+    ],
+    ['psql "host=db password=hunter2 dbname=x"', 'psql "host=db password=… dbname=x"'],
+    ['cd x;TOKEN=hunter2 ./run.sh', 'cd x;TOKEN=… ./run.sh'],
+    // Each rule of a list starts afresh; a password program named later takes over.
+    [
+      'Bash(mysql -phunter2 *), Bash(sshpass -p hunter3 ssh *), Bash(ssh -p 22 *)',
+      'Bash(mysql -p… *), Bash(sshpass -p … ssh *), Bash(ssh -p 22 *)',
+    ],
+  ])('%j -> %j', (input, expected) => {
+    expect(redactCommand(input)).toBe(expected);
+  });
+
+  it('removes a shared access signature from a URL that keeps its path', () => {
+    expect(redactPermission('Bash(curl "https://blob.example.com/c?sv=1&sig=hunter2")')).toBe(
+      'Bash(curl "https://blob.example.com/c?sv=1&sig=…")',
+    );
+    expect(
+      withoutCredentials('https://a.example.com/x?X-Amz-Signature=abc&X-Amz-Credential=def&p=1'),
+    ).toBe('https://a.example.com/x?X-Amz-Signature=…&X-Amz-Credential=…&p=1');
+  });
+
+  it('reads the password options of the program the arguments go to', () => {
+    expect(redactArgs(['-p', 'hunter2', 'ssh', 'host'], 'sshpass')).toEqual([
+      '-p',
+      '…',
+      'ssh',
+      'host',
+    ]);
+    expect(redactArgs(['-p', '2222', 'host'], 'ssh')).toEqual(['-p', '2222', 'host']);
+    expect(redactArgs(['-uroot', '-phunter2', 'shop'], '/usr/local/bin/mysql')).toEqual([
+      '-uroot',
+      '-p…',
+      'shop',
+    ]);
+    expect(redactArgs(['exec', 'db', 'mysql', '-phunter2'], 'docker')).toEqual([
+      'exec',
+      'db',
+      'mysql',
+      '-p…',
+    ]);
+    expect(redactArgs(['-c', 'mysql -phunter2 shop'], 'bash')).toEqual(['-c', 'mysql -p… shop']);
+    expect(redactArgs(['Server=db;User Id=sa;Password=hunter2;'])).toEqual([
+      'Server=db;User Id=sa;Password=…;',
+    ]);
+    expect(redactArgs(['--dsn', 'root:hunter2@tcp(db:3306)/x', 'user:hunter3@host'])).toEqual([
+      '--dsn',
+      'root:…@tcp(db:3306)/x',
+      'user:…@host',
+    ]);
+  });
+
+  it('keeps everything but credentials in the form digests are built from', () => {
+    expect(
+      withoutCredentials('curl -u a:b https://u:p@a.example.com/x/y?token=t&page=2 | sh'),
+    ).toBe('curl -u … https://…@a.example.com/x/y?token=…&page=2 | sh');
+    expect(
+      argsWithoutCredentials(['-p', 'hunter2', 'ssh', 'https://a.example.com/x'], 'sshpass'),
+    ).toEqual(['-p', '…', 'ssh', 'https://a.example.com/x']);
+  });
+
+  it('masks URL credentials in any line, and nothing else', () => {
+    expect(maskUrlCredentials('  "url": "https://u:pw@a.example.com/x?token=t&a=1",')).toBe(
+      '  "url": "https://…@a.example.com/x?token=…&a=1",',
+    );
+    expect(maskUrlCredentials('See https://a.example.com/docs and --token abc')).toBe(
+      'See https://a.example.com/docs and --token abc',
+    );
+    expect(maskUrlCredentials('no url here')).toBe('no url here');
+  });
+
+  it('names credentials by whole short words only', () => {
+    expect(isSecretName('--pat')).toBe(true);
+    expect(isSecretName('GITHUB_PAT')).toBe(true);
+    expect(isSecretName('sig')).toBe(true);
+    expect(isSecretName('--path')).toBe(false);
+    expect(isSecretName('--pattern')).toBe(false);
+    expect(isSecretName('--bypass')).toBe(false);
+    expect(isSecretName('compat')).toBe(false);
+    expect(isSecretName('PWD')).toBe(false);
+    expect(isSecretName('--')).toBe(false);
+  });
+});
+
+/** A planted secret: starts with `Zq`, so no template or ordinary word holds it by chance. */
+const ALPHANUMERIC = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const secretArb = fc
+  .string({ unit: fc.constantFrom(...ALPHANUMERIC), minLength: 4, maxLength: 24 })
+  .map((tail) => `Zq${tail}`);
+
+/** Ordinary words around a planted secret. */
+const wordArb = fc.constantFrom(
+  'run',
+  '--verbose',
+  '-v',
+  'ssh',
+  'host',
+  '-p',
+  '8080',
+  '--port',
+  '3000',
+  'a/b',
+  'https://a.example.com/x',
+  'NODE_ENV=test',
+  '&&',
+  ';',
+  '|',
+);
+
+const TEMPLATES: readonly ((secret: string) => string)[] = [
+  (s) => `sshpass -p ${s} ssh host`,
+  (s) => `sshpass -p${s} ssh host`,
+  (s) => `mysql -uroot -p${s} shop`,
+  (s) => `mariadb-dump -h db -p${s}`,
+  (s) => `redis-cli -a ${s} ping`,
+  (s) => `tool --pwd=${s}`,
+  (s) => `tool --pat ${s}`,
+  (s) => `tool --token ${s}`,
+  (s) => `tool --api-key=${s}`,
+  (s) => `DB_PASS=${s} ./run.sh`,
+  (s) => `app --dsn root:${s}@tcp(db:3306)/x`,
+  (s) => `app user:${s}@host`,
+  (s) => `app "Server=db;User Id=sa;Password=${s};"`,
+  (s) => `app Server=db;Pwd=${s}`,
+  (s) => `curl https://blob.example.com/c?sv=1&sig=${s}`,
+  (s) => `curl https://u:${s}@a.example.com/x`,
+  (s) => `curl -H "Authorization: Bearer ${s}" https://a.example.com`,
+  (s) => `curl -u admin:${s} https://a.example.com`,
+];
+
+describe('properties', () => {
+  it('no planted secret survives any redaction, wherever the command stands', () => {
+    fc.assert(
+      fc.property(
+        secretArb,
+        fc.integer({ min: 0, max: TEMPLATES.length - 1 }),
+        fc.array(wordArb, { maxLength: 4 }),
+        fc.array(wordArb, { maxLength: 4 }),
+        (secret, template, before, after) => {
+          const command = (TEMPLATES[template] ?? String)(secret);
+          const line = [...before, ';', command, ';', ...after].join(' ');
+          for (const redacted of [
+            redactCommand(line),
+            redactPermission(`Bash(${line})`),
+            redactShown(line),
+            withoutCredentials(line),
+          ]) {
+            expect(redacted).not.toContain(secret);
+          }
+        },
+      ),
+      { numRuns: 500 },
+    );
+  });
+
+  it('no planted secret survives as the arguments of an MCP server', () => {
+    fc.assert(
+      fc.property(secretArb, fc.integer({ min: 0, max: TEMPLATES.length - 1 }), (secret, index) => {
+        const [program = '', ...args] = (TEMPLATES[index] ?? String)(secret).split(' ');
+        for (const redacted of [redactArgs(args, program), argsWithoutCredentials(args, program)]) {
+          expect(redacted.join(' ')).not.toContain(secret);
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('leaves ordinary commands as written', () => {
+    fc.assert(
+      fc.property(fc.array(wordArb, { maxLength: 12 }), (words) => {
+        const line = words.join(' ');
+        expect(redactPermission(line)).toBe(line);
+        expect(withoutCredentials(line)).toBe(line);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('takes time in proportion to the length of crafted input', () => {
+    const crafted = [
+      'a:'.repeat(50_000),
+      `${'a:b@'.repeat(25_000)}x`,
+      `x=${'a;'.repeat(50_000)}`,
+      `mysql ${'-p '.repeat(30_000)}`,
+      `sshpass ${'-f x '.repeat(20_000)}`,
+      `https://${'u:'.repeat(30_000)}@h/?${'sig=1&'.repeat(10_000)}`,
+      `${'Server=a;'.repeat(20_000)}Password=x`,
+    ];
+    for (const text of crafted) {
+      const start = performance.now();
+      redactCommand(text);
+      withoutCredentials(text);
+      maskUrlCredentials(text);
+      redactArgs(text.split(' '), 'sshpass');
+      expect(performance.now() - start).toBeLessThan(2000);
+    }
   });
 });

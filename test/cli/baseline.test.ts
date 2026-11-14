@@ -333,7 +333,12 @@ describe('bad baselines', () => {
       // A report from before fingerprint version 2: its JSON findings hashed line text.
       [
         { ...report, fingerprintVersion: undefined },
-        'its finding fingerprints have version 1, and this agentcheckup computes version 2',
+        'its finding fingerprints and inventory digests have version 1, and this agentcheckup computes version 3',
+      ],
+      // Version 2 built inventory digests from the redacted form alone.
+      [
+        { ...report, fingerprintVersion: 2 },
+        'its finding fingerprints and inventory digests have version 2, and this agentcheckup computes version 3',
       ],
       [{ ...report, findings: {} }, 'findings must be an array, not an object'],
       [{ ...report, ruleset: 7 }, 'ruleset must be a string, not a number'],

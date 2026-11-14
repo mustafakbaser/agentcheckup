@@ -400,6 +400,23 @@ export function strictJsonTree(text: string): JsonNode | undefined {
 }
 
 /**
+ * The jsonc-parser tree of a text read as leniently as any agent reads JSON: comments and
+ * trailing commas allowed, and the part that parses when the rest does not. Every property is in
+ * it, a repeated key's earlier ones too, with offsets into `text`. For display, such as masking
+ * credentials in a fix diff; never for deciding what an agent reads. Undefined past the size or
+ * nesting limits. Never throws on any input.
+ */
+export function lenientJsonTree(text: string): JsonNode | undefined {
+  if (text.length > MAX_JSON_LENGTH) return undefined;
+  try {
+    if (tooDeepAt(text) !== -1) return undefined;
+    return parseTree(text, [], JSONC_OPTIONS);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Parses JSON with comments (`//` and `/* *\/`) and trailing commas, the JSONC that VS Code
  * reads its configuration files as, `.vscode/mcp.json` among them (SOURCES.vscodeMcp). Spans
  * refer to the original text. Never throws on any input.

@@ -200,7 +200,9 @@ hostile. agentcheckup keeps the two apart:
    lines and 1,024 characters, and for a long skill body only its heading outline. Nothing from
    JSON files: settings, MCP configuration and hooks.
 3. **No credentials.** Credentials are redacted in excerpts, paths, messages and hints, as
-   `ghp_…(40 chars)`, with the detector `mcp/literal-secret` uses.
+   `ghp_…(40 chars)`, with the detector `mcp/literal-secret` uses. An `allowed-tools` excerpt
+   also loses the credentials its tool rules hold, as the inventory's permissions do, such as the
+   password of `Bash(mysql -ppw *)`.
 4. **Repository text is data.** Excerpts are fenced with `~~~~untrusted`, the fence longer than
    any run of tildes inside, so no value can close it. Paths and keys are code spans. Control,
    bidirectional and tag characters show as `<U+202E>`, line breaks in a path as `⏎`. Messages

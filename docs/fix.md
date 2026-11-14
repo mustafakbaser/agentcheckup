@@ -376,6 +376,14 @@ review  mcp/literal-secret  Replace the literal GitHub personal access token wit
 !! Revoke and rotate this credential now. Editing the file does not remove it from git history.
 ```
 
+Every fix diff, and the hunks of `fix --format json`, mask credentials in every line they show,
+changed or shown as context, as the inventory does: in JSON and TOML configuration, the values
+of `env`, `headers` and `http_headers` keep only a reference such as `${TOKEN}`, an on/off
+switch or a URL origin and are otherwise shown as `…`, repeated keys included, and credential
+arguments such as `sshpass -p …` or `mysql -p…` are masked. In every file, URL user names,
+passwords and credential-like query values are masked. The diff is computed on the real text,
+so a line whose only change is masked still shows as changed; the diff is a preview, not a patch.
+
 ## Untrusted repositories
 
 `fix --untrusted` previews the fixes for code you do not trust, such as a pull request from a
@@ -502,7 +510,10 @@ those of `mcp/literal-secret` are never suggested.
   already posted.
 - The suggested lines are the exact new text. A change whose lines hold a control, bidirectional,
   tag or other invisible character (`hidden-characters`) or a credential (`credential`) is not
-  suggested, nor one outside the diff (`outside-diff`). Neither is a fix that creates or renames a
+  suggested: a credential is anything the fix diff would mask, such as an `env` or `headers`
+  value, `sshpass -p pw` or a URL's password, in the suggested lines or the line an insertion
+  repeats. A suggestion must hold the exact text, so it cannot be masked instead. Nor is a change
+  outside the diff suggested (`outside-diff`). Neither is a fix that creates or renames a
   file, changes an encoding, or touches a UTF-16 file, a file with a byte order mark or one with
   CRLF line endings, because a suggestion cannot keep them. Review fixes are counted as
   `not-safe`, and fixes that need your words as `needs-input`. At most 50 comments are made.

@@ -22,12 +22,21 @@ export const SCORE_FORMULA_VERSION = 1;
 export const REPORT_SCHEMA_VERSION = 1;
 
 /**
- * Version of the finding fingerprint scheme (src/core/fingerprint.ts), written to every report
- * as `fingerprintVersion`. `--baseline` matches findings by fingerprint, so it refuses a
- * baseline with another version: every finding would look new. Reports without the field have
- * version 1, which hashed the text of the finding's line in JSON files too.
+ * Version of what `--baseline` matches a report by, written to every report as
+ * `fingerprintVersion`: the finding fingerprint scheme (src/core/fingerprint.ts) and the
+ * inventory digests (src/inventory/build.ts). `--baseline` refuses a baseline with another
+ * version: every finding would look new, or every inventory item changed. Reports without the
+ * field have version 1, which hashed the text of the finding's line in JSON files too. Version 3
+ * changed only the inventory digests, which now cover what redaction hides (docs/adr/0017).
  */
-export const FINGERPRINT_VERSION = 2;
+export const FINGERPRINT_VERSION = 3;
+
+/**
+ * Version of the finding fingerprint scheme alone, the key of SARIF `partialFingerprints`. It
+ * stays 2 while finding fingerprints stay the same, so code scanning keeps tracking each alert
+ * across the version 3 change of inventory digests.
+ */
+export const FINDING_FINGERPRINT_SCHEME = 2;
 
 export function ruleDocsUrl(ruleId: string): string {
   return `${REPOSITORY_URL}/blob/main/docs/rules/${ruleId}.md`;

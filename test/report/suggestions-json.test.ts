@@ -542,6 +542,44 @@ describe('toSuggestionsReport: what is not suggested', () => {
     expect(report.skipped).toEqual([{ reason: 'credential', count: 1 }]);
   });
 
+  it('skips a change whose lines hold a credential a fix diff masks, and suggests the others', () => {
+    const files = {
+      'AGENTS.md': 'todo: clone https://deploy:hunter2@git.example.com/app.git\n\nAnd a todo.\n',
+      '.mcp.json':
+        '{\n  "mcpServers": {\n    "a": {\n      "command": "todo",\n      "args": ["-phunter3"],\n      "env": { "MODE": "todo-hunter4" }\n    }\n  }\n}\n',
+    };
+    const everywhere = testRule({
+      id: 'test/upper',
+      appliesTo: ['agents-md', 'mcp-json'],
+      check(context, artifact) {
+        const { text } = artifact.decoded;
+        for (let at = text.indexOf('todo'); at !== -1; at = text.indexOf('todo', at + 1)) {
+          context.report({
+            artifact,
+            message: 'todo is lower case.',
+            span: { offset: at, length: 4 },
+            fix: {
+              id: 'test/upper#replace',
+              class: 'safe',
+              title: 'Write TODO',
+              changes: [replaceSpan(artifact, { offset: at, length: 4 }, 'TODO')],
+            },
+          });
+        }
+      },
+    });
+    const { report } = suggest(files, { rules: [everywhere] });
+    // The fix of the server's command changes the server, so verification makes it a review fix.
+    expect(report.skipped).toEqual([
+      { reason: 'not-safe', count: 1 },
+      { reason: 'credential', count: 2 },
+    ]);
+    expect(report.comments.map((comment) => [comment.path, comment.line])).toEqual([
+      ['AGENTS.md', 3],
+    ]);
+    expect(JSON.stringify(report)).not.toMatch(/hunter/);
+  });
+
   it('counts fixes that need review, once each, within --rule', () => {
     const files = { 'AGENTS.md': 'Review me.\na todo\n' };
     const all = suggest(files, { rules: [upper, review] });

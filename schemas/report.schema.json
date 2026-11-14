@@ -41,8 +41,8 @@
       "minLength": 1
     },
     "fingerprintVersion": {
-      "description": "Version of the scheme that computes each finding's `fingerprint`. `--baseline` refuses a report with another version, and reads a report without this field as version 1.",
-      "const": 2
+      "description": "Version of the schemes that compute each finding's `fingerprint` and each inventory item's `digest`. `--baseline` refuses a report with another version, and reads a report without this field as version 1. Version 3 changed only the inventory digests.",
+      "const": 3
     },
     "targets": {
       "description": "Platforms the scan targeted, sorted.",
@@ -1402,7 +1402,7 @@
           "uniqueItems": true
         },
         "digest": {
-          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "description": "SHA-256 of the entry: what it shows and, unshown, its full command, arguments, URLs and endpoint, TLS and code-exec env values, without credentials. The same id with another digest: the item changed.",
           "type": "string",
           "pattern": "^[0-9a-f]+$"
         },
@@ -1484,7 +1484,7 @@
           "uniqueItems": true
         },
         "digest": {
-          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "description": "SHA-256 of the entry: what it shows and, unshown, its full command, arguments, URLs and endpoint, TLS and code-exec env values, without credentials. The same id with another digest: the item changed.",
           "type": "string",
           "pattern": "^[0-9a-f]+$"
         },
@@ -1546,7 +1546,7 @@
           "uniqueItems": true
         },
         "digest": {
-          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "description": "SHA-256 of the entry: what it shows and, unshown, its full command, arguments, URLs and endpoint, TLS and code-exec env values, without credentials. The same id with another digest: the item changed.",
           "type": "string",
           "pattern": "^[0-9a-f]+$"
         },
@@ -1577,7 +1577,7 @@
           "uniqueItems": true
         },
         "digest": {
-          "description": "Hash of the redacted entry. The same id with another digest: the item changed.",
+          "description": "SHA-256 of the entry: what it shows and, unshown, its full command, arguments, URLs and endpoint, TLS and code-exec env values, without credentials. The same id with another digest: the item changed.",
           "type": "string",
           "pattern": "^[0-9a-f]+$"
         },
@@ -1853,7 +1853,10 @@
           "type": "string",
           "minLength": 1
         },
-        "change": { "enum": ["added", "changed"] },
+        "change": {
+          "description": "`removed`: a `deny` or `ask` permission entry the baseline has and this scan does not; `id` is the baseline's item.",
+          "enum": ["added", "changed", "removed"]
+        },
         "summary": {
           "description": "One line for the pull request summary. Untrusted text.",
           "type": "string"

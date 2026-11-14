@@ -262,4 +262,18 @@ describe('excerpts', () => {
     expect(task?.excerpt?.text).toBe('- Bash\n  - Read');
     expect(task?.anchor).toEqual({ kind: 'frontmatter', key: 'allowed-tools' });
   });
+
+  it('removes passwords from the tool rules of allowed-tools, as the inventory does', () => {
+    const scan = scanOf({
+      '.claude/skills/db/SKILL.md':
+        '---\nname: db\ndescription: Queries the shop database. Use when the user asks about orders.\nallowed-tools: Bash, Bash(mysql -phunter2 *), Bash(sshpass -p hunter3 ssh *), Read\n---\n# Db\n',
+    });
+    const task = buildTasks(scan).tasks.find(
+      (candidate) => candidate.ruleId === 'skill/broad-allowed-tools',
+    );
+    expect(task?.excerpt).toMatchObject({
+      text: 'Bash, Bash(mysql -p… *), Bash(sshpass -p … ssh *), Read',
+      redacted: true,
+    });
+  });
 });

@@ -12,6 +12,8 @@
  *   https://code.claude.com/docs/en/settings-reference
  * - Node.js environment variables: https://nodejs.org/api/cli.html
  * - The dynamic loader's variables: https://man7.org/linux/man-pages/man8/ld.so.8.html
+ * - PATH: https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html (checked
+ *   2026-11-14)
  */
 import type { RuleSource } from '../core/types.js';
 import { SOURCES } from '../platforms/sources.js';
@@ -76,6 +78,9 @@ const CODE_EXEC: readonly string[] = [
   // ld.so: shared objects "loaded before all others", and the library search path.
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
+  // POSIX: "the sequence of path prefixes that certain functions and utilities apply in searching
+  // for an executable file": a directory put first decides what every command name runs.
+  'PATH',
   // Claude Code env-vars: the shell for Bash tool commands, a prefix that wraps every command,
   // hook and stdio MCP server start, a script run before each Bash command, the launcher for the
   // processes Claude Code starts, Git Bash's path, and plugin directories to load.
@@ -242,6 +247,7 @@ export const ENV_CLASS_SOURCES: readonly RuleSource[] = [
   SOURCES.claudeSettingsReference,
   SOURCES.nodeCliEnv,
   SOURCES.ldSo,
+  SOURCES.posixEnvironmentVariables,
 ];
 
 const OTLP_PREFIX = 'OTEL_EXPORTER_OTLP_';

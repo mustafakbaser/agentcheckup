@@ -3,7 +3,8 @@
  * trailing commas, reordered keys) and must change when the finding is about something else.
  */
 import { describe, expect, it } from 'vitest';
-import { FINGERPRINT_VERSION } from '../../src/core/meta.js';
+import { FINDING_FINGERPRINT_SCHEME, FINGERPRINT_VERSION } from '../../src/core/meta.js';
+import { FINGERPRINT_KEY } from '../../src/report/sarif.js';
 import { lineAnchor, normalizeExcerpt, WHOLE_FILE_ANCHOR } from '../../src/core/fingerprint.js';
 import type { AnyRule, RuleMeta } from '../../src/core/types.js';
 import type { JsonPathSegment } from '../../src/parse/types.js';
@@ -308,6 +309,11 @@ describe('fingerprint version', () => {
     expect(lint({ 'AGENTS.md': '# x\n' }, { rules: [] }).fingerprintVersion).toBe(
       FINGERPRINT_VERSION,
     );
-    expect(FINGERPRINT_VERSION).toBe(2);
+    expect(FINGERPRINT_VERSION).toBe(3);
+  });
+
+  it('keeps the SARIF key of finding fingerprints, which version 3 left as they were', () => {
+    expect(FINDING_FINGERPRINT_SCHEME).toBe(2);
+    expect(FINGERPRINT_KEY).toBe('agentcheckup/v2');
   });
 });

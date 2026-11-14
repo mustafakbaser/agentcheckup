@@ -21,8 +21,10 @@
  * markers to skip a comment it already posted. The suggested lines are the exact text of the
  * fixed file, so they are not escaped: a change whose lines hold a control, bidirectional, tag or
  * other invisible character (anything `forTerminal` would rewrite) is skipped
- * (`hidden-characters`), and so is one with a credential the secret detector finds
- * (`credential`). The fence is longer than any run of backticks in the lines. Everything else in
+ * (`hidden-characters`), and so is one whose lines hold a credential (`credential`): one the
+ * secret detector finds, or one a fix diff masks (src/report/credential-mask.ts), such as an
+ * `env` or `headers` value, `sshpass -p pw` or a URL's password. Masking the line would make the
+ * suggestion change what it must keep, so the change is not suggested at all. The fence is longer than any run of backticks in the lines. Everything else in
  * the body is rule metadata, escaped with `forMarkdown`.
  *
  * A fix is suggested only when every file it touches can be: a fix that creates or renames a
@@ -48,6 +50,7 @@ import {
   type PlannedFix,
 } from '../fix/index.js';
 import { findSecret } from '../rules/mcp/secrets.js';
+import { credentialMasks, holdsCredential, type LineMasks } from './credential-mask.js';
 import { fixOf, isSafeRuleId, needsWords } from './feedback.js';
 import { diffHunks } from './fix-diff.js';
 import { escaped, ruleLink } from './markdown-common.js';
@@ -306,6 +309,27 @@ function replacementOf(
   return { start: 1, end: 1, lines: [...added, lineAt(before, 1)] };
 }
 
+/**
+ * True when a line a suggestion would carry holds a credential that a fix diff masks: an added
+ * line of the head after the fixes, or the line an insertion anchors on.
+ */
+function suggestsCredential(
+  hunk: DiffHunk,
+  before: DecodedText,
+  after: DecodedText,
+  masks: { readonly before: LineMasks; readonly after: LineMasks },
+): boolean {
+  const afterLines = after.text.split('\n');
+  for (let index = hunk.newStart - 1; index < hunk.newStart - 1 + hunk.newLines; index++) {
+    const line = (afterLines[index] ?? '').replace(/\r$/, '');
+    if (holdsCredential(line, masks.after.get(index))) return true;
+  }
+  if (hunk.oldLines > 0) return false;
+  const anchor = Math.max(hunk.oldStart, 1) - 1;
+  const line = (before.text.split('\n')[anchor] ?? '').replace(/\r$/, '');
+  return holdsCredential(line, masks.before.get(anchor));
+}
+
 /** A line that every output sanitizer leaves alone: no control or invisible character. */
 function isPlainLine(line: string): boolean {
   return forTerminal(line) === line;
@@ -403,13 +427,22 @@ export function toSuggestionsReport(
   counter.add('conflict', run.deferred.length);
 
   // What can be suggested in each file, by the path the scan read.
-  const decoded = new Map<string, { before: DecodedText; after: DecodedText }>();
+  const decoded = new Map<
+    string,
+    { before: DecodedText; after: DecodedText; masks: { before: LineMasks; after: LineMasks } }
+  >();
   const problems = new Map<string, SuggestionSkipReason | undefined>();
   for (const file of run.files) {
     const before = file.before === undefined ? undefined : decode(file.before);
     const after = decode(file.after);
     problems.set(file.from ?? file.path, fileProblem(file, before, after));
-    if (file.op === 'edit' && before !== undefined) decoded.set(file.path, { before, after });
+    if (file.op === 'edit' && before !== undefined) {
+      const masks = {
+        before: credentialMasks(file.path, before.text),
+        after: credentialMasks(file.path, after.text),
+      };
+      decoded.set(file.path, { before, after, masks });
+    }
   }
 
   const workspace = createWorkspace(input.snapshot);
@@ -417,7 +450,7 @@ export function toSuggestionsReport(
   for (const shape of shapes) if (shape.reason !== undefined) counter.add(shape.reason);
 
   const suggestions: Suggestion[] = [];
-  for (const [path, { before, after }] of decoded) {
+  for (const [path, { before, after, masks }] of decoded) {
     if (problems.get(path) !== undefined) continue;
     const owners = shapes.filter((shape) => shape.edits.has(path));
     if (owners.length === 0) continue;
@@ -437,7 +470,10 @@ export function toSuggestionsReport(
         counter.add('outside-diff');
       } else if (!replacement.lines.every(isPlainLine)) {
         counter.add('hidden-characters');
-      } else if (replacement.lines.some((line) => findSecret(line) !== undefined)) {
+      } else if (
+        replacement.lines.some((line) => findSecret(line) !== undefined) ||
+        suggestsCredential(hunk, before, after, masks)
+      ) {
         counter.add('credential');
       } else {
         const ruleIds = [...new Set(fixes.map((shape) => shape.planned.ruleId))].sort(

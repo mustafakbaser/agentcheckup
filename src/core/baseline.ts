@@ -13,7 +13,9 @@
  * Credentials. Gate summaries are built from the inventory, which holds names, URL origins and
  * redacted arguments only. As a second line of defense, summaries show at most the program and
  * package of a command, mask `name=value` arguments and the value after a credential-like flag,
- * and show an environment value only for `endpoint` overrides, where it is a URL origin.
+ * and show an environment value only for `endpoint` overrides, where it is a URL origin. A change
+ * that only the digest sees, in what redaction hides, is labeled as one: "changed in a redacted
+ * part" (docs/adr/0017).
  */
 import type {
   EnvItem,
@@ -29,7 +31,7 @@ import {
   isUnreadFile,
   parseIncomplete,
 } from '../inventory/incomplete.js';
-import { REDACTED } from '../inventory/redact.js';
+import { isSecretFlag, REDACTED } from '../inventory/redact.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import { hookSourceOf } from '../platforms/hooks.js';
 import { MCP_KINDS } from '../platforms/mcp.js';
@@ -56,6 +58,7 @@ import type {
 } from './baseline-types.js';
 import { compareStrings } from './compare.js';
 import type { ScanResult } from './engine.js';
+import { dirnamePosix } from './paths.js';
 import type { ArtifactKind, Finding, RuleMeta } from './types.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -375,17 +378,18 @@ function indexInventory(inventory: Inventory | undefined, base: string): Indexed
 
 /**
  * How `changed` items list their fields. `skip`: identity or position, never listed. `path`:
- * compared without the report's pathBase. The Record type makes the compiler flag a field added
- * to an item type.
+ * compared without the report's pathBase. `set`: a list compared in any order, as JSON reports
+ * order `platforms` by agent and the scan by name. The Record type makes the compiler flag a
+ * field added to an item type.
  */
-type FieldMode = 'skip' | 'value' | 'path';
+type FieldMode = 'skip' | 'value' | 'path' | 'set';
 type FieldTable<T> = Readonly<Record<keyof T, FieldMode>>;
 
 const BASE_FIELDS = {
   id: 'skip',
   file: 'path',
   line: 'skip',
-  platforms: 'value',
+  platforms: 'set',
   digest: 'skip',
 } as const;
 
@@ -472,9 +476,17 @@ function changedFields<T extends object>(
       if (typeof left === 'string') left = stripPath(left, beforeBase);
       if (typeof right === 'string') right = stripPath(right, afterBase);
     }
+    if (mode === 'set') {
+      if (Array.isArray(left)) left = sortedStrings(left);
+      if (Array.isArray(right)) right = sortedStrings(right);
+    }
     if (!sameValue(left, right)) fields.push(key);
   }
   return fields.length > 0 ? fields.sort(compareStrings) : ['digest'];
+}
+
+function sortedStrings(values: readonly unknown[]): string[] {
+  return values.map(String).sort(compareStrings);
 }
 
 interface MutableItemDiff {
@@ -550,11 +562,28 @@ function gateHits(
     }
   };
 
+  // A change only the digest sees: the item shows the same before and after.
+  const hidden = <T extends object>(
+    old: T | undefined,
+    item: T,
+    table: FieldTable<T>,
+    change: GateHit['change'],
+  ): string =>
+    change === 'changed' &&
+    old !== undefined &&
+    changedFields(old, before.base, item, after.base, table).join() === 'digest'
+      ? HIDDEN_CHANGE
+      : '';
+
   for (const [id, server] of after.mcpServers) {
-    const change = changeOf(before.mcpServers.get(id), server);
+    const old = before.mcpServers.get(id);
+    const change = changeOf(old, server);
     if (change === undefined) continue;
-    hit('mcp', id, change, serverSummary(server, change));
-    if (isUnpinned(server)) hit('mcp-unpinned', id, change, unpinnedSummary(server, change));
+    const note = hidden(old, server, SERVER_FIELDS, change);
+    hit('mcp', id, change, `${serverSummary(server, change)}${note}`);
+    if (isUnpinned(server)) {
+      hit('mcp-unpinned', id, change, `${unpinnedSummary(server, change)}${note}`);
+    }
   }
   for (const entry of after.incomplete) {
     const parsed = parseIncomplete(entry);
@@ -618,19 +647,39 @@ function gateHits(
       !(old === undefined && replacesWider(permission, before, after))
     ) {
       hit('permissions', id, change, permissionSummary(permission, change, old));
+    } else if (restricts(permission) && old?.effective === true && !permission.effective) {
+      hit(
+        'permissions',
+        id,
+        change,
+        `${text(permission.key)} ${text(permission.value)} no longer takes effect`,
+      );
     }
+  }
+  // A deny or ask entry removed lets the agent do, or do without asking, what it refused or
+  // asked about: the permissions class's "do more without asking".
+  for (const [id, old] of before.permissions) {
+    if (after.permissions.has(id) || !restricts(old) || !old.effective) continue;
+    if (old.platforms.length === 0 || stillRestricted(old, before.base, after)) continue;
+    hit('permissions', id, 'removed', `${text(old.key)} entry removed: ${text(old.value)}`);
   }
 
   for (const [id, hook] of after.hooks) {
-    const change = changeOf(before.hooks.get(id), hook);
-    if (change !== undefined) hit('hooks', id, change, hookSummary(hook, change, after.base));
+    const old = before.hooks.get(id);
+    const change = changeOf(old, hook);
+    if (change === undefined) continue;
+    const note = hidden(old, hook, HOOK_FIELDS, change);
+    hit('hooks', id, change, `${hookSummary(hook, change, after.base)}${note}`);
   }
 
   for (const [id, item] of after.env) {
     // An override the agent drops where it is set changes nothing.
     if (item.class === 'other' || !item.effective) continue;
-    const change = changeOf(before.env.get(id), item);
-    if (change !== undefined) hit('env', id, change, envSummary(item, change));
+    const old = before.env.get(id);
+    const change = changeOf(old, item);
+    if (change === undefined) continue;
+    const note = hidden(old, item, ENV_FIELDS, change);
+    hit('env', id, change, `${envSummary(item, change, old)}${note}`);
   }
 
   for (const finding of findings) {
@@ -647,6 +696,9 @@ function gateHits(
 
   return [...hits.values()].sort(compareHits);
 }
+
+/** Appended to a summary when the change is in what reports do not show (docs/adr/0017). */
+const HIDDEN_CHANGE = ' (changed in a redacted part)';
 
 function compareHits(a: GateHit, b: GateHit): number {
   return (
@@ -897,8 +949,6 @@ function unpinnedSummary(server: McpServerItem, change: GateHit['change']): stri
   return `${change === 'added' ? 'New' : 'Changed'} MCP server ${text(server.name)} is not pinned (${launcher}${detail})`;
 }
 
-const SECRET_FLAG = /token|key|secret|passw|auth|credential|bearer|header|cookie/i;
-
 /**
  * `command` plus its arguments up to the package name, with `name=value` arguments and the value
  * after a credential-like flag masked. Arguments after the package are server configuration and
@@ -916,7 +966,7 @@ function commandLine(server: McpServerItem): string {
   for (let i = 0; i < end; i++) {
     const arg = args[i] ?? '';
     const previous = i > 0 ? (args[i - 1] ?? '') : '';
-    shown.push(maskArg(arg, previous.startsWith('-') && SECRET_FLAG.test(previous)));
+    shown.push(maskArg(arg, isSecretFlag(previous)));
   }
   if (end < args.length) shown.push('…');
   return text(shown.join(' '), 80);
@@ -1148,6 +1198,39 @@ function widens(permission: PermissionItem): boolean {
 const CONTENT_KEYS: ReadonlySet<string> = new Set(['permissions']);
 
 /**
+ * True for a `deny` or `ask` entry: one that narrows what the agent may do, so removing it, or it
+ * no longer taking effect, widens it.
+ */
+function restricts(permission: PermissionItem): boolean {
+  const key = lastSegment(permission.key);
+  return key === 'deny' || key === 'ask';
+}
+
+/**
+ * True when the scan still has an entry with the same key and value that takes effect, in a file
+ * of the same directory: moved between `settings.json` and `settings.local.json`, which Claude
+ * Code both reads, it still restricts the agent.
+ */
+function stillRestricted(
+  old: PermissionItem,
+  beforeBase: string,
+  after: IndexedInventory,
+): boolean {
+  const directory = dirnamePosix(stripPath(old.file, beforeBase));
+  for (const permission of after.permissions.values()) {
+    if (
+      permission.effective &&
+      permission.key === old.key &&
+      permission.value === old.value &&
+      dirnamePosix(stripPath(permission.file, after.base)) === directory
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * A changed entry (same key and value, another digest) that lets the agent do no more than it
  * did: it already widened, already took effect if it does now, and was already broad if it is
  * now.
@@ -1299,15 +1382,17 @@ function hookSummary(hook: HookItem, change: GateHit['change'], base: string): s
   return notes.length === 0 ? summary : `${summary} (${notes.join(', ')})`;
 }
 
-function envSummary(item: EnvItem, change: GateHit['change']): string {
+function envSummary(item: EnvItem, change: GateHit['change'], old: EnvItem | undefined): string {
   const head = `${change === 'added' ? 'Env override' : 'Changed env override'} ${text(item.key)}`;
+  const was =
+    old?.shown !== undefined && old.shown !== item.shown ? ` (was ${text(old.shown)})` : '';
   switch (item.class) {
     case 'endpoint':
-      return `${head} → ${item.shown === undefined ? 'another endpoint' : text(item.shown)}`;
+      return `${head} → ${item.shown === undefined ? 'another endpoint' : text(item.shown)}${was}`;
     case 'credential':
       return `${head} sets a credential (value not shown)`;
     case 'tls':
-      return `${head}${item.shown === undefined ? '' : ` → ${text(item.shown)}`} changes TLS certificate checks`;
+      return `${head}${item.shown === undefined ? '' : ` → ${text(item.shown)}`}${was} changes TLS certificate checks`;
     case 'code-exec':
       return `${head} can run code`;
     case 'other':

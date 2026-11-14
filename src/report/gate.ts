@@ -16,24 +16,49 @@ import { coversTree, parseIncomplete } from '../inventory/incomplete.js';
 import { toJsonBaseline } from './json.js';
 import { plural } from './text.js';
 
+/** Only a `deny` or `ask` permission entry trips a class when it is removed. */
 const CHANGE_LABELS: Readonly<Record<GateClass, Readonly<Record<GateHit['change'], string>>>> = {
-  mcp: { added: 'New MCP server', changed: 'MCP server changed' },
-  'mcp-unpinned': { added: 'New unpinned MCP server', changed: 'MCP server changed, not pinned' },
-  permissions: { added: 'Permission widened', changed: 'Permission changed' },
-  hooks: { added: 'New hook', changed: 'Hook changed' },
-  env: { added: 'Env override', changed: 'Env override changed' },
-  unicode: { added: 'Hidden Unicode', changed: 'Hidden Unicode' },
-  models: { added: 'New agent definition', changed: 'Agent definition changed' },
+  mcp: { added: 'New MCP server', changed: 'MCP server changed', removed: 'MCP server removed' },
+  'mcp-unpinned': {
+    added: 'New unpinned MCP server',
+    changed: 'MCP server changed, not pinned',
+    removed: 'MCP server removed',
+  },
+  permissions: {
+    added: 'Permission widened',
+    changed: 'Permission changed',
+    removed: 'Permission widened',
+  },
+  hooks: { added: 'New hook', changed: 'Hook changed', removed: 'Hook removed' },
+  env: { added: 'Env override', changed: 'Env override changed', removed: 'Env override removed' },
+  unicode: { added: 'Hidden Unicode', changed: 'Hidden Unicode', removed: 'Hidden Unicode' },
+  models: {
+    added: 'New agent definition',
+    changed: 'Agent definition changed',
+    removed: 'Agent definition removed',
+  },
 };
 
 /** Settings that trip the gate whenever they are set or changed: a mode may narrow, too. */
 const SETTING_LABELS: Readonly<
   Record<NonNullable<GateHit['kind']>, Readonly<Record<GateHit['change'], string>>>
 > = {
-  mode: { added: 'Permission mode set', changed: 'Permission mode changed' },
-  agent: { added: 'Session agent set', changed: 'Session agent changed' },
-  'model-setting': { added: 'Model setting set', changed: 'Model setting changed' },
-  'not-analyzed': { added: 'Not analyzed', changed: 'Not analyzed' },
+  mode: {
+    added: 'Permission mode set',
+    changed: 'Permission mode changed',
+    removed: 'Permission mode removed',
+  },
+  agent: {
+    added: 'Session agent set',
+    changed: 'Session agent changed',
+    removed: 'Session agent removed',
+  },
+  'model-setting': {
+    added: 'Model setting set',
+    changed: 'Model setting changed',
+    removed: 'Model setting removed',
+  },
+  'not-analyzed': { added: 'Not analyzed', changed: 'Not analyzed', removed: 'Not analyzed' },
 };
 
 export interface GateRow {

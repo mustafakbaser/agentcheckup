@@ -24,7 +24,7 @@
  * (policy-sarif.ts), within the same result cap.
  */
 import type { ScanResult } from '../core/engine.js';
-import { FINGERPRINT_VERSION, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
+import { FINDING_FINGERPRINT_SCHEME, REPOSITORY_URL, ruleDocsUrl } from '../core/meta.js';
 import type { Finding, Fix, FixClass, Range, RuleMeta, Severity } from '../core/types.js';
 import { coverageMessages, coverageOf } from './coverage.js';
 import { fixOf, INPUT_FIX_LABEL, needsWords } from './feedback.js';
@@ -54,8 +54,11 @@ const MAX_NOTIFICATION_LOCATIONS = 100;
 /** GitHub's limit for `shortDescription` and `fullDescription`, in characters. */
 const MAX_DESCRIPTION = 1024;
 const MAX_NAME = 255;
-/** `partialFingerprints` key. Versioned: a new fingerprint algorithm gets a new key. */
-export const FINGERPRINT_KEY = `agentcheckup/v${String(FINGERPRINT_VERSION)}`;
+/**
+ * `partialFingerprints` key. Versioned: a new finding fingerprint algorithm gets a new key. A
+ * change of inventory digests alone does not (FINDING_FINGERPRINT_SCHEME).
+ */
+export const FINGERPRINT_KEY = `agentcheckup/v${String(FINDING_FINGERPRINT_SCHEME)}`;
 /**
  * Category for `runAutomationDetails.id`: `<category>/<run id>` with an empty run id. GitHub
  * keeps one analysis per tool and category, and github/codeql-action's upload-sarif uses this id

@@ -2,7 +2,8 @@
  * Comparison of a scan with a baseline report (`--baseline`). Pure data. See
  * docs/adr/0007-model-what-each-agent-loads.md.
  *
- * Paths are compared after removing each report's `pathBase`. Removals never trip the gate.
+ * Paths are compared after removing each report's `pathBase`. Removals trip the gate only where
+ * they let an agent do more: a `deny` or `ask` permission entry, and a model setting.
  */
 import type { ContextAgent } from '../platforms/load/types.js';
 
@@ -100,7 +101,8 @@ export interface PlanDelta {
  * - `permissions`: an entry that lets an agent do more without asking added or changed: any
  *   `permissions.allow` or `additionalDirectories` entry, a skill's `allowed-tools`,
  *   `enabledMcpjsonServers`, `enableAllProjectMcpServers` or Gemini `trust` set to true, or
- *   `defaultMode` set or changed. Never `deny` or `ask` entries.
+ *   `defaultMode` set or changed; a `deny` or `ask` entry removed (change `removed`). Never a
+ *   `deny` or `ask` entry added.
  * - `hooks`: a hook added or changed.
  * - `env`: an environment override of a class other than `other` added or changed.
  * - `unicode`: a new risk/hidden-unicode finding.
@@ -116,9 +118,13 @@ export type SecurityGateClass = Exclude<GateClass, 'models'>;
 /** One change that trips the gate. */
 export interface GateHit {
   readonly class: GateClass;
-  /** The inventory item id; for `unicode`, the finding's fingerprint. */
+  /**
+   * The inventory item id; for `unicode`, the finding's fingerprint. For a `removed` hit, the id
+   * of the baseline's item.
+   */
   readonly id: string;
-  readonly change: 'added' | 'changed';
+  /** `removed`: a `deny` or `ask` permission entry that the scan no longer has. */
+  readonly change: 'added' | 'changed' | 'removed';
   /** One line for the pull request summary. */
   readonly summary: string;
   /**

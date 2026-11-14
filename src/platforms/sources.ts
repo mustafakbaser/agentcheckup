@@ -594,6 +594,11 @@ export const SOURCES = {
     'https://man7.org/linux/man-pages/man8/ld.so.8.html',
     '2026-10-15',
   ),
+  posixEnvironmentVariables: verified(
+    'POSIX.1-2024: Environment variables (PATH)',
+    'https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html',
+    '2026-11-14',
+  ),
   unicodeTagSmuggling: verified(
     'Unicode Technical Standard #39: Security mechanisms',
     'https://www.unicode.org/reports/tr39/',
