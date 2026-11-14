@@ -202,7 +202,8 @@ describe('Cline allowances', () => {
         ?.skipped.map((s) => `${s.path} ${s.code} ${s.ruleId ?? '-'}`),
     ).toEqual([
       '.clinerules/rule.md blank-file instr/empty-file',
-      '.cursorrules blank-file instr/empty-file',
+      // Cline does not read .cursorrules, so instr/empty-file reports it for Cursor only.
+      '.cursorrules not-read -',
       'AGENTS.md blank-file instr/empty-file',
     ]);
   });
@@ -255,6 +256,12 @@ describe('Cline consistency on generated snapshots', () => {
     '.cursorrules',
     '.windsurfrules',
     'pkg/.cursorrules',
+    // A managed plugin folder, with and without its manifest.
+    '.cline/acme/managed.json',
+    '.cline/acme/rules.md',
+    '.cline/acme/workflows/m.md',
+    '.cline/acme/skills/z/SKILL.md',
+    '.cline/other/rules.md',
   );
 
   it('finds no mismatch for Cline', () => {

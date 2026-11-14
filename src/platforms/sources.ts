@@ -26,6 +26,15 @@ const DRIFT_CHECKED = '2026-11-13';
 /** Codex source read at openai/codex 5943d7a for the permission surfaces and skill walk. */
 const CODEX_AUDIT_CHECKED = '2026-11-14';
 
+/**
+ * Cline source files read on 2026-11-14 at the released versions: the VS Code extension v4.1.26
+ * (a459f1d), the CLI v3.0.74 and the SDK v0.2.0. Each file cited here is the same at the three
+ * release tags and at main 72b3d71. Since 4.1.0 the extension is built from `apps/vscode` on top
+ * of the SDK, so the extension and the CLI read rules, workflows and skills through the same SDK
+ * code; they run hook files through different code.
+ */
+const CLINE_RELEASE_CHECKED = '2026-11-14';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -535,19 +544,44 @@ export const SOURCES = {
     AUDIT_CHECKED,
   ),
   clineInstructionLoaderSource: verified(
-    'Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; disabled and enabled flags)',
+    'Cline source: user-instruction-config-loader.ts (.md, .markdown and .txt rules; root AGENTS.md; rule names; disabled and enabled flags; managed plugin folders)',
     'https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts',
-    AUDIT_CHECKED,
+    CLINE_RELEASE_CHECKED,
   ),
   clinePathsSource: verified(
-    'Cline source: storage/paths.ts (rule folders, root AGENTS.md, workflow folders)',
+    'Cline source: storage/paths.ts (rule folders, root AGENTS.md, workflow and hook folders)',
     'https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts',
-    COVERAGE_CHECKED,
+    CLINE_RELEASE_CHECKED,
   ),
   clineConfigWatcherSource: verified(
-    'Cline source: unified-config-file-watcher.ts (a later skill with the same name replaces an earlier one)',
+    'Cline source: unified-config-file-watcher.ts (a later rule, workflow or skill with the same name replaces an earlier one)',
     'https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts',
-    COVERAGE_CHECKED,
+    CLINE_RELEASE_CHECKED,
+  ),
+  clineRuleSelectionSource: verified(
+    'Cline source: runtime/safety/rules.ts (the system prompt gets every rule that is not disabled, sorted by name; `paths` is not read)',
+    'https://github.com/cline/cline/blob/main/sdk/packages/core/src/runtime/safety/rules.ts',
+    CLINE_RELEASE_CHECKED,
+  ),
+  clineHookFileSource: verified(
+    'Cline source: hooks/hook-file-config.ts (the CLI runs files in .clinerules/hooks and .cline/hooks named after an event, in any letter case, with one of twelve extensions)',
+    'https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts',
+    CLINE_RELEASE_CHECKED,
+  ),
+  clineHookRunnerSource: verified(
+    'Cline source: hooks/hook-file-hooks.ts (how the CLI runs a hook file: by its shebang or extension; a failing hook does not stop the run)',
+    'https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-hooks.ts',
+    CLINE_RELEASE_CHECKED,
+  ),
+  clineVscodeHooksSource: verified(
+    'Cline source: hook-factory.ts (the VS Code extension runs .clinerules/hooks/<event>, executable, or <event>.ps1 on Windows; a failing hook does not block)',
+    'https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/hook-factory.ts',
+    CLINE_RELEASE_CHECKED,
+  ),
+  clineVscodeHookEventsSource: verified(
+    'Cline source: hooks-adapter.ts (the events the VS Code extension runs hook files for)',
+    'https://github.com/cline/cline/blob/main/apps/vscode/src/sdk/hooks-adapter.ts',
+    CLINE_RELEASE_CHECKED,
   ),
   agentsMd: verified('AGENTS.md open format', 'https://agents.md/', DRIFT_CHECKED),
   nodeCliEnv: verified(

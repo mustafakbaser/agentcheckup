@@ -7,7 +7,8 @@
  * 1. the recursive git tree (`tree.json`), the full path list used for existence checks;
  * 2. the text of every symlink the walk reaches (`links.json`), to resolve them inside the tree;
  * 3. only the blobs the agentcheckup walker would read: paths `defaultIsCandidate()` accepts
- *    (Markdown, JSON and `.codex/config.toml` files that `classify()` recognizes), outside
+ *    (Markdown, JSON and `.codex/config.toml` files that `classify()` recognizes, and the
+ *    scripts Cline runs as hooks), outside
  *    hard-excluded directories, at most 1 MiB each, and the files its import pass reads
  *    (`files/<path>`, listed in `files.json`).
  *

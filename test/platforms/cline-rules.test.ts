@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseFrontmatter } from '../../src/parse/frontmatter.js';
 import {
-  clineActivation,
   clineDisabled,
   clineFlagTypeError,
   clinePlace,
+  clinePlaceIn,
+  clineRuleHasPaths,
   isClineRuleFile,
+  isClineRuleOrWorkflow,
 } from '../../src/platforms/cline-rules.js';
 
 describe('clinePlace', () => {
@@ -37,6 +39,43 @@ describe('clinePlace', () => {
   it('names a file directly in .clinerules a rule even when it is named like a folder', () => {
     expect(clinePlace('.clinerules/hooks')).toMatchObject({ role: 'rule' });
   });
+
+  it('places the rules.md, workflows and skills of a managed plugin folder', () => {
+    expect(clinePlace('.cline/acme/rules.md')).toEqual({
+      role: 'rule',
+      root: '',
+      folder: '.cline',
+      plugin: '.cline/acme',
+    });
+    expect(clinePlace('pkg/.cline/acme/workflows/ship.md')).toMatchObject({
+      role: 'workflow',
+      root: 'pkg',
+      plugin: 'pkg/.cline/acme',
+    });
+    expect(clinePlace('.cline/acme/skills/x/SKILL.md')).toMatchObject({ role: 'skill' });
+    // Names inside the plugin folder are joined as written, and workflows are not nested.
+    for (const path of [
+      '.cline/acme/Rules.md',
+      '.cline/acme/notes.md',
+      '.cline/acme/workflows/a/b.md',
+      '.cline/acme/managed.json',
+    ]) {
+      expect(clinePlace(path), path).toBeUndefined();
+    }
+  });
+
+  it('counts a managed plugin folder only when it holds a managed.json', () => {
+    const paths = new Set([
+      '.cline/acme/managed.json',
+      '.cline/acme/rules.md',
+      '.cline/x/rules.md',
+    ]);
+    expect(clinePlaceIn(paths, '.cline/acme/rules.md')).toMatchObject({ role: 'rule' });
+    expect(clinePlaceIn(paths, '.cline/x/rules.md')).toBeUndefined();
+    expect(clinePlaceIn(paths, '.cline/rules/style.md')).toMatchObject({ role: 'rule' });
+    expect(isClineRuleOrWorkflow(paths, '.cline/acme/rules.md')).toBe(true);
+    expect(isClineRuleOrWorkflow(paths, '.cline/x/rules.md')).toBe(false);
+  });
 });
 
 describe('isClineRuleFile', () => {
@@ -46,48 +85,20 @@ describe('isClineRuleFile', () => {
   });
 });
 
-describe('clineActivation', () => {
-  const activation = (text: string) => clineActivation(parseFrontmatter(text));
+describe('clineRuleHasPaths', () => {
+  const hasPaths = (text: string) => clineRuleHasPaths(parseFrontmatter(text));
 
-  it('applies a rule without frontmatter or paths always', () => {
-    expect(activation('Body.\n')).toEqual({ mode: 'always', paths: [], documented: true });
-    expect(activation('---\ndescription: x\n---\n')).toEqual({
-      mode: 'always',
-      paths: [],
-      documented: true,
-    });
+  it('sees paths in any form, which the released extension and CLI ignore', () => {
+    expect(hasPaths('---\npaths:\n  - "src/**"\n---\nBody.\n')).toBe(true);
+    expect(hasPaths('---\npaths: []\n---\nBody.\n')).toBe(true);
+    expect(hasPaths('---\npaths: "src/**"\n---\nBody.\n')).toBe(true);
   });
 
-  it('applies a rule with paths to the files they match', () => {
-    expect(activation('---\npaths:\n  - "src/**"\n  - " test/** "\n---\n')).toEqual({
-      mode: 'paths',
-      paths: ['src/**', 'test/**'],
-      documented: true,
-    });
-  });
-
-  it('never applies a rule with an empty paths list', () => {
-    expect(activation('---\npaths: []\n---\n')).toEqual({
-      mode: 'never',
-      paths: [],
-      documented: true,
-    });
-    expect(activation('---\npaths: ["  "]\n---\n')).toMatchObject({
-      mode: 'never',
-      documented: false,
-    });
-  });
-
-  it('fails open on frontmatter that does not parse, and cannot tell other paths values', () => {
-    expect(activation('---\npaths: [a\n---\n')).toEqual({
-      mode: 'always',
-      paths: [],
-      documented: false,
-    });
-    expect(activation('---\npaths: "src/**"\n---\n')).toMatchObject({
-      mode: 'unknown',
-      documented: false,
-    });
+  it('sees none without the field, with a null one, or in frontmatter that does not parse', () => {
+    expect(hasPaths('Body.\n')).toBe(false);
+    expect(hasPaths('---\ndescription: x\n---\nBody.\n')).toBe(false);
+    expect(hasPaths('---\npaths:\n---\nBody.\n')).toBe(false);
+    expect(hasPaths('---\npaths: [a\n---\nBody.\n')).toBe(false);
   });
 });
 

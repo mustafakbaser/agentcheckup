@@ -17,9 +17,9 @@ export interface Inventory {
   readonly env: readonly EnvItem[];
   /**
    * Config files that could not be analyzed, so items may be missing: files in Cline's
-   * `.clinerules/hooks/`, `.cline/hooks/` and `.cline/plugins/` (no documented format),
-   * Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in UTF-16, a
-   * Codex `.codex/rules/*.rules` file that is not made only of literal rule calls, a
+   * `.cline/plugins/` (JavaScript modules in no documented format), a Cline hook file the walk
+   * did not read, Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in
+   * UTF-16, a Codex `.codex/rules/*.rules` file that is not made only of literal rule calls, a
    * skill, command or subagent whose frontmatter is past a parser limit, a Claude Code plugin
    * manifest with inline hooks in a list or naming other hook or MCP files, files the walk
    * skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
@@ -32,7 +32,8 @@ interface ItemBase {
   /**
    * Stable identity, relative to the scan root, used to match items against a baseline:
    * `mcp:<file>#<name>`, `hook:<file>#<event>:<digest of command>` (plus an occurrence number
-   * for repeats), `perm:<file>#<key>=<value>`, `env:<file>#<key>`.
+   * for repeats), `hook:<file>#<event>` for a script Cline runs as a hook, whose digest covers
+   * its content, `perm:<file>#<key>=<value>`, `env:<file>#<key>`.
    */
   readonly id: string;
   /** The config file that declares the item. */

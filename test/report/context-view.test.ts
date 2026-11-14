@@ -142,7 +142,21 @@ describe('assumption phrases', () => {
     ]);
     expect(defaults.get('cline')).toEqual([
       'VS Code extension',
+      'Cline 4.1.26',
       'rule toggles from frontmatter, none in extension state (default)',
+    ]);
+    // A rule with `paths` and a hook file add what the plan follows and needs.
+    const cline = phrases({
+      '.clinerules/scoped.md': '---\npaths: [src/**]\n---\nScoped.\n',
+      '.clinerules/hooks/PreToolUse': '#!/bin/sh\n',
+    }).get('cline');
+    expect(cline).toEqual([
+      'VS Code extension',
+      'Cline 4.1.26',
+      'rule toggles from frontmatter, none in extension state (default)',
+      'rule paths ignored, as the released code does, not scoped as documented',
+      'hooks on (default)',
+      'hook files executable (assumed)',
     ]);
 
     const configured = phrases({

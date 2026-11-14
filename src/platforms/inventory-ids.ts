@@ -8,6 +8,8 @@
  *   handler's redacted command line ({@link hookCommandLine}), or, for a handler without a
  *   command, of what it calls ({@link hookTarget}). Ids never depend on a credential: a hook
  *   whose token changes keeps its id (docs/adr/0007, decision 10).
+ * - Hook file, a script Cline runs for the event its name gives: `hook:<file>#<event>`. Its
+ *   digest covers the file's content (src/platforms/cline-hooks.ts).
  * - Permission: `perm:<file>#<key>=<value>`.
  * - Environment override: `env:<file>#<key>`.
  *
@@ -78,6 +80,11 @@ function copilotCommandText(handler: JsonObject): string | undefined {
   return lines.length === 0
     ? undefined
     : lines.map(({ field, line }) => `${field}: ${line}`).join('\n');
+}
+
+/** `hook:<file>#<event>`, for a hook file of Cline's. */
+export function clineHookInventoryId(file: string, event: string): string {
+  return `hook:${file}#${event}`;
 }
 
 /** `perm:<file>#<key>=<value>`. `value` must already have credentials masked. */

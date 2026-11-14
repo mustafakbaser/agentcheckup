@@ -1,6 +1,6 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { dirnamePosix } from '../../core/paths.js';
-import { clinePlace } from '../../platforms/cline-rules.js';
+import { clinePlaceIn } from '../../platforms/cline-rules.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quote } from '../shared/format.js';
@@ -51,7 +51,7 @@ export const filenameCaseRule = defineRule({
       // Devin documents exactly two spellings, AGENTS.md and agents.md.
       const documentedForDevin = basename(artifact.path) === 'agents.md';
       // In a folder of Cline's, the file is a rule or workflow to Cline, or nothing it reads.
-      const clineFolder = clinePlace(artifact.path) !== undefined;
+      const clineFolder = clinePlaceIn(context.snapshot.paths, artifact.path) !== undefined;
       const platforms = targetedReaders(context, artifact).filter(
         (platform) =>
           !(documentedForDevin && platform === 'windsurf') &&

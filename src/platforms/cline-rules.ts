@@ -1,12 +1,16 @@
 /**
- * Cline's project layout, when it applies a rule and when a file turns itself off, shared by the
- * classifier, the security inventory, the skill rules and the Cline load plans.
+ * Cline's project layout, and when a file turns itself off, shared by the classifier, the engine,
+ * the security inventory, the skill rules and the Cline load plans.
  *
  * Cline reads project configuration from `.cline/` (`rules/`, `workflows/`, `skills/`, `hooks/`,
  * `agents/`, `plugins/`) and from the legacy `.clinerules/`, whose files are rules except those
  * in its `workflows/`, `hooks/` and `skills/` folders (SOURCES.clineConfig,
- * SOURCES.clineRulesSource: `CLINERULES_EXCLUDED_SUBDIRECTORIES`). A rule applies always, or only
- * to the files its `paths` globs match (SOURCES.clineRules). A rule, workflow or skill whose
+ * SOURCES.clineRulesSource: `CLINERULES_EXCLUDED_SUBDIRECTORIES`). Any other folder of `.cline/`
+ * that holds a `managed.json` is a managed plugin: Cline reads its `rules.md` as a rule, the files
+ * of its `workflows/` folder as workflows and the skills of its `skills/` folder
+ * (`discoverManagedPluginRoots`, SOURCES.clineInstructionLoaderSource). A rule applies in every
+ * request: Cline's documentation describes rules scoped by `paths`, but the released extension and
+ * CLI never read the field (SOURCES.clineRuleSelectionSource). A rule, workflow or skill whose
  * frontmatter turns it off is not loaded ({@link clineDisabled}).
  */
 import type { FrontmatterResult } from '../parse/types.js';
@@ -19,6 +23,9 @@ import type { FrontmatterResult } from '../parse/types.js';
  * - `hook`: a file in `.clinerules/hooks/` or `.cline/hooks/`.
  * - `skill`: a file in `.clinerules/skills/` or `.cline/skills/`.
  * - `agent`, `plugin`: a file in `.cline/agents/` or `.cline/plugins/`.
+ *
+ * In a managed plugin folder `.cline/<name>/`, `rules.md` is a `rule`, a file directly in
+ * `workflows/` a `workflow` and a file in `skills/` a `skill`, with `plugin` set.
  */
 export type ClineRole = 'rule' | 'workflow' | 'hook' | 'skill' | 'agent' | 'plugin';
 
@@ -28,6 +35,11 @@ export interface ClinePlace {
   readonly root: string;
   /** `.clinerules` or `.cline`, as written in the path. */
   readonly folder: string;
+  /**
+   * For a file of a managed plugin: the plugin folder, `<root>/.cline/<name>`. Cline reads the
+   * file only when the folder holds a `managed.json` ({@link clinePlaceIn}).
+   */
+  readonly plugin?: string;
 }
 
 /** Folders of `.clinerules` whose files are not rules. */
@@ -47,10 +59,28 @@ const CLINE_ROLES: Readonly<Record<string, ClineRole>> = {
   plugins: 'plugin',
 };
 
+/** The file that makes a folder of `.cline/` a managed plugin. */
+export const CLINE_MANAGED_MANIFEST = 'managed.json';
+
+/**
+ * The role of a file in the managed plugin folder `.cline/<name>/`, from the segments below that
+ * folder, or undefined when Cline does not read it there. The SDK joins these names as written,
+ * so they are compared exactly: `rules.md`, files directly in `workflows/`, and `skills/`.
+ */
+function managedRole(below: readonly string[]): ClineRole | undefined {
+  const [first] = below;
+  if (below.length === 1 && first === 'rules.md') return 'rule';
+  if (below.length === 2 && first === 'workflows') return 'workflow';
+  if (below.length >= 2 && first === 'skills') return 'skill';
+  return undefined;
+}
+
 /**
  * What the file at `path` (root-relative POSIX) is to Cline, or undefined outside its folders.
  * The configuration folder is the last `.clinerules` or `.cline` directory on the path. Folder
- * names are compared without regard to letter case, as the classifier compares them.
+ * names are compared without regard to letter case, as the classifier compares them, except the
+ * names inside a managed plugin folder. A managed plugin's file counts here whether or not the
+ * folder holds a `managed.json`; {@link clinePlaceIn} checks that.
  */
 export function clinePlace(path: string): ClinePlace | undefined {
   const segments = path.split('/');
@@ -62,18 +92,34 @@ export function clinePlace(path: string): ClinePlace | undefined {
     const next = lower[i + 1] ?? '';
     // A folder name only counts when there is a file below it.
     const sub = i + 2 < lower.length ? next : undefined;
-    const role =
-      folder === '.clinerules'
-        ? sub !== undefined && Object.hasOwn(CLINERULES_ROLES, sub)
-          ? CLINERULES_ROLES[sub]
-          : 'rule'
-        : sub !== undefined && Object.hasOwn(CLINE_ROLES, sub)
-          ? CLINE_ROLES[sub]
-          : undefined;
+    const root = segments.slice(0, i).join('/');
+    const written = segments[i] ?? folder;
+    if (folder === '.clinerules') {
+      const role =
+        sub !== undefined && Object.hasOwn(CLINERULES_ROLES, sub) ? CLINERULES_ROLES[sub] : 'rule';
+      return { role: role ?? 'rule', root, folder: written };
+    }
+    if (sub === undefined) return undefined;
+    if (Object.hasOwn(CLINE_ROLES, sub)) {
+      const role = CLINE_ROLES[sub];
+      return role === undefined ? undefined : { role, root, folder: written };
+    }
+    const role = managedRole(segments.slice(i + 2));
     if (role === undefined) return undefined;
-    return { role, root: segments.slice(0, i).join('/'), folder: segments[i] ?? folder };
+    return { role, root, folder: written, plugin: segments.slice(0, i + 2).join('/') };
   }
   return undefined;
+}
+
+/**
+ * {@link clinePlace}, for a scan whose paths are `paths`: undefined for a file of a managed
+ * plugin folder that holds no `managed.json`. Cline also skips a folder whose `managed.json` is
+ * not a JSON object or list, which the scan cannot tell: it does not read the manifest.
+ */
+export function clinePlaceIn(paths: ReadonlySet<string>, path: string): ClinePlace | undefined {
+  const place = clinePlace(path);
+  if (place?.plugin === undefined) return place;
+  return paths.has(`${place.plugin}/${CLINE_MANAGED_MANIFEST}`) ? place : undefined;
 }
 
 /** Extensions Cline reads as rule files (SOURCES.clineInstructionLoaderSource). */
@@ -88,10 +134,11 @@ export function isClineRuleFile(name: string): boolean {
 /**
  * True when Cline reads the file at `path` as a rule or a workflow, whatever its name: a rule
  * file in a rules or workflows folder. `.clinerules/AGENTS.md` is a rule to Cline, not an
- * AGENTS.md.
+ * AGENTS.md. `paths` are the scan's paths, which say whether a managed plugin folder holds its
+ * `managed.json`.
  */
-export function isClineRuleOrWorkflow(path: string): boolean {
-  const place = clinePlace(path);
+export function isClineRuleOrWorkflow(paths: ReadonlySet<string>, path: string): boolean {
+  const place = clinePlaceIn(paths, path);
   return (
     place !== undefined &&
     (place.role === 'rule' || place.role === 'workflow') &&
@@ -100,41 +147,15 @@ export function isClineRuleOrWorkflow(path: string): boolean {
 }
 
 /**
- * When Cline applies a rule:
- * - `always`: in every request. A rule without frontmatter or without `paths`, and a rule whose
- *   frontmatter does not parse: Cline's documentation says it then fails open.
- * - `paths`: when a file the `paths` globs match is in the request.
- * - `never`: `paths: []` matches nothing, so the rule never applies.
- * - `unknown`: `paths` is neither a list of strings nor empty.
+ * True when a rule's frontmatter sets `paths`. Cline's documentation says such a rule applies
+ * only to the files its globs match, and `paths: []` never; the released extension and CLI do not
+ * read the field and put the rule in every request (SOURCES.clineRuleSelectionSource), which the
+ * Cline plan follows and states.
  */
-export type ClineRuleMode = 'always' | 'paths' | 'never' | 'unknown';
-
-export interface ClineActivation {
-  readonly mode: ClineRuleMode;
-  /** The `paths` globs, trimmed, without empty items. */
-  readonly paths: readonly string[];
-  /**
-   * False when the mode rests on behavior that sources disagree on or do not show: frontmatter
-   * that does not parse (the documentation says Cline fails open; its SDK throws), or `paths`
-   * that is not a list of strings.
-   */
-  readonly documented: boolean;
-}
-
-/** When Cline applies a rule file, from its parsed frontmatter. */
-export function clineActivation(frontmatter: FrontmatterResult): ClineActivation {
-  if (frontmatter.kind === 'absent') return { mode: 'always', paths: [], documented: true };
-  if (frontmatter.kind !== 'valid') return { mode: 'always', paths: [], documented: false };
+export function clineRuleHasPaths(frontmatter: FrontmatterResult): boolean {
+  if (frontmatter.kind !== 'valid') return false;
   const value = frontmatter.data.values['paths'];
-  if (value === undefined || value === null) return { mode: 'always', paths: [], documented: true };
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    return { mode: 'unknown', paths: [], documented: false };
-  }
-  if (value.length === 0) return { mode: 'never', paths: [], documented: true };
-  const paths = value.map((item) => item.trim()).filter((item) => item !== '');
-  // Only blank globs: they match nothing, but no source says how Cline reads them.
-  if (paths.length === 0) return { mode: 'never', paths, documented: false };
-  return { mode: 'paths', paths, documented: true };
+  return value !== undefined && value !== null;
 }
 
 /** A toggle field of the wrong type, which makes the SDK drop the file. */

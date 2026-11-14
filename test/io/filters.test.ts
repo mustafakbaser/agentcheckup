@@ -123,6 +123,26 @@ describe('defaultIsCandidate', () => {
       );
     }
   });
+
+  it('also reads the scripts Cline runs as hooks, so the inventory can digest them', () => {
+    for (const path of [
+      '.clinerules/hooks/PreToolUse',
+      '.clinerules/hooks/TaskStart.ps1',
+      '.cline/hooks/posttooluse.py',
+      'apps/web/.clinerules/hooks/TaskComplete',
+    ]) {
+      expect(defaultIsCandidate(path), path).toBe(true);
+      expect(classify(path), path).toBeUndefined();
+    }
+    for (const path of [
+      '.clinerules/hooks/README.md',
+      '.clinerules/hooks/pre-tool.sh',
+      '.cline/plugins/guard.js',
+      'hooks/PreToolUse',
+    ]) {
+      expect(defaultIsCandidate(path), path).toBe(false);
+    }
+  });
 });
 
 describe('isAgentConfigDirectory', () => {

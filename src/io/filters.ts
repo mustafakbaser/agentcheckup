@@ -3,6 +3,7 @@
  * the walk without a checkout (scripts/corpus). No I/O here.
  */
 import { classify, isCandidateBasename } from '../platforms/classify.js';
+import { mayBeClineHookFile } from '../platforms/cline-hooks.js';
 import { TEXT_EXTENSIONS } from '../platforms/load/imports.js';
 
 /**
@@ -141,10 +142,14 @@ export function looksBinary(bytes: Uint8Array): boolean {
 
 /**
  * The walker's default `isCandidate`: whether the file at `relativePath` (root-relative POSIX) is
- * agent configuration that `classify()` recognizes. `isCandidateBasename` is checked first as a
- * cheap pre-filter, so most paths never reach the classifier's patterns.
+ * agent configuration that `classify()` recognizes, or a script Cline runs as a hook, which the
+ * security inventory digests (src/platforms/cline-hooks.ts). `isCandidateBasename` is checked
+ * first as a cheap pre-filter, so most paths never reach the classifier's patterns.
  */
 export function defaultIsCandidate(relativePath: string): boolean {
   const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
-  return isCandidateBasename(name) && classify(relativePath) !== undefined;
+  return (
+    (isCandidateBasename(name) && classify(relativePath) !== undefined) ||
+    mayBeClineHookFile(relativePath)
+  );
 }

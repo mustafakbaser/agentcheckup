@@ -100,29 +100,36 @@ function expectSorted(plan: LoadPlan): void {
 const FRONTMATTER = (fields: string, body = 'Body.\n'): string => `---\n${fields}\n---\n${body}`;
 
 describe('loadCline: the workspace fixture', () => {
-  it('loads in source order and covers every trigger and skip', async () => {
+  it('loads in prompt order and covers every trigger and skip', async () => {
     const built = await fixture('workspace');
     const { plan } = built;
     expect(summary(plan)).toEqual([
-      '1 instructions:AGENTS.md startup documented',
-      // Invalid YAML: the docs say Cline fails open, the SDK drops the rule.
-      '2 rule:.clinerules/broken.md startup unverified',
-      '3 rule:.clinerules/general.md startup documented',
-      '4 rule:.cline/rules/db.md startup documented',
-      '5 instructions:.cursorrules startup documented',
-      '6 instructions:.windsurfrules startup documented',
+      // The rules section, by name: AGENTS.md is "Workspace AGENTS.md". A rule with `paths`
+      // loads in every request: the docs scope it, the released code does not read the field.
+      '1 rule:.cline/rules/db.md startup documented',
+      '2 rule:.clinerules/general.md startup documented',
+      '3 rule:.clinerules/never.md startup source-code',
+      '4 rule:.clinerules/string-paths.md startup source-code',
+      '5 rule:.clinerules/testing.md startup source-code',
+      '6 instructions:AGENTS.md startup documented',
       // The skills listing; a skill without a description is listed by the SDK, not the docs.
       '7 skill:.agents/skills/notes/SKILL.md startup unverified',
       '8 skill:.claude/skills/deploy/SKILL.md startup source-code',
       '9 skill:.cline/skills/review/SKILL.md startup documented',
       '10 skill:.clinerules/skills/lint/SKILL.md startup source-code',
-      '- rule:.clinerules/testing.md on-path documented',
+      '- hook:.clinerules/hooks/PreToolUse#PreToolUse startup source-code',
       '- command:.cline/workflows/hotfix.md manual source-code',
       '- command:.clinerules/workflows/deploy.md manual source-code',
       '- command:.clinerules/workflows/release.md manual source-code',
-      '- rule:.clinerules/string-paths.md unknown unverified',
     ]);
-    expect(entry(plan, 'rule:.clinerules/testing.md')?.patterns).toEqual(['**/*.test.ts']);
+    expect(entry(plan, 'rule:.clinerules/testing.md')?.patterns).toBeUndefined();
+    expect(entry(plan, 'rule:.clinerules/testing.md')?.evidence).toContain(
+      'clineRuleSelectionSource',
+    );
+    expect(entry(plan, 'hook:.clinerules/hooks/PreToolUse#PreToolUse')).toMatchObject({
+      name: 'PreToolUse',
+      inventoryId: 'hook:.clinerules/hooks/PreToolUse#PreToolUse',
+    });
     expect(
       plan.entries.filter((e) => e.role === 'command').map((e) => `${e.path} /${e.name ?? ''}`),
     ).toEqual([
@@ -132,25 +139,38 @@ describe('loadCline: the workspace fixture', () => {
     ]);
     expect(skips(plan)).toEqual([
       '.agents/skills/team/deep/SKILL.md not-read - source-code',
+      // A hook file only the CLI runs.
+      '.cline/hooks/TaskStart.sh not-read - source-code',
       '.cline/skills/broken/SKILL.md invalid-frontmatter skill/frontmatter-invalid source-code',
       '.clinerules/blank.md blank-file instr/empty-file source-code',
+      // Invalid YAML: the docs say Cline fails open, the released SDK drops the rule.
+      '.clinerules/broken.md invalid-frontmatter - source-code',
       // A subfolder: the SDK reads only the folder itself.
       '.clinerules/frontend/react.md not-read - source-code',
-      '.clinerules/never.md never-active - documented',
+      // The extension does not run hooks for TaskResume; the CLI does.
+      '.clinerules/hooks/TaskResume not-read - source-code',
+      // The docs list them; no released code reads them.
+      '.cursorrules not-read - source-code',
+      '.windsurfrules not-read - source-code',
       'packages/api/AGENTS.md not-read - source-code',
     ]);
     expect(plan.outOfScope).toEqual([
       { path: 'sdk/.cline/rules/nested.md', because: 'below-start-dir' },
     ]);
-    // Hooks and plugins have no documented format; .txt and .markdown rules are not read.
+    // Plugins have no documented format; .txt and .markdown rules are not read. Files in the
+    // hook folders that no surface runs are not mentioned.
     expect(plan.incomplete).toEqual([
-      'unparsed:.cline/hooks/notify.js',
       'unparsed:.cline/plugins/guard.ts',
-      'unparsed:.clinerules/hooks/README.md',
-      'unparsed:.clinerules/hooks/pre-tool.sh',
       'unread:.clinerules/notes.txt',
       'unread:.clinerules/style.markdown',
     ]);
+    for (const path of [
+      '.cline/hooks/notify.js',
+      '.clinerules/hooks/README.md',
+      '.clinerules/hooks/pre-tool.sh',
+    ]) {
+      expect(mentioned(plan), path).not.toContain(path);
+    }
     expectSkipsReported(built);
     expectSorted(plan);
   });
@@ -167,15 +187,15 @@ describe('loadCline: the workspace fixture', () => {
     ]) {
       expect(paths, path).not.toContain(path);
     }
-    // No MCP server or hook is loaded from the repository.
-    expect(plan.entries.some((e) => e.role === 'mcp-server' || e.role === 'hook')).toBe(false);
+    // No MCP server is loaded from the repository.
+    expect(plan.entries.some((e) => e.role === 'mcp-server')).toBe(false);
   });
 
   it('reads the legacy single-file .clinerules, which the scan does not read', async () => {
     const built = await fixture('legacy');
     expect(built.plan.entries).toEqual([]);
     expect(skips(built.plan)).toEqual([
-      '.windsurfrules blank-file instr/empty-file unverified',
+      '.windsurfrules not-read - source-code',
       'Agents.md case-mismatch instr/filename-case source-code',
     ]);
     expect(built.plan.incomplete).toEqual(['unread:.clinerules']);
@@ -185,8 +205,19 @@ describe('loadCline: the workspace fixture', () => {
   it('states its assumptions and the scopes it cannot see', async () => {
     const { plan } = await fixture('workspace');
     expect(plan.assumptions.map((a) => `${a.key}=${String(a.value)} ${a.origin}`)).toEqual([
+      'cline.hook_file_executable=true assumed',
+      'cline.hooks_enabled=true default',
       'cline.ruleToggles=frontmatter default',
+      'cline.rule_paths=ignored default',
       'cline.surface=vscode default',
+      'cline.version=4.1.26 default',
+    ]);
+    // Without a rule that sets `paths` or a hook, the plan does not state those.
+    const plain = build({ 'AGENTS.md': 'A.\n' }).plan;
+    expect(plain.assumptions.map((a) => a.key)).toEqual([
+      'cline.ruleToggles',
+      'cline.surface',
+      'cline.version',
     ]);
     const hidden = plan.hidden.flatMap((scope) => scope.locations);
     expect(hidden).toEqual(
@@ -207,7 +238,7 @@ describe('loadCline: the workspace fixture', () => {
 });
 
 describe('loadCline: rules', () => {
-  it('maps paths to triggers: none, a list, an empty list, and other forms', () => {
+  it('loads every rule at startup whatever its paths, as the released code does', () => {
     const built = build({
       '.clinerules/always.md': 'Always.\n',
       '.clinerules/no-paths.md': FRONTMATTER('description: x'),
@@ -218,22 +249,74 @@ describe('loadCline: rules', () => {
       '.clinerules/mixed.md': FRONTMATTER('paths: [src/**, 3]'),
       '.clinerules/unclosed.md': '---\npaths: []\nNo closing line.\n',
     });
+    // The docs scope a rule with `paths` (source-code: the source disagrees); a rule without
+    // `paths` is documented. An unclosed block is part of the body, so the rule has no `paths`.
     expect(summary(built.plan)).toEqual([
       '1 rule:.clinerules/always.md startup documented',
-      '2 rule:.clinerules/no-paths.md startup documented',
-      '3 rule:.clinerules/null.md startup documented',
-      '4 rule:.clinerules/unclosed.md startup unverified',
-      '- rule:.clinerules/scoped.md on-path documented',
-      '- rule:.clinerules/mixed.md unknown unverified',
+      '2 rule:.clinerules/blank-globs.md startup source-code',
+      '3 rule:.clinerules/mixed.md startup source-code',
+      '4 rule:.clinerules/never.md startup source-code',
+      '5 rule:.clinerules/no-paths.md startup documented',
+      '6 rule:.clinerules/null.md startup documented',
+      '7 rule:.clinerules/scoped.md startup source-code',
+      '8 rule:.clinerules/unclosed.md startup documented',
     ]);
-    expect(entry(built.plan, 'rule:.clinerules/scoped.md')?.patterns).toEqual([
-      'src/**',
-      'test/**',
+    expect(built.plan.entries.every((e) => e.patterns === undefined)).toBe(true);
+    expect(built.plan.skipped).toEqual([]);
+    expect(built.plan.assumptions.find((a) => a.key === 'cline.rule_paths')).toEqual({
+      key: 'cline.rule_paths',
+      value: 'ignored',
+      origin: 'default',
+      evidence: ['clineRuleSelectionSource', 'clineRules'],
+    });
+  });
+
+  it('keeps one rule per name: the later source wins, in any letter case', () => {
+    const built = build({
+      'AGENTS.md': 'Root.\n',
+      '.clinerules/style.md': 'Old style.\n',
+      '.cline/rules/Style.md': 'New style.\n',
+      '.clinerules/a.md': FRONTMATTER('name: Shared'),
+      '.clinerules/b.md': FRONTMATTER('name: " shared "'),
+      '.cline/rules/root.md': FRONTMATTER('name: Workspace AGENTS.md', 'Replaces AGENTS.md.\n'),
+      '.cline/rules/off.md': FRONTMATTER('disabled: true'),
+      '.clinerules/off.md': 'Shadowed by a disabled rule.\n',
+      '.clinerules/unique.md': 'Unique.\n',
+    });
+    expect(summary(built.plan)).toEqual([
+      // Two files of one folder: which one the SDK keeps depends on the file system.
+      '1 rule:.clinerules/b.md startup unverified',
+      '2 rule:.cline/rules/Style.md startup documented',
+      '3 rule:.clinerules/unique.md startup documented',
+      '4 rule:.cline/rules/root.md startup documented',
     ]);
     expect(skips(built.plan)).toEqual([
-      '.clinerules/blank-globs.md never-active - unverified',
-      '.clinerules/never.md never-active - documented',
+      '.cline/rules/off.md disabled - source-code',
+      '.clinerules/a.md shadowed-by-preferred - unverified',
+      '.clinerules/off.md shadowed-by-preferred - source-code',
+      '.clinerules/style.md shadowed-by-preferred - source-code',
+      'AGENTS.md shadowed-by-preferred - source-code',
     ]);
+    const shadowed = built.plan.skipped.find((skip) => skip.path === '.clinerules/style.md');
+    expect(shadowed?.evidence).toEqual(['clineConfigWatcherSource', 'clinePathsSource']);
+    expect(shadowed?.size?.chars).toBe('Old style.\n'.length);
+    expectSkipsReported(built);
+  });
+
+  it('drops a rule whose frontmatter does not parse or names it with no text', () => {
+    const built = build({
+      '.clinerules/yaml.md': '---\npaths: [x\n---\nRaw.\n',
+      '.clinerules/name.md': FRONTMATTER('name: [a, b]'),
+      '.clinerules/list.md': FRONTMATTER('- a\n- b'),
+      'AGENTS.md': FRONTMATTER('disabled: "no"'),
+    });
+    expect(skips(built.plan)).toEqual([
+      '.clinerules/name.md invalid-frontmatter - source-code',
+      '.clinerules/yaml.md invalid-frontmatter - source-code',
+      'AGENTS.md invalid-frontmatter - source-code',
+    ]);
+    // YAML that is a list gives no fields: the rule is named after its file.
+    expect(summary(built.plan)).toEqual(['1 rule:.clinerules/list.md startup documented']);
   });
 
   it('skips blank rules with the finding of instr/empty-file, before reading paths', () => {
@@ -256,19 +339,19 @@ describe('loadCline: rules', () => {
 
   it('counts what Cline receives: the body after valid frontmatter, the whole file otherwise', () => {
     const scoped = FRONTMATTER('paths: [src/**]', 'Use strict mode.\n');
+    const unclosed = '---\npaths: [x]\nNo closing line.\n';
     const { plan } = build({
       '.clinerules/scoped.md': scoped,
-      '.clinerules/broken.md': '---\npaths: [x\n---\nRaw.\n',
+      '.clinerules/unclosed.md': unclosed,
     });
     expect(entry(plan, 'rule:.clinerules/scoped.md')?.size).toEqual({
       bytes: scoped.length,
       chars: 'Use strict mode.\n'.length,
       tokens: 5,
     });
-    const broken = '---\npaths: [x\n---\nRaw.\n';
-    expect(entry(plan, 'rule:.clinerules/broken.md')?.size?.chars).toBe(broken.length);
-    expect(plan.totals.startup.chars).toBe(broken.length);
-    expect(plan.totals.onDemand.chars).toBe('Use strict mode.\n'.length);
+    expect(entry(plan, 'rule:.clinerules/unclosed.md')?.size?.chars).toBe(unclosed.length);
+    expect(plan.totals.startup.chars).toBe(unclosed.length + 'Use strict mode.\n'.length);
+    expect(plan.totals.onDemand.chars).toBe(0);
   });
 
   it('keeps workflows, hooks and skills folders of .clinerules out of the rules', () => {
@@ -287,7 +370,7 @@ describe('loadCline: rules', () => {
       '- command:.clinerules/workflows/release.md manual source-code',
     ]);
     expect(plan.skipped).toEqual([]);
-    expect(plan.incomplete).toEqual(['unparsed:.clinerules/hooks/README.md']);
+    expect(plan.incomplete).toEqual([]);
   });
 
   it('reads every Markdown file in a rules folder as a rule, whatever its name', () => {
@@ -321,8 +404,8 @@ describe('loadCline: rules', () => {
       { paths: ['.clinerules/frontend/notes.txt', '.cline/rules/other.txt'] },
     );
     expect(summary(built.plan)).toEqual([
-      '1 rule:.clinerules/top.md startup documented',
-      '2 rule:.cline/rules/db.md startup documented',
+      '1 rule:.cline/rules/db.md startup documented',
+      '2 rule:.clinerules/top.md startup documented',
     ]);
     expect(skips(built.plan)).toEqual([
       '.cline/rules/sub/more.md not-read - source-code',
@@ -374,8 +457,8 @@ describe('loadCline: rules', () => {
     ).toBe(true);
     expect(summary(built.plan)).toEqual([
       '1 rule:.clinerules/disabled-wins.md startup documented',
-      '2 rule:.clinerules/plain.md startup documented',
-      '3 rule:.cline/rules/on.md startup documented',
+      '2 rule:.cline/rules/on.md startup documented',
+      '3 rule:.clinerules/plain.md startup documented',
       '4 skill:.cline/skills/active/SKILL.md startup documented',
       '- command:.cline/workflows/ship.md manual source-code',
     ]);
@@ -455,21 +538,30 @@ describe('loadCline: instructions', () => {
     expectSkipsReported(frontmatter);
   });
 
-  it('reads .cursorrules and .windsurfrules at the workspace root only, by exact name', () => {
+  it('does not read .cursorrules or .windsurfrules, which the docs list', () => {
     const built = build({
       '.cursorrules': 'Cursor.\n',
-      '.windsurfrules': 'Windsurf.\n',
+      '.windsurfrules': '',
       'pkg/.cursorrules': 'Nested.\n',
       '.CursorRules': 'Other case.\n',
     });
-    expect(summary(built.plan)).toEqual([
-      '1 instructions:.cursorrules startup documented',
-      '2 instructions:.windsurfrules startup documented',
+    expect(summary(built.plan)).toEqual([]);
+    expect(skips(built.plan)).toEqual([
+      '.CursorRules not-read - source-code',
+      '.cursorrules not-read - source-code',
+      '.windsurfrules not-read - source-code',
     ]);
-    expect(skips(built.plan)).toEqual(['.CursorRules not-read - unverified']);
+    expect(built.plan.skipped.map((skip) => skip.evidence)).toEqual([
+      ['clinePathsSource', 'clineRules'],
+      ['clinePathsSource', 'clineRules'],
+      ['clinePathsSource', 'clineRules'],
+    ]);
     expect(built.plan.outOfScope).toEqual([
       { path: 'pkg/.cursorrules', because: 'below-start-dir' },
     ]);
+    // instr/empty-file reports the blank .windsurfrules for Devin Local only.
+    const empty = built.result.findings.filter((f) => f.ruleId === 'instr/empty-file');
+    expect(empty.map((f) => [f.path, f.platforms])).toEqual([['.windsurfrules', ['windsurf']]]);
   });
 
   it('reads the files of a workspace opened in a subfolder, and nothing outside it', () => {
@@ -486,8 +578,8 @@ describe('loadCline: instructions', () => {
       'apps/web',
     );
     expect(summary(plan)).toEqual([
-      '1 instructions:apps/web/AGENTS.md startup documented',
-      '2 rule:apps/web/.clinerules/web.md startup documented',
+      '1 rule:apps/web/.clinerules/web.md startup documented',
+      '2 instructions:apps/web/AGENTS.md startup documented',
       '3 skill:apps/web/.cline/skills/s/SKILL.md startup documented',
     ]);
     expect(plan.outOfScope).toEqual([
@@ -626,6 +718,82 @@ describe('loadCline: skills', () => {
       { path: '.cline/skills/outer/assets/inner/SKILL.md', because: 'payload-folder' },
     ]);
     expect(plan.skipped).toEqual([]);
+  });
+});
+
+describe('loadCline: managed plugins', () => {
+  it('reads the rules.md, workflows and skills of a .cline folder with a managed.json', () => {
+    const built = build(
+      {
+        '.cline/acme/rules.md': 'Acme rules.\n',
+        '.cline/acme/workflows/ship.md': 'Ship it.\n',
+        '.cline/acme/workflows/empty.md': '',
+        '.cline/acme/skills/SKILL.md': FRONTMATTER('name: root\ndescription: Root.'),
+        '.cline/acme/skills/lint/SKILL.md': FRONTMATTER('name: lint\ndescription: Lints.'),
+        '.cline/acme/notes.md': 'Not read.\n',
+        // No manifest: Cline reads nothing here, and no rule judges these files for it.
+        '.cline/other/rules.md': '',
+        '.cline/other/workflows/w.md': 'No manifest.\n',
+        // The plugin's rules.md comes later in the search and has the same name.
+        '.clinerules/rules.md': 'Replaced by the plugin.\n',
+      },
+      { paths: ['.cline/acme/managed.json'] },
+    );
+    const { plan, result } = built;
+    // Unverified: Cline also skips a folder whose managed.json is not a JSON object, which the
+    // scan does not read.
+    expect(summary(plan)).toEqual([
+      '1 rule:.cline/acme/rules.md startup unverified',
+      '2 skill:.cline/acme/skills/SKILL.md startup unverified',
+      '3 skill:.cline/acme/skills/lint/SKILL.md startup unverified',
+      '- command:.cline/acme/workflows/ship.md manual unverified',
+    ]);
+    expect(skips(plan)).toEqual([
+      '.cline/acme/workflows/empty.md blank-file instr/empty-file unverified',
+      '.clinerules/rules.md shadowed-by-preferred - source-code',
+    ]);
+    expect(mentioned(plan).filter((path) => path.startsWith('.cline/other/'))).toEqual([]);
+    expect(result.findings.filter((f) => f.path.startsWith('.cline/other/'))).toEqual([]);
+    expectSkipsReported(built);
+  });
+});
+
+describe('loadCline: hooks', () => {
+  it('lists the hook files the extension runs; those only the CLI runs are not read', () => {
+    const { plan } = build({
+      '.clinerules/hooks/PreToolUse': '#!/bin/sh\n',
+      '.clinerules/hooks/TaskCancel.ps1': 'exit 0\n',
+      // The CLI runs these; the extension does not run the event, the name or the folder.
+      '.clinerules/hooks/SessionShutdown': '#!/bin/sh\n',
+      '.clinerules/hooks/pretooluse.sh': '#!/bin/sh\n',
+      '.cline/hooks/TaskStart': '#!/bin/sh\n',
+      // Not a hook to either.
+      '.clinerules/hooks/README.md': '# Hooks\n',
+      // Another workspace's.
+      'pkg/.clinerules/hooks/PreToolUse': '#!/bin/sh\n',
+    });
+    expect(summary(plan)).toEqual([
+      '- hook:.clinerules/hooks/PreToolUse#PreToolUse startup source-code',
+      '- hook:.clinerules/hooks/TaskCancel.ps1#TaskCancel startup source-code',
+    ]);
+    expect(plan.entries.map((e) => e.inventoryId)).toEqual([
+      'hook:.clinerules/hooks/PreToolUse#PreToolUse',
+      'hook:.clinerules/hooks/TaskCancel.ps1#TaskCancel',
+    ]);
+    expect(skips(plan)).toEqual([
+      '.cline/hooks/TaskStart not-read - source-code',
+      '.clinerules/hooks/SessionShutdown not-read - source-code',
+      '.clinerules/hooks/pretooluse.sh not-read - source-code',
+    ]);
+    expect(plan.incomplete).toEqual([]);
+    expect(mentioned(plan)).not.toContain('pkg/.clinerules/hooks/PreToolUse');
+    // A hook file the walk did not read still runs; the inventory cannot list it.
+    const unread = build({}, { paths: ['.clinerules/hooks/TaskComplete'] }).plan;
+    expect(summary(unread)).toEqual([
+      '- hook:.clinerules/hooks/TaskComplete#TaskComplete startup source-code',
+    ]);
+    expect(unread.entries[0]?.inventoryId).toBeUndefined();
+    expect(mentioned(plan)).not.toContain('.clinerules/hooks/README.md');
   });
 });
 

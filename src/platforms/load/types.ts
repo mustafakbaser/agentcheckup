@@ -309,8 +309,8 @@ export type OwnContextHidden =
  *   such as `.devin/global_rules.md` over `.windsurf/global_rules.md`.
  * - `disabled`: a setting in the repository turns the file or item off, such as Devin's
  *   `read_config_from` or `enabled = false` on a Codex MCP server.
- * - `never-active`: the file's own settings keep it from ever applying, such as a Cline rule
- *   with `paths: []`.
+ * - `never-active`: the file's own settings keep it from ever applying, such as an MCP server
+ *   only an SDK host application registers, which no Claude Code session starts.
  * - `invalid-toml`: the config file is not valid TOML.
  * - `not-read`: the agent does not read the file here, and no rule reports it as a problem.
  */

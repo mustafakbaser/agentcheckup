@@ -637,8 +637,9 @@ as described in [SECURITY.md](SECURITY.md).
   repository's settings on GitHub.com. Each plan lists them.
 - **Assumptions are stated.** Each plan says what it assumed: the instructions mode, a minimum
   version, a trusted workspace, Codex's byte limit, VS Code settings, Devin Desktop outside
-  Restricted Mode, Cline rule toggles read from frontmatter. Some can be changed with rule
-  options or flags such as `--context-window`.
+  Restricted Mode, Cline rule toggles read from frontmatter. Where an agent's documentation and
+  its released code disagree, as for Cline rules with `paths`, the plan follows the code and
+  says so. Some can be changed with rule options or flags such as `--context-window`.
 - **Not every surface has a plan.** Copilot Chat and code review on GitHub.com, VS Code's other
   agent harnesses, Devin Desktop's older Cascade agent and Antigravity CLI are covered by rules
   only. The Copilot in VS Code plan models the Local harness, which VS Code no longer picks by
@@ -649,9 +650,9 @@ as described in [SECURITY.md](SECURITY.md).
   code and non-Latin text.
 - **What is not analyzed is reported, never guessed:** a `.codex/config.toml` in UTF-16 or past
   the parser's limits, a Codex `.codex/rules/*.rules` file that is more than literal rule calls
-  (agentcheckup never evaluates Starlark), Cline hook scripts and plugins, Cline rules in `.txt`
-  or `.markdown` files. A file a Codex `model_instructions_file` names is measured only when the
-  scan read it for another reason.
+  (agentcheckup never evaluates Starlark), Cline plugins, Cline rules in `.txt` or `.markdown`
+  files. A file a Codex `model_instructions_file` names is measured only when the scan read it
+  for another reason.
 - **Words and tasks are checked, not judged.** agentcheckup checks that your answer in `fix -i`
   or an agent's change resolves the finding and breaks no rule, not that the text is right.
   Review what an agent changed as you would any diff.

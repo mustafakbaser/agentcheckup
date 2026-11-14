@@ -30,7 +30,7 @@ Rename one of the skills, or, when they are the same skill, keep one copy and li
 - [GitHub Copilot: Add skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills), verified, checked 2026-10-30
 - [Cursor: Skills](https://cursor.com/docs/skills), verified, checked 2026-10-30
 - [Devin CLI: Creating skills (optional frontmatter, name defaults to the directory name, `allowed-tools` is not a restriction)](https://docs.devin.ai/cli/extensibility/skills/creating-skills), verified, checked 2026-11-13
-- [Cline source: unified-config-file-watcher.ts (a later skill with the same name replaces an earlier one)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts), verified, checked 2026-10-17
+- [Cline source: unified-config-file-watcher.ts (a later rule, workflow or skill with the same name replaces an earlier one)](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/unified-config-file-watcher.ts), verified, checked 2026-11-14
 
 ## Fix
 

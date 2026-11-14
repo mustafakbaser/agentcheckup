@@ -17,11 +17,12 @@
 
 Cursor's help center calls the `.cursorrules` file in the project root "legacy" and says it "will be deprecated". Its migration steps move the content into a project rule in `.cursor/rules` with the type **Always Apply**, which matches the old behavior.
 
-Cline also reads `.cursorrules`. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor and Cline, and also in Codex, GitHub Copilot and Devin Local.
+Cline's documentation lists `.cursorrules` too, but the released extension and CLI do not read it. Moving the instructions to `AGENTS.md` instead keeps them working in Cursor, and Cline, Codex, GitHub Copilot and Devin Local read them too.
 
 ## Evidence
 
 - [Cursor Help: Rules](https://cursor.com/help/customization/rules), verified, checked 2026-10-30
+- [Cline source: storage/paths.ts (rule folders, root AGENTS.md, workflow and hook folders)](https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts), verified, checked 2026-11-14
 
 ## Fix
 

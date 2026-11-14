@@ -16,6 +16,7 @@ import type {
   TomlDocument,
 } from '../parse/types.js';
 import { classifyFile, READERS } from '../platforms/classify.js';
+import { clinePlace, clinePlaceIn } from '../platforms/cline-rules.js';
 import {
   configDocument,
   JSON_KINDS,
@@ -324,6 +325,14 @@ export function buildArtifacts(
     if (
       classification.kind === 'claude-plugin-hooks' &&
       skillsDirPluginOf(snapshot, file.path, PLUGIN_HOOKS_FILE) === undefined
+    ) {
+      continue;
+    }
+    // A rule or workflow of a managed Cline plugin is configuration only next to its manifest.
+    if (
+      (classification.kind === 'cline-rule' || classification.kind === 'cline-workflow') &&
+      clinePlace(file.path)?.plugin !== undefined &&
+      clinePlaceIn(snapshot.paths, file.path) === undefined
     ) {
       continue;
     }

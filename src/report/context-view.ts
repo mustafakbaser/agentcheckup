@@ -288,6 +288,7 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
     key: 'cline.surface',
     phrase: (value) => (value === 'vscode' ? 'VS Code extension' : `${valueText(value)} surface`),
   },
+  { key: 'cline.version', phrase: (value) => `Cline ${valueText(value)}` },
   {
     key: 'cline.ruleToggles',
     phrase: (value) =>
@@ -295,6 +296,23 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
         ? 'rule toggles from frontmatter, none in extension state'
         : `rule toggles ${valueText(value)}`,
     setting: true,
+  },
+  {
+    key: 'cline.rule_paths',
+    phrase: (value) =>
+      value === 'ignored'
+        ? 'rule paths ignored, as the released code does, not scoped as documented'
+        : `rule paths ${valueText(value)}`,
+  },
+  {
+    key: 'cline.hooks_enabled',
+    phrase: (value) => `hooks ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'cline.hook_file_executable',
+    phrase: (value) =>
+      value === true ? 'hook files executable' : `hook files executable ${valueText(value)}`,
   },
 ];
 

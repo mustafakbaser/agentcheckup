@@ -1,25 +1,28 @@
 /**
- * How Cline reads a SKILL.md or a workflow, from `parseSkillConfigFromMarkdown` and
- * `parseWorkflowConfigFromMarkdown` in the SDK's user-instruction-config-loader.ts
- * (SOURCES.clineInstructionLoaderSource, cline/cline a42df8c), and what text it loads from a rule
- * file ({@link clineBody}). The skill rules and instr/empty-file use these functions to say when
- * Cline drops a file, and the Cline load plan uses the same functions, so both always agree.
+ * How Cline reads a SKILL.md, a workflow or a rule, from `parseSkillConfigFromMarkdown`,
+ * `parseWorkflowConfigFromMarkdown` and `parseRuleConfigFromMarkdown` in the SDK's
+ * user-instruction-config-loader.ts (SOURCES.clineInstructionLoaderSource, read at the released
+ * versions), and what text it loads from a rule file ({@link clineBody}). The skill rules and
+ * instr/empty-file use these functions to say when Cline drops a file, and the Cline load plan uses
+ * the same functions, so both always agree.
  *
  * The SDK strips a byte order mark, finds the frontmatter only between a `---` line at the start
  * and the next `---` line, and parses the YAML with the `yaml` package, which agentcheckup's
  * parser follows (YAML 1.2, core schema, unique keys). It then throws, and drops the file, at the
  * first of these problems, in this order:
  * 1. `invalid-yaml`: the YAML does not parse (skill/frontmatter-invalid). YAML that is a list or a
- *    scalar gives no fields instead, and the file is named after its folder.
+ *    scalar gives no fields instead, and the file is named after its folder or file.
  * 2. `no-body`: nothing but whitespace after the frontmatter. No rule reports an empty skill.
  * 3. `name-type`: `name` is set and is not text (skill/name-format).
  * 4. `description-type`: a skill's `description` is set and is not text
- *    (skill/description-missing). Workflows have no description.
+ *    (skill/description-missing). Workflows and rules have no description.
  * 5. `flag-type`: `disabled` is set and is not a boolean, or `disabled` is not set and `enabled`
  *    is set and is not a boolean (skill/field-type).
  *
- * An empty or missing `name` falls back to the folder name. A frontmatter block that is not
- * closed, or that is not YAML, is part of the body.
+ * An empty or missing `name` falls back to the folder name of a skill and the file name of a
+ * workflow or rule. A frontmatter block that is not closed, or that is not YAML, is part of the
+ * body. Cline's documentation says a rule whose YAML does not parse loads whole (it fails open);
+ * the released SDK drops it, as it drops a skill or workflow.
  */
 import type { FrontmatterResult } from '../parse/types.js';
 import { type ClineFlagField, clineFlagTypeError } from './cline-rules.js';
@@ -78,8 +81,9 @@ function parse(text: string, frontmatter: FrontmatterResult): ClineRead | Parsed
 
 /**
  * The text Cline loads from a rule, workflow, skill or AGENTS.md: what follows frontmatter that
- * parses, also as a list or a scalar, else the whole file. A rule whose YAML does not parse loads
- * whole, as Cline's documentation says (it fails open); a skill or workflow is dropped instead.
+ * parses, also as a list or a scalar, else the whole file, which is what Cline's documentation
+ * says a rule whose YAML does not parse loads; the released SDK drops such a file
+ * ({@link clineRead}).
  */
 export function clineBody(text: string, frontmatter: FrontmatterResult): string {
   if (frontmatter.kind === 'valid') return text.slice(frontmatter.bodyOffset);
@@ -95,13 +99,13 @@ export function clineBodyBlank(text: string, frontmatter: FrontmatterResult): bo
 }
 
 /**
- * How Cline reads the SKILL.md (`role: 'skill'`) or workflow (`role: 'workflow'`) with this
- * decoded text and parsed frontmatter.
+ * How Cline reads the SKILL.md (`role: 'skill'`), workflow (`role: 'workflow'`) or rule
+ * (`role: 'rule'`, AGENTS.md included) with this decoded text and parsed frontmatter.
  */
 export function clineRead(
   text: string,
   frontmatter: FrontmatterResult,
-  role: 'skill' | 'workflow',
+  role: 'skill' | 'workflow' | 'rule',
 ): ClineRead {
   const parsed = parse(text, frontmatter);
   if (parsed.kind !== 'parsed') return parsed;

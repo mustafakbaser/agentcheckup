@@ -7,7 +7,7 @@ import type {
   PlatformId,
   RuleContext,
 } from '../../core/types.js';
-import { clinePlace, isClineRuleOrWorkflow } from '../../platforms/cline-rules.js';
+import { clinePlaceIn, isClineRuleOrWorkflow } from '../../platforms/cline-rules.js';
 import { clineBodyBlank } from '../../platforms/cline-skills.js';
 import { EMPTY_FILE_KINDS } from '../../platforms/kinds.js';
 import { agentsMdBeside } from '../../platforms/load/codex-chain.js';
@@ -56,7 +56,9 @@ export const emptyFileRule = defineRule({
   check(context) {
     for (const artifact of context.artifacts) {
       // Cline reads a file in its rules or workflows folders as a rule or workflow.
-      const clineRule = [artifact.path, ...artifact.aliases].some(isClineRuleOrWorkflow);
+      const clineRule = [artifact.path, ...artifact.aliases].some((path) =>
+        isClineRuleOrWorkflow(context.snapshot.paths, path),
+      );
       let platforms = readersOf(context, artifact, clineRule);
       // instr/override-shadows-agents-md reports an empty override next to AGENTS.md; Cline
       // reads one in its rules folder as a rule of its own.
@@ -107,7 +109,7 @@ export const emptyFileRule = defineRule({
  * hooks, agents or plugins folders.
  */
 function readersOf(
-  context: Pick<RuleContext<unknown>, 'targets' | 'allArtifacts' | 'json'>,
+  context: Pick<RuleContext<unknown>, 'targets' | 'allArtifacts' | 'json' | 'snapshot'>,
   artifact: Artifact,
   clineRule: boolean,
 ): PlatformId[] {
@@ -118,7 +120,7 @@ function readersOf(
       ? readers
       : [...readers, 'cline' as const].sort(compareStrings);
   }
-  if (clinePlace(artifact.path) === undefined) return readers;
+  if (clinePlaceIn(context.snapshot.paths, artifact.path) === undefined) return readers;
   return readers.filter((platform) => platform !== 'cline');
 }
 

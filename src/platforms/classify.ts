@@ -45,7 +45,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // Devin Local (Windsurf) reads .cursor/rules/*.md and *.mdc; Cursor itself ignores .md there.
   'cursor-rule': ['cursor', 'windsurf'],
   'cursor-rule-md': ['windsurf'],
-  'cursor-legacy-rules': ['cline', 'cursor'],
+  // Cline's documentation lists `.cursorrules` and `.windsurfrules`, but the released extension and
+  // CLI read neither (SOURCES.clinePathsSource).
+  'cursor-legacy-rules': ['cursor'],
   'cursor-hooks': ['cursor'],
   'cursor-mcp': ['cursor', 'windsurf'],
   'copilot-instructions': ['copilot'],
@@ -62,7 +64,7 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // Exec-policy rules: `.codex/rules/*.rules` (SOURCES.codexExecPolicy).
   'codex-rules': ['codex'],
   'windsurf-rule': ['windsurf'],
-  'windsurf-legacy-rules': ['cline', 'windsurf'],
+  'windsurf-legacy-rules': ['windsurf'],
   'devin-config': ['windsurf'],
   'devin-mcp': ['windsurf'],
   'devin-hooks': ['windsurf'],
@@ -302,6 +304,20 @@ const MATCHERS: readonly Matcher[] = [
   {
     kind: 'cline-rule',
     pattern: /(?:^|\/)\.(?:clinerules|cline\/rules)\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: (path) => clinePlace(path)?.role === 'rule',
+    canonical: keepPath,
+  },
+  // A managed plugin folder of `.cline`: its `rules.md` and its workflows. The engine keeps them
+  // only when the folder holds a `managed.json` (clinePlaceIn).
+  {
+    kind: 'cline-workflow',
+    pattern: /(?:^|\/)\.cline\/[^/]+\/workflows\/[^/]+\.md$/,
+    where: (path) => clinePlace(path)?.role === 'workflow',
+    canonical: keepPath,
+  },
+  {
+    kind: 'cline-rule',
+    pattern: /(?:^|\/)\.cline\/[^/]+\/rules\.md$/,
     where: (path) => clinePlace(path)?.role === 'rule',
     canonical: keepPath,
   },

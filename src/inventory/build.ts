@@ -18,11 +18,12 @@
 import { compareStrings } from '../core/compare.js';
 import { hash53 } from '../core/fingerprint.js';
 import { dirnamePosix } from '../core/paths.js';
-import { positionAt } from '../core/text.js';
+import { decode, positionAt } from '../core/text.js';
 import {
   type Artifact,
   type ArtifactKind,
   type PlatformId,
+  type SourceFile,
   type Span,
   TOML_KINDS,
 } from '../core/types.js';
@@ -57,9 +58,11 @@ import {
   type HookSource,
   hookSourceOf,
 } from '../platforms/hooks.js';
+import { type ClineHookFile, clineHookFile } from '../platforms/cline-hooks.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import {
   canonicalJson,
+  clineHookInventoryId,
   envInventoryId,
   hookCommandLine,
   hookCommandLines,
@@ -364,14 +367,23 @@ class InventoryBuilder {
   }
 
   /**
-   * Configuration files whose servers and hooks are not listed: the files in Cline's hook and
-   * plugin folders (scripts and JavaScript modules in no documented format), and inventory files
-   * the walk skipped (too large or unreadable).
+   * Cline's hook files, and configuration files whose servers and hooks are not listed: the files
+   * in Cline's plugin folders (JavaScript modules in no documented format), a hook file the walk
+   * did not read, and inventory files the walk skipped (too large or unreadable).
    */
   addUnparsedConfigs(): void {
     const { snapshot } = this.#view;
+    const read = new Map(snapshot.files.map((file) => [file.path, file]));
     for (const path of snapshot.paths) {
-      if (!path.endsWith('/') && isUnparsedConfig(path)) this.#incomplete.add(path);
+      if (path.endsWith('/') || !path.toLowerCase().includes('.cline')) continue;
+      const role = clinePlace(path)?.role;
+      if (role === 'plugin') this.#incomplete.add(path);
+      if (role !== 'hook') continue;
+      const hook = clineHookFile(path);
+      if (hook === undefined) continue;
+      const file = read.get(path);
+      if (file === undefined) this.#incomplete.add(path);
+      else this.#addClineHookFile(path, hook, file);
     }
     for (const entry of snapshot.skipped) {
       const kind = classify(entry.path)?.kind;
@@ -574,6 +586,33 @@ class InventoryBuilder {
   }
 
   // Hooks ------------------------------------------------------------------------------------
+
+  /**
+   * A script Cline runs as a hook (src/platforms/cline-hooks.ts). Its digest covers the file's
+   * content, so a changed script is a changed hook. A hook for an event no released Cline runs,
+   * such as `PreCompact`, is listed as not `known`.
+   */
+  #addClineHookFile(path: string, hook: ClineHookFile, file: SourceFile): void {
+    const text = decode(file.bytes).text;
+    const fields = {
+      event: hook.event,
+      known: hook.runs,
+      script: path,
+      failsOpen: hook.runs,
+      remoteScript: linesOf(text).some(
+        ({ start, end }) => findRemoteExecution(text, start, end) !== undefined,
+      ),
+    };
+    this.#hooks.push({
+      id: clineHookInventoryId(path, hook.event),
+      file: path,
+      line: 1,
+      platforms: ['cline'],
+      ...fields,
+      effective: true,
+      digestFields: { ...fields, content: bytesDigest(file.bytes) },
+    });
+  }
 
   #addHooks(
     artifact: Artifact,
@@ -1257,14 +1296,28 @@ function switchShown(value: string | undefined): string | undefined {
 
 const SWITCH_VALUES: ReadonlySet<string> = new Set(['0', '1', 'true', 'false', 'yes', 'no']);
 
-/**
- * A configuration file that can declare hooks the inventory cannot list: a file in Cline's hook
- * or plugin folders. Cheap tests first: every path of the scan passes through here.
- */
-function isUnparsedConfig(path: string): boolean {
-  if (!path.toLowerCase().includes('.cline')) return false;
-  const role = clinePlace(path)?.role;
-  return role === 'hook' || role === 'plugin';
+/** hash53 of a file's bytes, for a digest that changes whenever the file does. */
+function bytesDigest(bytes: Uint8Array): string {
+  const CHUNK = 8192;
+  let binary = '';
+  for (let start = 0; start < bytes.length; start += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(start, start + CHUNK));
+  }
+  return hash53(binary);
+}
+
+/** The start and end offset of each line of `text`. */
+function linesOf(text: string): { readonly start: number; readonly end: number }[] {
+  const lines: { start: number; end: number }[] = [];
+  let start = 0;
+  while (start <= text.length) {
+    const newline = text.indexOf('\n', start);
+    const end = newline === -1 ? text.length : newline;
+    lines.push({ start, end });
+    if (newline === -1) break;
+    start = newline + 1;
+  }
+  return lines;
 }
 
 /**
