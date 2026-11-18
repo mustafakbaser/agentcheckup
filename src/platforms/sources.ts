@@ -64,6 +64,9 @@ const DEVIN_CONFIG_CHECKED = '2026-11-18';
  */
 const COPILOT_AUDIT_CHECKED = '2026-11-18';
 
+/** Claude Code pages read on 2026-11-18 for what its load plan states. */
+const CLAUDE_AUDIT_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -127,6 +130,11 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp', DRIFT_CHECKED),
+  claudeOutputStyles: verified(
+    'Claude Code: Output styles',
+    'https://code.claude.com/docs/en/output-styles',
+    CLAUDE_AUDIT_CHECKED,
+  ),
   claudeSubagents: verified(
     'Claude Code: Subagents',
     'https://code.claude.com/docs/en/sub-agents',

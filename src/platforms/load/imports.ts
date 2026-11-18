@@ -290,6 +290,25 @@ export function claudeFilesOnPath(graph: ImportGraph, directory: string): Claude
   return found;
 }
 
+/** The CLAUDE files of `directory` itself that exist or might exist ({@link claudeFilesOnPath}). */
+export function claudeFilesIn(graph: ImportGraph, directory: string): ClaudeFileOnPath[] {
+  const own = new Set<string>(CLAUDE_FILE_NAMES.map((name) => joinPath(directory, name)));
+  return claudeFilesOnPath(graph, directory).filter((file) => own.has(file.path));
+}
+
+/**
+ * True when Claude Code may read the AGENTS.md of `directory` in some session: with no CLAUDE
+ * file in the scan root, a session started there reads "every `AGENTS.md` and `.claude/AGENTS.md`
+ * in your working directory", and later "a subdirectory's `AGENTS.md`, when Claude opens a file
+ * there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its
+ * own" (SOURCES.claudeMemory, "When Claude Code reads AGENTS.md"). A CLAUDE file in a directory
+ * between them does not count. A session started in a directory with a CLAUDE file on its path
+ * reads no AGENTS.md, and every session has the scan root's CLAUDE files on its path.
+ */
+export function claudeMayReadAgentsMdIn(graph: ImportGraph, directory: string): boolean {
+  return claudeFilesIn(graph, directory).length === 0 && claudeFilesIn(graph, '').length === 0;
+}
+
 /**
  * True when `path` is named exactly AGENTS.md, is not under `.agents/` and is not inside a skill:
  * a place where Claude Code may read an AGENTS.md as a directory's instructions.
@@ -314,11 +333,14 @@ export function isClaudeAgentsMdLocation(
   return artifact.kind === 'agents-md' && isClaudeAgentsMdPath(snapshot, path);
 }
 
-/** An AGENTS.md that Claude Code reads directly: no CLAUDE file on its path. */
+/**
+ * An AGENTS.md that Claude Code reads directly in some session: no CLAUDE file in its own
+ * directory or in the scan root ({@link claudeMayReadAgentsMdIn}).
+ */
 export function isAgentsMdReadByClaude(graph: ImportGraph, artifact: Artifact): boolean {
   return (
     isClaudeAgentsMdLocation(graph.snapshot, artifact) &&
-    claudeFilesOnPath(graph, agentsMdDirectory(artifact.path)).length === 0
+    claudeMayReadAgentsMdIn(graph, agentsMdDirectory(artifact.path))
   );
 }
 
@@ -335,7 +357,8 @@ function kindAt(
  * True when `dialect`'s agent loads the file at `path`, which reaches `artifact`, by itself and
  * expands its imports: for Gemini CLI a GEMINI.md, or a Markdown file that `context.fileName`
  * names in the settings of its directory or one above it; for Claude Code a CLAUDE.md,
- * CLAUDE.local.md, `.claude/rules/` file, or an AGENTS.md without a CLAUDE file on its path.
+ * CLAUDE.local.md, `.claude/rules/` file, or an AGENTS.md that some session reads
+ * ({@link claudeMayReadAgentsMdIn}).
  */
 function isRootLocation(
   graph: ImportGraph,
@@ -357,7 +380,7 @@ function isRootLocation(
   return (
     kind === 'agents-md' &&
     isClaudeAgentsMdPath(graph.snapshot, path) &&
-    claudeFilesOnPath(graph, agentsMdDirectory(path)).length === 0
+    claudeMayReadAgentsMdIn(graph, agentsMdDirectory(path))
   );
 }
 

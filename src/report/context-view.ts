@@ -97,6 +97,8 @@ export const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'never-active': 'its settings keep it from ever applying',
   'invalid-toml': 'not valid TOML',
   'invalid-command': 'invalid command definition',
+  excluded: 'a setting excludes it',
+  'reserved-name': 'the agent reserves the name',
   'not-read': 'not read by this agent',
 };
 
@@ -209,6 +211,26 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
     setting: true,
   },
   { key: 'claude-code.context_window', phrase: (value) => contextWindowText(value) },
+  {
+    key: 'claude-code.output_style',
+    phrase: (value) => `output style ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_max_desc_chars',
+    phrase: (value) => `skill descriptions cut at ${valueText(value)} characters`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_budget_fraction',
+    phrase: (value) => `skills listing budget ${valueText(value)} of the context window`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_budget_chars',
+    phrase: (value) => `skills listing budget ${valueText(value)} characters`,
+    setting: true,
+  },
   {
     key: 'codex.project_doc_max_bytes',
     phrase: (value) => `AGENTS.md budget ${valueText(value)} bytes`,
@@ -879,11 +901,14 @@ function serviceGroup(entry: LoadEntry): string {
   }
 }
 
-/** Skill entries whose listing text is in the prompt from the start. */
+/**
+ * Skill entries whose listing text is in the prompt from the start, and Claude Code commands
+ * listed like skills (with a body that loads when used).
+ */
 function inListing(entry: LoadEntry): boolean {
-  return (
-    entry.role === 'skill' && (entry.trigger === 'startup' || entry.trigger === 'model-selected')
-  );
+  const listed =
+    entry.role === 'skill' || (entry.role === 'command' && entry.deferred !== undefined);
+  return listed && (entry.trigger === 'startup' || entry.trigger === 'model-selected');
 }
 
 /** Subagents in the listing the model picks from: in the prompt from the start. */
@@ -903,6 +928,7 @@ function whenText(entry: LoadEntry, agent: ContextAgent): string {
     case 'model-selected':
       return 'when the model picks it';
     case 'manual':
+      if (entry.role === 'output-style') return 'when you switch to it with /output-style';
       // Claude Code runs a command, or a skill the model cannot pick, with /name.
       return entry.name !== undefined &&
         (entry.role === 'command' || (entry.role === 'skill' && agent === 'claude-code'))
@@ -1057,13 +1083,16 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       });
       continue;
     }
-    const size = entry.role === 'skill' ? (entry.deferred ?? entry.size) : entry.size;
+    const size =
+      entry.role === 'skill' || entry.role === 'command'
+        ? (entry.deferred ?? entry.size)
+        : entry.size;
     const importer = entry.role === 'import' ? entry.via?.at(-1) : undefined;
     onDemand.push({
       path: entry.path,
       ...(size === undefined ? {} : { size }),
       ...(entry.truncated === undefined ? {} : { truncated: entry.truncated }),
-      body: entry.role === 'skill' && entry.deferred !== undefined,
+      body: (entry.role === 'skill' || entry.role === 'command') && entry.deferred !== undefined,
       when: whenText(entry, plan.agent),
       ...(importer === undefined ? {} : { importedBy: importer }),
       unverified,

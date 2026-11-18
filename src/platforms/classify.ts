@@ -36,6 +36,8 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // The Copilot CLI reads commands as skills (SOURCES.copilotCliReference). Devin Local no longer
   // lists them among the files it imports (SOURCES.devinReadConfigFrom).
   'claude-command': ['claude-code', 'copilot'],
+  // Output styles in `.claude/output-styles/` (SOURCES.claudeOutputStyles).
+  'claude-output-style': ['claude-code'],
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-plugin-manifest': ['claude-code'],
@@ -194,6 +196,12 @@ const MATCHERS: readonly Matcher[] = [
   {
     kind: 'claude-command',
     pattern: /(?:^|\/)\.claude\/commands\/(?:[^/]+\/)*[^/]+\.md$/,
+    canonical: keepPath,
+  },
+  // "Project: `.claude/output-styles`"; the file name is the style name unless `name` sets one.
+  {
+    kind: 'claude-output-style',
+    pattern: /(?:^|\/)\.claude\/output-styles\/[^/]+\.md$/,
     canonical: keepPath,
   },
   {

@@ -679,6 +679,8 @@ describe('schemas/report.schema.json', () => {
       'never-active',
       'invalid-toml',
       'invalid-command',
+      'excluded',
+      'reserved-name',
       'not-read',
     ] as const satisfies readonly SkipCode[];
     const MATRIX_CELLS = [
@@ -702,6 +704,7 @@ describe('schemas/report.schema.json', () => {
       'command',
       'mcp-server',
       'hook',
+      'output-style',
     ] as const satisfies readonly LoadRole[];
     const TRIGGERS = [
       'startup',

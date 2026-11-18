@@ -118,6 +118,21 @@ describe('instr/agents-md-ignored-by-claude', () => {
       expect(findings(result, RULE)).toEqual([]);
     });
 
+    it('an AGENTS.md that claudeMdExcludes in the settings of its directory excludes', () => {
+      const files = {
+        'AGENTS.md': AGENTS,
+        'CLAUDE.md': '# Claude\n',
+        '.claude/settings.json': '{ "claudeMdExcludes": ["**/AGENTS.md"] }\n',
+      };
+      expect(findings(lint(files, { rules }), RULE)).toEqual([]);
+      // A pattern that may match only where the repository is checked out still reports it.
+      const absolute = {
+        ...files,
+        '.claude/settings.json': '{ "claudeMdExcludes": ["/home/me/repo/AGENTS.md"] }\n',
+      };
+      expect(findings(lint(absolute, { rules }), RULE).map((f) => f.path)).toEqual(['AGENTS.md']);
+    });
+
     it('AGENTS.md without any CLAUDE file', () => {
       expect(findings(lint({ 'AGENTS.md': AGENTS }, { rules }), RULE)).toEqual([]);
     });

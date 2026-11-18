@@ -86,9 +86,18 @@ export const CONTEXT_AGENTS: readonly ContextAgent[] = ALL_CONTEXT_AGENTS.filter
  * - `rule`: a scoped rule file such as `.claude/rules/*.md` or `.cursor/rules/*.mdc`.
  * - `skill`, `subagent`, `command`: one skill, subagent or slash command.
  * - `mcp-server`, `hook`: one MCP server or hook declared in a JSON config file.
+ * - `output-style`: a Claude Code output style, whose instructions change the system prompt.
  */
 export type LoadRole =
-  'instructions' | 'import' | 'rule' | 'skill' | 'subagent' | 'command' | 'mcp-server' | 'hook';
+  | 'instructions'
+  | 'import'
+  | 'rule'
+  | 'skill'
+  | 'subagent'
+  | 'command'
+  | 'mcp-server'
+  | 'hook'
+  | 'output-style';
 
 /**
  * When the agent adds an entry to the model's context.
@@ -319,6 +328,10 @@ export type OwnContextHidden =
  * - `invalid-toml`: the config file is not valid TOML.
  * - `invalid-command`: a custom command file fails the agent's validation, such as a Gemini CLI
  *   command without a string `prompt`.
+ * - `excluded`: a setting in the repository names the file by path or glob pattern to skip it,
+ *   such as Claude Code's `claudeMdExcludes`.
+ * - `reserved-name`: the agent keeps the name for itself and skips a file or item that takes it,
+ *   such as a Claude Code MCP server named `workspace` or a skill folder named `synced`.
  * - `not-read`: the agent does not read the file here, and no rule reports it as a problem.
  */
 export type SkipCode =
@@ -349,6 +362,8 @@ export type SkipCode =
   | 'never-active'
   | 'invalid-toml'
   | 'invalid-command'
+  | 'excluded'
+  | 'reserved-name'
   | 'not-read';
 
 /**

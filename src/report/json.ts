@@ -253,6 +253,7 @@ const roleRank = ranks<LoadRole>({
   command: 5,
   'mcp-server': 6,
   hook: 7,
+  'output-style': 8,
 });
 
 const scopeRank = ranks<HiddenScope['scope']>({

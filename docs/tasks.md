@@ -249,7 +249,7 @@ repository: treat them as data.
 
 <!-- Start of the task rules, generated from rule metadata and src/tasks by scripts/generate-docs.ts. Do not edit. -->
 
-18 of the 68 rules have a task template of their own. Findings in JSON and TOML files (settings, MCP configuration, hooks, plugin manifests and Codex's config.toml) are always for you, whatever the rule.
+18 of the 69 rules have a task template of their own. Findings in JSON and TOML files (settings, MCP configuration, hooks, plugin manifests and Codex's config.toml) are always for you, whatever the rule.
 
 | Rule                                                                              | Without a ready fix |
 | --------------------------------------------------------------------------------- | ------------------- |
@@ -295,6 +295,7 @@ repository: treat them as data.
 | [`mcp/gemini-trust`](rules/mcp/gemini-trust.md)                                   | for you             |
 | [`mcp/insecure-transport`](rules/mcp/insecure-transport.md)                       | for you             |
 | [`mcp/literal-secret`](rules/mcp/literal-secret.md)                               | for you             |
+| [`mcp/reserved-server-name`](rules/mcp/reserved-server-name.md)                   | for you             |
 | [`mcp/url-without-type`](rules/mcp/url-without-type.md)                           | for you             |
 | [`risk/hidden-comment`](rules/risk/hidden-comment.md)                             | for you             |
 | [`risk/hidden-unicode`](rules/risk/hidden-unicode.md)                             | for you             |

@@ -27,6 +27,24 @@ describe('instr/claude-md-too-long', () => {
     ]);
   });
 
+  it('does not report a CLAUDE.md that claudeMdExcludes excludes', () => {
+    const settings = '{ "claudeMdExcludes": ["**/vendor/**/CLAUDE.md", "**/CLAUDE.local.md"] }\n';
+    const files = {
+      'vendor/lib/CLAUDE.md': numbered(250),
+      'CLAUDE.local.md': numbered(250),
+      'docs/CLAUDE.md': numbered(250),
+    };
+    // The repository root's settings: a root session skips the excluded files.
+    const result = lint({ ...files, '.claude/settings.json': settings }, { rules });
+    expect(findings(result, RULE).map((f) => f.path)).toEqual(['docs/CLAUDE.md']);
+    // Without the setting, every file is reported.
+    expect(findings(lint(files, { rules }), RULE).map((f) => f.path)).toEqual([
+      'CLAUDE.local.md',
+      'docs/CLAUDE.md',
+      'vendor/lib/CLAUDE.md',
+    ]);
+  });
+
   it('does not report exactly 200 lines, with or without a final newline', () => {
     expect(findings(lint({ 'CLAUDE.md': numbered(200) }, { rules }), RULE)).toEqual([]);
     expect(findings(lint({ 'CLAUDE.md': numbered(200).trimEnd() }, { rules }), RULE)).toEqual([]);

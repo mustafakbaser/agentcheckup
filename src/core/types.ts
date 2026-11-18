@@ -57,6 +57,7 @@ export const ARTIFACT_KINDS = [
   'claude-agent',
   'claude-agent-memory',
   'claude-command',
+  'claude-output-style',
   'claude-settings',
   'claude-plugin-manifest',
   'claude-plugin-hooks',

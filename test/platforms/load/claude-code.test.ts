@@ -240,6 +240,61 @@ describe('loadClaudeCode: instruction files', () => {
     ]);
   });
 
+  it('reads a nested AGENTS.md below a CLAUDE.md when its own directory has none', () => {
+    // "a subdirectory's AGENTS.md, when Claude opens a file there with the Read tool and that
+    // subdirectory has none of the three CLAUDE.md files of its own".
+    const files = {
+      'AGENTS.md': 'Root agents.\n',
+      'a/CLAUDE.md': 'A claude.\n',
+      'a/b/AGENTS.md': 'Nested agents.\n',
+      'a/c/AGENTS.md': 'Shadowed agents.\n',
+      'a/c/CLAUDE.local.md': 'Personal.\n',
+    };
+    const { plan: root, result } = planFor(files, { ignoredFiles: [] });
+    expect(summary(root.entries)).toEqual([
+      '1 startup instructions AGENTS.md',
+      '- on-path instructions a/CLAUDE.md',
+      '- on-path instructions a/b/AGENTS.md',
+      '- on-path instructions a/c/CLAUDE.local.md',
+    ]);
+    expect(entry(root, 'instructions:a/b/AGENTS.md')).toMatchObject({
+      patterns: ['a/b/**'],
+      certainty: 'documented',
+    });
+    // a/c has a CLAUDE file of its own: Claude Code reads that instead.
+    expect(skips(root)).toEqual([
+      'instructions:a/c/AGENTS.md shadowed-by-claude-md instr/agents-md-ignored-by-claude',
+    ]);
+    // The rule judges each AGENTS.md as if the session started in its directory, where
+    // a/CLAUDE.md is on the path: it reports a/b/AGENTS.md too.
+    expect(
+      result.findings
+        .filter((f) => f.ruleId === 'instr/agents-md-ignored-by-claude')
+        .map((f) => f.path),
+    ).toEqual(['a/b/AGENTS.md', 'a/c/AGENTS.md']);
+    // A session started in a/ reads a/CLAUDE.md and no AGENTS.md.
+    const a = plan(files, { cwd: 'a' });
+    expect(summary(a.entries)).toEqual([
+      '1 startup instructions a/CLAUDE.md',
+      '- on-path instructions a/c/CLAUDE.local.md',
+    ]);
+    // With a CLAUDE file at the root, no session reads a nested AGENTS.md.
+    const withRoot = plan({ ...files, 'CLAUDE.md': 'Root claude.\n' });
+    expect(withRoot.entries.map((e) => e.path)).not.toContain('a/b/AGENTS.md');
+  });
+
+  it('follows the imports of a nested AGENTS.md read below a CLAUDE.md', () => {
+    const { plan: root } = planFor({
+      'AGENTS.md': 'Root.\n',
+      'a/CLAUDE.md': 'A.\n',
+      'a/b/AGENTS.md': '@missing.md\n',
+    });
+    // instr/import-unresolved judges the imports of every file some session expands.
+    expect(skips(root)).toEqual([
+      'import:a/b/AGENTS.md#missing.md import-unresolved instr/import-unresolved',
+    ]);
+  });
+
   it('loads an AGENTS.md that a CLAUDE file imports instead of skipping it', () => {
     const result = plan({ 'AGENTS.md': 'Shared.\n', 'CLAUDE.md': '@AGENTS.md\n' });
     expect(summary(result.entries)).toEqual([
@@ -546,7 +601,7 @@ describe('loadClaudeCode: the size limit of files that load on demand', () => {
     expect(entry(result, 'rule:.claude/rules/scoped.md')).toMatchObject({
       trigger: 'on-path',
       size: { chars: 40_000 },
-      truncated: { line: 403 },
+      truncated: { line: 404 },
     });
     expect(entry(result, 'rule:.claude/rules/always.md')).toMatchObject({
       trigger: 'startup',
@@ -555,8 +610,9 @@ describe('loadClaudeCode: the size limit of files that load on demand', () => {
     expect(entry(result, 'rule:.claude/rules/always.md').truncated).toBeUndefined();
     expect(entry(result, 'import:pkg/notes.instructions.md').size?.chars).toBe(40_000);
     expect(entry(result, 'rule:pkg/.claude/rules/nested.md').size?.chars).toBe(40_000);
+    // The rule's 50,000 characters without its frontmatter.
     expect(limit(result, 'claude-code.on_demand_file_max_chars')).toMatchObject({
-      used: 50_024,
+      used: 50_000,
       subject: '.claude/rules/scoped.md',
     });
   });
@@ -876,13 +932,20 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       '.claude/agents/README.md': '# Our agents\n',
       'pkg/.claude/agents/far.md': '---\nname: far\ndescription: Far.\n---\n',
     });
+    // "Claude can invoke them without you typing the command": listed like a skill, which the
+    // documentation does not spell out for commands.
     expect(entry(result, 'command:.claude/commands/review.md')).toMatchObject({
-      trigger: 'manual',
+      trigger: 'startup',
       name: 'review',
-      size: { chars: 'Review the diff.\n'.length },
-      certainty: 'documented',
+      size: { chars: 'reviewReview.'.length },
+      deferred: { chars: 'Review the diff.\n'.length },
+      certainty: 'unverified',
     });
-    expect(entry(result, 'command:.claude/commands/git/commit.md').name).toBe('git/commit');
+    // "Subdirectory path relative to `commands/` with each `/` replaced by `:`".
+    expect(entry(result, 'command:.claude/commands/git/commit.md')).toMatchObject({
+      name: 'git:commit',
+      size: { chars: 'git:commitCommit.'.length },
+    });
     // The model picks a subagent by its name and description, which are in context from the
     // start; what the subagent itself starts with goes to a window of its own.
     expect(entry(result, 'subagent:.claude/agents/reviewer.md')).toMatchObject({
@@ -893,7 +956,9 @@ describe('loadClaudeCode: skills, commands and subagents', () => {
       evidence: ['claudeSubagents'],
     });
     expect(entry(result, 'subagent:.claude/agents/reviewer.md').position).toBeUndefined();
-    expect(result.totals.startup.chars).toBe('reviewerReviews code.'.length);
+    expect(result.totals.startup.chars).toBe(
+      'reviewerReviews code.'.length + 'reviewReview.'.length + 'git:commitCommit.'.length,
+    );
     expect(skips(result)).toEqual([
       'subagent:.claude/agents/broken.md invalid-subagent instr/subagent-invalid',
     ]);
@@ -1555,8 +1620,13 @@ describe('loadClaudeCode: the context fixture', () => {
       'import:.github/copilot-instructions.md#../docs/release-checklist.md import-unresolved instr/import-unresolved',
       'mcp-server:.mcp.json#docs url-without-type mcp/url-without-type',
       'instructions:packages/api/AGENTS.md shadowed-by-claude-md instr/agents-md-ignored-by-claude',
-      'instructions:packages/api/src/handlers/AGENTS.md shadowed-by-claude-md instr/agents-md-ignored-by-claude',
     ]);
+    // No CLAUDE file at the root, and none in packages/api/src/handlers: a root session reads
+    // that AGENTS.md when Claude opens a file there, packages/api/CLAUDE.md notwithstanding.
+    expect(entry(root.plan, 'instructions:packages/api/src/handlers/AGENTS.md')).toMatchObject({
+      trigger: 'on-path',
+      patterns: ['packages/api/src/handlers/**'],
+    });
     expect(root.plan.incomplete).toEqual([]);
 
     expect(summary(api.plan.entries.filter((e) => e.trigger === 'startup'))).toEqual([
@@ -1588,8 +1658,16 @@ describe('loadClaudeCode: the context fixture', () => {
       ),
     );
     const loadingRules = new Set(root.plan.skipped.flatMap((skip) => skip.ruleId ?? []));
+    // instr/agents-md-ignored-by-claude judges a session started in the AGENTS.md's directory; a
+    // root session reads packages/api/src/handlers/AGENTS.md on demand.
+    const onPath = new Set(
+      root.plan.entries.filter((e) => e.trigger === 'on-path').map((e) => e.path),
+    );
     const findings = root.result.findings.filter(
-      (finding) => loadingRules.has(finding.ruleId) && finding.platforms.includes('claude-code'),
+      (finding) =>
+        loadingRules.has(finding.ruleId) &&
+        finding.platforms.includes('claude-code') &&
+        !onPath.has(finding.path),
     );
     expect(findings.length).toBeGreaterThan(0);
     for (const finding of findings) expect(reported).toContain(`${finding.ruleId} ${finding.path}`);
@@ -1809,8 +1887,9 @@ describe('loadClaudeCode: edge cases', () => {
   it("marks another directory's commands as unverified", () => {
     const result = plan({ 'pkg/.claude/commands/x.md': 'X.\n' });
     expect(entry(result, 'command:pkg/.claude/commands/x.md')).toMatchObject({
-      trigger: 'manual',
+      trigger: 'on-path',
       name: 'x',
+      patterns: ['pkg/**'],
       certainty: 'unverified',
     });
   });
@@ -1828,5 +1907,339 @@ describe('loadClaudeCode: edge cases', () => {
     expect(result.incomplete).toEqual(['unparsed:.mcp.json', 'unread:.claude/settings.local.json']);
     expect(result.skipped).toEqual([]);
     expect(result.outOfScope).toEqual([{ path: 'pkg/.mcp.json', because: 'other-agent-plugin' }]);
+  });
+});
+
+describe('loadClaudeCode: claudeMdExcludes', () => {
+  const settings = (patterns: readonly string[]): string =>
+    `${JSON.stringify({ claudeMdExcludes: patterns })}\n`;
+
+  it('skips the memory files a pattern excludes, with their own reason', () => {
+    const { plan: result, result: lint } = planFor({
+      'CLAUDE.md': 'Root.\n',
+      'pkg/CLAUDE.md': 'Package.\n',
+      'other-team/CLAUDE.md': '- line\n'.repeat(250),
+      '.claude/rules/vendor.md': 'Vendor rule.\n',
+      '.claude/rules/kept.md': 'Kept rule.\n',
+      '.claude/settings.json': settings(['**/other-team/CLAUDE.md', '**/.claude/rules/vendor.md']),
+    });
+    expect(summary(result.entries)).toEqual([
+      '1 startup instructions CLAUDE.md',
+      '2 startup rule .claude/rules/kept.md',
+      '- on-path instructions pkg/CLAUDE.md',
+    ]);
+    expect(result.skipped.filter((s) => s.code === 'excluded')).toEqual([
+      // Two rules in one directory: their order is not documented.
+      expect.objectContaining({
+        id: 'rule:.claude/rules/vendor.md',
+        evidence: ['claudeMemory', 'claudeSettingsReference'],
+      }),
+      expect.objectContaining({ id: 'instructions:other-team/CLAUDE.md', certainty: 'documented' }),
+    ]);
+    // instr/claude-md-too-long does not judge a file the repository root's settings exclude.
+    expect(lint.findings.filter((f) => f.ruleId === 'instr/claude-md-too-long')).toEqual([]);
+  });
+
+  it('merges the local file, and excludes AGENTS.md too', () => {
+    const files = {
+      'AGENTS.md': 'Root.\n',
+      'sub/AGENTS.md': 'Sub.\n',
+      'web/AGENTS.md': 'Web.\n',
+      '.claude/settings.json': settings(['**/sub/AGENTS.md']),
+      '.claude/settings.local.json': settings(['**/web/AGENTS.md']),
+    };
+    const result = plan(files);
+    expect(summary(result.entries)).toEqual(['1 startup instructions AGENTS.md']);
+    expect(skips(result)).toEqual([
+      'instructions:sub/AGENTS.md excluded -',
+      'instructions:web/AGENTS.md excluded -',
+    ]);
+  });
+
+  it('marks what an absolute pattern may exclude as unverified, and leaves other files alone', () => {
+    const result = plan({
+      'CLAUDE.md': 'Root.\n',
+      'pkg/CLAUDE.md': 'Package.\n',
+      'docs/CLAUDE.md': 'Docs.\n',
+      '.claude/settings.json': settings(['/home/user/monorepo/pkg/CLAUDE.md']),
+    });
+    // Excluded when the repository is checked out at /home/user/monorepo; agentcheckup does not
+    // know where it is.
+    expect(entry(result, 'instructions:pkg/CLAUDE.md').certainty).toBe('unverified');
+    expect(entry(result, 'instructions:docs/CLAUDE.md').certainty).toBe('documented');
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('excludes a rule through its link target, but not a CLAUDE.md through its target', () => {
+    const result = plan(
+      {
+        '.claude/rules/style.md': 'Style.\n',
+        'CLAUDE.md': 'Shared.\n',
+        '.claude/settings.json': settings(['**/shared/style.md', '**/shared/notes.md']),
+      },
+      {
+        symlinks: {
+          '.claude/rules/style.md': 'shared/style.md',
+          'CLAUDE.md': 'shared/notes.md',
+        },
+      },
+    );
+    // "A pattern that matches either path excludes the file", for rules.
+    expect(result.skipped.map((s) => `${s.id} ${s.code}`)).toEqual([
+      'rule:.claude/rules/style.md excluded',
+    ]);
+    // For a CLAUDE.md the documentation does not say.
+    expect(entry(result, 'instructions:CLAUDE.md').certainty).toBe('unverified');
+  });
+
+  it('marks AGENTS.md skips unverified when every CLAUDE file on the path is excluded', () => {
+    const result = plan({
+      'CLAUDE.md': 'Root.\n',
+      'AGENTS.md': 'Agents.\n',
+      '.claude/settings.json': settings(['**/CLAUDE.md']),
+    });
+    expect(result.skipped.map((s) => `${s.id} ${s.code} ${s.certainty}`)).toEqual([
+      'instructions:AGENTS.md shadowed-by-claude-md unverified',
+      'instructions:CLAUDE.md excluded documented',
+    ]);
+  });
+});
+
+describe('loadClaudeCode: output styles', () => {
+  it('puts the selected style in the system prompt and lists the others', () => {
+    const result = plan({
+      'CLAUDE.md': 'Root.\n',
+      '.claude/output-styles/diagrams.md':
+        '---\nname: Diagrams first\ndescription: Diagrams.\n---\nStart with a diagram.\n',
+      '.claude/output-styles/terse.md': 'Answer briefly.\n',
+      '.claude/settings.json': '{ "outputStyle": "Diagrams first" }\n',
+    });
+    expect(summary(result.entries)).toEqual([
+      '1 startup output-style .claude/output-styles/diagrams.md',
+      '2 startup instructions CLAUDE.md',
+      '- manual output-style .claude/output-styles/terse.md',
+    ]);
+    expect(entry(result, 'output-style:.claude/output-styles/diagrams.md')).toMatchObject({
+      name: 'Diagrams first',
+      size: { chars: 'Start with a diagram.\n'.length },
+      certainty: 'documented',
+      evidence: ['claudeOutputStyles', 'claudeSettings'],
+    });
+    expect(entry(result, 'output-style:.claude/output-styles/terse.md').name).toBe('terse');
+    expect(result.assumptions).toContainEqual({
+      key: 'claude-code.output_style',
+      value: 'Diagrams first',
+      origin: 'repository',
+      evidence: ['claudeOutputStyles', 'claudeSettings'],
+    });
+    expect(result.hidden.find((h) => h.scope === 'user')?.locations).toContain(
+      '~/.claude/output-styles/',
+    );
+  });
+
+  it('matches the selected name exactly, the local file winning', () => {
+    const files = {
+      '.claude/output-styles/terse.md': 'Answer briefly.\n',
+      '.claude/settings.json': '{ "outputStyle": "terse" }\n',
+      '.claude/settings.local.json': '{ "outputStyle": "Terse" }\n',
+    };
+    // "The value is case-sensitive": `Terse` selects no project style.
+    expect(entry(plan(files), 'output-style:.claude/output-styles/terse.md').trigger).toBe(
+      'manual',
+    );
+    const { '.claude/settings.local.json': _local, ...shared } = files;
+    expect(entry(plan(shared), 'output-style:.claude/output-styles/terse.md').trigger).toBe(
+      'startup',
+    );
+  });
+
+  it('takes the style closest to the working directory on a name, up to the repository root', () => {
+    const result = plan(
+      {
+        'repo/.claude/output-styles/terse.md': 'Repository terse.\n',
+        'repo/pkg/.claude/output-styles/terse.md': 'Package terse.\n',
+        '.claude/output-styles/outside.md': 'Above the repository.\n',
+        'repo/pkg/sub/.claude/output-styles/below.md': 'Below.\n',
+      },
+      { cwd: 'repo/pkg', noGit: true, paths: ['repo/.git/HEAD'] },
+    );
+    expect(summary(result.entries)).toEqual([
+      '- manual output-style repo/pkg/.claude/output-styles/terse.md',
+    ]);
+    expect(result.skipped.map((s) => `${s.path} ${s.code}`)).toEqual([
+      '.claude/output-styles/outside.md not-read',
+      'repo/.claude/output-styles/terse.md shadowed-by-preferred',
+    ]);
+    expect(result.outOfScope).toEqual([
+      { path: 'repo/pkg/sub/.claude/output-styles/below.md', because: 'below-start-dir' },
+    ]);
+  });
+
+  it('marks a style that takes a built-in name as unverified', () => {
+    const result = plan({ '.claude/output-styles/Concise.md': 'Mine.\n' });
+    expect(entry(result, 'output-style:.claude/output-styles/Concise.md').certainty).toBe(
+      'unverified',
+    );
+  });
+});
+
+describe('loadClaudeCode: skill paths', () => {
+  it('loads a skill with paths when a matching file is opened, relative to the working directory', () => {
+    const files = {
+      '.claude/skills/api/SKILL.md':
+        '---\nname: api\ndescription: API rules.\npaths: "src/api/**, src/server/**"\n---\nBody.\n',
+      '.claude/skills/plain/SKILL.md': '---\nname: plain\ndescription: Plain.\n---\nBody.\n',
+      'pkg/.claude/skills/listed/SKILL.md':
+        '---\nname: listed\ndescription: Listed.\npaths:\n  - "lib/**"\n---\nBody.\n',
+    };
+    const root = plan(files);
+    expect(entry(root, 'skill:.claude/skills/api/SKILL.md')).toMatchObject({
+      trigger: 'on-path',
+      patterns: ['src/api/**', 'src/server/**'],
+      size: { chars: 'apiAPI rules.'.length },
+      certainty: 'unverified',
+    });
+    // A skill without paths stays in the listing at launch.
+    expect(entry(root, 'skill:.claude/skills/plain/SKILL.md').trigger).toBe('startup');
+    expect(root.totals.startup.chars).toBe('plainPlain.'.length);
+    expect(limit(root, 'claude-code.skill_listing_budget')?.used).toBe('Plain.'.length);
+    const pkg = plan(files, { cwd: 'pkg' });
+    expect(entry(pkg, 'skill:pkg/.claude/skills/listed/SKILL.md').patterns).toEqual(['pkg/lib/**']);
+  });
+});
+
+describe('loadClaudeCode: reserved names and same names', () => {
+  it('skips MCP servers with a reserved name, not a plugin server or a near miss', () => {
+    const result = plan({
+      '.mcp.json': JSON.stringify({
+        mcpServers: {
+          workspace: { command: 'node' },
+          'Claude Browser': { type: 'http', url: 'https://example.com/mcp' },
+          Workspace: { command: 'node' },
+          docs: { command: 'node' },
+        },
+      }),
+    });
+    expect(skips(result)).toEqual([
+      'mcp-server:.mcp.json#Claude Browser reserved-name mcp/reserved-server-name',
+      'mcp-server:.mcp.json#workspace reserved-name mcp/reserved-server-name',
+    ]);
+    expect(result.entries.map((e) => e.name)).toEqual(['Workspace', 'docs']);
+  });
+
+  it('skips skills in reserved folders or with a reserved name', () => {
+    const result = plan({
+      '.claude/skills/synced/SKILL.md': '---\ndescription: Synced.\n---\nBody.\n',
+      '.claude/skills/anthropic-skills/SKILL.md': '---\ndescription: Namespace.\n---\nBody.\n',
+      '.claude/skills/x/SKILL.md': '---\nname: anthropic-skills:x\ndescription: X.\n---\nBody.\n',
+      '.claude/skills/synced-notes/SKILL.md': '---\ndescription: Not reserved.\n---\nBody.\n',
+      'pkg/.claude/skills/synced/SKILL.md': '---\ndescription: Nested.\n---\nBody.\n',
+    });
+    expect(skips(result)).toEqual([
+      'skill:.claude/skills/anthropic-skills/SKILL.md#anthropic-skills reserved-name skill/name-reserved-word',
+      'skill:.claude/skills/synced/SKILL.md#synced reserved-name skill/name-reserved-word',
+      'skill:.claude/skills/x/SKILL.md#anthropic-skills:x reserved-name skill/name-reserved-word',
+    ]);
+    expect(entry(result, 'skill:.claude/skills/synced-notes/SKILL.md').certainty).toBe(
+      'documented',
+    );
+    // A nested `synced` folder: the documentation names the project location only.
+    expect(entry(result, 'skill:pkg/.claude/skills/synced/SKILL.md').certainty).toBe('unverified');
+  });
+
+  it('lets a skill win over a command of the same name, and leaves the others listed', () => {
+    const result = plan({
+      '.claude/skills/deploy/SKILL.md': '---\ndescription: Deploy.\n---\nSteps.\n',
+      '.claude/skills/rel/SKILL.md': '---\nname: release\ndescription: Release.\n---\nSteps.\n',
+      '.claude/commands/deploy.md': 'Old deploy.\n',
+      '.claude/commands/rel.md': 'Old release by folder name.\n',
+      '.claude/commands/release.md': 'Old release.\n',
+      '.claude/commands/build.md': 'Build.\n',
+      '.claude/commands/manual.md': '---\ndisable-model-invocation: true\n---\nManual.\n',
+      '.claude/commands/anthropic-skills/x.md': 'Reserved.\n',
+      'pkg/.claude/skills/build/SKILL.md': '---\ndescription: Nested build.\n---\nSteps.\n',
+    });
+    expect(skips(result)).toEqual([
+      'command:.claude/commands/anthropic-skills/x.md#anthropic-skills:x reserved-name -',
+      'command:.claude/commands/deploy.md#deploy shadowed-by-preferred -',
+      'command:.claude/commands/rel.md#rel shadowed-by-preferred -',
+      'command:.claude/commands/release.md#release shadowed-by-preferred -',
+    ]);
+    // A nested skill of that name loads later: which one runs is not documented.
+    expect(entry(result, 'command:.claude/commands/build.md')).toMatchObject({
+      trigger: 'startup',
+      certainty: 'unverified',
+    });
+    expect(entry(result, 'command:.claude/commands/manual.md')).toMatchObject({
+      trigger: 'manual',
+      certainty: 'documented',
+    });
+  });
+});
+
+describe('loadClaudeCode: rules without frontmatter and listing limits', () => {
+  it('measures a rule without its frontmatter', () => {
+    const result = plan({
+      '.claude/rules/always.md': '---\nowner: team-a\n---\nAlways run tests.\n',
+      '.claude/rules/plain.md': 'Plain rule.\n',
+    });
+    expect(entry(result, 'rule:.claude/rules/always.md').size).toEqual({
+      bytes: '---\nowner: team-a\n---\nAlways run tests.\n'.length,
+      chars: 'Always run tests.\n'.length,
+      tokens: Math.ceil('Always run tests.\n'.length / 4),
+    });
+    expect(entry(result, 'rule:.claude/rules/plain.md').size?.chars).toBe('Plain rule.\n'.length);
+  });
+
+  it('takes the listing limits the project settings set', () => {
+    const skill = `---\nname: long\ndescription: ${'x'.repeat(300)}\n---\nBody.\n`;
+    const files = {
+      '.claude/skills/long/SKILL.md': skill,
+      '.claude/settings.json': JSON.stringify({
+        skillListingMaxDescChars: 100,
+        skillListingBudgetFraction: 0.02,
+      }),
+    };
+    const result = plan(files, { contextWindow: 200_000 });
+    expect(entry(result, 'skill:.claude/skills/long/SKILL.md').size?.chars).toBe(4 + 100);
+    expect(limit(result, 'claude-code.skill_listing_max_desc_chars')).toMatchObject({
+      limit: 100,
+      used: 300,
+    });
+    expect(limit(result, 'claude-code.skill_listing_budget')?.limit).toBe(16_000);
+    expect(result.assumptions.map((a) => `${a.key}=${String(a.value)}`)).toEqual(
+      expect.arrayContaining([
+        'claude-code.skill_listing_budget_fraction=0.02',
+        'claude-code.skill_listing_max_desc_chars=100',
+      ]),
+    );
+    // A fixed budget in the settings' `env` overrides the fraction.
+    const fixed = plan(
+      {
+        ...files,
+        '.claude/settings.local.json': JSON.stringify({
+          env: { SLASH_COMMAND_TOOL_CHAR_BUDGET: '5000' },
+        }),
+      },
+      { contextWindow: 200_000 },
+    );
+    expect(limit(fixed, 'claude-code.skill_listing_budget')?.limit).toBe(5_000);
+    // Values the settings reference does not allow keep the defaults.
+    const invalid = plan(
+      {
+        '.claude/skills/long/SKILL.md': skill,
+        '.claude/settings.json': JSON.stringify({
+          skillListingMaxDescChars: 0,
+          skillListingBudgetFraction: 2,
+          env: { SLASH_COMMAND_TOOL_CHAR_BUDGET: 'lots' },
+        }),
+      },
+      { contextWindow: 200_000 },
+    );
+    expect(limit(invalid, 'claude-code.skill_listing_max_desc_chars')?.limit).toBe(1_536);
+    expect(limit(invalid, 'claude-code.skill_listing_budget')?.limit).toBe(8_000);
+    expect(invalid.assumptions.map((a) => a.key)).not.toContain(
+      'claude-code.skill_listing_max_desc_chars',
+    );
   });
 });

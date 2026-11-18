@@ -19,6 +19,8 @@ Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directo
 
 A `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.
 
+A file that `claudeMdExcludes` excludes in the project settings of a session started in its directory or at the repository root is not reported: Claude Code skips it there.
+
 Moving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.
 
 ## Evidence

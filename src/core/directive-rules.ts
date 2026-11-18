@@ -20,6 +20,7 @@ const MARKDOWN_KINDS_FOR_DIRECTIVES = [
   'claude-rule',
   'claude-agent',
   'claude-command',
+  'claude-output-style',
   'skill',
   'cursor-rule',
   'cursor-rule-md',

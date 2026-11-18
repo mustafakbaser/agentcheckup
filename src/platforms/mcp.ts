@@ -185,6 +185,40 @@ export function isClaudeMcpConfig(snapshot: Snapshot, artifact: Artifact): boole
 }
 
 /**
+ * The names of Claude Code's built-in MCP servers. "Claude Code reserves the names of its
+ * built-in servers, including `workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`,
+ * and `Claude Browser`. If your configuration defines a server with a reserved name, Claude Code
+ * skips it at load time and shows a warning asking you to rename it" (SOURCES.claudeMcp,
+ * "Configuration warnings"). "Including": the list may be longer. Names compare exactly; whether
+ * Claude Code ignores case here is not documented. `widgets`, reserved only in cloud sessions and
+ * on self-hosted runners (changelog, v2.1.285), is left out: plans model a local session.
+ */
+export const CLAUDE_RESERVED_SERVER_NAMES: ReadonlySet<string> = new Set([
+  'workspace',
+  'claude-in-chrome',
+  'computer-use',
+  'Claude Preview',
+  'Claude Browser',
+]);
+
+/**
+ * True when Claude Code skips the server `name` of `artifact` for its reserved name: a project
+ * `.mcp.json` that is not part of a plugin. Plugin servers load under the plugin's namespace,
+ * so whether the reserved names apply to them is not documented.
+ */
+export function claudeReservedServerName(
+  snapshot: Snapshot,
+  artifact: Artifact,
+  name: string,
+): boolean {
+  return (
+    artifact.kind === 'mcp-json' &&
+    pluginRootOf(snapshot, artifact.path) === undefined &&
+    CLAUDE_RESERVED_SERVER_NAMES.has(name)
+  );
+}
+
+/**
  * Variables Claude Code reads as empty in a remote server's `url` and `headers`, set or not, and
  * whatever `:-default` follows them: the names its MCP documentation gives as examples of its own
  * credentials, the cloud provider's and others the environment carries (SOURCES.claudeMcp,

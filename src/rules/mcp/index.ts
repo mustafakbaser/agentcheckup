@@ -4,6 +4,7 @@ import { geminiServerNameRule } from './gemini-server-name.js';
 import { geminiTrustRule } from './gemini-trust.js';
 import { insecureTransportRule } from './insecure-transport.js';
 import { literalSecretRule } from './literal-secret.js';
+import { reservedServerNameRule } from './reserved-server-name.js';
 import { urlWithoutTypeRule } from './url-without-type.js';
 
 export const mcpRules: readonly AnyRule[] = [
@@ -12,5 +13,6 @@ export const mcpRules: readonly AnyRule[] = [
   geminiTrustRule,
   insecureTransportRule,
   literalSecretRule,
+  reservedServerNameRule,
   urlWithoutTypeRule,
 ];

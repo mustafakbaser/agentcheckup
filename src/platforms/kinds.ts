@@ -10,6 +10,7 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-rule',
   'claude-agent',
   'claude-command',
+  'claude-output-style',
   'skill',
   'cursor-rule',
   'cursor-rule-md',

@@ -1,5 +1,9 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import type { Span } from '../../core/types.js';
+import {
+  claudeSkillFolder,
+  isClaudeSyncedNamespace as isReservedNamespace,
+} from '../../platforms/skills.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { quote } from '../shared/format.js';
@@ -10,30 +14,12 @@ import {
   loadableSkills,
   normalizeName,
   resolveImpacts,
-  skillLocation,
   trimmedString,
   validFrontmatter,
 } from './shared.js';
 import { SKILL_SOURCES } from './sources.js';
 
 const RESERVED_WORDS = ['anthropic', 'claude'] as const;
-const SYNCED_NAMESPACE = 'anthropic-skills';
-
-const isReservedNamespace = (name: string): boolean =>
-  name === SYNCED_NAMESPACE || name.startsWith(`${SYNCED_NAMESPACE}:`);
-
-/**
- * The skill folder name when SKILL.md sits directly in a `.claude/skills` directory, the only
- * place where Claude Code applies its reserved folder names, with whether that directory is the
- * project's own (at the scan root).
- */
-function claudeSkillFolder(path: string): { folder: string; project: boolean } | undefined {
-  const location = skillLocation(path);
-  if (!location?.root.endsWith('.claude/skills')) return undefined;
-  const parts = location.relative.split('/');
-  const folder = parts.length === 2 ? parts[0] : undefined;
-  return folder === undefined ? undefined : { folder, project: location.root === '.claude/skills' };
-}
 
 interface Problem {
   readonly message: string;

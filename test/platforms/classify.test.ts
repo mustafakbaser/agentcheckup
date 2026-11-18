@@ -19,6 +19,8 @@ describe('classify', () => {
     ['.claude/rules/frontend/react.md', 'claude-rule'],
     ['.claude/agents/reviewer.md', 'claude-agent'],
     ['.claude/commands/deploy.md', 'claude-command'],
+    ['.claude/output-styles/terse.md', 'claude-output-style'],
+    ['pkg/.claude/output-styles/CLAUDE.md', 'claude-output-style'],
     ['.claude/settings.json', 'claude-settings'],
     ['.claude/settings.local.json', 'claude-settings'],
     ['.claude-plugin/plugin.json', 'claude-plugin-manifest'],
@@ -163,6 +165,9 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     '.windsurf/hooks.json',
     'mcp.json',
     '.codex/config.toml.md',
+    // Output styles sit directly in the folder.
+    '.claude/output-styles/drafts/terse.md',
+    '.claude/output-styles/terse.txt',
   ])('does not classify %s', (path) => {
     expect(classify(path)).toBeUndefined();
   });

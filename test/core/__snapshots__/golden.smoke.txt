@@ -386,6 +386,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -562,6 +563,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -610,6 +612,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -664,6 +667,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -707,7 +711,7 @@
     {
       "id": "instr/agents-md-ignored-by-claude",
       "title": "Claude Code skips AGENTS.md because a CLAUDE.md exists",
-      "rationale": "By default, Claude Code (v2.1.277 and later) reads `AGENTS.md` only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or any directory above it. Otherwise it reads only the `CLAUDE.md` files, so the instructions that Codex, Cursor and GitHub Copilot get from `AGENTS.md` never reach Claude Code.\n\nagentcheckup assumes the default **Project instructions** setting, `claude-md-or-agents-md`. It does not report an `AGENTS.md` that a `CLAUDE.md` or `.claude/rules/` file imports, symlinks or copies; one inside a skill, a template, example or fixture directory, or a directory whose name starts with a dot, such as `.github/`; or one whose status depends on a file agentcheckup did not read, such as a gitignored `CLAUDE.local.md`.\n\nAdd the line `@AGENTS.md` to the `CLAUDE.md`; Claude Code never reads an imported `AGENTS.md` twice. If you keep separate files on purpose, suppress the finding with a reason.",
+      "rationale": "By default, Claude Code (v2.1.277 and later) reads `AGENTS.md` only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or any directory above it. Otherwise it reads only the `CLAUDE.md` files, so the instructions that Codex, Cursor and GitHub Copilot get from `AGENTS.md` never reach Claude Code.\n\nagentcheckup judges each `AGENTS.md` as if the session started in its directory. A session started higher up, with no `CLAUDE.md` file on its own path, still reads a nested `AGENTS.md` when Claude opens a file there, as long as that directory has no `CLAUDE.md` file of its own; `agentcheckup context` shows this.\n\nagentcheckup assumes the default **Project instructions** setting, `claude-md-or-agents-md`. It does not report an `AGENTS.md` that a `CLAUDE.md` or `.claude/rules/` file imports, symlinks or copies; one that `claudeMdExcludes` in the project settings of its directory excludes; one inside a skill, a template, example or fixture directory, or a directory whose name starts with a dot, such as `.github/`; or one whose status depends on a file agentcheckup did not read, such as a gitignored `CLAUDE.local.md`.\n\nAdd the line `@AGENTS.md` to the `CLAUDE.md`; Claude Code never reads an imported `AGENTS.md` twice. If you keep separate files on purpose, suppress the finding with a reason.",
       "category": "loading",
       "severity": "warn",
       "appliesTo": [
@@ -736,7 +740,7 @@
     {
       "id": "instr/claude-md-too-long",
       "title": "CLAUDE.md is longer than 200 lines",
-      "rationale": "Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. A file that loads at launch still loads in full (up to 4 MiB), so this is information only.\n\nA `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.\n\nMoving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.",
+      "rationale": "Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. A file that loads at launch still loads in full (up to 4 MiB), so this is information only.\n\nA `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.\n\nA file that `claudeMdExcludes` excludes in the project settings of a session started in its directory or at the repository root is not reported: Claude Code skips it there.\n\nMoving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.",
       "category": "budget",
       "severity": "info",
       "appliesTo": [
@@ -1783,6 +1787,28 @@
       }
     },
     {
+      "id": "mcp/reserved-server-name",
+      "title": "MCP server uses a name Claude Code reserves",
+      "rationale": "Claude Code reserves the names of its built-in MCP servers, including `workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview` and `Claude Browser`. A server in `.mcp.json` with one of these names is skipped at load time, with a warning asking you to rename it, so its tools never reach the session.\n\nRename the server. agentcheckup offers no fix: the new name is yours to choose, and permission rules, `enabledMcpjsonServers` and scripts that name the server must change with it. Names are compared exactly; servers that a plugin declares are not checked, because the documentation does not say whether the reserved names apply to them.",
+      "category": "loading",
+      "severity": "error",
+      "appliesTo": [
+        "mcp-json"
+      ],
+      "platforms": [
+        "claude-code"
+      ],
+      "sources": [
+        {
+          "title": "Claude Code: MCP",
+          "url": "https://code.claude.com/docs/en/mcp",
+          "checked": "2026-11-13",
+          "status": "verified"
+        }
+      ],
+      "since": "2026.10"
+    },
+    {
       "id": "mcp/url-without-type",
       "title": "MCP server has a \"url\" but no \"type\"",
       "rationale": "Claude Code reads an MCP server entry without `type` as a stdio server, so an entry with a `url` but no `type` is a configuration error: Claude Code skips the server and reports `MCP server \"<name>\" has a \"url\" but no \"type\"`. This applies to `.mcp.json` and to servers that a plugin manifest declares inline.\n\nAdd `\"type\": \"http\"`, or `\"sse\"` or `\"ws\"` to match the server.",
@@ -1831,6 +1857,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -1909,6 +1936,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -2018,6 +2046,7 @@
         "claude-rule",
         "claude-agent",
         "claude-command",
+        "claude-output-style",
         "skill",
         "cursor-rule",
         "cursor-rule-md",

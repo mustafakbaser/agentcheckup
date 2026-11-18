@@ -89,7 +89,10 @@ export function claudeSettingsFiles(
  * precedence first ({@link claudeSettingsFiles}). A file that does not parse is left out; user and
  * managed settings are never read.
  */
-export function claudeProjectSettings(view: LoadView, cwd: string): readonly SpannedDocument[] {
+export function claudeProjectSettings(
+  view: Pick<LoadView, 'snapshot' | 'index' | 'json'>,
+  cwd: string,
+): readonly SpannedDocument[] {
   const docs: SpannedDocument[] = [];
   for (const { path } of claudeSettingsFiles(view.snapshot, cwd)) {
     const artifact = view.index.get(path);

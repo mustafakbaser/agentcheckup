@@ -70,6 +70,7 @@ const ROW_ROLES: ReadonlySet<LoadRole> = new Set([
   'skill',
   'mcp-server',
   'hook',
+  'output-style',
 ]);
 
 /**

@@ -236,6 +236,7 @@
         "claude-agent",
         "claude-agent-memory",
         "claude-command",
+        "claude-output-style",
         "claude-settings",
         "claude-plugin-manifest",
         "claude-plugin-hooks",
@@ -747,7 +748,8 @@
         "subagent",
         "command",
         "mcp-server",
-        "hook"
+        "hook",
+        "output-style"
       ]
     },
     "loadTrigger": {
@@ -960,6 +962,8 @@
         "never-active",
         "invalid-toml",
         "invalid-command",
+        "excluded",
+        "reserved-name",
         "not-read"
       ]
     },

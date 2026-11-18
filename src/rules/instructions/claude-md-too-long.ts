@@ -1,6 +1,10 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { lineCount } from '../../core/measure.js';
 import { lineText } from '../../core/text.js';
+import { claudeExclusions } from '../../platforms/claude-memory.js';
+import { agentsMdDirectory } from '../../platforms/load/imports.js';
+import { viewOf } from '../../platforms/load/view.js';
+import { nearestGitRoot } from '../../platforms/paths.js';
 import { defineRule } from '../define.js';
 import { SOURCES } from '../sources.js';
 import { formatInteger } from '../shared/format.js';
@@ -26,6 +30,7 @@ export const claudeMdTooLongRule = defineRule<ClaudeMdTooLongOptions>({
     rationale: [
       'Claude Code loads every `CLAUDE.md` and `CLAUDE.local.md` in the working directory and above it at the start of each session. Its documentation recommends under 200 lines per file, because longer files consume more context and reduce adherence, and Claude Code warns at startup about a longer file. A file that loads at launch still loads in full (up to 4 MiB), so this is information only.',
       'A `CLAUDE.md` in a subdirectory loads on demand, when Claude works with a file there. Since v2.1.309 Claude Code gives Claude only the start of such a file and of the files it imports: 40,000 characters in a 200K context window, 150,000 or more in a 1M one. `agentcheckup context` shows where the cut falls.',
+      'A file that `claudeMdExcludes` excludes in the project settings of a session started in its directory or at the repository root is not reported: Claude Code skips it there.',
       'Moving text into `@path` imports does not help: imported files load at launch too. Move instructions that matter for only part of the codebase into path-scoped rules in `.claude/rules/`, which load when Claude works with matching files, or into skills, which load on demand. The `maxLines` option changes the limit.',
     ].join('\n\n'),
     category: 'budget',
@@ -44,12 +49,18 @@ export const claudeMdTooLongRule = defineRule<ClaudeMdTooLongOptions>({
   defaultOptions: { maxLines: DOCUMENTED_MAX_LINES },
   check(context) {
     const maxLines = maxLinesOption(context.options);
+    const excluded = claudeExclusions(viewOf(context));
     for (const artifact of context.artifacts) {
       // A case variant such as docs/claude.md may be a document about Claude, not a CLAUDE.md;
       // instr/filename-case reports it.
       if (artifact.caseMismatch !== undefined) continue;
       const lines = lineCount(artifact.decoded.text);
       if (lines <= maxLines) continue;
+      // Skipped by `claudeMdExcludes` in a session started in its own directory or at the
+      // repository root, which loads it on demand: not judged as loaded.
+      const directory = agentsMdDirectory(artifact.path);
+      const root = nearestGitRoot(context.snapshot, directory) ?? '';
+      if ([directory, root].some((cwd) => excluded([artifact.path], cwd) === 'match')) continue;
       const firstExtraLine = maxLines + 1;
       const offset = artifact.decoded.lineStarts[maxLines] ?? 0;
       const message =

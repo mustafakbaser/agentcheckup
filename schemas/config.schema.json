@@ -260,6 +260,10 @@
           "description": "Configuration file contains a literal credential",
           "$ref": "#/$defs/ruleWithoutOptions"
         },
+        "mcp/reserved-server-name": {
+          "description": "MCP server uses a name Claude Code reserves",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
         "mcp/url-without-type": {
           "description": "MCP server has a \"url\" but no \"type\"",
           "$ref": "#/$defs/ruleWithoutOptions"

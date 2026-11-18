@@ -7,20 +7,25 @@
  *   its imports (up to four hops). The order of CLAUDE.md and .claude/CLAUDE.md in one directory
  *   is not documented. AGENTS.md takes their place only when no CLAUDE file is on the path.
  * - Nested CLAUDE.md files and, when AGENTS.md is read, nested AGENTS.md files load when Claude
- *   works with a file in their directory.
+ *   works with a file in their directory; a nested AGENTS.md only when its own directory has no
+ *   CLAUDE file. `claudeMdExcludes` in the project settings skips any of these files.
  * - `.claude/rules/` files without `paths` load at launch, with `paths` when Claude works with a
- *   matching file. YAML that does not parse loads the rule as if it had no `paths`.
+ *   matching file, their frontmatter removed. YAML that does not parse loads the rule as if it
+ *   had no `paths`.
  * - Of a file that loads on demand, a nested CLAUDE file and its imports or a rule with `paths` or
  *   in another directory's `.claude/rules/`, Claude gets the first 40,000 characters (150,000 in
  *   a 1M context window) since v2.1.309.
  * - Skills in `.claude/skills/<name>/SKILL.md` from the working directory up to the repository
- *   root are listed at launch, each listing entry cut at 1,536 characters; nested skills folders
- *   load on demand. Commands load when invoked. Subagents are listed by ./subagents.ts, which
- *   every agent's plan shares.
- * - `.mcp.json` servers load after the user approves them; hooks in the working directory's
- *   `.claude/settings.json` and the repository root's `.claude/settings.local.json` run once the
- *   workspace is trusted. A plugin in the working directory's `.claude/skills/` adds its MCP
- *   servers, hooks and agents.
+ *   root are listed at launch, each listing entry cut at 1,536 characters unless the settings
+ *   say otherwise; nested skills folders and skills with `paths` load on demand. Commands in
+ *   `.claude/commands/` are listed like skills, and a skill of the same name wins over one.
+ *   Subagents are listed by ./subagents.ts, which every agent's plan shares.
+ * - The output style the project settings select is part of the system prompt; the other
+ *   `.claude/output-styles/` files are there to switch to.
+ * - `.mcp.json` servers load after the user approves them, except those with a reserved name;
+ *   hooks in the working directory's `.claude/settings.json` and the repository root's
+ *   `.claude/settings.local.json` run once the workspace is trusted. A plugin in the working
+ *   directory's `.claude/skills/` adds its MCP servers, hooks and agents.
  *
  * Every decision a rule also makes goes through the function that rule uses, and a skip carries
  * the rule's id only when that rule reports the same file. Behavior the sources do not state is
@@ -53,15 +58,24 @@ import type {
   ParseIssue,
 } from '../../parse/types.js';
 import { classify } from '../classify.js';
+import { claudeExclusions, claudePathPatterns } from '../claude-memory.js';
+import type { GlobMatch } from '../glob.js';
 import {
   claudeHooksOff,
   claudeProjectSettings,
   claudeSettingsFiles,
+  lastSetting,
   settingAt,
 } from '../root-settings.js';
 import { HOOK_EVENTS, hookEvents, hookHandlers } from '../hooks.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
-import { isClaudeMcpConfig, mcpServers, sdkOnly, urlWithoutType } from '../mcp.js';
+import {
+  claudeReservedServerName,
+  isClaudeMcpConfig,
+  mcpServers,
+  sdkOnly,
+  urlWithoutType,
+} from '../mcp.js';
 import {
   inClaudeFolder,
   inPayloadFolder,
@@ -72,7 +86,10 @@ import {
 import {
   CLAUDE_LISTING_MAX_CHARS,
   claudeBoolean,
+  claudeReservedSkillFolder,
+  claudeReservedSkillName,
   claudeSkillListing,
+  isClaudeSyncedNamespace,
   skillLocation,
 } from '../skills.js';
 import {
@@ -92,6 +109,7 @@ import {
   agentsMdDirectory,
   CLAUDE_FILE_NAMES,
   type ClaudeFileOnPath,
+  claudeFilesIn,
   claudeFilesOnPath,
   claudeImportOutsideRoot,
   claudeImportsUncertainty,
@@ -157,8 +175,23 @@ export const CLAUDE_ON_DEMAND_MAX_CHARS_1M = 150_000;
 /** The smallest context window, in tokens, that has the 1M limit. */
 const ONE_MILLION = 1_000_000;
 
-/** Share of the context window the skill listing may use (`skillListingBudgetFraction`). */
+/**
+ * Share of the context window the skill listing may use: `skillListingBudgetFraction`, "a
+ * fraction greater than `0` and at most `1`", default `0.01` (SOURCES.claudeSettingsReference).
+ */
 const LISTING_BUDGET_FRACTION = 0.01;
+
+/**
+ * The built-in output styles besides Default. "The value is case-sensitive, so write the built-in
+ * names as `Proactive`, `Concise`, `Explanatory`, and `Learning`" (SOURCES.claudeOutputStyles).
+ */
+const BUILT_IN_STYLES: ReadonlySet<string> = new Set([
+  'default',
+  'Proactive',
+  'Concise',
+  'Explanatory',
+  'Learning',
+]);
 
 const LINES_RULE = 'instr/claude-md-too-long';
 const SHADOW_RULE = 'instr/agents-md-ignored-by-claude';
@@ -176,6 +209,13 @@ const MEMORY: Evidence = ['claudeMemory'];
 const SKILLS: Evidence = ['claudeSkills'];
 const SKILL_OVERRIDES: Evidence = ['claudeSkills', 'claudeSettings'];
 const MCP: Evidence = ['claudeMcp'];
+/** `claudeMdExcludes` in the project settings. */
+const EXCLUDES: Evidence = ['claudeMemory', 'claudeSettingsReference'];
+/** Output styles, and the `outputStyle` setting that selects one. */
+const OUTPUT_STYLES: Evidence = ['claudeOutputStyles', 'claudeSettings'];
+/** The listing limits the settings set. */
+const LISTING_SETTINGS: Evidence = ['claudeSkills', 'claudeSettingsReference'];
+const LISTING_ENV: Evidence = ['claudeSkills', 'claudeEnvVars', 'claudeSettingsReference'];
 const HOOKS: Evidence = ['claudeHooks', 'claudeSettings'];
 /** The repository root's `.claude/settings.local.json`, read from a session in a subdirectory. */
 const LOCAL_HOOKS: Evidence = ['claudeHooks', 'claudePermissions', 'claudeSettings'];
@@ -205,12 +245,12 @@ const HIDDEN: readonly HiddenScope[] = [
       'C:\\Program Files\\ClaudeCode\\CLAUDE.md',
       'C:\\Program Files\\ClaudeCode\\managed-settings.json',
     ],
-    roles: ['hook', 'instructions', 'mcp-server', 'skill', 'subagent'],
+    roles: ['hook', 'instructions', 'mcp-server', 'output-style', 'skill', 'subagent'],
   },
   {
     scope: 'plugin',
     locations: ['installed plugins'],
-    roles: ['command', 'hook', 'mcp-server', 'skill', 'subagent'],
+    roles: ['command', 'hook', 'mcp-server', 'output-style', 'skill', 'subagent'],
   },
   {
     scope: 'user',
@@ -219,11 +259,21 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.claude/CLAUDE.md',
       '~/.claude/agents/',
       '~/.claude/commands/',
+      '~/.claude/output-styles/',
       '~/.claude/rules/',
       '~/.claude/settings.json',
       '~/.claude/skills/',
     ],
-    roles: ['command', 'hook', 'instructions', 'mcp-server', 'rule', 'skill', 'subagent'],
+    roles: [
+      'command',
+      'hook',
+      'instructions',
+      'mcp-server',
+      'output-style',
+      'rule',
+      'skill',
+      'subagent',
+    ],
   },
 ];
 
@@ -263,13 +313,18 @@ function skippedSize(artifact: Artifact): Size {
 }
 
 /**
- * The text Claude Code receives of the first `end` characters of a file: block HTML comments
- * removed (see `inHtmlComment`). A comment the end cuts loses its start up to there.
+ * The text Claude Code receives of a file from `start` to `end`: block HTML comments removed
+ * (see `inHtmlComment`). A comment the end cuts loses its start up to there.
  */
-function withoutComments(text: string, doc: MarkdownDocument, end = text.length): string {
-  if (doc.htmlComments.length === 0) return text.slice(0, end);
+function withoutComments(
+  text: string,
+  doc: MarkdownDocument,
+  end = text.length,
+  start = 0,
+): string {
+  if (doc.htmlComments.length === 0) return text.slice(start, end);
   let kept = '';
-  let from = 0;
+  let from = start;
   for (const comment of doc.htmlComments) {
     if (comment.span.offset < from) continue;
     if (comment.span.offset >= end) break;
@@ -328,28 +383,23 @@ function modelCannotInvoke(frontmatter: FrontmatterResult): boolean {
   );
 }
 
+/** The name of the directory that holds a SKILL.md. */
+function skillDirectoryName(path: string): string {
+  const directory = dirnamePosix(path);
+  return directory.slice(directory.lastIndexOf('/') + 1);
+}
+
+/** The folder of a SKILL.md directly in a `.claude/skills/` directory. */
+function claudeSkillFolderName(path: string): string | undefined {
+  const folder = inClaudeFolder(path, 'skills');
+  const parts = folder?.relative.split('/');
+  return parts?.length === 2 ? parts[0] : undefined;
+}
+
 function bodyOffset(frontmatter: FrontmatterResult): number {
   return frontmatter.kind === 'valid' || frontmatter.kind === 'invalid'
     ? frontmatter.bodyOffset
     : 0;
-}
-
-/** Splits a comma-separated `paths` string, keeping commas inside `{...}` braces. */
-function splitPatterns(value: string): string[] {
-  const patterns: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i <= value.length; i++) {
-    const char = value.charAt(i);
-    if (char === '{') depth++;
-    else if (char === '}' && depth > 0) depth--;
-    else if (i === value.length || (char === ',' && depth === 0)) {
-      const pattern = value.slice(start, i).trim();
-      if (pattern !== '') patterns.push(pattern);
-      start = i + 1;
-    }
-  }
-  return patterns;
 }
 
 /**
@@ -374,12 +424,7 @@ function rulePatterns(frontmatter: FrontmatterResult): {
     case 'valid': {
       const { data } = frontmatter;
       if (!data.keys.includes('paths')) return { patterns: undefined, certainty: 'documented' };
-      const value = data.values['paths'];
-      let patterns: string[] = [];
-      if (typeof value === 'string') patterns = splitPatterns(value);
-      else if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
-        patterns = value.filter((item: string) => item.trim() !== '');
-      }
+      const patterns = claudePathPatterns(data.values['paths']);
       return patterns.length === 0
         ? { patterns: undefined, certainty: 'unverified' }
         : { patterns, certainty: 'documented' };
@@ -458,6 +503,12 @@ class ClaudeLoader {
   #position = 0;
   /** Whether AGENTS.md replaces CLAUDE.md here; `unknown` when only unread CLAUDE files exist. */
   #mode: 'claude' | 'agents' | 'unknown' = 'agents';
+  /** The CLAUDE files on the path that make the mode `claude`, which it reads. */
+  #claudeOnPath: readonly ClaudeFileOnPath[] = [];
+  /** How `claudeMdExcludes` of the session's settings exclude a file reached at some paths. */
+  readonly #exclusion: (paths: readonly string[], cwd: string) => GlobMatch;
+  /** Names of skills in the listing at launch, of those that load later, and of those off. */
+  readonly #skillNames = new Map<string, 'startup' | 'later' | 'off'>();
 
   // Usage of each limit, for `limits`.
   readonly #bytes: Measured[] = [];
@@ -487,6 +538,7 @@ class ClaudeLoader {
     this.#config = options.config;
     this.#contextWindow = options.contextWindow;
     this.#graph = new ImportGraph(view);
+    this.#exclusion = claudeExclusions(view);
     this.#repository = scanRootIsRepository(view.snapshot);
     for (const entry of view.snapshot.skipped) {
       if (entry.reason === 'too-large' && entry.size !== undefined) {
@@ -496,11 +548,13 @@ class ClaudeLoader {
   }
 
   build(): LoadPlan {
+    this.#outputStyles();
     this.#instructions();
     this.#agentsMdSkips();
     this.#caseMismatches();
     this.#skills();
     this.#commands();
+    this.#listingEntries();
     this.#mcpServers();
     this.#hooks();
     this.#skillsDirPlugins();
@@ -522,6 +576,7 @@ class ClaudeLoader {
       : onPath.length > 0
         ? 'unknown'
         : 'agents';
+    this.#claudeOnPath = onPath.filter((file) => file.artifact !== undefined);
 
     const rules = rulesByOwner(this.#graph);
     const startup: Root[] = [];
@@ -624,11 +679,14 @@ class ClaudeLoader {
           this.#out(path, 'payload-folder');
           continue;
         }
-        // A CLAUDE file on its path makes Claude Code skip it (see #agentsMdSkips).
-        const above = claudeFilesOnPath(this.#graph, directory);
-        for (const file of above)
+        // "a subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool and
+        // that subdirectory has none of the three `CLAUDE.md` files of its own": a CLAUDE file in
+        // its own directory makes Claude Code skip it (see #agentsMdSkips); one between it and the
+        // working directory does not (SOURCES.claudeMemory, "When Claude Code reads AGENTS.md").
+        const own = claudeFilesIn(this.#graph, directory);
+        for (const file of own)
           if (file.artifact === undefined) this.#unread(file.path, 'instructions');
-        if (above.length > 0) continue;
+        if (own.length > 0) continue;
       } else if (inPayloadFolder(path)) {
         this.#out(path, 'payload-folder');
         continue;
@@ -669,9 +727,38 @@ class ClaudeLoader {
 
   #loadRoot(root: Root): void {
     if (this.#loaded.has(root.artifact)) return;
-    if (this.#oversize(root.artifact, root.path, root.role)) return;
-    this.#addMemoryEntry(root.role, root.path, root.artifact, root, undefined, 0);
-    this.#expand(root);
+    const exclusion = this.#excluded(root.path, root.artifact, root.role);
+    if (exclusion === 'match') {
+      this.#skip({
+        role: root.role,
+        path: root.path,
+        code: 'excluded',
+        size: skippedSize(root.artifact),
+        certainty: root.certainty,
+        evidence: EXCLUDES,
+      });
+      return;
+    }
+    // A pattern that names the scan root's absolute path may match it: that depends on where the
+    // repository is checked out.
+    const loaded: Root = exclusion === 'maybe' ? { ...root, certainty: 'unverified' } : root;
+    if (this.#oversize(loaded.artifact, loaded.path, loaded.role)) return;
+    this.#addMemoryEntry(loaded.role, loaded.path, loaded.artifact, loaded, undefined, 0);
+    this.#expand(loaded);
+  }
+
+  /**
+   * How `claudeMdExcludes` excludes a memory file reached at `path` ({@link claudeExclusions}).
+   * For a rule, "A pattern that matches either path excludes the file": the path under
+   * `.claude/rules/` or the link target. For other files a pattern that matches only the target
+   * of a link may exclude it: the documentation does not say.
+   */
+  #excluded(path: string, artifact: Artifact, role: LoadRole): GlobMatch {
+    const own = this.#exclusion([path], this.#cwd);
+    if (own === 'match' || artifact.realPath === path) return own;
+    const target = this.#exclusion([artifact.realPath], this.#cwd);
+    if (role === 'rule' && target === 'match') return 'match';
+    return own === 'maybe' || target !== 'no' ? 'maybe' : 'no';
   }
 
   /** A file over Claude Code's 4 MiB limit, which it skips. */
@@ -723,12 +810,18 @@ class ClaudeLoader {
   ): void {
     const raw = artifact.decoded.text;
     const doc = this.#markdown(artifact);
+    // "Claude Code removes the frontmatter before loading the rule into context"
+    // (SOURCES.claudeMemory). What it does with a block whose YAML does not parse is not
+    // documented, so such a block is counted.
+    const frontmatter = role === 'rule' ? this.#view.frontmatter(artifact) : undefined;
+    const start = frontmatter?.kind === 'valid' ? frontmatter.bodyOffset : 0;
     // A rule's imports: whether the limit cuts them is not documented.
     const capped = root.capped === true && (role !== 'import' || root.role === 'instructions');
     const limit = this.#onDemandLimit();
-    const end = capped ? offsetAfter(raw, limit) : undefined;
-    if (capped) this.#onDemand.push({ path, value: codePointLength(raw) });
-    const text = withoutComments(raw, doc, end);
+    const cut = capped ? offsetAfter(raw.slice(start), limit) : undefined;
+    const end = cut === undefined ? undefined : start + cut;
+    if (capped) this.#onDemand.push({ path, value: codePointLength(raw.slice(start)) });
+    const text = withoutComments(raw, doc, end, start);
     const entry: LoadEntry = {
       id: `${role}:${path}`,
       role,
@@ -906,7 +999,11 @@ class ClaudeLoader {
     this.#hops.push({ path: target, value: hop });
   }
 
-  /** AGENTS.md files Claude Code skips because a CLAUDE file is on the path. */
+  /**
+   * AGENTS.md files Claude Code skips: because a CLAUDE file is on the path, or because
+   * `claudeMdExcludes` names them. Whether a CLAUDE file that `claudeMdExcludes` skips still
+   * counts for the check is not documented.
+   */
   #agentsMdSkips(): void {
     const cwd = this.#cwd;
     for (const [path, artifact] of this.#view.index) {
@@ -920,20 +1017,39 @@ class ClaudeLoader {
         continue;
       }
       // With a CLAUDE file at or above the working directory, Claude Code reads no AGENTS.md. With
-      // none, it reads the ones on the path, and a nested one unless a CLAUDE file is on its path.
-      const shadowed =
-        this.#mode === 'claude' ||
-        (scope !== 'path' &&
-          claudeFilesOnPath(this.#graph, directory).some((file) => file.artifact !== undefined));
-      if (!shadowed) continue;
+      // none, it reads the ones on the path, and a nested one unless a CLAUDE file is in its own
+      // directory.
+      const shadowing =
+        this.#mode === 'claude'
+          ? this.#claudeOnPath
+          : scope === 'path'
+            ? []
+            : claudeFilesIn(this.#graph, directory).filter((file) => file.artifact !== undefined);
+      if (shadowing.length === 0) continue;
+      if (this.#excluded(path, artifact, 'instructions') === 'match') {
+        this.#skip({
+          role: 'instructions',
+          path: artifact.path,
+          code: 'excluded',
+          size: skippedSize(artifact),
+          certainty: 'documented',
+          evidence: EXCLUDES,
+        });
+        continue;
+      }
+      const allExcluded = shadowing.every(
+        (file) =>
+          file.artifact !== undefined &&
+          this.#excluded(file.path, file.artifact, 'instructions') === 'match',
+      );
       this.#skip({
         role: 'instructions',
         path: artifact.path,
         code: 'shadowed-by-claude-md',
         ...(this.#shadowedFiles().has(artifact) ? { ruleId: SHADOW_RULE } : {}),
         size: skippedSize(artifact),
-        certainty: 'documented',
-        evidence: MEMORY,
+        certainty: allExcluded ? 'unverified' : 'documented',
+        evidence: allExcluded ? EXCLUDES : MEMORY,
       });
     }
   }
@@ -999,13 +1115,42 @@ class ClaudeLoader {
         continue;
       }
       const frontmatter = this.#view.frontmatter(artifact);
-      const listing = claudeSkillListing(path, artifact.decoded.text, frontmatter);
+      const listing = claudeSkillListing(
+        path,
+        artifact.decoded.text,
+        frontmatter,
+        this.#listingMaxChars().value,
+      );
       // A block Claude Code may not read as frontmatter: how it lists the skill is not documented.
       const bodyOnly = frontmatter.kind === 'unclosed' || frontmatter.kind === 'unsupported';
       const body = size(artifact.decoded.text.slice(listing.bodyOffset));
-      const certainty = bodyOnly ? 'unverified' : onDemandCertainty(scope);
+      // A `synced` folder in another directory's `.claude/skills/`: the documentation names the
+      // enterprise, personal and project locations, not whether a parent's or a nested one counts.
+      const syncedElsewhere = claudeSkillFolderName(path)?.toLowerCase() === 'synced';
+      const certainty = bodyOnly || syncedElsewhere ? 'unverified' : onDemandCertainty(scope);
+      // Names Claude Code keeps for skills synced from claude.ai (skill/name-reserved-word).
+      const declared = frontmatter.kind === 'valid' ? frontmatter.data.values['name'] : undefined;
+      if (
+        claudeReservedSkillFolder([artifact.path, ...artifact.aliases]) ||
+        (typeof declared === 'string' && claudeReservedSkillName(declared))
+      ) {
+        this.#skip({
+          role: 'skill',
+          path,
+          name: listing.name,
+          code: 'reserved-name',
+          ruleId: 'skill/name-reserved-word',
+          certainty: onDemandCertainty(scope),
+          evidence: SKILLS,
+        });
+        continue;
+      }
       const override = this.#skillOverrides().get(listing.name);
       const evidence = override === undefined ? SKILLS : SKILL_OVERRIDES;
+      // The command names it takes from commands: its name, and its directory's name, which "also
+      // invokes the skill" (SOURCES.claudeSkills, "How a skill gets its command name").
+      const state = override === 'off' ? 'off' : scope === 'path' ? 'startup' : 'later';
+      for (const name of [listing.name, skillDirectoryName(path)]) this.#nameSkill(name, state);
       if (override === 'off') {
         this.#skip({
           role: 'skill',
@@ -1035,34 +1180,61 @@ class ClaudeLoader {
       // The listing always holds the name; `name-only` leaves the description out.
       const nameOnly = override === 'name-only';
       const shown = nameOnly ? listing.name : `${listing.name}${listing.shown}`;
+      // `paths`: "When set, Claude loads the skill automatically only when working with files
+      // matching the patterns. Patterns are relative to Claude's current working directory"
+      // (SOURCES.claudeSkills). Whether its listing entry waits for such a file too, or is in the
+      // listing from the start, is not documented: the plan counts it when a file matches.
+      const paths =
+        frontmatter.kind === 'valid' ? claudePathPatterns(frontmatter.data.values['paths']) : [];
+      const atStartup = scope === 'path' && paths.length === 0;
+      const patterns =
+        paths.length > 0
+          ? paths.map((pattern) => joinPath(cwd, pattern))
+          : scope === 'path'
+            ? undefined
+            : [`${owner}/**`];
       const build = (position: number | undefined): LoadEntry => {
         const entry: LoadEntry = {
           id: `skill:${path}`,
           role: 'skill',
-          trigger: scope === 'path' ? 'startup' : 'on-path',
+          trigger: atStartup ? 'startup' : 'on-path',
           ...(position === undefined ? {} : { position }),
           path,
           realPath: artifact.realPath,
           name: listing.name,
-          ...(scope === 'path' ? {} : { patterns: [`${owner}/**`] }),
+          ...(patterns === undefined ? {} : { patterns }),
           size: size(shown),
           deferred: body,
-          certainty,
+          certainty: paths.length > 0 ? 'unverified' : certainty,
           evidence,
         };
         // The description limits measure the descriptions in the listing.
         if (!nameOnly) {
           this.#listing.push({ path, value: listing.length });
-          if (scope === 'path') this.#listed += codePointLength(listing.shown);
+          if (atStartup) this.#listed += codePointLength(listing.shown);
         }
-        if (scope === 'path') this.#listedSkills++;
+        if (atStartup) this.#listedSkills++;
         return entry;
       };
-      if (scope === 'path') listed.push({ path, build });
+      if (atStartup) listed.push({ path, build });
       else this.#add(build(undefined));
     }
-    // The order of the listing is not documented; positions follow the path.
-    listed.sort((a, b) => compareStrings(a.path, b.path));
+    this.#listedEntries = listed;
+  }
+
+  /** Records a skill's command name; a skill in the listing at launch wins over a later one. */
+  #nameSkill(name: string, state: 'startup' | 'later' | 'off'): void {
+    const known = this.#skillNames.get(name);
+    if (known === 'startup' || (known === 'later' && state === 'off')) return;
+    this.#skillNames.set(name, state);
+  }
+
+  /** Skills and commands in the listing at launch, given positions once both are known. */
+  #listedEntries: { path: string; build: (position: number | undefined) => LoadEntry }[] = [];
+
+  /** The listing's entries: the order of the listing is not documented; positions follow the path. */
+  #listingEntries(): void {
+    const listed = [...this.#listedEntries].sort((a, b) => compareStrings(a.path, b.path));
     for (const { build } of listed) this.#add(build(++this.#position));
   }
 
@@ -1087,6 +1259,16 @@ class ClaudeLoader {
     return overrides;
   }
 
+  /**
+   * Files in `.claude/commands/` (SOURCES.claudeSkills). "Custom commands have been merged into
+   * skills ... Claude can invoke them without you typing the command": the plan lists a command
+   * as a skill, with its name and description, and its body on demand. That a command's
+   * description is in the skills listing, and how it is cut there, the documentation does not
+   * say outright, so those entries are unverified. `disable-model-invocation: true` leaves a
+   * command to `/name`. The name is the path below `commands/` with each `/` as `:`. "A skill
+   * and a file in `.claude/commands/`" of one name: "The skill". A name in the synced namespace
+   * does not load.
+   */
   #commands(): void {
     for (const artifact of this.#view.artifacts) {
       if (artifact.kind !== 'claude-command') continue;
@@ -1097,18 +1279,176 @@ class ClaudeLoader {
         this.#out(artifact.path, 'payload-folder');
         continue;
       }
-      const offset = bodyOffset(this.#view.frontmatter(artifact));
-      this.#add({
+      const name = folder.relative.slice(0, -'.md'.length).replaceAll('/', ':');
+      // Commands in another directory's .claude folder: not documented.
+      const certainty: Certainty = scope === 'path' ? 'documented' : 'unverified';
+      if (isClaudeSyncedNamespace(name)) {
+        this.#skip({
+          role: 'command',
+          path: artifact.path,
+          name,
+          code: 'reserved-name',
+          certainty,
+          evidence: SKILLS,
+        });
+        continue;
+      }
+      const skill = this.#skillNames.get(name);
+      if (skill === 'startup') {
+        this.#skip({
+          role: 'command',
+          path: artifact.path,
+          name,
+          code: 'shadowed-by-preferred',
+          certainty,
+          evidence: SKILLS,
+        });
+        continue;
+      }
+      // A skill of that name that loads later, or is off: which one runs is not documented.
+      const own: Certainty = skill === undefined ? certainty : 'unverified';
+      const frontmatter = this.#view.frontmatter(artifact);
+      const offset = bodyOffset(frontmatter);
+      const body = size(artifact.decoded.text.slice(offset));
+      if (modelCannotInvoke(frontmatter)) {
+        this.#add({
+          id: `command:${artifact.path}`,
+          role: 'command',
+          trigger: 'manual',
+          path: artifact.path,
+          realPath: artifact.realPath,
+          name,
+          size: body,
+          certainty: own,
+          evidence: SKILLS,
+        });
+        continue;
+      }
+      const listing = claudeSkillListing(
+        artifact.path,
+        artifact.decoded.text,
+        frontmatter,
+        this.#listingMaxChars().value,
+      );
+      const entry = (position: number | undefined): LoadEntry => ({
         id: `command:${artifact.path}`,
         role: 'command',
-        trigger: 'manual',
+        trigger: scope === 'path' ? 'startup' : 'on-path',
+        ...(position === undefined ? {} : { position }),
         path: artifact.path,
         realPath: artifact.realPath,
-        name: folder.relative.slice(0, -'.md'.length),
-        size: size(artifact.decoded.text.slice(offset)),
-        // Commands in another directory's .claude folder: not documented.
-        certainty: scope === 'path' ? 'documented' : 'unverified',
+        name,
+        ...(scope === 'path' ? {} : { patterns: [`${folder.owner}/**`] }),
+        size: size(`${name}${listing.shown}`),
+        deferred: body,
+        certainty: 'unverified',
         evidence: SKILLS,
+      });
+      if (scope !== 'path') {
+        this.#add(entry(undefined));
+        continue;
+      }
+      this.#listing.push({ path: artifact.path, value: listing.length });
+      this.#listed += codePointLength(listing.shown);
+      this.#listedSkills++;
+      this.#listedEntries.push({ path: artifact.path, build: entry });
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Output styles
+  // -------------------------------------------------------------------------------------------
+
+  /**
+   * Output styles in `.claude/output-styles/` (SOURCES.claudeOutputStyles): "Project output
+   * styles load from every `.claude/output-styles/` between the working directory and the
+   * repository root. When more than one of these nested directories defines a style with the
+   * same name, Claude Code uses the one closest to the working directory." "The file name becomes
+   * the style name unless you set `name` in the frontmatter"; "If the YAML doesn't parse, the
+   * style still loads under its file name with no fields set".
+   *
+   * The style `outputStyle` selects is part of the system prompt from the start: "Claude Code
+   * sends the active style's instructions with every request". "A project's own settings files
+   * take precedence" over the user's value; the value "is case-sensitive". The other styles are
+   * there to switch to with `/output-style` or `/config`. Which wins when a project style takes a
+   * built-in style's name is not documented.
+   */
+  #outputStyles(): void {
+    const cwd = this.#cwd;
+    const repositoryRoot = nearestGitRoot(this.#view.snapshot, cwd) ?? '';
+    const found: { artifact: Artifact; owner: string; name: string }[] = [];
+    for (const artifact of this.#view.artifacts) {
+      if (artifact.kind !== 'claude-output-style' || artifact.caseMismatch !== undefined) continue;
+      const folder = inClaudeFolder(artifact.path, 'output-styles');
+      if (folder === undefined) continue;
+      const scope = scopeOf(folder.owner, cwd);
+      if (scope === 'below') {
+        this.#out(artifact.path, 'below-start-dir');
+        continue;
+      }
+      if (scope !== 'path') continue;
+      const inside =
+        repositoryRoot === '' ||
+        folder.owner === repositoryRoot ||
+        folder.owner.startsWith(`${repositoryRoot}/`);
+      if (!inside) {
+        this.#skip({
+          role: 'output-style',
+          path: artifact.path,
+          code: 'not-read',
+          certainty: 'documented',
+          evidence: OUTPUT_STYLES,
+        });
+        continue;
+      }
+      const frontmatter = this.#view.frontmatter(artifact);
+      const declared = frontmatter.kind === 'valid' ? frontmatter.data.values['name'] : undefined;
+      const name =
+        typeof declared === 'string' && declared.trim() !== ''
+          ? declared.trim()
+          : folder.relative.slice(0, -'.md'.length);
+      found.push({ artifact, owner: folder.owner, name });
+    }
+    // Closest to the working directory first: the deepest owner.
+    found.sort(
+      (a, b) =>
+        b.owner.split('/').length - a.owner.split('/').length ||
+        compareStrings(b.owner, a.owner) ||
+        compareStrings(a.artifact.path, b.artifact.path),
+    );
+    const selected = lastSetting(claudeProjectSettings(this.#view, cwd), ['outputStyle']);
+    const seen = new Set<string>();
+    for (const { artifact, name } of found) {
+      const frontmatter = this.#view.frontmatter(artifact);
+      const block = frontmatter.kind === 'unclosed' || frontmatter.kind === 'unsupported';
+      const body = size(artifact.decoded.text.slice(bodyOffset(frontmatter)));
+      if (seen.has(name)) {
+        this.#skip({
+          role: 'output-style',
+          path: artifact.path,
+          name,
+          code: 'shadowed-by-preferred',
+          size: body,
+          certainty: 'documented',
+          evidence: OUTPUT_STYLES,
+        });
+        continue;
+      }
+      seen.add(name);
+      // A block Claude Code may not read as frontmatter, or a built-in style's name.
+      const certainty: Certainty = block || BUILT_IN_STYLES.has(name) ? 'unverified' : 'documented';
+      const active = selected === name;
+      this.#add({
+        id: `output-style:${artifact.path}`,
+        role: 'output-style',
+        trigger: active ? 'startup' : 'manual',
+        ...(active ? { position: ++this.#position } : {}),
+        path: artifact.path,
+        realPath: artifact.realPath,
+        name,
+        size: body,
+        certainty,
+        evidence: OUTPUT_STYLES,
       });
     }
   }
@@ -1172,6 +1512,20 @@ class ClaudeLoader {
           name,
           code: 'url-without-type',
           ruleId: 'mcp/url-without-type',
+          certainty,
+          evidence,
+        });
+        return;
+      }
+      // "If your configuration defines a server with a reserved name, Claude Code skips it at
+      // load time" (SOURCES.claudeMcp).
+      if (claudeReservedServerName(this.#view.snapshot, artifact, name)) {
+        this.#skip({
+          role: 'mcp-server',
+          path,
+          name,
+          code: 'reserved-name',
+          ruleId: 'mcp/reserved-server-name',
           certainty,
           evidence,
         });
@@ -1552,7 +1906,11 @@ class ClaudeLoader {
           this.#config.ruleSetting(SHADOW_RULE, artifact.path)?.severity !== 'off',
       );
       this.#shadowed = new Set(
-        agentsMdShadowedByClaude(new ImportGraph(this.#view), judged).map((item) => item.artifact),
+        agentsMdShadowedByClaude(
+          new ImportGraph(this.#view),
+          judged,
+          claudeExclusions(this.#view),
+        ).map((item) => item.artifact),
       );
     }
     return this.#shadowed;
@@ -1622,26 +1980,70 @@ class ClaudeLoader {
       effect: 'skips',
       evidence: MEMORY,
     });
+    const maxChars = this.#listingMaxChars();
     add(largest(this.#listing), {
       key: 'claude-code.skill_listing_max_desc_chars',
       unit: 'chars',
-      limit: CLAUDE_LISTING_MAX_CHARS,
+      limit: maxChars.value,
       effect: 'shortens',
-      evidence: SKILLS,
+      evidence: maxChars.configured ? LISTING_SETTINGS : SKILLS,
     });
-    const window = this.#contextWindow;
+    const budget = this.#listingBudget();
     add(this.#listedSkills === 0 ? undefined : { path: this.#cwd, value: this.#listed }, {
       key: 'claude-code.skill_listing_budget',
       label: 'skills listing',
       unit: 'chars',
-      limit:
-        window === undefined
-          ? null
-          : Math.floor(window * LISTING_BUDGET_FRACTION * CHARS_PER_TOKEN),
+      limit: budget.chars,
       effect: 'shortens',
-      evidence: SKILLS,
+      evidence: budget.evidence,
     });
     return limits.sort((a, b) => compareStrings(a.key, b.key));
+  }
+
+  /**
+   * `skillListingMaxDescChars` from the session's project settings, the local file winning: "a
+   * positive integer", default 1,536 (SOURCES.claudeSettingsReference, scope "Any file"). User
+   * and managed settings may set it too; a project's own settings take precedence over the
+   * user's.
+   */
+  #listingMaxChars(): { readonly value: number; readonly configured: boolean } {
+    const value = lastSetting(claudeProjectSettings(this.#view, this.#cwd), [
+      'skillListingMaxDescChars',
+    ]);
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+      ? { value, configured: true }
+      : { value: CLAUDE_LISTING_MAX_CHARS, configured: false };
+  }
+
+  /**
+   * The skill listing's budget in characters: `SLASH_COMMAND_TOOL_CHAR_BUDGET` in the project
+   * settings' `env`, "a fixed character count" that overrides "the character budget for skill
+   * metadata", else `skillListingBudgetFraction` of the context window ({@link
+   * LISTING_BUDGET_FRACTION}), null without a window. Project settings may set the variable:
+   * Claude Code does not drop it from their `env` (SOURCES.claudeSettingsReference, "Variables
+   * Claude Code ignores in `env`"). Which of the two wins when both are set is not documented;
+   * the variable's description calls it an override.
+   */
+  #listingBudget(): {
+    readonly chars: number | null;
+    readonly fraction?: number;
+    readonly fixed?: number;
+    readonly evidence: Evidence;
+  } {
+    const docs = claudeProjectSettings(this.#view, this.#cwd);
+    const env = lastSetting(docs, ['env', 'SLASH_COMMAND_TOOL_CHAR_BUDGET']);
+    const text = typeof env === 'number' ? String(env) : typeof env === 'string' ? env.trim() : '';
+    const fixed = /^\d{1,9}$/u.test(text) ? Number(text) : undefined;
+    if (fixed !== undefined && fixed > 0) return { chars: fixed, fixed, evidence: LISTING_ENV };
+    const value = lastSetting(docs, ['skillListingBudgetFraction']);
+    const fraction =
+      typeof value === 'number' && value > 0 && value <= 1 ? value : LISTING_BUDGET_FRACTION;
+    const window = this.#contextWindow;
+    return {
+      chars: window === undefined ? null : Math.floor(window * fraction * CHARS_PER_TOKEN),
+      ...(fraction === LISTING_BUDGET_FRACTION && value !== fraction ? {} : { fraction }),
+      evidence: fraction === LISTING_BUDGET_FRACTION ? SKILLS : LISTING_SETTINGS,
+    };
   }
 
   /**
@@ -1710,6 +2112,42 @@ class ClaudeLoader {
         value: lines.value,
         origin: 'rule-option',
         evidence: MEMORY,
+      });
+    }
+    // Settings of the repository that change the listing and the system prompt; user and managed
+    // settings are not visible.
+    const maxChars = this.#listingMaxChars();
+    if (maxChars.configured) {
+      assumptions.push({
+        key: 'claude-code.skill_listing_max_desc_chars',
+        value: maxChars.value,
+        origin: 'repository',
+        evidence: LISTING_SETTINGS,
+      });
+    }
+    const budget = this.#listingBudget();
+    if (budget.fixed !== undefined) {
+      assumptions.push({
+        key: 'claude-code.skill_listing_budget_chars',
+        value: budget.fixed,
+        origin: 'repository',
+        evidence: LISTING_ENV,
+      });
+    } else if (budget.fraction !== undefined) {
+      assumptions.push({
+        key: 'claude-code.skill_listing_budget_fraction',
+        value: budget.fraction,
+        origin: 'repository',
+        evidence: LISTING_SETTINGS,
+      });
+    }
+    const style = lastSetting(claudeProjectSettings(this.#view, this.#cwd), ['outputStyle']);
+    if (typeof style === 'string') {
+      assumptions.push({
+        key: 'claude-code.output_style',
+        value: style,
+        origin: 'repository',
+        evidence: OUTPUT_STYLES,
       });
     }
     return assumptions.sort((a, b) => compareStrings(a.key, b.key));
