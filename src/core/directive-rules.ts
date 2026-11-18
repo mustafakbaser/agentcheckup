@@ -31,6 +31,7 @@ const MARKDOWN_KINDS_FOR_DIRECTIVES = [
   'gemini-md',
   'windsurf-rule',
   'windsurf-legacy-rules',
+  'devin-instructions',
   'cline-rule',
   'imported-file',
 ] as const;

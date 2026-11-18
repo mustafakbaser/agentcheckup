@@ -1,5 +1,6 @@
 import type { ArtifactKind, PlatformId, SourceFile } from '../core/types.js';
 import { clinePlace } from './cline-rules.js';
+import { isGlobalRules } from './windsurf-rules.js';
 
 /**
  * Path-based classification of agent configuration files.
@@ -86,6 +87,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'devin-config': ['windsurf'],
   'devin-mcp': ['windsurf'],
   'devin-hooks': ['windsurf'],
+  // `AGENTS.local.md`, `AGENT.md` and the global rules files of `.devin` and `.windsurf`, which
+  // Devin Local loads as always-on rules (SOURCES.devinCliRules).
+  'devin-instructions': ['windsurf'],
   'cline-rule': ['cline'],
   'cline-workflow': ['cline'],
   // Custom agents and subagents (src/agents). Cursor also reads `.claude/agents` and Copilot
@@ -389,6 +393,19 @@ const MATCHERS: readonly Matcher[] = [
     kind: 'cline-rule',
     pattern: /(?:^|\/)\.cline\/[^/]+\/rules\.md$/,
     where: (path) => clinePlace(path)?.role === 'rule',
+    canonical: keepPath,
+  },
+  // Rules files only Devin Local reads, under the names its documentation writes: other
+  // spellings are not documented, so they are not classified (SOURCES.devinCliRules). An
+  // `AGENT.md` in a Devin agents folder is a subagent, and one in another agent's rules folder
+  // is that agent's rule: both are matched above.
+  {
+    kind: 'devin-instructions',
+    pattern: /(?:^|\/)(?:agents\.local\.md|agent\.md|\.(?:devin|windsurf)\/global_rules\.md)$/,
+    where: (path) => {
+      const name = basename(path);
+      return name === 'AGENTS.local.md' || name === 'AGENT.md' || isGlobalRules(path);
+    },
     canonical: keepPath,
   },
 ];

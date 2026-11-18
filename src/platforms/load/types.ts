@@ -499,7 +499,7 @@ export interface LoadPlan {
    * The repository's settings files the session reads, which parse, sorted by path: their
    * permissions, hooks and env overrides apply to it. Reports count the inventory items of each.
    * Absent when the agent reads none, and from the plans of agents whose loader does not list
-   * them yet (all but Claude Code).
+   * them yet (all but Claude Code and Devin Local).
    */
   readonly settings?: readonly SettingsFile[];
   /**

@@ -92,6 +92,7 @@ export const ARTIFACT_KINDS = [
   'devin-config',
   'devin-mcp',
   'devin-hooks',
+  'devin-instructions',
   'cline-rule',
   'cline-workflow',
   'codex-agent',

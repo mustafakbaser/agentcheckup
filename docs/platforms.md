@@ -486,9 +486,14 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 
 - Cascade: `.devin/` takes precedence over `.windsurf/`. Rules are found in the workspace, its subdirectories, and parent directories up to the git root. System rules merge with workspace and global rules. [Cascade rules (archived)][devin-rules]
 - Cascade: a root `AGENTS.md` is an always-on rule. A subdirectory `AGENTS.md` becomes a glob rule for `<directory>/**`. Both `AGENTS.md` and `agents.md` are recognized. [Cascade AGENTS.md (archived)][devin-agents-md]
-- Devin Local: files at the workspace root load at session start; files in subdirectories load when the agent accesses files there. `AGENTS.md` rules are always on. If both `.devin/global_rules.md` and `.windsurf/global_rules.md` exist, only the `.devin/` file loads; rule files in both `rules/` folders load. [Devin CLI rules][devin-cli-rules]
+- Devin Local: files at the workspace root load at session start; files in subdirectories load when the agent accesses files there. `AGENTS.md`, `AGENTS.local.md`, `AGENT.md`, `.windsurfrules` and `CLAUDE.md` "can exist at multiple levels in your project (not just the root)", and all of them are always on. If both `.devin/global_rules.md` and `.windsurf/global_rules.md` exist, only the `.devin/` file loads; rule files in both `rules/` folders load. agentcheckup reads and checks `AGENTS.local.md`, `AGENT.md` and the global rules files as it checks other instruction files (hidden text, empty files, encoding), under those exact names only. [Devin CLI rules][devin-cli-rules]
+- Devin Local: several levels are documented for `.windsurf/rules/` and the `.devin/` folders, but Cursor's rules only as "`.cursor/rules/*.md` and `.cursor/rules/*.mdc`", so a `.cursor/rules` folder below the workspace root is **Unverified**. A global rules file below the workspace root is **Unverified** too. [Devin CLI rules][devin-cli-rules]
 - Devin Local: lowercase `agents.md` files are discovered too since v3000.4.16, and the FAQ says Devin Desktop "reads rules from `AGENTS.md` / `agents.md` files". agentcheckup reads a lowercase `agents.md` only at the root of the scan, as it does for every agent: elsewhere such a file is usually documentation. [Changelog][devin-cli-changelog], [FAQ][devin-faq]
 - Devin Local: the order of the startup context is not documented (**Unverified**). [Devin CLI rules][devin-cli-rules]
+
+- Devin Local: `.devin/config.json` and `.devin/config.local.json` are found by walking up from the working directory; "subdirectory configs take precedence over ancestor configs", and permission lists "are **merged** (combined) across levels". Precedence, highest first: organization settings, session grants, `.devin/config.local.json`, `.devin/config.json`, the user config. "Only `permissions`, `read_config_from`, and `hooks` are available in project configs." [Configuration precedence][devin-cli-precedence], [configuration file][devin-cli-config]
+- Devin Local `.devin/config.json` plugin lists: the plugins page names "the `requiredPlugins` / `optionalPlugins` / `forbiddenPlugins` in a checkout's `.devin/config.json`, discovered by walking up from your working directory" as the repository level. The configuration file reference does not list these keys; agentcheckup follows the plugins page, which documents the feature, its levels and its enforcement, where the reference documents the options of its own page. Required plugins are "Auto-installed (recursively)", and "a governance-required plugin is reinstalled on the next session in the requiring scope"; optional ones "are **not** auto-installed; the list only matters as a carve-out against a forbidden entry"; forbidden ones are blocked. The inventory lists required plugins as permissions, and plans name them as a hidden plugin scope. [Plugins][devin-cli-plugins]
+- Devin Desktop: `.devinignore` (and the legacy `.codeiumignore`) keeps paths out of indexing, Tab and DeepWiki, but "`.devinignore` does not block the file tools of Devin Local", so plans ignore it. Devin CLI "does not support `.codeiumignore` files", and no page says Devin reads `.cursorignore`. [.devinignore][devin-ignore], [Devin CLI rules][devin-cli-rules]
 
 ### Imports
 
@@ -518,6 +523,10 @@ Devin Local imports other agents' files by default. `read_config_from` in `~/.co
 - Cascade events are snake_case: `pre_read_code`, `post_read_code`, `pre_write_code`, `post_write_code`, `pre_run_command`, `post_run_command`, `pre_mcp_tool_use`, `post_mcp_tool_use`, `pre_user_prompt`, `post_cascade_response`, `post_cascade_response_with_transcript`, `post_setup_worktree`. There is no matcher, and no timeout field is documented. [Cascade hooks (archived)][devin-hooks]
 - Cascade failure: only pre-hooks can block, with exit code 2. Any other exit code lets the action proceed. Hooks from system, user and workspace files all run, in that order. [Cascade hooks (archived)][devin-hooks]
 - In Restricted Mode, agents are unavailable, and hooks neither load nor run. [Devin Local][devin-local]
+
+### Permissions
+
+- Devin Local: `permissions.allow`, `ask` and `deny` in `.devin/config.json`, `.devin/config.local.json` and `~/.config/devin/config.json`. Deny wins; an ask prompts "unless an equally or more specific command or MCP allow rule also matches"; an allow runs "without prompting". Scopes: `Read(glob)`, `Write(glob)`, `Exec(prefix)`, `Fetch(pattern)`; tools `read`, `edit`, `grep`, `glob`, `exec`; MCP tools `mcp__server__tool`, `mcp__server__*`, `mcp__*`. "MCP tools default to prompting for approval. Add them to `permissions.allow` to auto-approve." `Exec(*)` "matches every command" since v3000.10.31. agentcheckup lists every entry in the inventory and marks `exec`, `Exec(*)`, `edit`, `Write(**)`, `Write(/**)`, `Write(~/**)` and `mcp__*` broad. [Permissions][devin-cli-permissions], [MCP][devin-cli-mcp], [changelog][devin-cli-changelog]
 
 ### MCP
 
@@ -778,6 +787,11 @@ Facts marked "source" were read at these commits. Links point to the `main` bran
 [devin-cli-hook-events]: https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks
 [devin-cli-mcp]: https://docs.devin.ai/cli/extensibility/mcp/configuration
 [devin-cli-changelog]: https://docs.devin.ai/cli/changelog/stable
+[devin-cli-config]: https://docs.devin.ai/cli/reference/configuration/config-file
+[devin-cli-precedence]: https://docs.devin.ai/cli/reference/configuration/global-vs-local
+[devin-cli-permissions]: https://docs.devin.ai/cli/reference/permissions
+[devin-cli-plugins]: https://docs.devin.ai/cli/extensibility/plugins/overview
+[devin-ignore]: https://docs.devin.ai/desktop/context-awareness/devin-ignore
 [cline-rules]: https://docs.cline.bot/customization/cline-rules
 [cline-config]: https://docs.cline.bot/getting-started/config
 [cline-skills]: https://docs.cline.bot/customization/skills

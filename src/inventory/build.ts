@@ -135,6 +135,12 @@ import {
   settingAt,
 } from '../platforms/root-settings.js';
 import { checkSubagent, type SubagentCheck } from '../platforms/subagents.js';
+import {
+  DEVIN_CONFIG_FILE,
+  DEVIN_PERMISSION_LISTS,
+  devinBroadPermission,
+  devinPluginSource,
+} from '../platforms/windsurf-rules.js';
 import { isLoopbackHost } from '../rules/mcp/insecure-transport.js';
 import { findRemoteExecution } from '../rules/risk/remote-script.js';
 import {
@@ -431,6 +437,7 @@ class InventoryBuilder {
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
     if (artifact.kind === 'gemini-settings') this.#addGeminiSettings(artifact, doc);
     if (CURSOR_CONFIG_KINDS.has(artifact.kind)) this.#addCursorConfig(artifact, doc);
+    if (artifact.kind === 'devin-config') this.#addDevinConfig(artifact, doc);
   }
 
   /**
@@ -1101,6 +1108,76 @@ class InventoryBuilder {
       if (command === undefined) continue;
       this.#pushEnv(artifact, doc, key, 'code-exec', undefined, [key], { command });
     }
+  }
+
+  // Devin Local configuration -----------------------------------------------------------------
+
+  /**
+   * The `permissions` of `.devin/config.json` and `.devin/config.local.json`, one item per entry
+   * of `allow`, `ask` and `deny`, keyed as Claude Code's (SOURCES.devinCliPermissions): "Only
+   * `permissions`, `read_config_from`, and `hooks` are available in project configs", and both
+   * files outrank the user config. Broad entries are those {@link devinBroadPermission} names.
+   * And the `requiredPlugins` of `.devin/config.json`, which Devin installs and loads for the
+   * repository (SOURCES.devinCliPlugins), one item per plugin, so that a new required plugin trips
+   * `--gate permissions`. `optionalPlugins` install nothing and `forbiddenPlugins` only block, so
+   * neither is listed; the plugins page names `.devin/config.json` only.
+   */
+  #addDevinConfig(artifact: Artifact, doc: ParsedJson): void {
+    const root = doc.value;
+    if (!isObject(root)) return;
+    const platforms = sortedPlatforms(artifact.readers);
+    // A list or entry of a shape the documentation does not describe leaves the file incomplete,
+    // so the gate fails closed on it (docs/adr/0016).
+    const unread = (): void => {
+      this.#incomplete.add(artifact.path);
+    };
+    const rawPermissions = own(root, 'permissions');
+    if (rawPermissions !== undefined && !isObject(rawPermissions)) unread();
+    const permissions = ownObject(root, 'permissions');
+    for (const list of DEVIN_PERMISSION_LISTS) {
+      const values = permissions === undefined ? undefined : own(permissions, list);
+      if (values === undefined) continue;
+      if (!Array.isArray(values)) {
+        unread();
+        continue;
+      }
+      values.forEach((value: unknown, index) => {
+        if (typeof value !== 'string') {
+          unread();
+          return;
+        }
+        this.#pushPermission(artifact, {
+          key: `permissions.${list}`,
+          value,
+          broad: devinBroadPermission(value) !== undefined,
+          effective: true,
+          line: lineOf(artifact, spanOf(doc, ['permissions', list, index])),
+          platforms,
+        });
+      });
+    }
+    if (!artifact.path.endsWith(DEVIN_CONFIG_FILE)) return;
+    const required = own(root, 'requiredPlugins');
+    if (required === undefined) return;
+    if (!Array.isArray(required)) {
+      unread();
+      return;
+    }
+    required.forEach((entry: unknown, index) => {
+      const source = devinPluginSource(entry);
+      if (source === undefined) {
+        unread();
+        return;
+      }
+      this.#pushPermission(artifact, {
+        key: 'requiredPlugins',
+        value: source,
+        broad: false,
+        effective: true,
+        line: lineOf(artifact, spanOf(doc, ['requiredPlugins', index])),
+        platforms,
+      });
+    });
   }
 
   // Gemini CLI settings and .env files --------------------------------------------------------

@@ -50,6 +50,13 @@ const GEMINI_SOURCE_CHECKED = '2026-11-14';
  */
 const CURSOR_FILES_CHECKED = '2026-11-18';
 
+/**
+ * Devin CLI pages re-read on 2026-11-18 for the permissions and plugin lists of
+ * `.devin/config.json` and `.devin/config.local.json`, and for the instruction files Devin Local
+ * finds in subdirectories.
+ */
+const DEVIN_CONFIG_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -603,9 +610,9 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   devinCliRules: verified(
-    'Devin CLI: Rules',
+    'Devin CLI: Rules ("These files can exist at multiple levels in your project (not just the root)")',
     'https://docs.devin.ai/cli/extensibility/rules',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
   ),
   devinReadConfigFrom: verified(
     'Devin CLI: read_config_from (imports from Cursor, Windsurf, Claude Code, GitHub Copilot, Codex, Kiro, OpenCode and Zed)',
@@ -623,14 +630,29 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   devinCliChangelog: verified(
-    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)',
+    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)',
     'https://docs.devin.ai/cli/changelog/stable',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
   ),
   devinCliConfigFile: verified(
-    'Devin CLI: Configuration file (JSON with comments)',
+    'Devin CLI: Configuration file (JSON with comments; "Only `permissions`, `read_config_from`, and `hooks` are available in project configs")',
     'https://docs.devin.ai/cli/reference/configuration/config-file',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliConfigPrecedence: verified(
+    'Devin CLI: Configuration precedence (`.devin/config.json` and `.devin/config.local.json` found by walking up from the working directory; permission lists merged)',
+    'https://docs.devin.ai/cli/reference/configuration/global-vs-local',
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliPermissions: verified(
+    'Devin CLI: Permissions (`allow`, `ask` and `deny` in `.devin/config.json` and `.devin/config.local.json`, which outrank the user config)',
+    'https://docs.devin.ai/cli/reference/permissions',
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliPlugins: verified(
+    "Devin CLI: Plugins (the `requiredPlugins` of a checkout's `.devin/config.json` are installed and load)",
+    'https://docs.devin.ai/cli/extensibility/plugins/overview',
+    DEVIN_CONFIG_CHECKED,
   ),
   devinCliHooks: verified(
     'Devin CLI: Hooks',

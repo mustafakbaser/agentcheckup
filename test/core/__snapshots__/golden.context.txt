@@ -1135,6 +1135,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "cursor-agent",
@@ -1424,6 +1425,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "imported-file"
       ],
@@ -1471,6 +1473,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "imported-file"
       ],
@@ -1524,6 +1527,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "imported-file"
       ],
@@ -1817,9 +1821,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-11-13",
+          "checked": "2026-11-18",
           "status": "verified"
         }
       ],
@@ -1973,6 +1977,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "cursor-legacy-rules",
@@ -2041,6 +2046,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cursor-rule",
         "cursor-legacy-rules",
@@ -2126,9 +2132,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-11-13",
+          "checked": "2026-11-18",
           "status": "verified"
         },
         {
@@ -2377,6 +2383,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cursor-rule",
         "cursor-legacy-rules",
@@ -2428,6 +2435,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cursor-rule",
         "cursor-legacy-rules",
@@ -2631,9 +2639,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Configuration file (JSON with comments)",
+          "title": "Devin CLI: Configuration file (JSON with comments; \"Only `permissions`, `read_config_from`, and `hooks` are available in project configs\")",
           "url": "https://docs.devin.ai/cli/reference/configuration/config-file",
-          "checked": "2026-11-13",
+          "checked": "2026-11-18",
           "status": "verified"
         }
       ],
@@ -3019,6 +3027,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "cursor-agent",
@@ -3095,6 +3104,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "cursor-agent",
@@ -3201,6 +3211,7 @@
         "gemini-md",
         "windsurf-rule",
         "windsurf-legacy-rules",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "cursor-agent",
@@ -3421,9 +3432,9 @@
           "status": "verified"
         },
         {
-          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
+          "title": "Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)",
           "url": "https://docs.devin.ai/cli/changelog/stable",
-          "checked": "2026-11-13",
+          "checked": "2026-11-18",
           "status": "verified"
         }
       ],

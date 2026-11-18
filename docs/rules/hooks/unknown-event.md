@@ -35,7 +35,7 @@ Rename the key to an event the agent fires.
 - [Gemini CLI source: hookRegistry.ts (invalid event names are skipped)](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRegistry.ts), verified, checked 2026-10-14
 - [Devin CLI: Hooks](https://docs.devin.ai/cli/extensibility/hooks/overview), verified, checked 2026-11-13
 - [Devin CLI: Lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), verified, checked 2026-11-13
-- [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-11-13
+- [Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)](https://docs.devin.ai/cli/changelog/stable), verified, checked 2026-11-18
 
 ## Fix
 

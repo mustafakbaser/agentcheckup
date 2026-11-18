@@ -48,6 +48,10 @@ describe('classify', () => {
     ['.windsurf/rules/style.md', 'windsurf-rule'],
     ['.devin/rules/style.md', 'windsurf-rule'],
     ['.windsurfrules', 'windsurf-legacy-rules'],
+    ['AGENTS.local.md', 'devin-instructions'],
+    ['pkg/AGENT.md', 'devin-instructions'],
+    ['.devin/global_rules.md', 'devin-instructions'],
+    ['pkg/.windsurf/global_rules.md', 'devin-instructions'],
     ['.clinerules/style.md', 'cline-rule'],
     ['.cline/rules/style.md', 'cline-rule'],
   ] as const)('classifies %s as %s', (path, kind) => {
@@ -191,6 +195,32 @@ describe('classify: custom agents and subagents', () => {
     '.github/agent/reviewer.md',
   ])('%s is not an agent file', (path) => {
     expect(classify(path)?.kind).toBeUndefined();
+  });
+});
+
+describe('classify: rules files only Devin Local reads', () => {
+  it.each([
+    // Other spellings are not documented.
+    'agents.local.md',
+    'Agent.md',
+    'agent.md',
+    '.devin/Global_Rules.md',
+    // Only in `.devin` and `.windsurf`.
+    'global_rules.md',
+    '.cursor/global_rules.md',
+  ])('%s is not classified', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+
+  it.each([
+    // Another agent's rules folder keeps its kind, and so does a Devin agents folder.
+    ['.clinerules/AGENT.md', 'cline-rule'],
+    ['.claude/rules/AGENT.md', 'claude-rule'],
+    ['.cursor/rules/AGENT.md', 'cursor-rule-md'],
+    ['.devin/agents/reviewer/AGENT.md', 'devin-agent'],
+    ['.devin/rules/global_rules.md', 'windsurf-rule'],
+  ])('%s is %s', (path, kind) => {
+    expect(classify(path)?.kind).toBe(kind);
   });
 });
 

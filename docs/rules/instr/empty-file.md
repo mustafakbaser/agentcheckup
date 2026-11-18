@@ -4,14 +4,14 @@
 
 Instruction file is empty.
 
-|            |                                                                                                                                                                                                                        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `warn`                                                                                                                                                                                                                 |
-| Category   | `loading`                                                                                                                                                                                                              |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                             |
-| Applies to | `agents-md`, `agents-override-md`, `claude-md`, `claude-local-md`, `claude-rule`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `cline-rule`, `cline-workflow`, `cursor-legacy-rules`, `copilot-instructions` |
-| Fixable    | No                                                                                                                                                                                                                     |
-| Since      | 2026.10                                                                                                                                                                                                                |
+|            |                                                                                                                                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity   | `warn`                                                                                                                                                                                                                                       |
+| Category   | `loading`                                                                                                                                                                                                                                    |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                                                   |
+| Applies to | `agents-md`, `agents-override-md`, `claude-md`, `claude-local-md`, `claude-rule`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `devin-instructions`, `cline-rule`, `cline-workflow`, `cursor-legacy-rules`, `copilot-instructions` |
+| Fixable    | No                                                                                                                                                                                                                                           |
+| Since      | 2026.10                                                                                                                                                                                                                                      |
 
 ## Why
 

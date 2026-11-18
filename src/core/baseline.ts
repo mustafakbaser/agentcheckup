@@ -1111,8 +1111,9 @@ function isHookConfig(entry: IncompleteEntry): boolean {
 /**
  * An inventory `incomplete` entry for a file whose permissions the inventory cannot list: a
  * Codex exec-policy file that is not made of literal calls agentcheckup reads, and a
- * `.codex/config.toml` past a parser limit or in UTF-16. A `.codex/config.toml` that is not valid
- * TOML is not one: Codex does not start in a trusted project with such a file.
+ * `.codex/config.toml` past a parser limit or in UTF-16, and a Devin Local `.devin/config.json` or
+ * `.devin/config.local.json` that is not valid or holds lists of another shape. A
+ * `.codex/config.toml` that is not valid TOML is not one: Codex does not start in a trusted project with such a file.
  */
 function isPermissionConfig(entry: IncompleteEntry): boolean {
   const kind = classify(entry.path)?.kind;
@@ -1120,6 +1121,9 @@ function isPermissionConfig(entry: IncompleteEntry): boolean {
     // Cursor falls back to the IDE allowlist when `.cursor/permissions.json` does not parse.
     return invalidFormat(entry) === undefined || !CURSOR_INERT_WHEN_INVALID.has(kind);
   }
+  // How Devin Local reads a `.devin/config.json` it cannot parse, or a permission list of another
+  // shape, is not documented.
+  if (kind === 'devin-config') return true;
   return kind === 'codex-rules' || (kind === 'codex-config' && invalidFormat(entry) === undefined);
 }
 

@@ -129,5 +129,10 @@ describe('read_config_from', () => {
     expect(source('windsurf-rule', '.devin/rules/a.md')).toBeUndefined();
     expect(source('skill', '.agents/skills/x/SKILL.md')).toBeUndefined();
     expect(source('devin-hooks', '.devin/hooks.v1.json')).toBeUndefined();
+    // AGENTS.local.md and AGENT.md are standard rules; each global rules file has its folder's.
+    expect(source('devin-instructions', 'AGENTS.local.md')).toBe('agents_standard');
+    expect(source('devin-instructions', 'pkg/AGENT.md')).toBe('agents_standard');
+    expect(source('devin-instructions', '.windsurf/global_rules.md')).toBe('windsurf');
+    expect(source('devin-instructions', 'pkg/.devin/global_rules.md')).toBeUndefined();
   });
 });
