@@ -467,7 +467,11 @@ function costKey(cost: MarkdownCost): string {
 
 function jsonDialect(kind: ArtifactKind): JsonDialect {
   if (kind === 'gemini-settings' || kind === 'devin-config') return 'comments';
-  return kind === 'vscode-mcp' || kind === 'cursor-permissions' ? 'jsonc' : 'strict';
+  // VS Code reads its settings files with the parser it reads mcp.json with
+  // (SOURCES.vscodeConfigurationParser).
+  return kind === 'vscode-mcp' || kind === 'vscode-settings' || kind === 'cursor-permissions'
+    ? 'jsonc'
+    : 'strict';
 }
 
 /**
@@ -1007,13 +1011,20 @@ function scoredPaths(artifacts: readonly Artifact[], active: readonly Finding[])
 
 /**
  * Kinds read for the security inventory and the load plans that no rule judges: a `.env` file
- * Gemini CLI loads, which is not agent configuration for any other agent, and Gemini CLI custom
- * commands. Imported files are scored only when penalized too.
+ * Gemini CLI loads, which is not agent configuration for any other agent, Gemini CLI custom
+ * commands, and GitHub Copilot's extensions, LSP configuration, setup workflows, prompt files and
+ * model allowlist and VS Code's settings. Imported files are scored only when penalized too.
  */
 const UNSCORED_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'imported-file',
   'gemini-env',
   'gemini-command',
+  'copilot-extension',
+  'copilot-lsp',
+  'copilot-setup-steps',
+  'copilot-prompt',
+  'copilot-allowed-models',
+  'vscode-settings',
 ]);
 
 /** Number of lines that start before `offset` (binary search over sorted line starts). */

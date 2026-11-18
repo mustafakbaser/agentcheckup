@@ -95,6 +95,7 @@ import { isBundledSkill, pluginRootOf } from '../platforms/location.js';
 import {
   bareMcpServers,
   codexMcpServers,
+  copilotAgentMcpServers,
   isClaudeMcpConfig,
   MCP_KINDS,
   type McpServer,
@@ -118,6 +119,14 @@ import {
   SUBAGENT_IGNORED_MODES,
   SUBAGENT_PERMISSION_MODES,
 } from '../platforms/permissions.js';
+import {
+  copilotLspServers,
+  EXTENSION_EVENT,
+  LSP_COMMAND_FIELDS,
+  setupWorkflowEvent,
+} from '../platforms/copilot.js';
+import { pluginSettingItems } from '../platforms/plugins.js';
+import { terminalApprovals, vscodeBoolean, vscodeSetting } from '../platforms/vscode-settings.js';
 import { effectiveReaders } from '../platforms/readers.js';
 import { placement, skillLocation } from '../platforms/skills.js';
 import {
@@ -183,6 +192,8 @@ const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'cursor-hooks',
   'copilot-hooks',
   'copilot-settings',
+  'copilot-lsp',
+  'vscode-settings',
   'devin-hooks',
   ...CURSOR_CONFIG_KINDS,
 ]);
@@ -400,6 +411,15 @@ class InventoryBuilder {
       this.#addGeminiEnv(artifact);
       return;
     }
+    if (artifact.kind === 'copilot-extension') {
+      this.#addCodeFile(artifact, EXTENSION_EVENT);
+      return;
+    }
+    if (artifact.kind === 'copilot-setup-steps') {
+      const event = setupWorkflowEvent(artifact.path);
+      if (event !== undefined) this.#addCodeFile(artifact, event);
+      return;
+    }
     if (TOML_KINDS.has(artifact.kind)) {
       this.#addCodexConfig(artifact);
       return;
@@ -435,6 +455,9 @@ class InventoryBuilder {
     // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
     else if (artifact.kind === 'devin-hooks') this.#incomplete.add(artifact.path);
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
+    if (artifact.kind === 'copilot-settings') this.#addPluginSettings(artifact, doc);
+    if (artifact.kind === 'copilot-lsp') this.#addLspServers(artifact, doc);
+    if (artifact.kind === 'vscode-settings') this.#addVscodeSettings(artifact, doc);
     if (artifact.kind === 'gemini-settings') this.#addGeminiSettings(artifact, doc);
     if (CURSOR_CONFIG_KINDS.has(artifact.kind)) this.#addCursorConfig(artifact, doc);
     if (artifact.kind === 'devin-config') this.#addDevinConfig(artifact, doc);
@@ -699,6 +722,36 @@ class InventoryBuilder {
       ...fields,
       effective: true,
       digestFields: { ...fields, content: bytesDigest(file.bytes) },
+    });
+  }
+
+  /**
+   * A file of code an agent runs, listed as a hook of `event` whose digest covers the file's
+   * bytes, as a Cline hook script is: agentcheckup does not analyze JavaScript or workflow YAML,
+   * so any added or changed byte is a changed hook and trips `hooks`. A Copilot CLI project
+   * extension (`extension`), which runs "with your privileges" once experimental features are on
+   * (SOURCES.copilotCliExtensions), and a cloud agent setup workflow, whose steps "will be
+   * executed in GitHub Actions before Copilot starts working" (SOURCES.copilotSetupSteps).
+   */
+  #addCodeFile(artifact: Artifact, event: string): void {
+    const text = artifact.decoded.text;
+    const fields = {
+      event,
+      known: true,
+      script: artifact.path,
+      failsOpen: false,
+      remoteScript: linesOf(text).some(
+        ({ start, end }) => findRemoteExecution(text, start, end) !== undefined,
+      ),
+    };
+    this.#hooks.push({
+      id: clineHookInventoryId(artifact.path, event),
+      file: artifact.path,
+      line: 1,
+      platforms: sortedPlatforms(artifact.readers),
+      ...fields,
+      effective: true,
+      digestFields: { ...fields, content: bytesDigest(artifact.file.bytes) },
     });
   }
 
@@ -1180,6 +1233,120 @@ class InventoryBuilder {
     });
   }
 
+  // Plugin settings ---------------------------------------------------------------------------
+
+  /**
+   * The `enabledPlugins` and `extraKnownMarketplaces` of the Copilot CLI's repository settings
+   * (src/platforms/plugins.ts). "A plugin enabled only through a repository's `enabledPlugins` ...
+   * auto-installs and activates in the declaring repository", and Copilot in the cloud reads both
+   * keys too (SOURCES.copilotCliConfigDir), so each entry is a permission: a plugin brings MCP
+   * servers, hooks, agents and skills the repository does not show. A marketplace's digest covers
+   * its source with every string redacted, so a source repointed under the same name is a changed
+   * item. Never broad: what a plugin grants is not visible here.
+   */
+  #addPluginSettings(artifact: Artifact, doc: ParsedJson): void {
+    const platforms = sortedPlatforms(artifact.readers);
+    for (const item of pluginSettingItems(doc)) {
+      this.#pushPermission(
+        artifact,
+        {
+          key: item.key,
+          value: item.value,
+          broad: false,
+          effective: true,
+          line: lineOf(artifact, keySpanOf(doc, item.path)),
+          platforms,
+        },
+        item.key.startsWith('extraKnownMarketplaces.')
+          ? marketplaceDetail(item.source, item.autoUpdate)
+          : undefined,
+      );
+    }
+  }
+
+  // Copilot CLI LSP servers and VS Code settings ----------------------------------------------
+
+  /**
+   * The servers of `.github/lsp.json` ({@link copilotLspServers}): each `command`, `bash` and
+   * `powershell` is a `code-exec` override keyed `lspServers.<name>.<field>`, as Claude Code's
+   * `apiKeyHelper` is, with its redacted command shown and its arguments, `cwd` and `rootUri` in
+   * the digest (docs/adr/0017); each sensitive name in its `env` an override of its class, as in
+   * an MCP server's `env`. A server with `"disabled": true` starts nothing, so its items are not
+   * effective.
+   */
+  #addLspServers(artifact: Artifact, doc: ParsedJson): void {
+    const platforms = sortedPlatforms(artifact.readers);
+    for (const server of copilotLspServers(doc)) {
+      const { config } = server;
+      const effective = !server.disabled;
+      const args = Array.isArray(own(config, 'args')) ? stringsOf(own(config, 'args')) : [];
+      const where = {
+        cwd: stringOf(own(config, 'cwd')),
+        rootUri: stringOf(own(config, 'rootUri')),
+      };
+      for (const field of LSP_COMMAND_FIELDS) {
+        const value = stringOf(own(config, field));
+        if (value === undefined) continue;
+        const path = [...server.path, field];
+        const withArgs = field === 'command' && args.length > 0;
+        this.#pushEnv(artifact, doc, pathKey(path), 'code-exec', undefined, path, {
+          command: withArgs ? [value, ...args].join(' ') : value,
+          platforms,
+          effective,
+          detail: {
+            ...where,
+            ...(withArgs ? { args: argsWithoutCredentials(args, value) } : {}),
+          },
+        });
+      }
+      const env = own(config, 'env');
+      if (!isObject(env)) continue;
+      for (const key of Object.keys(env)) {
+        const value = stringOf(env[key]);
+        const cls = envClass(key, value);
+        if (cls === 'other') continue;
+        const path = [...server.path, 'env', key];
+        this.#pushEnv(artifact, doc, pathKey(path), cls, value, path, { platforms, effective });
+      }
+    }
+  }
+
+  /**
+   * What `.vscode/settings.json` approves without asking (src/platforms/vscode-settings.ts): each
+   * `chat.tools.terminal.autoApprove` rule set to approve, "Set a command to `true` to
+   * auto-approve it" (SOURCES.vscodeApprovals), broad for a regular expression that matches every
+   * command, and not effective when `chat.tools.terminal.enableAutoApprove` is `false`; and
+   * `chat.tools.global.autoApprove: true`, which "disables manual approval completely for all
+   * tools", listed as broad and not effective: VS Code registers it with the application-machine
+   * scope, so a workspace value is not applied (SOURCES.vscodeChatSettingsSource).
+   */
+  #addVscodeSettings(artifact: Artifact, doc: ParsedJson): void {
+    const root = doc.value;
+    const platforms = sortedPlatforms(artifact.readers);
+    const rulesOn = vscodeBoolean(root, 'chat.tools.terminal.enableAutoApprove') !== false;
+    for (const approval of terminalApprovals(root)) {
+      this.#pushPermission(artifact, {
+        key: 'chat.tools.terminal.autoApprove',
+        value: approval.rule,
+        broad: approval.broad,
+        effective: rulesOn,
+        line: lineOf(artifact, keySpanOf(doc, approval.path)),
+        platforms,
+      });
+    }
+    const global = vscodeSetting(root, 'chat.tools.global.autoApprove');
+    if (global?.value === true) {
+      this.#pushPermission(artifact, {
+        key: 'chat.tools.global.autoApprove',
+        value: 'true',
+        broad: true,
+        effective: false,
+        line: lineOf(artifact, spanOf(doc, global.path)),
+        platforms,
+      });
+    }
+  }
+
   // Gemini CLI settings and .env files --------------------------------------------------------
 
   /**
@@ -1365,10 +1532,12 @@ class InventoryBuilder {
    * agent is selected", "in addition to session, user, repository, plugin, and policy hooks", on
    * the CLI (SOURCES.copilotHooksReference, "Agent-scoped hooks") and in VS Code
    * (SOURCES.vscodeCustomAgentFile): listed with the subagent scope, its commands resolved from
-   * the repository root. A `hooks` value that is not an event map may hold hooks agentcheckup
-   * cannot read, and the inventory does not list the MCP servers of `mcp-servers` yet
-   * (SOURCES.copilotCustomAgents, SOURCES.copilotCliAgents): either makes its file incomplete,
-   * so the gate and a policy fail closed. So does frontmatter agentcheckup cannot read, as for a
+   * the repository root. The servers of `mcp-servers`, "Additional MCP servers and tools that
+   * should be used by the custom agent" on the CLI and GitHub.com (SOURCES.copilotCustomAgents,
+   * SOURCES.copilotCliAgents), are listed with the subagent scope too; VS Code does not use them.
+   * A `hooks` value that is not an event map, or an `mcp-servers` value that is not an object,
+   * may hold items agentcheckup cannot read: either makes its file incomplete, so the gate and a
+   * policy fail closed. So does frontmatter agentcheckup cannot read, as for a
    * Claude Code subagent: a block that does not parse or is past a parser limit, which Copilot's
    * reader may still read (src/agents lists the agent as `unknown`), and a `<<` merge key, which
    * it may merge into `hooks`.
@@ -1383,14 +1552,20 @@ class InventoryBuilder {
       return;
     }
     const { values } = frontmatter.data;
-    if (Object.hasOwn(values, 'mcp-servers') || hasMergeKey(values)) this.#incomplete.add(path);
+    if (hasMergeKey(values)) this.#incomplete.add(path);
+    const doc = frontmatterDocument(frontmatter.data);
+    const at = path === artifact.path ? artifact : { ...artifact, path };
+    const { servers, documented } = copilotAgentMcpServers(doc);
+    // An `mcp-servers` value that is not an object of servers may hold servers agentcheckup
+    // cannot read.
+    if (!documented) this.#incomplete.add(path);
+    this.#addServerList(at, doc, servers, ['copilot'], () => ({}), 'subagent');
     if (!Object.hasOwn(values, 'hooks')) return;
     if (!isTable(values['hooks'])) {
       this.#incomplete.add(path);
       return;
     }
-    const at = path === artifact.path ? artifact : { ...artifact, path };
-    this.#addHooks(at, frontmatterDocument(frontmatter.data), COPILOT_AGENT_HOOKS, {
+    this.#addHooks(at, doc, COPILOT_AGENT_HOOKS, {
       platforms: ['copilot'],
       root: nearestGitRoot(this.#view.snapshot, dirnamePosix(path)) ?? '',
       scope: 'subagent',
@@ -1578,9 +1753,11 @@ class InventoryBuilder {
       readonly command?: string;
       readonly platforms?: readonly PlatformId[];
       readonly effective?: boolean;
+      /** What else decides what the command runs, free of credentials: the digest covers it. */
+      readonly detail?: object;
     } = {},
   ): void {
-    const { effective = true } = options;
+    const { effective = true, detail } = options;
     const command = options.command === undefined ? undefined : redactCommand(options.command);
     const platforms = options.platforms ?? sortedPlatforms(artifact.readers);
     const shown =
@@ -1589,6 +1766,7 @@ class InventoryBuilder {
     const exact = {
       value: exactEnvValue(cls, value),
       command: options.command === undefined ? undefined : withoutCredentials(options.command),
+      ...(detail === undefined ? {} : { detail }),
     };
     this.#env.push({
       id: envInventoryId(artifact.path, key),
@@ -1697,6 +1875,23 @@ function redactedContent(value: unknown): unknown {
     );
   }
   return value;
+}
+
+/**
+ * What a marketplace item's digest covers besides what it shows: its source with every string
+ * redacted, `headers` reduced to their sorted names (header values are credentials,
+ * docs/adr/0017), and its `autoUpdate` when set. Shared in form with the Claude Code settings'
+ * marketplaces.
+ */
+function marketplaceDetail(source: unknown, autoUpdate: boolean | undefined): object {
+  const redacted =
+    isTable(source) && isTable(own(source, 'headers'))
+      ? {
+          ...(redactedContent(source) as object),
+          headers: sortedKeys(own(source, 'headers')).map(redactShown),
+        }
+      : redactedContent(source);
+  return autoUpdate === undefined ? { source: redacted } : { source: redacted, autoUpdate };
 }
 
 /** Removes, from `start` on, each item whose id and digest fields an earlier one has. */

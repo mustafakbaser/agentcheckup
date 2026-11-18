@@ -211,7 +211,10 @@ describe('assumption phrases', () => {
     for (const [agent, texts] of defaults) {
       for (const text of texts) expect(`${agent}: ${text}`).not.toContain(' = ');
     }
-    expect(defaults.get('copilot-cli')).toEqual(['trusted folder']);
+    expect(defaults.get('copilot-cli')).toEqual([
+      'trusted folder',
+      'experimental features off (default)',
+    ]);
     // VS Code's default harness is Copilot; the plan models the Local one.
     expect(defaults.get('copilot-vscode')).toEqual([
       'Local agent harness (assumed)',
@@ -280,6 +283,19 @@ describe('assumption phrases', () => {
       'access through paid API key or Gemini Code Assist license',
     ]);
     expect(configured.get('windsurf')).toContain('Cursor files not imported (from the repository)');
+    // A workspace's .vscode/settings.json sets what the Local harness loads.
+    const vscode = phrases({
+      'AGENTS.md': 'Rules.\n',
+      '.vscode/settings.json':
+        '{\n  // JSONC\n  "chat.useAgentsMdFile": false,\n  "chat": { "useClaudeHooks": true },\n  "chat.promptFilesLocations": { ".github/prompts": true, "docs/prompts": true },\n}\n',
+    });
+    expect(vscode.get('copilot-vscode')).toEqual(
+      expect.arrayContaining([
+        'AGENTS.md off (from the repository)',
+        'Claude Code hooks on (from the repository)',
+        'prompt file locations {".github/prompts":true,"docs/prompts":true} (from the repository)',
+      ]),
+    );
   });
 
   it('keeps a value it has no words for as key = value', () => {

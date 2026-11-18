@@ -189,9 +189,45 @@ export function buildModelSettings(view: LoadView): ModelSetting[] {
     } else if (kind === 'copilot-settings') {
       const doc = view.json(artifact);
       if (doc.ok) for (const wanted of COPILOT_KEYS) add(artifact, doc, 'copilot-cli', wanted);
+    } else if (kind === 'copilot-allowed-models') {
+      const allowed = allowedModels(artifact.decoded.text);
+      if (allowed === undefined) continue;
+      const fields = {
+        agent: 'copilot-cli' as const,
+        key: 'allowed_models',
+        value: redactShown(allowed.rules.join(', ')),
+        applies: 'allowed' as const,
+      };
+      out.push({
+        id: `model:${artifact.path}#allowed_models`,
+        file: artifact.path,
+        line: allowed.line,
+        ...fields,
+        digest: hash53(canonicalJson(fields)),
+      });
     }
   }
   return out.sort((a, b) => compareStrings(a.id, b.id));
+}
+
+/**
+ * The rules of `.github/allowed_models.txt`, the Copilot CLI's repository models allowlist: "Each
+ * line is a glob pattern matched against model IDs, or a `fallback:` directive", `#` starts a
+ * comment line (SOURCES.copilotCliConfigDir). The rules as written, in order, with the line of
+ * the first; undefined for a file without any.
+ */
+function allowedModels(
+  text: string,
+): { readonly rules: string[]; readonly line: number } | undefined {
+  const rules: string[] = [];
+  let line = 0;
+  text.split('\n').forEach((raw, index) => {
+    const rule = raw.trim();
+    if (rule === '' || rule.startsWith('#')) return;
+    if (rules.length === 0) line = index + 1;
+    rules.push(rule);
+  });
+  return rules.length === 0 ? undefined : { rules, line };
 }
 
 /** Keys whose value is a model, rather than an effort, a switch or a list of models allowed. */

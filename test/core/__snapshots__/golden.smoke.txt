@@ -404,6 +404,7 @@
         "gemini-agent",
         "copilot-agent",
         "devin-agent",
+        "copilot-prompt",
         "imported-file"
       ],
       "platforms": [
@@ -1326,6 +1327,7 @@
         "copilot-hooks",
         "copilot-mcp",
         "copilot-settings",
+        "copilot-lsp",
         "vscode-mcp",
         "devin-config",
         "devin-mcp",
@@ -1616,6 +1618,7 @@
         "copilot-hooks",
         "copilot-mcp",
         "copilot-settings",
+        "copilot-lsp",
         "vscode-mcp",
         "devin-config",
         "devin-mcp",
@@ -1846,6 +1849,7 @@
         "gemini-agent",
         "copilot-agent",
         "devin-agent",
+        "copilot-prompt",
         "imported-file"
       ],
       "platforms": [
@@ -1923,6 +1927,7 @@
         "gemini-agent",
         "copilot-agent",
         "devin-agent",
+        "copilot-prompt",
         "imported-file",
         "claude-settings",
         "claude-plugin-manifest",
@@ -1940,6 +1945,7 @@
         "copilot-hooks",
         "copilot-mcp",
         "copilot-settings",
+        "copilot-lsp",
         "vscode-mcp",
         "devin-config",
         "devin-mcp",
@@ -2030,6 +2036,7 @@
         "gemini-agent",
         "copilot-agent",
         "devin-agent",
+        "copilot-prompt",
         "claude-settings",
         "codex-hooks",
         "cursor-hooks",

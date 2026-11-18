@@ -105,6 +105,11 @@ describe('classify', () => {
     expect(isCandidateBasename('.cursorrules')).toBe(true);
     expect(isCandidateBasename('.windsurfrules')).toBe(true);
     expect(isCandidateBasename('index.ts')).toBe(false);
+    expect(isCandidateBasename('extension.mjs')).toBe(true);
+    expect(isCandidateBasename('copilot-setup-steps.yml')).toBe(true);
+    expect(isCandidateBasename('allowed_models.txt')).toBe(true);
+    expect(isCandidateBasename('index.js')).toBe(false);
+    expect(isCandidateBasename('ci.yml')).toBe(false);
   });
 });
 
@@ -124,6 +129,17 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     ['.devin/hooks.json', 'devin-hooks'],
     ['.codex/config.toml', 'codex-config'],
     ['services/api/.codex/config.toml', 'codex-config'],
+    ['.vscode/settings.json', 'vscode-settings'],
+    ['pkg/.vscode/settings.json', 'vscode-settings'],
+    ['.github/lsp.json', 'copilot-lsp'],
+    ['.github/extensions/board/extension.mjs', 'copilot-extension'],
+    ['.github/extensions/board/extension.cjs', 'copilot-extension'],
+    ['.github/extensions/board/extension.js', 'copilot-extension'],
+    ['.github/workflows/copilot-setup-steps.yml', 'copilot-setup-steps'],
+    ['.github/workflows/copilot-code-review.yml', 'copilot-setup-steps'],
+    ['.github/prompts/review.prompt.md', 'copilot-prompt'],
+    ['.github/prompts/team/review.prompt.md', 'copilot-prompt'],
+    ['.github/allowed_models.txt', 'copilot-allowed-models'],
   ] as const)('classifies %s as %s', (path, kind) => {
     expect(classify(path)).toEqual({ kind });
   });
@@ -132,7 +148,16 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     '.github/hooks/nested/policy.json',
     '.github/hooks/readme.md',
     '.github/copilot/config.json',
-    '.vscode/settings.json',
+    '.vscode/settings.local.json',
+    '.github/extensions/extension.mjs',
+    '.github/extensions/board/lib/extension.mjs',
+    '.github/extensions/board/index.mjs',
+    '.github/extensions/board/extension.ts',
+    'pkg/.github/workflows/copilot-setup-steps.yml',
+    '.github/workflows/copilot-setup-steps.yaml',
+    '.github/workflows/ci.yml',
+    '.github/prompts/review.md',
+    '.github/lsp-config.json',
     '.devin/hooks.v2.json',
     '.devin/mcp.json',
     '.windsurf/hooks.json',

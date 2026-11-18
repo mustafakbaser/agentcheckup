@@ -15,6 +15,7 @@ import {
   loadCopilotCloud,
   loadCopilotVscode,
 } from '../../../src/platforms/load/copilot.js';
+import { withSubagents } from '../../../src/platforms/load/subagents.js';
 import type { LoadEntry, LoadPlan } from '../../../src/platforms/load/types.js';
 import { builtinRules } from '../../../src/rules/index.js';
 import { type FileMap, snapshotFrom, type SnapshotExtras } from '../../helpers/lint.js';
@@ -302,6 +303,7 @@ describe('the fixture repository, a session at the root', () => {
     const { cli, vscode, cloud } = await fixture();
     expect(cli.assumptions.map((a) => `${a.key}=${String(a.value)}`)).toEqual([
       'copilot.surface=cli',
+      'copilot-cli.experimental=false',
       'copilot-cli.trusted_folder=true',
     ]);
     expect(vscode.assumptions.map((a) => `${a.key}=${String(a.value)} ${a.origin}`)).toEqual([
@@ -324,7 +326,11 @@ describe('the fixture repository, a session at the root', () => {
     ]);
     expect(cli.hidden.flatMap((scope) => scope.locations)).toContain('~/.copilot/mcp-config.json');
     expect(vscode.hidden.flatMap((scope) => scope.locations)).toContain('~/.claude/skills/');
-    expect(cloud.hidden.map((scope) => scope.scope)).toEqual(['account']);
+    expect(cloud.hidden.map((scope) => scope.scope)).toEqual(['account', 'plugin']);
+    // Plugins the repository's enabledPlugins turns on, which the cloud agent reads too.
+    expect(cloud.hidden[1]?.locations).toEqual([
+      'plugins that enabledPlugins in .github/copilot/settings.json enables',
+    ]);
     expect(cloud.hidden[0]?.locations).toContain(
       'cloud agent MCP configuration (repository settings)',
     );
@@ -1070,5 +1076,244 @@ describe('hooks', () => {
     });
     expect(cloud.skipped).toEqual([]);
     expect(cloud.entries).toHaveLength(1);
+  });
+});
+
+describe('Copilot customizations read since 2026-11-18', () => {
+  const extension = 'export default { name: "board" };\n';
+
+  it('lists CLI project extensions as manual hooks, behind experimental features', () => {
+    const { cli, vscode, cloud } = build({
+      '.github/extensions/board/extension.mjs': extension,
+      // Two entry files: which one runs is not documented.
+      '.github/extensions/two/extension.mjs': extension,
+      '.github/extensions/two/extension.js': extension,
+      // Not where the CLI looks: a file below the directory, and another repository's folder.
+      '.github/extensions/board/lib/extension.mjs': extension,
+      'pkg/.github/extensions/x/extension.mjs': extension,
+    });
+    expect(
+      cli.entries
+        .filter((e) => e.role === 'hook')
+        .map((e) => `${e.id} ${e.trigger} ${e.certainty}`),
+    ).toEqual([
+      'hook:.github/extensions/board/extension.mjs#extension manual documented',
+      'hook:.github/extensions/two/extension.js#extension manual unverified',
+      'hook:.github/extensions/two/extension.mjs#extension manual unverified',
+    ]);
+    expect(entry(cli, 'hook:.github/extensions/board/extension.mjs#extension')).toMatchObject({
+      name: 'board',
+      inventoryId: 'hook:.github/extensions/board/extension.mjs#extension',
+      evidence: ['copilotCliExtensions', 'copilotCliReference'],
+    });
+    expect(cli.assumptions).toContainEqual(
+      expect.objectContaining({ key: 'copilot-cli.experimental', value: false, origin: 'default' }),
+    );
+    // Only the CLI runs extensions.
+    expect(vscode.entries.some((e) => e.path.includes('/extensions/'))).toBe(false);
+    expect(cloud.entries.some((e) => e.path.includes('/extensions/'))).toBe(false);
+  });
+
+  it('lists the setup workflow in the cloud plan, and nowhere else', () => {
+    const steps =
+      'jobs:\n  copilot-setup-steps:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm ci\n';
+    const { cli, cloud } = build({
+      '.github/workflows/copilot-setup-steps.yml': steps,
+      '.github/workflows/copilot-code-review.yml': steps,
+      '.github/workflows/ci.yml': steps,
+    });
+    expect(cloud.entries.map((e) => `${e.id} ${e.trigger} ${e.certainty}`)).toEqual([
+      'hook:.github/workflows/copilot-setup-steps.yml#copilot-setup-steps startup documented',
+    ]);
+    expect(cli.entries).toEqual([]);
+  });
+
+  it('lists the repository settings and LSP configuration the CLI reads', () => {
+    const { cli, cloud } = build({
+      '.github/copilot/settings.json': '{ "enabledPlugins": { "fmt@acme": true } }',
+      '.github/lsp.json':
+        '{ "lspServers": { "ts": { "command": "typescript-language-server", "args": ["--stdio"], "fileExtensions": { ".ts": "typescript" } } } }',
+    });
+    expect(cli.settings?.map((file) => `${file.path} ${file.certainty}`)).toEqual([
+      '.github/copilot/settings.json documented',
+      '.github/lsp.json documented',
+    ]);
+    expect(cloud.settings).toBeUndefined();
+    // An LSP file that does not parse leaves the plan incomplete; one without servers adds nothing.
+    expect(build({ '.github/lsp.json': '{ "lspServers": ' }).cli.incomplete).toEqual([
+      'unparsed:.github/lsp.json',
+    ]);
+    expect(build({ '.github/lsp.json': '{}' }).cli.settings).toBeUndefined();
+  });
+
+  it("applies the workspace's .vscode/settings.json in the VS Code plan", () => {
+    const files = {
+      'AGENTS.md': 'Rules.\n',
+      'CLAUDE.md': 'Claude.\n',
+      '.github/copilot-instructions.md': 'Copilot.\n',
+      'pkg/AGENTS.md': 'Nested.\n',
+      '.claude/settings.json': JSON.stringify({
+        hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: './guard.sh' }] }] },
+      }),
+    };
+    const defaults = build(files).vscode;
+    expect(entries(defaults).filter((e) => e.includes('instructions:'))).toEqual([
+      '1 instructions:.github/copilot-instructions.md startup unverified',
+      '2 instructions:AGENTS.md startup unverified',
+      '3 instructions:CLAUDE.md startup unverified',
+    ]);
+    expect(defaults.settings).toBeUndefined();
+    const configured = build({
+      ...files,
+      '.vscode/settings.json': [
+        '{',
+        '  // Comments and trailing commas: VS Code reads its settings as JSONC.',
+        '  "chat.useClaudeMdFile": false,',
+        '  "github.copilot.chat.codeGeneration.useInstructionFiles": false,',
+        '  "chat": { "useNestedAgentsMdFiles": true, "useClaudeHooks": true },',
+        '}',
+      ].join('\n'),
+    }).vscode;
+    expect(entries(configured).filter((e) => e.includes('instructions:'))).toEqual([
+      '1 instructions:AGENTS.md startup unverified',
+      '- instructions:pkg/AGENTS.md model-selected source-code',
+    ]);
+    expect(skips(configured)).toEqual(
+      expect.arrayContaining([
+        'instructions:.github/copilot-instructions.md disabled - source-code',
+        'instructions:CLAUDE.md disabled - source-code',
+      ]),
+    );
+    expect(configured.entries.filter((e) => e.role === 'hook').map((e) => e.path)).toEqual([
+      '.claude/settings.json',
+    ]);
+    expect(configured.settings?.map((file) => file.path)).toEqual(['.vscode/settings.json']);
+    expect(configured.assumptions).toContainEqual(
+      expect.objectContaining({
+        key: 'vscode.chat.useClaudeMdFile',
+        value: false,
+        origin: 'repository',
+      }),
+    );
+    // useAgentsMdFile off turns nested files off too.
+    const off = build({
+      ...files,
+      '.vscode/settings.json':
+        '{ "chat.useAgentsMdFile": false, "chat.useNestedAgentsMdFiles": true }',
+    }).vscode;
+    expect(skips(off)).toEqual(
+      expect.arrayContaining([
+        'instructions:AGENTS.md disabled - source-code',
+        'instructions:pkg/AGENTS.md not-read - documented',
+      ]),
+    );
+  });
+
+  it('marks applyTo files unknown without includeApplyingInstructions, and folder settings unmodeled', () => {
+    const files = {
+      '.github/instructions/ts.instructions.md': '---\napplyTo: "**/*.ts"\n---\nUse strict.\n',
+    };
+    expect(
+      entry(build(files).vscode, 'rule:.github/instructions/ts.instructions.md')?.trigger,
+    ).toBe('on-path');
+    const { vscode } = build({
+      ...files,
+      '.vscode/settings.json': JSON.stringify({
+        'chat.includeApplyingInstructions': false,
+        'chat.hookFilesLocations': { 'tools/hooks': true },
+        'chat.agentFilesLocations': {
+          '.github/agents': true,
+          '.claude/agents': true,
+          '~/.copilot/agents': true,
+        },
+      }),
+    });
+    expect(entry(vscode, 'rule:.github/instructions/ts.instructions.md')).toMatchObject({
+      trigger: 'unknown',
+      certainty: 'unverified',
+    });
+    // The default value of a folder setting changes nothing.
+    expect(vscode.incomplete).toEqual(['unmodeled:.vscode/settings.json#chat.hookFilesLocations']);
+    expect(build({ ...files, '.vscode/settings.json': '{ "chat": ' }).vscode.incomplete).toEqual([
+      'unparsed:.vscode/settings.json',
+    ]);
+  });
+
+  it('lists VS Code prompt files as manual commands', () => {
+    const { vscode, cli, cloud } = build({
+      '.github/prompts/review.prompt.md':
+        '---\ndescription: Review\ntools: ["search"]\n---\nReview the change.\n',
+      '.github/prompts/team/plan.prompt.md': '---\nname: make-plan\n---\nPlan.\n',
+      'pkg/.github/prompts/x.prompt.md': 'X.\n',
+    });
+    expect(
+      vscode.entries
+        .filter((e) => e.role === 'command')
+        .map((e) => `${e.id} ${e.name ?? ''} ${e.trigger} ${e.certainty} ${String(e.size?.chars)}`),
+    ).toEqual([
+      'command:.github/prompts/review.prompt.md review manual documented 19',
+      'command:.github/prompts/team/plan.prompt.md make-plan manual unverified 6',
+    ]);
+    expect(vscode.outOfScope).toContainEqual({
+      path: 'pkg/.github/prompts/x.prompt.md',
+      because: 'below-start-dir',
+    });
+    // Prompt files run only in the Local harness.
+    expect(cli.entries.some((e) => e.role === 'command')).toBe(false);
+    expect(cloud.entries.some((e) => e.role === 'command')).toBe(false);
+  });
+
+  it('measures custom agent prompts against the 30,000-character limit', () => {
+    const { cli, cloud, vscode } = build({
+      '.github/agents/big.md': `---\ndescription: d\n---\n${'x'.repeat(30_001)}\n`,
+      '.github/agents/small.agent.md': '---\ndescription: d\n---\nShort.\n',
+    });
+    for (const plan of [cli, cloud]) {
+      expect(
+        plan.limits.find((limit) => limit.key === 'copilot.custom_agent_prompt_max_chars'),
+      ).toEqual({
+        key: 'copilot.custom_agent_prompt_max_chars',
+        unit: 'chars',
+        limit: 30_000,
+        used: 30_002,
+        subject: '.github/agents/big.md',
+        effect: 'advice',
+        evidence: ['copilotCustomAgents'],
+      });
+    }
+    expect(
+      vscode.limits.some((limit) => limit.key === 'copilot.custom_agent_prompt_max_chars'),
+    ).toBe(false);
+  });
+
+  it('carries the events a sidekick agent starts on', () => {
+    const {
+      analysis,
+      cli: bare,
+      vscode: bareVscode,
+    } = build({
+      '.github/agents/ctx.agent.md': [
+        '---',
+        'description: Gathers context',
+        'sidekick:',
+        '  triggers:',
+        '    - session.context_changed',
+        '    - event: user.message',
+        '      limit: 1',
+        '---',
+        'Gather context.',
+        '',
+      ].join('\n'),
+      '.github/agents/plain.agent.md': '---\ndescription: Plain\n---\nPlain.\n',
+    });
+    const cli = withSubagents(bare, analysis);
+    const vscode = withSubagents(bareVscode, analysis);
+    const events = (plan: LoadPlan) =>
+      plan.entries
+        .filter((e) => e.role === 'subagent')
+        .map((e) => `${e.name ?? ''} ${(e.events ?? []).join(',')}`);
+    expect(events(cli)).toEqual(['ctx session.context_changed,user.message', 'plain ']);
+    // Only the CLI documents sidekicks.
+    expect(events(vscode)).toEqual(['ctx ', 'plain ']);
   });
 });

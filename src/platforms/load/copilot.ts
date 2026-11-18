@@ -70,11 +70,15 @@ import type {
 } from '../../parse/types.js';
 import { classify, isCandidateBasename } from '../classify.js';
 import {
+  COPILOT_AGENT_PROMPT_MAX,
   copilotActivation,
   copilotFolder,
+  copilotLspServers,
   copilotMisplacement,
+  EXTENSION_EVENT,
   judgedByApplyTo,
   placement,
+  setupWorkflowEvent,
   VSCODE_SKILL_DESCRIPTION_MAX,
   VSCODE_SKILL_NAME_MAX,
   vscodeSkillNameIssue,
@@ -87,7 +91,7 @@ import {
   hookHandlers,
   VSCODE_LOCAL_EVENTS,
 } from '../hooks.js';
-import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
+import { clineHookInventoryId, hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill, pluginRootOf } from '../location.js';
 import { mcpServers, urlWithoutType } from '../mcp.js';
 import {
@@ -106,6 +110,7 @@ import {
 } from '../root-settings.js';
 import { bodyOffset, normalizeName, pluginReaders, readersAt, skillLocation } from '../skills.js';
 import type { SOURCES } from '../sources.js';
+import { VSCODE_SETTINGS_FILE, vscodeSetting, vscodeSettingsOf } from '../vscode-settings.js';
 import { isBlank } from './codex-text.js';
 import {
   claudeImportOutsideRoot,
@@ -126,6 +131,7 @@ import type {
   LoadRole,
   LoadTrigger,
   OutOfScope,
+  SettingsFile,
   Size,
   SkippedLoad,
 } from './types.js';
@@ -194,6 +200,61 @@ const CLI_HOOKS_OFF: Evidence = ['copilotHooksReference', 'copilotCliConfigDir']
 const CLI_MCP: Evidence = ['copilotCliMcp'];
 const VSCODE_MCP: Evidence = ['vscodeMcp'];
 const CODE_REVIEW: Evidence = ['copilotCodeReview'];
+/** The CLI's project extensions, which run only with experimental features on. */
+const CLI_EXTENSIONS: Evidence = ['copilotCliExtensions', 'copilotCliReference'];
+/** The cloud agent's `copilot-setup-steps` workflow. */
+const SETUP_STEPS: Evidence = ['copilotSetupSteps'];
+/** VS Code's workspace settings: what each does, and that a workspace may set it. */
+const VSCODE_SETTINGS: Evidence = ['vscodeAiSettings', 'vscodeChatSettingsSource'];
+const PROMPT_FILES: Evidence = ['vscodePromptFiles'];
+/** The 30,000-character limit on a custom agent's prompt. */
+const AGENT_PROMPT: Evidence = ['copilotCustomAgents'];
+
+/**
+ * VS Code settings that turn a Local harness instruction file off, by the slot they govern
+ * (SOURCES.vscodeAiSettings): `chat.useAgentsMdFile` the root AGENTS.md, `chat.useClaudeMdFile`
+ * the CLAUDE.md files, `github.copilot.chat.codeGeneration.useInstructionFiles`
+ * `.github/copilot-instructions.md`. All default to `true`.
+ */
+const VSCODE_SLOT_SETTINGS: Readonly<Partial<Record<SlotName, string>>> = {
+  '.github/copilot-instructions.md': 'github.copilot.chat.codeGeneration.useInstructionFiles',
+  'AGENTS.md': 'chat.useAgentsMdFile',
+  'CLAUDE.md': 'chat.useClaudeMdFile',
+  '.claude/CLAUDE.md': 'chat.useClaudeMdFile',
+  'CLAUDE.local.md': 'chat.useClaudeMdFile',
+};
+
+/**
+ * VS Code settings that add or remove folders the Local harness reads, with their defaults, or
+ * that make it read a parent repository's folders: modeled as assumptions, and a value other than
+ * the default leaves the plan incomplete (SOURCES.vscodeAiSettings).
+ */
+const VSCODE_LOCATION_SETTINGS: Readonly<Record<string, unknown>> = {
+  'chat.agentFilesLocations': {
+    '.github/agents': true,
+    '.claude/agents': true,
+    '~/.copilot/agents': true,
+  },
+  'chat.hookFilesLocations': {},
+  'chat.instructionsFilesLocations': {
+    '.github/instructions': true,
+    '.claude/rules': true,
+    '~/.copilot/instructions': true,
+    '~/.claude/rules': true,
+  },
+  'chat.promptFilesLocations': { '.github/prompts': true },
+  'chat.useCustomizationsInParentRepositories': false,
+};
+
+/** Boolean VS Code settings the plan reads, with their documented defaults. */
+const VSCODE_FLAGS: Readonly<Record<string, boolean>> = {
+  'chat.includeApplyingInstructions': true,
+  'chat.useAgentsMdFile': true,
+  'chat.useClaudeHooks': false,
+  'chat.useClaudeMdFile': true,
+  'chat.useNestedAgentsMdFiles': false,
+  'github.copilot.chat.codeGeneration.useInstructionFiles': true,
+};
 
 /** Lines per instruction file that GitHub recommends for code review (SOURCES.copilotCodeReview). */
 export const CODE_REVIEW_ADVISED_LINES = 1000;
@@ -285,6 +346,16 @@ function sorted(values: readonly string[]): string[] {
   return [...values].sort(compareStrings);
 }
 
+/** A setting's value as an assumption shows it: canonical JSON with sorted keys. */
+function canonicalSetting(value: unknown): string {
+  if (Array.isArray(value)) return `[${(value as unknown[]).map(canonicalSetting).join(',')}]`;
+  if (isObject(value)) {
+    const keys = Object.keys(value).sort(compareStrings);
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalSetting(own(value, key))}`).join(',')}}`;
+  }
+  return value === undefined ? 'null' : JSON.stringify(value);
+}
+
 const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
   cli: [
     {
@@ -292,6 +363,14 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
       value: 'cli',
       origin: 'default',
       evidence: ['copilotInstructionsSupport'],
+    },
+    // Extensions "are currently an experimental feature" and "must be enabled before they can
+    // run", with `--experimental` or `/experimental on` (copilotCliExtensions).
+    {
+      key: 'copilot-cli.experimental',
+      value: false,
+      origin: 'default',
+      evidence: CLI_EXTENSIONS,
     },
     {
       key: 'copilot-cli.trusted_folder',
@@ -373,10 +452,15 @@ const ASSUMPTIONS: Readonly<Record<Surface, readonly Assumption[]>> = {
 const HIDDEN: Readonly<Record<Surface, readonly HiddenScope[]>> = {
   cli: [
     { scope: 'managed', locations: ['policy hooks'], roles: ['hook'] },
+    // A plugin the repository's `enabledPlugins` names "auto-installs and activates in the
+    // declaring repository" (copilotCliConfigDir); its content comes from its marketplace.
     {
       scope: 'plugin',
-      locations: ['installed plugins'],
-      roles: ['hook', 'mcp-server', 'skill'],
+      locations: [
+        'installed plugins',
+        'plugins that enabledPlugins in .github/copilot/settings.json enables',
+      ],
+      roles: ['hook', 'mcp-server', 'skill', 'subagent'],
     },
     {
       scope: 'user',
@@ -424,6 +508,13 @@ const HIDDEN: Readonly<Record<Surface, readonly HiddenScope[]>> = {
         'personal instructions',
       ],
       roles: ['instructions', 'mcp-server'],
+    },
+    // "The plugin-related keys in the repository configuration file (`enabledPlugins` and
+    // `extraKnownMarketplaces`) are also read by Copilot in the cloud" (copilotCliConfigDir).
+    {
+      scope: 'plugin',
+      locations: ['plugins that enabledPlugins in .github/copilot/settings.json enables'],
+      roles: ['hook', 'mcp-server', 'skill', 'subagent'],
     },
   ],
 };
@@ -682,7 +773,7 @@ export function copilotCliExpandsImported(kind: ArtifactKind): boolean {
 }
 
 interface Access {
-  readonly trigger: 'startup' | 'on-path';
+  readonly trigger: 'startup' | 'on-path' | 'model-selected';
   readonly certainty: Certainty;
 }
 
@@ -746,6 +837,7 @@ class CopilotLoader {
   readonly #lines: Measured[] = [];
   readonly #skillNames: Measured[] = [];
   readonly #skillDescriptions: Measured[] = [];
+  readonly #agentPromptChars: Measured[] = [];
 
   constructor(view: LoadView, surface: Surface, cwd: string) {
     this.#view = view;
@@ -765,8 +857,12 @@ class CopilotLoader {
     this.#misplaced();
     this.#skills();
     if (this.#surface === 'cli') this.#commands();
+    if (this.#surface === 'vscode') this.#prompts();
     this.#mcp();
     this.#hooks();
+    if (this.#surface === 'cli') this.#extensions();
+    if (this.#surface === 'cloud') this.#setupSteps();
+    if (this.#surface !== 'vscode') this.#agentPrompts();
     this.#unread();
     return this.#plan();
   }
@@ -790,8 +886,11 @@ class CopilotLoader {
     return { trigger: 'startup', certainty: 'unverified' };
   }
 
-  /** How this surface reaches an instruction file in `slot`, `not-read`, or not at all. */
-  #instructionAccess(slot: Slot): Access | 'not-read' | undefined {
+  /**
+   * How this surface reaches an instruction file in `slot`, `not-read`, `disabled` when a VS Code
+   * workspace setting turns it off, or not at all.
+   */
+  #instructionAccess(slot: Slot): Access | 'not-read' | 'disabled' | undefined {
     const scope = this.#scope(slot.directory);
     if (scope === undefined) return undefined;
     switch (this.#surface) {
@@ -801,11 +900,18 @@ class CopilotLoader {
         // "Directories nested in the path of a file it is working on"; files in another branch
         // than the working directory are not mentioned.
         return { trigger: 'on-path', certainty: scope === 'below' ? 'documented' : 'unverified' };
-      case 'vscode':
+      case 'vscode': {
         if (slot.name === 'GEMINI.md') return undefined;
-        if (scope === 'path') return this.#startup();
-        // chat.useNestedAgentsMdFiles is off by default.
-        return slot.name === 'AGENTS.md' ? 'not-read' : undefined;
+        const setting = VSCODE_SLOT_SETTINGS[slot.name];
+        const on = setting === undefined || this.#vscodeFlag(setting);
+        if (scope === 'path') return on ? this.#startup() : 'disabled';
+        if (slot.name !== 'AGENTS.md') return undefined;
+        // chat.useNestedAgentsMdFiles, off by default, lists nested AGENTS.md files "for
+        // on-demand loading"; it "Requires chat.useAgentsMdFile to be enabled".
+        return on && this.#vscodeFlag('chat.useNestedAgentsMdFiles')
+          ? { trigger: 'model-selected', certainty: 'source-code' }
+          : 'not-read';
+      }
       case 'cloud':
         if (slot.name === 'AGENTS.md') {
           // The nearest AGENTS.md in the directory tree takes precedence.
@@ -834,6 +940,17 @@ class CopilotLoader {
       const access = this.#instructionAccess(slot);
       if (access === undefined) continue;
       if (file.kind === 'copilot-instructions') this.#placed.add(file.artifact);
+      if (access === 'disabled') {
+        this.#skip({
+          role: 'instructions',
+          path: file.path,
+          code: 'disabled',
+          size: fileSize(file.artifact),
+          certainty: 'source-code',
+          evidence: VSCODE_SETTINGS,
+        });
+        continue;
+      }
       if (access === 'not-read') {
         this.#skip({
           role: 'instructions',
@@ -1105,7 +1222,7 @@ class CopilotLoader {
         case 'vscode':
           switch (activation.vscode) {
             case 'on-path':
-              this.#add({ ...onPath, certainty: 'documented' });
+              this.#add(this.#vscodeApplying({ ...onPath, certainty: 'documented' }));
               break;
             case 'model-selected':
             case 'manual':
@@ -1206,17 +1323,19 @@ class CopilotLoader {
         this.#surface === 'cli'
           ? cliClaudeRuleTrigger(frontmatter)
           : claudeRuleTrigger(frontmatter);
-      this.#add({
-        id: `rule:${path}`,
-        role: 'rule',
-        trigger,
-        path,
-        realPath: artifact.realPath,
-        ...(patterns === undefined ? {} : { patterns }),
-        size: fileSize(artifact),
-        certainty,
-        evidence: CLAUDE_RULES[this.#surface],
-      });
+      this.#add(
+        this.#vscodeApplying({
+          id: `rule:${path}`,
+          role: 'rule',
+          trigger,
+          path,
+          realPath: artifact.realPath,
+          ...(patterns === undefined ? {} : { patterns }),
+          size: fileSize(artifact),
+          certainty,
+          evidence: CLAUDE_RULES[this.#surface],
+        }),
+      );
     }
   }
 
@@ -1952,7 +2071,8 @@ class CopilotLoader {
       const path = joinPath(this.#root, name);
       const artifact = this.#configAt(path, 'claude-settings');
       if (artifact === undefined) continue;
-      if (this.#surface === 'vscode') {
+      // `chat.useClaudeHooks`, off by default, turns them on in the Local harness.
+      if (this.#surface === 'vscode' && !this.#vscodeFlag('chat.useClaudeHooks')) {
         this.#skip({
           role: 'hook',
           path,
@@ -2007,10 +2127,254 @@ class CopilotLoader {
           name: handler.event,
           inventoryId: inventoryIds[index] ?? '',
           certainty: fires,
-          evidence,
+          evidence: this.#surface === 'vscode' ? [...evidence, ...VSCODE_SETTINGS] : evidence,
         });
       });
     }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // VS Code workspace settings
+  // -------------------------------------------------------------------------------------------
+
+  #vscodeRead = false;
+  #vscodeRoot: unknown;
+
+  /**
+   * The workspace folder's `.vscode/settings.json` that parses, read once (VS Code only). One
+   * that exists but was not read or does not parse leaves the plan incomplete, and its settings
+   * at their defaults.
+   */
+  #vscodeSettings(): unknown {
+    if (this.#vscodeRead) return this.#vscodeRoot;
+    this.#vscodeRead = true;
+    if (this.#surface !== 'vscode') return undefined;
+    const path = joinPath(this.#cwd, VSCODE_SETTINGS_FILE);
+    if (this.#configAt(path, 'vscode-settings') === undefined) return undefined;
+    const settings = vscodeSettingsOf(this.#view, this.#cwd);
+    if (settings === 'unparsed') this.#incomplete.add(`unparsed:${path}`);
+    else this.#vscodeRoot = settings;
+    return this.#vscodeRoot;
+  }
+
+  /** A boolean setting of the workspace, or its default ({@link VSCODE_FLAGS}). */
+  #vscodeFlag(key: string): boolean {
+    const value = vscodeSetting(this.#vscodeSettings(), key)?.value;
+    return typeof value === 'boolean' ? value : (VSCODE_FLAGS[key] ?? false);
+  }
+
+  /**
+   * An `on-path` entry as VS Code applies it: with `chat.includeApplyingInstructions` off, the
+   * Local harness no longer adds a file "with a matching applyTo pattern" on its own; whether the
+   * model may still pick it is not documented.
+   */
+  #vscodeApplying(entry: LoadEntry): LoadEntry {
+    if (this.#surface !== 'vscode' || entry.trigger !== 'on-path') return entry;
+    if (this.#vscodeFlag('chat.includeApplyingInstructions')) return entry;
+    const { patterns: _patterns, ...rest } = entry;
+    return {
+      ...rest,
+      trigger: 'unknown',
+      certainty: 'unverified',
+      evidence: [...entry.evidence, ...VSCODE_SETTINGS],
+    };
+  }
+
+  /**
+   * VS Code's assumptions with the workspace's own values: a setting `.vscode/settings.json` sets
+   * is an assumption of origin `repository`. The location settings and parent repository
+   * discovery are listed only when the workspace sets them, and a value other than the default
+   * leaves the plan incomplete: agentcheckup does not follow other folders.
+   */
+  #vscodeAssumptions(): Assumption[] {
+    const root = this.#vscodeSettings();
+    const out = new Map<string, Assumption>();
+    for (const assumption of ASSUMPTIONS.vscode) out.set(assumption.key, assumption);
+    const path = joinPath(this.#cwd, VSCODE_SETTINGS_FILE);
+    for (const key of Object.keys(VSCODE_FLAGS)) {
+      const value = vscodeSetting(root, key)?.value;
+      if (typeof value !== 'boolean') continue;
+      out.set(`vscode.${key}`, {
+        key: `vscode.${key}`,
+        value,
+        origin: 'repository',
+        evidence: VSCODE_SETTINGS,
+      });
+    }
+    for (const [key, fallback] of Object.entries(VSCODE_LOCATION_SETTINGS)) {
+      const setting = vscodeSetting(root, key);
+      if (setting === undefined) continue;
+      const shown =
+        typeof setting.value === 'boolean' ? setting.value : canonicalSetting(setting.value);
+      out.set(`vscode.${key}`, {
+        key: `vscode.${key}`,
+        value: shown,
+        origin: 'repository',
+        evidence: VSCODE_SETTINGS,
+      });
+      if (canonicalSetting(setting.value) !== canonicalSetting(fallback)) {
+        this.#incomplete.add(`unmodeled:${path}#${key}`);
+      }
+    }
+    return [...out.values()].sort((a, b) => compareStrings(a.key, b.key));
+  }
+
+  /** The workspace settings file, when it parses: its auto-approval rules apply to the session. */
+  #vscodeSettingsFiles(): SettingsFile[] {
+    if (this.#vscodeSettings() === undefined) return [];
+    return [
+      {
+        path: joinPath(this.#cwd, VSCODE_SETTINGS_FILE),
+        certainty: 'source-code',
+        evidence: [...VSCODE_SETTINGS, 'vscodeTerminalSettingsSource'],
+      },
+    ];
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Prompt files, extensions, setup workflows, custom agent prompts
+  // -------------------------------------------------------------------------------------------
+
+  /**
+   * VS Code prompt files: `.github/prompts/*.prompt.md` in the workspace folder, which "you
+   * invoke as slash commands in chat" and which "run only in Local harness sessions"
+   * (SOURCES.vscodePromptFiles). The name is `name`, else the file name. Whether VS Code reads
+   * subfolders of the folder is not documented. Prompt files elsewhere are below the workspace or
+   * not read.
+   */
+  #prompts(): void {
+    const folder = `${joinPath(this.#cwd, '.github/prompts')}/`;
+    for (const file of this.#reached) {
+      if (file.kind !== 'copilot-prompt') continue;
+      const { artifact, path } = file;
+      if (!path.startsWith(folder)) {
+        const owner = path.slice(0, Math.max(0, path.indexOf('.github/prompts/') - 1));
+        if (this.#scope(owner) === 'below') this.#out(path, 'below-start-dir');
+        continue;
+      }
+      const frontmatter = this.#view.frontmatter(artifact);
+      const values = frontmatter.kind === 'valid' ? frontmatter.data.values : undefined;
+      const declared = values?.['name'];
+      const name =
+        typeof declared === 'string' && declared.trim() !== ''
+          ? declared.trim()
+          : basename(path).slice(0, -'.prompt.md'.length);
+      this.#add({
+        id: `command:${path}`,
+        role: 'command',
+        trigger: 'manual',
+        path,
+        realPath: artifact.realPath,
+        name,
+        size: textSize(artifact.decoded.text.slice(bodyOffset(frontmatter))),
+        certainty: path.slice(folder.length).includes('/') ? 'unverified' : 'documented',
+        evidence: PROMPT_FILES,
+      });
+    }
+  }
+
+  /**
+   * Copilot CLI project extensions at the repository root (SOURCES.copilotCliExtensions): each
+   * `.github/extensions/NAME/` with an entry file `extension.mjs`, `extension.cjs` or
+   * `extension.js`. They run only once experimental features are turned on, with `--experimental`
+   * or `/experimental on`, so the entry is `manual`. Which entry file runs when a directory holds
+   * several is not documented.
+   */
+  #extensions(): void {
+    const folder = `${joinPath(this.#root, '.github/extensions')}/`;
+    const found = this.#reached.filter(
+      (file) =>
+        file.kind === 'copilot-extension' &&
+        file.path.startsWith(folder) &&
+        file.path.slice(folder.length).split('/').length === 2,
+    );
+    const perDirectory = new Map<string, number>();
+    for (const file of found) {
+      const directory = dirnamePosix(file.path);
+      perDirectory.set(directory, (perDirectory.get(directory) ?? 0) + 1);
+    }
+    for (const file of found) {
+      const { artifact, path } = file;
+      const single = perDirectory.get(dirnamePosix(path)) === 1;
+      this.#add({
+        id: `hook:${path}#${EXTENSION_EVENT}`,
+        role: 'hook',
+        trigger: 'manual',
+        path,
+        realPath: artifact.realPath,
+        name: basename(dirnamePosix(path)),
+        inventoryId: clineHookInventoryId(artifact.path, EXTENSION_EVENT),
+        certainty: single ? 'documented' : 'unverified',
+        evidence: CLI_EXTENSIONS,
+      });
+    }
+  }
+
+  /**
+   * The cloud agent's `.github/workflows/copilot-setup-steps.yml`: "The steps in this job will be
+   * executed in GitHub Actions before Copilot starts working", from the default branch only
+   * (SOURCES.copilotSetupSteps). `copilot-code-review.yml` sets up Copilot code review, which no
+   * plan models; the inventory lists both.
+   */
+  #setupSteps(): void {
+    for (const file of this.#reached) {
+      if (file.kind !== 'copilot-setup-steps') continue;
+      const event = setupWorkflowEvent(file.path);
+      if (event !== 'copilot-setup-steps') continue;
+      this.#add({
+        id: `hook:${file.path}#${event}`,
+        role: 'hook',
+        trigger: 'startup',
+        path: file.path,
+        realPath: file.artifact.realPath,
+        name: event,
+        inventoryId: clineHookInventoryId(file.artifact.path, event),
+        certainty: 'documented',
+        evidence: SETUP_STEPS,
+      });
+    }
+  }
+
+  /**
+   * The largest custom agent prompt in the repository's `.github/agents` folder, against the
+   * documented maximum of 30,000 characters (SOURCES.copilotCustomAgents). What Copilot does with
+   * a longer prompt is not documented, so the limit is advice.
+   */
+  #agentPrompts(): void {
+    const folder = `${joinPath(this.#root, '.github/agents')}/`;
+    for (const file of this.#reached) {
+      if (file.kind !== 'copilot-agent' || !file.path.startsWith(folder)) continue;
+      if (this.#surface === 'cloud' && file.path.slice(folder.length).includes('/')) continue;
+      const frontmatter = this.#view.frontmatter(file.artifact);
+      const body = file.artifact.decoded.text.slice(bodyOffset(frontmatter));
+      this.#agentPromptChars.push({ path: file.path, value: codePointLength(body) });
+    }
+  }
+
+  /** The CLI's repository settings and LSP configuration that parse, which the session reads. */
+  #cliSettingsFiles(): SettingsFile[] {
+    const files: SettingsFile[] = [];
+    for (const name of COPILOT_CLI_SETTINGS) {
+      const path = joinPath(this.#root, name);
+      const artifact = this.#view.index.get(path);
+      if (artifact?.kind === 'copilot-settings' && this.#view.json(artifact).ok) {
+        files.push({ path, certainty: 'documented', evidence: CLI_SETTINGS });
+      }
+    }
+    const lsp = joinPath(this.#root, '.github/lsp.json');
+    const artifact = this.#configAt(lsp, 'copilot-lsp');
+    if (artifact !== undefined) {
+      const doc = this.#view.json(artifact);
+      if (!doc.ok) this.#incomplete.add(`unparsed:${lsp}`);
+      else if (copilotLspServers(doc).length > 0) {
+        files.push({
+          path: lsp,
+          certainty: 'documented',
+          evidence: ['copilotCliLsp', 'copilotCliLspHowTo'],
+        });
+      }
+    }
+    return files.sort((a, b) => compareStrings(a.path, b.path));
   }
 
   // -------------------------------------------------------------------------------------------
@@ -2021,7 +2385,7 @@ class CopilotLoader {
     const slot = slotOf(path, kind);
     if (slot !== undefined) {
       const access = this.#instructionAccess(slot);
-      return access !== undefined && access !== 'not-read';
+      return access !== undefined && access !== 'not-read' && access !== 'disabled';
     }
     const directory = dirnamePosix(path);
     const cli = this.#surface === 'cli';
@@ -2126,6 +2490,13 @@ class CopilotLoader {
       effect: 'skips',
       evidence: SKILLS.vscode,
     });
+    add(largest(this.#agentPromptChars), {
+      key: 'copilot.custom_agent_prompt_max_chars',
+      unit: 'chars',
+      limit: COPILOT_AGENT_PROMPT_MAX,
+      effect: 'advice',
+      evidence: AGENT_PROMPT,
+    });
     add(largest(this.#skillDescriptions), {
       key: 'vscode.skill_description_max_chars',
       unit: 'chars',
@@ -2155,6 +2526,14 @@ class CopilotLoader {
       onDemand.bytes += entry.deferred?.bytes ?? 0;
       onDemand.chars += entry.deferred?.chars ?? 0;
     }
+    const assumptions =
+      this.#surface === 'vscode' ? this.#vscodeAssumptions() : ASSUMPTIONS[this.#surface];
+    const settings =
+      this.#surface === 'cli'
+        ? this.#cliSettingsFiles()
+        : this.#surface === 'vscode'
+          ? this.#vscodeSettingsFiles()
+          : [];
     return {
       agent: AGENT_OF[this.#surface],
       cwd: this.#cwd,
@@ -2165,7 +2544,7 @@ class CopilotLoader {
       outOfScope: [...this.#outOfScope.values()].sort(
         (a, b) => compareStrings(a.path, b.path) || compareStrings(a.because, b.because),
       ),
-      assumptions: ASSUMPTIONS[this.#surface],
+      assumptions,
       hidden: HIDDEN[this.#surface],
       limits: this.#limits(),
       totals: {
@@ -2173,6 +2552,7 @@ class CopilotLoader {
         onDemand: sizeOf(onDemand.bytes, onDemand.chars),
       },
       incomplete: [...this.#incomplete].sort(compareStrings),
+      ...(settings.length === 0 ? {} : { settings }),
     };
   }
 }

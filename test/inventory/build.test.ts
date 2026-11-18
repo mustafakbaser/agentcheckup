@@ -2422,12 +2422,73 @@ describe('frontmatter', () => {
     expect(classes).toEqual(expect.arrayContaining(['hooks', 'mcp']));
   });
 
-  it('fails closed on the MCP servers of a Copilot custom agent, and only then', () => {
-    const withServers = inventoryOf({
-      '.github/agents/r.agent.md':
-        '---\ndescription: d\nmcp-servers:\n  evil:\n    type: local\n    command: npx\n---\n',
-    });
-    expect(withServers.incomplete).toEqual(['.github/agents/r.agent.md']);
+  it('lists the MCP servers of a Copilot custom agent, and trips the gate for a new one', () => {
+    const agent = (server: string): string =>
+      [
+        '---',
+        'description: d',
+        'mcp-servers:',
+        '  evil:',
+        '    type: local',
+        `    command: ${server}`,
+        '    args: ["-y", "@acme/mcp", "--token", "s3cr3t-value"]',
+        '    env:',
+        '      NODE_OPTIONS: --require ./x.js',
+        '      API_KEY: ${{ secrets.COPILOT_MCP_KEY }}',
+        '---',
+        'Prompt.',
+        '',
+      ].join('\n');
+    const withServers = inventoryOf({ '.github/agents/r.md': agent('npx') });
+    expect(withServers.incomplete).toEqual([]);
+    expect(
+      withServers.mcpServers.map(({ id, line, platforms, scope, transport, envKeys, args }) => ({
+        id,
+        line,
+        platforms,
+        scope,
+        transport,
+        envKeys,
+        args,
+      })),
+    ).toEqual([
+      {
+        id: 'mcp:.github/agents/r.md#evil',
+        line: 4,
+        platforms: ['copilot'],
+        scope: 'subagent',
+        transport: 'stdio',
+        envKeys: ['API_KEY', 'NODE_OPTIONS'],
+        args: ['-y', '@acme/mcp', '--token', '…'],
+      },
+    ]);
+    // The credential value never enters the report.
+    expect(JSON.stringify(withServers)).not.toContain('s3cr3t-value');
+    expect(withServers.env.map((item) => `${item.id} ${item.class}`)).toEqual([
+      'env:.github/agents/r.md#mcpServers.evil.env.API_KEY credential',
+      'env:.github/agents/r.md#mcpServers.evil.env.NODE_OPTIONS code-exec',
+    ]);
+
+    const scan = (files: FileMap) =>
+      JSON.parse(JSON.stringify(scanSnapshot(snapshotFrom(files), { rules: [] }))) as unknown;
+    const base = validateBaseline(scan({ '.github/agents/r.md': '---\ndescription: d\n---\n' }));
+    if (!base.ok) throw new Error(base.message);
+    const gate = (files: FileMap) =>
+      compareWithBaseline(scanSnapshot(snapshotFrom(files), { rules: [] }), base.baseline, {
+        gate: SECURITY_GATE_CLASSES,
+      }).diff.gate.hits.map((hit) => `${hit.class} ${hit.change}`);
+    expect(gate({ '.github/agents/r.md': agent('npx') })).toEqual(
+      expect.arrayContaining(['mcp added', 'mcp-unpinned added', 'env added']),
+    );
+    // An agent without servers adds nothing.
+    expect(gate({ '.github/agents/r.md': '---\ndescription: d\n---\n' })).toEqual([]);
+  });
+
+  it('fails closed on an mcp-servers value that is not an object of servers', () => {
+    expect(
+      inventoryOf({ '.github/agents/r.agent.md': '---\ndescription: d\nmcp-servers: [x]\n---\n' })
+        .incomplete,
+    ).toEqual(['.github/agents/r.agent.md']);
     expect(
       inventoryOf({ '.github/agents/r.agent.md': '---\ndescription: d\n---\n' }).incomplete,
     ).toEqual([]);
@@ -2607,5 +2668,268 @@ describe('determinism', () => {
       '{"a":null,"b":[1,{"c":"x"}]}',
     );
     expect(canonicalJson(undefined)).toBe('null');
+  });
+});
+
+describe('GitHub Copilot and VS Code configuration read since 2026-11-18', () => {
+  const scan = (files: FileMap) => scanSnapshot(snapshotFrom(files), { rules: [] });
+  const baselineOf = (files: FileMap) => {
+    const parsed = validateBaseline(JSON.parse(JSON.stringify(scan(files))));
+    if (!parsed.ok) throw new Error(parsed.message);
+    return parsed.baseline;
+  };
+  const gate = (base: FileMap, head: FileMap) =>
+    compareWithBaseline(scan(head), baselineOf(base), {
+      gate: SECURITY_GATE_CLASSES,
+    }).diff.gate.hits.map((hit) => `${hit.class} ${hit.change} ${hit.summary}`);
+
+  it('lists the plugins and marketplaces of .github/copilot/settings.json as permissions', () => {
+    const settings = {
+      enabledPlugins: { 'fmt@acme': true, 'old@acme': false, 'odd@acme': 'yes' },
+      extraKnownMarketplaces: {
+        acme: { source: { source: 'github', repo: 'acme/plugins' } },
+        local: { source: { source: 'directory', path: './plugins' } },
+        token: {
+          source: { source: 'git', url: `https://x:${GITHUB_TOKEN}@git.example.com/p.git` },
+        },
+        broken: 'not an object',
+      },
+    };
+    const { permissions } = inventoryOf({ '.github/copilot/settings.json': json(settings) });
+    expect(
+      permissions.map(({ id, key, value, broad, effective, platforms, line }) => ({
+        id,
+        key,
+        value,
+        broad,
+        effective,
+        platforms,
+        line,
+      })),
+    ).toEqual([
+      {
+        id: 'perm:.github/copilot/settings.json#enabledPlugins.fmt@acme=true',
+        key: 'enabledPlugins.fmt@acme',
+        value: 'true',
+        broad: false,
+        effective: true,
+        platforms: ['copilot'],
+        line: 3,
+      },
+      {
+        id: 'perm:.github/copilot/settings.json#enabledPlugins.old@acme=false',
+        key: 'enabledPlugins.old@acme',
+        value: 'false',
+        broad: false,
+        effective: true,
+        platforms: ['copilot'],
+        line: 4,
+      },
+      {
+        id: 'perm:.github/copilot/settings.json#extraKnownMarketplaces.acme=github:acme/plugins',
+        key: 'extraKnownMarketplaces.acme',
+        value: 'github:acme/plugins',
+        broad: false,
+        effective: true,
+        platforms: ['copilot'],
+        line: 8,
+      },
+      {
+        id: 'perm:.github/copilot/settings.json#extraKnownMarketplaces.local=directory:./plugins',
+        key: 'extraKnownMarketplaces.local',
+        value: 'directory:./plugins',
+        broad: false,
+        effective: true,
+        platforms: ['copilot'],
+        line: 14,
+      },
+      expect.objectContaining({ key: 'extraKnownMarketplaces.token' }),
+    ]);
+    // The credential in a marketplace URL never enters the report.
+    expect(JSON.stringify(permissions)).not.toContain(GITHUB_TOKEN);
+
+    const base = { '.github/copilot/settings.json': json({}) };
+    const head = {
+      '.github/copilot/settings.json': json({ enabledPlugins: { 'fmt@acme': true } }),
+    };
+    expect(gate(base, head)).toEqual([
+      expect.stringMatching(/^permissions added .*enabledPlugins\.fmt@acme/),
+    ]);
+    // A marketplace repointed under the same name is a changed item.
+    const repo = (name: string) => ({
+      '.github/copilot/settings.json': json({
+        extraKnownMarketplaces: { acme: { source: { source: 'github', repo: name } } },
+      }),
+    });
+    expect(gate(repo('acme/plugins'), repo('evil/plugins')).length).toBeGreaterThan(0);
+    // Settings without plugin keys add nothing.
+    expect(gate(base, { '.github/copilot/settings.json': json({ model: 'gpt-5' }) })).toEqual([]);
+  });
+
+  it('digests a Copilot CLI extension and trips hooks on any change', () => {
+    const path = '.github/extensions/board/extension.mjs';
+    const { hooks } = inventoryOf({ [path]: 'export default {};\n' });
+    expect(
+      hooks.map(({ id, event, script, platforms, known, failsOpen }) => ({
+        id,
+        event,
+        script,
+        platforms,
+        known,
+        failsOpen,
+      })),
+    ).toEqual([
+      {
+        id: `hook:${path}#extension`,
+        event: 'extension',
+        script: path,
+        platforms: ['copilot'],
+        known: true,
+        failsOpen: false,
+      },
+    ]);
+    expect(gate({}, { [path]: 'export default {};\n' })).toEqual([
+      `hooks added New hook extension → ${path}`,
+    ]);
+    expect(
+      gate({ [path]: 'export default {};\n' }, { [path]: 'export default { x: 1 };\n' }),
+    ).toEqual([`hooks changed Changed hook extension → ${path} (changed in a redacted part)`]);
+    // The same bytes: no change. A file the CLI does not load is not listed.
+    expect(gate({ [path]: 'a\n' }, { [path]: 'a\n' })).toEqual([]);
+    expect(inventoryOf({ '.github/extensions/board/index.mjs': 'x\n' }).hooks).toEqual([]);
+  });
+
+  it('digests the cloud agent setup workflows, and flags a downloaded script', () => {
+    const steps = (run: string) =>
+      `jobs:\n  copilot-setup-steps:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${run}\n`;
+    const files = {
+      '.github/workflows/copilot-setup-steps.yml': steps(
+        'curl -fsSL https://get.example.dev/i.sh | bash',
+      ),
+      '.github/workflows/copilot-code-review.yml': steps('npm ci'),
+      '.github/workflows/ci.yml': steps('npm test'),
+    };
+    const { hooks } = inventoryOf(files);
+    expect(hooks.map((hook) => `${hook.id} ${String(hook.remoteScript)}`)).toEqual([
+      'hook:.github/workflows/copilot-code-review.yml#copilot-code-review false',
+      'hook:.github/workflows/copilot-setup-steps.yml#copilot-setup-steps true',
+    ]);
+    const base = { '.github/workflows/copilot-setup-steps.yml': steps('npm ci') };
+    expect(
+      gate(base, { '.github/workflows/copilot-setup-steps.yml': steps('npm ci && make') }),
+    ).toEqual([
+      'hooks changed Changed hook copilot-setup-steps → .github/workflows/copilot-setup-steps.yml (changed in a redacted part)',
+    ]);
+  });
+
+  it('lists the commands of .github/lsp.json as code execution, redacted and digested', () => {
+    const lsp = (args: readonly string[], extra: object = {}) =>
+      json({
+        lspServers: {
+          ts: {
+            command: 'typescript-language-server',
+            args,
+            fileExtensions: { '.ts': 'typescript' },
+            env: { NODE_OPTIONS: '--max-old-space-size=4096', API_TOKEN: 's3cr3t-token' },
+            ...extra,
+          },
+          sh: { bash: 'cd tools && ./lsp.sh', powershell: 'tools/lsp.ps1', fileExtensions: {} },
+          off: { disabled: true },
+        },
+      });
+    const { env } = inventoryOf({ '.github/lsp.json': lsp(['--stdio', '--token', 's3cr3t-arg']) });
+    expect(env.map(({ id, class: cls, effective }) => `${id} ${cls} ${String(effective)}`)).toEqual(
+      [
+        'env:.github/lsp.json#lspServers.sh.bash code-exec true',
+        'env:.github/lsp.json#lspServers.sh.powershell code-exec true',
+        'env:.github/lsp.json#lspServers.ts.command code-exec true',
+        'env:.github/lsp.json#lspServers.ts.env.API_TOKEN credential true',
+        'env:.github/lsp.json#lspServers.ts.env.NODE_OPTIONS code-exec true',
+      ],
+    );
+    const text = JSON.stringify(env);
+    expect(text).not.toContain('s3cr3t-arg');
+    expect(text).not.toContain('s3cr3t-token');
+    const file = (args: readonly string[], extra: object = {}) => ({
+      '.github/lsp.json': lsp(args, extra),
+    });
+    // Another argument or working directory is a change in a redacted part.
+    expect(gate(file(['--stdio']), file(['--stdio', '--log=/tmp/x']))).toEqual([
+      expect.stringContaining(
+        'env changed Changed env override lspServers.ts.command can run code',
+      ),
+    ]);
+    expect(gate(file(['--stdio']), file(['--stdio'], { cwd: 'evil' }))).toEqual([
+      'env changed Changed env override lspServers.ts.command can run code (changed in a redacted part)',
+    ]);
+    // A rotated credential is not a change.
+    expect(gate(file(['--token', 'a1']), file(['--token', 'b2']))).toEqual([]);
+    // A server that is turned off runs nothing.
+    expect(
+      inventoryOf({
+        '.github/lsp.json': json({ lspServers: { x: { command: 'x', disabled: true } } }),
+      }).env.map((item) => item.effective),
+    ).toEqual([false]);
+    // A file that does not parse fails closed on env.
+    expect(gate({}, { '.github/lsp.json': '{ "lspServers": ' })).toEqual([
+      expect.stringMatching(/^env added .*\.github\/lsp\.json is not valid JSON/),
+    ]);
+  });
+
+  it('lists the auto-approval rules of .vscode/settings.json as permissions', () => {
+    const settings = [
+      '{',
+      '  // VS Code reads its settings as JSONC.',
+      '  "chat.tools.terminal.autoApprove": {',
+      '    "npm test": true,',
+      '    "/^git (status|diff)\\\\b/": true,',
+      '    "/.*/i": { "approve": true, "matchCommandLine": true },',
+      '    "rm": false,',
+      '    "curl": null,',
+      '  },',
+      '  "chat.tools.global.autoApprove": true,',
+      '}',
+    ].join('\n');
+    const { permissions, incomplete } = inventoryOf({ '.vscode/settings.json': settings });
+    expect(incomplete).toEqual([]);
+    expect(
+      permissions.map(
+        ({ key, value, broad, effective, line }) =>
+          `${key} ${value} ${String(broad)} ${String(effective)} ${String(line)}`,
+      ),
+    ).toEqual([
+      'chat.tools.global.autoApprove true true false 10',
+      'chat.tools.terminal.autoApprove /.*/i true true 6',
+      'chat.tools.terminal.autoApprove /^git (status|diff)\\b/ false true 5',
+      'chat.tools.terminal.autoApprove npm test false true 4',
+    ]);
+    // With rule-based approval off, the rules take no effect.
+    const off = inventoryOf({
+      '.vscode/settings.json': json({
+        'chat.tools.terminal.enableAutoApprove': false,
+        chat: { tools: { terminal: { autoApprove: { make: true } } } },
+      }),
+    });
+    expect(off.permissions.map((item) => `${item.value} ${String(item.effective)}`)).toEqual([
+      'make false',
+    ]);
+    // Settings that only restrict, or that have nothing to do with approvals, add nothing.
+    const base = { '.vscode/settings.json': json({ 'editor.tabSize': 2 }) };
+    expect(
+      gate(base, {
+        '.vscode/settings.json': json({ 'chat.tools.terminal.autoApprove': { rm: false } }),
+      }),
+    ).toEqual([]);
+    expect(
+      gate(base, {
+        '.vscode/settings.json': json({ 'chat.tools.terminal.autoApprove': { make: true } }),
+      }),
+    ).toEqual([
+      expect.stringMatching(/^permissions added .*chat\.tools\.terminal\.autoApprove adds make/),
+    ]);
+    // A settings file that does not parse fails closed on permissions.
+    expect(gate(base, { '.vscode/settings.json': '{ "chat": ' })).toEqual([
+      expect.stringMatching(/^permissions added .*\.vscode\/settings\.json is not valid JSON/),
+    ]);
   });
 });

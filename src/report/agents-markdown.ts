@@ -43,7 +43,8 @@ function modelCell(row: DefinitionRow): string {
 }
 
 function statusCell(row: DefinitionRow): string {
-  const status = row.status === '' ? 'loads' : text(row.status);
+  const loads = row.background === '' ? 'loads' : `loads, ${text(row.background)}`;
+  const status = row.status === '' ? loads : text(row.status);
   return `${row.warn && row.status !== '' ? `**${status}**` : status}${row.unverified ? ' ?' : ''}`;
 }
 

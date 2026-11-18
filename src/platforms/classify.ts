@@ -69,7 +69,23 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'copilot-hooks': ['copilot'],
   'copilot-mcp': ['copilot'],
   'copilot-settings': ['copilot'],
+  // Copilot CLI extensions, `.github/extensions/<name>/extension.{mjs,cjs,js}`, JavaScript the CLI
+  // runs with Node.js (SOURCES.copilotCliExtensions).
+  'copilot-extension': ['copilot'],
+  // `.github/lsp.json`, the LSP servers the Copilot CLI starts (SOURCES.copilotCliLsp).
+  'copilot-lsp': ['copilot'],
+  // `.github/workflows/copilot-setup-steps.yml` and `copilot-code-review.yml`, the GitHub Actions
+  // steps that run before the cloud agent and code review start (SOURCES.copilotSetupSteps).
+  'copilot-setup-steps': ['copilot'],
+  // VS Code prompt files, `.github/prompts/*.prompt.md`, run with `/name` in the Local harness
+  // (SOURCES.vscodePromptFiles).
+  'copilot-prompt': ['copilot'],
+  // `.github/allowed_models.txt`, the Copilot CLI's model allowlist (SOURCES.copilotCliConfigDir).
+  'copilot-allowed-models': ['copilot'],
   'vscode-mcp': ['copilot'],
+  // `.vscode/settings.json`, whose `chat.*` settings change what the Local harness loads
+  // (SOURCES.vscodeAiSettings).
+  'vscode-settings': ['copilot'],
   'gemini-md': ['copilot', 'gemini'],
   'gemini-settings': ['gemini'],
   // Custom commands in `.gemini/commands/**/*.toml` (SOURCES.geminiCustomCommands).
@@ -323,8 +339,31 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)\.github\/copilot\/settings(?:\.local)?\.json$/,
     canonical: keepPath,
   },
+  {
+    kind: 'copilot-extension',
+    pattern: /(?:^|\/)\.github\/extensions\/[^/]+\/extension\.[cm]?js$/,
+    canonical: keepPath,
+  },
+  { kind: 'copilot-lsp', pattern: /(?:^|\/)\.github\/lsp\.json$/, canonical: keepPath },
+  // Only at the repository root: GitHub Actions reads workflows there alone.
+  {
+    kind: 'copilot-setup-steps',
+    pattern: /^\.github\/workflows\/copilot-(?:setup-steps|code-review)\.yml$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'copilot-prompt',
+    pattern: /(?:^|\/)\.github\/prompts\/(?:[^/]+\/)*[^/]+\.prompt\.md$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'copilot-allowed-models',
+    pattern: /(?:^|\/)\.github\/allowed_models\.txt$/,
+    canonical: keepPath,
+  },
   // VS Code's MCP configuration, which its Copilot agent reads.
   { kind: 'vscode-mcp', pattern: /(?:^|\/)\.vscode\/mcp\.json$/, canonical: keepPath },
+  { kind: 'vscode-settings', pattern: /(?:^|\/)\.vscode\/settings\.json$/, canonical: keepPath },
 
   // Gemini CLI
   { kind: 'gemini-md', pattern: /(?:^|\/)gemini\.md$/, canonical: withBase('GEMINI.md') },
@@ -471,6 +510,13 @@ export function isCandidateBasename(name: string): boolean {
     lower === '.cursorrules' ||
     lower === '.windsurfrules' ||
     // Gemini CLI's environment files; the classifier takes only the exact name.
-    lower === '.env'
+    lower === '.env' ||
+    // Copilot CLI extensions, the cloud agent's setup workflows and the CLI's model allowlist.
+    lower === 'extension.mjs' ||
+    lower === 'extension.cjs' ||
+    lower === 'extension.js' ||
+    lower === 'copilot-setup-steps.yml' ||
+    lower === 'copilot-code-review.yml' ||
+    lower === 'allowed_models.txt'
   );
 }

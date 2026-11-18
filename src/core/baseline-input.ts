@@ -617,6 +617,7 @@ function readDefinition(value: unknown, at: string): AgentDefinition | undefined
   const reason = optional(source, 'reason', at, string);
   const shadowedBy = optional(source, 'shadowedBy', at, string);
   const permissionMode = optional(source, 'permissionMode', at, string);
+  const triggers = optional(source, 'triggers', at, strings);
   const model = optional(source, 'model', at, (item, path) => {
     const model = object(item, path);
     return {
@@ -677,6 +678,7 @@ function readDefinition(value: unknown, at: string): AgentDefinition | undefined
     ...(effort === undefined ? {} : { effort }),
     tools,
     ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(triggers === undefined ? {} : { triggers }),
     certainty,
     evidence: strings(own(source, 'evidence'), field(at, 'evidence')),
     digest: string(own(source, 'digest'), field(at, 'digest')),

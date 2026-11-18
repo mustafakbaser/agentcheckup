@@ -124,6 +124,25 @@ export function subagentMcpServers(doc: Pick<SpannedDocument, 'value'>): {
   };
 }
 
+/**
+ * The servers of a GitHub Copilot custom agent's `mcp-servers` frontmatter, an object of server
+ * entries "using the same schema as `~/.copilot/mcp-config.json`" on the CLI
+ * (SOURCES.copilotCliAgents) and "a YAML representation of the JSON configuration format used to
+ * configure MCP servers for repositories" on GitHub.com (SOURCES.copilotCustomAgents). VS Code
+ * does not use them. `documented` is false when the field is there but not an object.
+ */
+export function copilotAgentMcpServers(doc: Pick<SpannedDocument, 'value'>): {
+  readonly servers: McpServer[];
+  readonly documented: boolean;
+} {
+  const root = doc.value;
+  if (!isTable(root) || !Object.hasOwn(root, 'mcp-servers')) {
+    return { servers: [], documented: true };
+  }
+  const entries = own(root, 'mcp-servers');
+  return { servers: serversIn(entries, ['mcp-servers']), documented: isTable(entries) };
+}
+
 /** Kinds whose servers {@link mcpServers} reads. */
 export const MCP_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'mcp-json',

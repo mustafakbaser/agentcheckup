@@ -177,6 +177,11 @@ export interface LoadEntry {
   /** For MCP servers and hooks: the matching item's id in the security inventory. */
   readonly inventoryId?: string;
   /**
+   * For a subagent that also starts on its own: the session events that start it in the
+   * background, such as a Copilot CLI sidekick's `user.message` (SOURCES.copilotCliAgents).
+   */
+  readonly events?: readonly string[];
+  /**
    * For a subagent the agent loads: what its own context window starts with when it runs. Not
    * part of the plan's totals: the subagent works in a window of its own.
    */

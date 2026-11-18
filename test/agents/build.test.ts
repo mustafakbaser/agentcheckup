@@ -458,6 +458,67 @@ describe('Gemini CLI', () => {
 });
 
 describe('GitHub Copilot', () => {
+  it('lets the cloud agent read plain .md files at the root of .github/agents', () => {
+    const report = agentsOf({
+      '.github/agents/review.md': '---\ndescription: Reviews.\n---\nReview.\n',
+      '.github/agents/team/sub.md': '---\ndescription: Sub.\n---\nSub.\n',
+      'pkg/.github/agents/other.md': '---\ndescription: Other.\n---\nOther.\n',
+    });
+    expect(Object.keys(of(report, '.github/agents/review.md')).sort()).toEqual([
+      'copilot-cli',
+      'copilot-cloud',
+      'copilot-vscode',
+    ]);
+    expect(of(report, '.github/agents/review.md')['copilot-cloud']).toMatchObject({
+      name: 'review',
+      status: 'loads',
+      evidence: ['copilotCustomAgents'],
+    });
+    // Not a subfolder, nor another directory's folder.
+    expect(Object.keys(of(report, '.github/agents/team/sub.md'))).toEqual(['copilot-cli']);
+    expect(Object.keys(of(report, 'pkg/.github/agents/other.md'))).not.toContain('copilot-cloud');
+  });
+
+  it('lists the Copilot CLI model allowlist as the models allowed', () => {
+    const report = agentsOf({
+      '.github/allowed_models.txt':
+        '# Models this repository may use\nfallback: gpt-6-astra\ngpt-6-astra\n\nclaude-sonnet-*\n',
+    });
+    expect(report.settings).toEqual([
+      expect.objectContaining({
+        id: 'model:.github/allowed_models.txt#allowed_models',
+        agent: 'copilot-cli',
+        line: 2,
+        key: 'allowed_models',
+        value: 'fallback: gpt-6-astra, gpt-6-astra, claude-sonnet-*',
+        applies: 'allowed',
+      }),
+    ]);
+    // A file of comments only allows nothing new.
+    expect(agentsOf({ '.github/allowed_models.txt': '# none\n' }).settings).toEqual([]);
+  });
+
+  it("lists a sidekick's triggers for the Copilot CLI, and digests them", () => {
+    const agent = (triggers: string) =>
+      `---\ndescription: Context.\nsidekick:\n  triggers:\n${triggers}---\nGather.\n`;
+    const report = agentsOf({
+      '.github/agents/ctx.agent.md': agent(
+        '    - session.context_changed\n    - event: user.message\n      limit: 1\n    - event: user.message\n',
+      ),
+      '.github/agents/plain.agent.md': '---\ndescription: Plain.\n---\nPlain.\n',
+    });
+    const ctx = of(report, '.github/agents/ctx.agent.md');
+    expect(ctx['copilot-cli']?.triggers).toEqual(['session.context_changed', 'user.message']);
+    // Only the CLI documents sidekicks.
+    expect(ctx['copilot-vscode']?.triggers).toBeUndefined();
+    expect(of(report, '.github/agents/plain.agent.md')['copilot-cli']?.triggers).toBeUndefined();
+    const other = of(
+      agentsOf({ '.github/agents/ctx.agent.md': agent('    - user.message\n') }),
+      '.github/agents/ctx.agent.md',
+    );
+    expect(other['copilot-cli']?.digest).not.toBe(ctx['copilot-cli']?.digest);
+  });
+
   it('reads each surface where it looks, with its own names and fields', () => {
     const report = agentsOf({
       '.github/agents/docs.agent.md':

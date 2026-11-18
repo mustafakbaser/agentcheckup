@@ -17,7 +17,7 @@
  * - Gemini CLI reads `.gemini/agents/*.md`, which must start with frontmatter and need a `name` of
  *   lowercase letters, digits, hyphens and underscores, and a `description`.
  * - GitHub Copilot reads `.github/agents`: in VS Code the folder itself, with or without a header,
- *   on the CLI subfolders too, as the cloud agent the root folder's `*.agent.md`. The CLI knows an
+ *   on the CLI subfolders too, as the cloud agent the root folder's `*.md` and `*.agent.md`. The CLI knows an
  *   agent by its path below `agents` (`team--reviewer`) and loads `.github/agents` before
  *   `.claude/agents`, the first of an id winning. VS Code and the CLI read `.claude/agents` as
  *   well: VS Code in Claude's format, the CLI as its own, `models` included.
@@ -35,6 +35,7 @@ import { hash53 } from '../core/fingerprint.js';
 import { dirnamePosix, joinRelative, pathStatus } from '../core/paths.js';
 import { positionAt } from '../core/text.js';
 import type { Artifact, ArtifactKind, SkipReason, Span, SymlinkProblem } from '../core/types.js';
+import { redactShown } from '../inventory/redact.js';
 import { issueKind, isTable, own, type SpannedDocument } from '../parse/json-access.js';
 import type { FrontmatterData, FrontmatterResult } from '../parse/types.js';
 import {
@@ -136,6 +137,30 @@ export interface AgentFile {
  * share a scan's list, and its parses, so they share one discovery.
  */
 const CACHE = new WeakMap<readonly Artifact[], readonly AgentFile[]>();
+
+/**
+ * The session events that start a Copilot CLI sidekick agent: the `triggers` of its `sidekick:`
+ * block, each "either a bare event-name string ... or an object with `event` and an optional
+ * `limit`" (SOURCES.copilotCliAgents, "Sidekick agents"). Sidekicks "run automatically in the
+ * background" on `user.message` and `session.context_changed` instead of being invoked.
+ * Undefined for a file without a `sidekick` block, and for another agent's reading: only the
+ * CLI documents the field. Event names are kept as written, redacted as reports show values, once
+ * each, in document order.
+ */
+export function sidekickTriggers(file: AgentFile): readonly string[] | undefined {
+  if (file.agent !== 'copilot-cli' || file.source.kind !== 'frontmatter') return undefined;
+  const sidekick = own(file.source.fields.values, 'sidekick');
+  if (!isTable(sidekick)) return undefined;
+  const triggers = own(sidekick, 'triggers');
+  const events = new Set<string>();
+  if (Array.isArray(triggers)) {
+    for (const trigger of triggers as unknown[]) {
+      const event = isTable(trigger) ? own(trigger, 'event') : trigger;
+      if (typeof event === 'string' && event.trim() !== '') events.add(redactShown(event.trim()));
+    }
+  }
+  return [...events];
+}
 
 /**
  * Every custom agent and subagent file, once for each agent that reads it, after the name
@@ -537,15 +562,16 @@ function claudeAgentFile(view: LoadView, artifact: Artifact, path: string): Agen
 
 /**
  * The Copilot surfaces that read a `.github/agents` file (SOURCES.vscodeCustomAgentFile etc.).
- * The cloud agent reads the repository's own folder, at the root (SOURCES.copilotCustomAgents).
+ * The cloud agent reads the repository's own folder, at the root, `.md` files as well as
+ * `.agent.md` ones: "The configuration file's name (minus `.md` or `.agent.md`) is used for
+ * deduplication" (SOURCES.copilotCustomAgents), and a missing `name` "will default to the
+ * filename (without the `.md` or `.agent.md` suffix)" (SOURCES.copilotCreateCustomAgents).
  */
 function copilotReaders(path: string): ContextAgent[] {
   const place = folderPlace(path, ['.github/agents']);
   const readers: ContextAgent[] = ['copilot-cli'];
   if (!inSubfolder(place)) readers.push('copilot-vscode');
-  if (place?.owner === '' && place.exactCase && path.toLowerCase().endsWith('.agent.md')) {
-    readers.push('copilot-cloud');
-  }
+  if (place?.owner === '' && place.exactCase && !inSubfolder(place)) readers.push('copilot-cloud');
   return readers;
 }
 

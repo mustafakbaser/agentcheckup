@@ -305,6 +305,7 @@ function loadEntry(value: LoadEntry): LoadEntry {
       ? {}
       : { truncated: { atByte: value.truncated.atByte, line: value.truncated.line } }),
     ...(value.inventoryId === undefined ? {} : { inventoryId: value.inventoryId }),
+    ...(value.events === undefined ? {} : { events: [...value.events] }),
     ...(value.ownContext === undefined ? {} : { ownContext: ownContext(value.ownContext) }),
     certainty: value.certainty,
     evidence: sortedStrings(value.evidence),
@@ -644,6 +645,7 @@ function agentDefinition(value: AgentDefinition): AgentDefinition {
       : { effort: { value: value.effort.value, line: value.effort.line } }),
     tools: value.tools,
     ...(value.permissionMode === undefined ? {} : { permissionMode: value.permissionMode }),
+    ...(value.triggers === undefined ? {} : { triggers: [...value.triggers] }),
     certainty: value.certainty,
     evidence: [...value.evidence],
     digest: value.digest,

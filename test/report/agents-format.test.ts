@@ -170,6 +170,27 @@ describe('formatAgentsText', () => {
     );
   });
 
+  it('says when a Copilot CLI sidekick runs on its own', () => {
+    const sidekick = withAgents({
+      definitions: [
+        definition('.github/agents/ctx.agent.md', 'copilot-cli', {
+          name: 'ctx',
+          triggers: ['session.context_changed', 'user.message'],
+        }),
+        definition('.github/agents/plain.agent.md', 'copilot-cli', { name: 'plain' }),
+      ],
+      settings: [],
+    });
+    const output = formatAgentsText(sidekick);
+    expect(output).toContain(
+      '  Copilot CLI  ctx    no model → set outside the repository · runs in the background on session.context_changed, user.message',
+    );
+    expect(output).not.toMatch(/plain .*background/);
+    expect(formatAgentsMarkdown(sidekick)).toContain(
+      'loads, runs in the background on session\\.context\\_changed, user\\.message',
+    );
+  });
+
   it('gives the same output whatever order the input lists are in', () => {
     const reversed = withAgents({
       definitions: [...definitions].reverse(),

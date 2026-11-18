@@ -57,6 +57,13 @@ const CURSOR_FILES_CHECKED = '2026-11-18';
  */
 const DEVIN_CONFIG_CHECKED = '2026-11-18';
 
+/**
+ * Sources read on 2026-11-18 for GitHub Copilot's plugin settings, CLI extensions, LSP servers,
+ * the cloud agent's setup workflows, custom agent MCP servers and sidekicks, VS Code's workspace
+ * settings and prompt files. VS Code source files were read at microsoft/vscode `main` that day.
+ */
+const COPILOT_AUDIT_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -810,6 +817,61 @@ export const SOURCES = {
     'GitHub Copilot: Custom agents configuration',
     'https://docs.github.com/en/copilot/reference/custom-agents-configuration',
     AUDIT_CHECKED,
+  ),
+  copilotCreateCustomAgents: verified(
+    'GitHub Copilot cloud agent: Creating custom agents (a missing name defaults to the file name without `.md` or `.agent.md`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliExtensions: verified(
+    'GitHub Copilot CLI: Creating extensions (`.github/extensions/NAME/extension.mjs`, experimental)',
+    'https://docs.github.com/en/copilot/tutorials/create-an-extension',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliLsp: verified(
+    'GitHub Copilot CLI: Using LSP servers (`.github/lsp.json`, started once the folder is trusted)',
+    'https://docs.github.com/en/copilot/concepts/customizations/lsp-servers',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliLspHowTo: verified(
+    'GitHub Copilot CLI: Adding LSP servers (`command`, `bash`, `powershell`, `args`, `env`, `disabled`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/add-lsp-servers',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotSetupSteps: verified(
+    'GitHub Copilot cloud agent: Configure the development environment (`copilot-setup-steps.yml`, `copilot-code-review.yml`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotAppConfig: verified(
+    'GitHub Copilot app: Repository configuration (`.github/github-app.yml`, applied after the user accepts it)',
+    'https://docs.github.com/en/copilot/reference/github-copilot-app-reference/repository-configuration',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeAgentPlugins: verified(
+    'VS Code: Agent plugins (workspace plugin recommendations and repository defaults)',
+    'https://code.visualstudio.com/docs/agent-customization/agent-plugins',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeApprovals: verified(
+    'VS Code: Approvals (`chat.tools.terminal.autoApprove` rules)',
+    'https://code.visualstudio.com/docs/agents/run/approvals',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodePromptFiles: verified(
+    'VS Code: Prompt files (`.github/prompts/*.prompt.md`, Local harness only)',
+    'https://code.visualstudio.com/docs/agent-customization/prompt-files',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeChatSettingsSource: verified(
+    'VS Code source: chat.shared.contribution.ts (scopes of the chat.* settings; chat.tools.global.autoApprove is APPLICATION_MACHINE)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeTerminalSettingsSource: verified(
+    'VS Code source: terminalChatAgentToolsConfiguration.ts (chat.tools.terminal.autoApprove has no scope, so a workspace may set it)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.ts',
+    COPILOT_AUDIT_CHECKED,
   ),
   devinSubagents: verified(
     'Devin CLI: Subagents',

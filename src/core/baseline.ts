@@ -609,6 +609,9 @@ function gateHits(
     if (isPermissionConfig(parsed)) {
       hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
     }
+    if (isEnvConfig(parsed)) {
+      hit('env', entry, 'added', incompleteSummary(parsed, 'env overrides'), NOT_ANALYZED);
+    }
     if (isUnreadFile(parsed)) {
       const kind = classify(parsed.path)?.kind;
       if (kind !== undefined && SETTINGS_KINDS.has(kind)) {
@@ -749,6 +752,7 @@ const DEFINITION_FIELDS = {
   effort: 'value',
   tools: 'value',
   permissionMode: 'value',
+  triggers: 'value',
   certainty: 'value',
   evidence: 'value',
   digest: 'skip',
@@ -892,6 +896,11 @@ function definitionSummary(definition: AgentDefinition, old: AgentDefinition | u
     text(old.permissionMode ?? 'not set'),
     text(definition.permissionMode ?? 'not set'),
   );
+  change(
+    'sidekick triggers',
+    text(old.triggers?.join(', ') ?? 'not set'),
+    text(definition.triggers?.join(', ') ?? 'not set'),
+  );
   // The digest differs in what no field above shows, such as the text of a file read as unknown.
   return `${name} (${changes.length === 0 ? 'details changed' : changes.join(', ')})`;
 }
@@ -1026,6 +1035,8 @@ const SETTINGS_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'codex-config',
   'gemini-settings',
   'copilot-settings',
+  'copilot-lsp',
+  'vscode-settings',
 ]);
 
 /** The gate summary of an entry that covers part of the tree ({@link coversTree}). */
@@ -1093,7 +1104,9 @@ function isHookConfig(entry: IncompleteEntry): boolean {
     kind === 'codex-config' ||
     kind === 'devin-hooks' ||
     kind === 'claude-plugin-hooks' ||
-    kind === 'claude-plugin-manifest'
+    kind === 'claude-plugin-manifest' ||
+    kind === 'copilot-extension' ||
+    kind === 'copilot-setup-steps'
   ) {
     return true;
   }
@@ -1110,10 +1123,13 @@ function isHookConfig(entry: IncompleteEntry): boolean {
 
 /**
  * An inventory `incomplete` entry for a file whose permissions the inventory cannot list: a
- * Codex exec-policy file that is not made of literal calls agentcheckup reads, and a
- * `.codex/config.toml` past a parser limit or in UTF-16, and a Devin Local `.devin/config.json` or
- * `.devin/config.local.json` that is not valid or holds lists of another shape. A
- * `.codex/config.toml` that is not valid TOML is not one: Codex does not start in a trusted project with such a file.
+ * Codex exec-policy file that is not made of literal calls agentcheckup reads, a
+ * `.codex/config.toml` past a parser limit or in UTF-16, a Devin Local `.devin/config.json` or
+ * `.devin/config.local.json` that is not valid or holds lists of another shape, a Cursor
+ * permission file agentcheckup cannot analyze, and a `.vscode/settings.json` that does not
+ * parse, which VS Code's error-tolerant parser may still read auto-approval rules from. A
+ * `.codex/config.toml` that is not valid TOML is not one: Codex does not start in a trusted
+ * project with such a file.
  */
 function isPermissionConfig(entry: IncompleteEntry): boolean {
   const kind = classify(entry.path)?.kind;
@@ -1123,8 +1139,17 @@ function isPermissionConfig(entry: IncompleteEntry): boolean {
   }
   // How Devin Local reads a `.devin/config.json` it cannot parse, or a permission list of another
   // shape, is not documented.
-  if (kind === 'devin-config') return true;
+  if (kind === 'devin-config' || kind === 'vscode-settings') return true;
   return kind === 'codex-rules' || (kind === 'codex-config' && invalidFormat(entry) === undefined);
+}
+
+/**
+ * An inventory `incomplete` entry for a file whose code-exec overrides the inventory cannot list:
+ * a `.github/lsp.json` that does not parse or is past a parser limit. The Copilot CLI's parser is
+ * not documented, so the servers may still start.
+ */
+function isEnvConfig(entry: IncompleteEntry): boolean {
+  return classify(entry.path)?.kind === 'copilot-lsp';
 }
 
 /** What an entry's file may hold that the gate cannot check. */

@@ -18,6 +18,7 @@ import {
   type AgentFile,
   definitionFiles,
   type FileFields,
+  sidekickTriggers,
   stringField,
 } from '../platforms/agent-files.js';
 import { canonicalJson } from '../platforms/inventory-ids.js';
@@ -63,7 +64,7 @@ function build(view: LoadView): AgentsReport {
 // ---------------------------------------------------------------------------------------------
 
 /** The fields of a definition that come from its file, before its effective model. */
-type Details = Pick<AgentDefinition, 'model' | 'effort' | 'tools' | 'permissionMode'>;
+type Details = Pick<AgentDefinition, 'model' | 'effort' | 'tools' | 'permissionMode' | 'triggers'>;
 
 function lineOf(artifact: Artifact, span: Span | undefined): number {
   return span === undefined ? 1 : positionAt(artifact.decoded, span.offset).line;
@@ -196,11 +197,13 @@ function detailsOf(file: AgentFile): Details {
       const effort = effortField(artifact, fields, EFFORT_KEYS[agent] ?? []);
       // Claude Code's `permissionMode`; the agents that read its folder do not document it.
       const mode = agent === 'claude-code' ? stringField(fields, 'permissionMode') : undefined;
+      const triggers = sidekickTriggers(file);
       return {
         ...(model === undefined ? {} : { model }),
         ...(effort === undefined ? {} : { effort }),
         tools: toolsOf(agent, fields),
         ...(mode === undefined ? {} : { permissionMode: redactShown(mode) }),
+        ...(triggers === undefined ? {} : { triggers }),
       };
     }
   }

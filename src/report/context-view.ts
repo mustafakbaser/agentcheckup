@@ -238,6 +238,11 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   { key: 'copilot.surface', phrase: (value) => surfaceText(value) },
   { key: 'copilot-cli.trusted_folder', phrase: (value) => trusted(value, 'folder') },
   {
+    key: 'copilot-cli.experimental',
+    phrase: (value) => `experimental features ${onOff(value)}`,
+    setting: true,
+  },
+  {
     key: 'vscode.agent_harness',
     phrase: (value) => (value === 'local' ? 'Local agent harness' : `${valueText(value)} harness`),
   },
@@ -271,6 +276,36 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   {
     key: 'vscode.chat.useClaudeHooks',
     phrase: (value) => `Claude Code hooks ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.includeApplyingInstructions',
+    phrase: (value) => `applyTo instructions ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useCustomizationsInParentRepositories',
+    phrase: (value) => `parent repository customizations ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.instructionsFilesLocations',
+    phrase: (value) => `instruction locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.agentFilesLocations',
+    phrase: (value) => `agent locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.hookFilesLocations',
+    phrase: (value) => `hook locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.promptFilesLocations',
+    phrase: (value) => `prompt file locations ${valueText(value)}`,
     setting: true,
   },
   { key: 'vscode.workspace_trusted', phrase: (value) => trusted(value, 'workspace') },
@@ -385,6 +420,7 @@ const INCOMPLETE_LABELS: Readonly<Record<string, string>> = {
   unread: 'not analyzed: the scan did not read the file',
   'invalid-json': 'not analyzed: not valid JSON',
   fallback: 'not followed: a project_doc_fallback_filenames file',
+  unmodeled: 'not followed: a setting that changes which folders the agent reads',
 };
 
 /**

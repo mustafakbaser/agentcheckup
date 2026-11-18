@@ -257,7 +257,13 @@
         "copilot-hooks",
         "copilot-mcp",
         "copilot-settings",
+        "copilot-extension",
+        "copilot-lsp",
+        "copilot-setup-steps",
+        "copilot-prompt",
+        "copilot-allowed-models",
         "vscode-mcp",
+        "vscode-settings",
         "gemini-md",
         "gemini-settings",
         "gemini-command",
@@ -829,6 +835,11 @@
           "description": "For MCP servers and hooks: the id of the matching inventory item.",
           "type": "string",
           "minLength": 1
+        },
+        "events": {
+          "description": "For a subagent that also starts on its own, such as a Copilot CLI sidekick: the session events that start it.",
+          "type": "array",
+          "items": { "type": "string" }
         },
         "ownContext": { "$ref": "#/$defs/ownContext" },
         "certainty": { "$ref": "#/$defs/certainty" },
@@ -1742,6 +1753,11 @@
         },
         "tools": { "enum": ["inherited", "listed", "read-only"] },
         "permissionMode": { "type": "string" },
+        "triggers": {
+          "description": "For a Copilot CLI sidekick agent: the session events that start it in the background.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "type": "array", "items": { "type": "string" } },
         "digest": {

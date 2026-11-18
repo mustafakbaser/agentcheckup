@@ -28,6 +28,7 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'gemini-agent',
   'copilot-agent',
   'devin-agent',
+  'copilot-prompt',
 ]);
 
 /**
@@ -50,7 +51,11 @@ export const EMPTY_FILE_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>
   'copilot-instructions',
 ]);
 
-/** Kinds whose content is JSON. */
+/**
+ * Kinds whose content is JSON, which the JSON rules judge. `.vscode/settings.json` is JSON too,
+ * but mostly editor settings no agent reads, so only the security inventory and the VS Code plan
+ * read it.
+ */
 export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-settings',
   'claude-plugin-manifest',
@@ -68,6 +73,7 @@ export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'copilot-hooks',
   'copilot-mcp',
   'copilot-settings',
+  'copilot-lsp',
   'vscode-mcp',
   'devin-config',
   'devin-mcp',
