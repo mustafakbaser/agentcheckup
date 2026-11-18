@@ -1,11 +1,13 @@
 /**
- * How Devin Desktop (formerly Windsurf) treats rule files, shared by the instr/windsurf-* rules,
- * ./readers.ts and the Devin Local load plans: when a workspace rule applies, the character
- * limit of Cascade in the Windsurf JetBrains plugin, and which other agents' files Devin Local
- * imports (`read_config_from`).
+ * How Devin Desktop (formerly Windsurf) treats rule and configuration files, shared by the
+ * instr/windsurf-* rules, ./readers.ts, the security inventory and the Devin Local load plans:
+ * when a workspace rule applies, the character limit of Cascade in the Windsurf JetBrains
+ * plugin, which other agents' files Devin Local imports (`read_config_from`), and what the
+ * `permissions` and `requiredPlugins` of `.devin/config.json` grant.
  *
  * Sources: Devin Local customizations (SOURCES.windsurfRules), Devin CLI rules
- * (SOURCES.devinCliRules) and `read_config_from` (SOURCES.devinReadConfigFrom).
+ * (SOURCES.devinCliRules), `read_config_from` (SOURCES.devinReadConfigFrom), permissions
+ * (SOURCES.devinCliPermissions) and plugins (SOURCES.devinCliPlugins).
  */
 import type { Artifact, ArtifactKind, ParseServices } from '../core/types.js';
 import { isObject, own } from '../parse/json-access.js';
@@ -148,6 +150,9 @@ export type DevinConfigSource = (typeof DEVIN_CONFIG_SOURCES)[number];
 /** Devin Local's project configuration, relative to the workspace root. */
 export const DEVIN_CONFIG_FILE = '.devin/config.json';
 
+/** The project's local overrides, gitignored, which outrank `.devin/config.json`. */
+export const DEVIN_CONFIG_LOCAL_FILE = '.devin/config.local.json';
+
 export interface DevinReadConfigFrom {
   /** Whether Devin Local imports each source. Every source is on unless the project turns it off. */
   readonly enabled: Readonly<Record<DevinConfigSource, boolean>>;
@@ -213,6 +218,13 @@ function configFolder(path: string, folder: string): string | undefined {
 export function devinSourceOf(
   artifact: Pick<Artifact, 'kind' | 'path'>,
 ): DevinConfigSource | undefined {
+  if (artifact.kind === 'devin-instructions') {
+    // `AGENTS.local.md` and `AGENT.md` are standard project rules, `.windsurf/global_rules.md`
+    // is Windsurf's, and `.devin/global_rules.md` is Devin's own: it "still load[s] with
+    // `read_config_from.windsurf = false`" (SOURCES.devinCliChangelog, v3000.11.92).
+    if (!isGlobalRules(artifact.path)) return 'agents_standard';
+    return globalRulesFolder(artifact.path) === '.windsurf' ? 'windsurf' : undefined;
+  }
   if (artifact.kind === 'windsurf-rule') {
     return configFolder(artifact.path, '.windsurf') === 'rules' ? 'windsurf' : undefined;
   }
@@ -249,4 +261,91 @@ export function devinReadConfigFor(view: DevinConfigView, directory: string): De
     (candidate) => view.index.get(joinPath(candidate, DEVIN_CONFIG_FILE))?.kind === 'devin-config',
   );
   return root === undefined ? DEFAULTS : devinReadConfigFrom(view, root);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The global rules files
+// ---------------------------------------------------------------------------------------------
+
+/** The always-on rules file of `.devin/` and `.windsurf/` (SOURCES.devinCliRules). */
+export const GLOBAL_RULES = 'global_rules.md';
+
+/** `.devin` or `.windsurf` for a global rules file in it, written so; undefined otherwise. */
+export function globalRulesFolder(path: string): '.devin' | '.windsurf' | undefined {
+  const slash = path.lastIndexOf('/');
+  if (slash === -1 || path.slice(slash + 1) !== GLOBAL_RULES) return undefined;
+  const folder = path.slice(path.lastIndexOf('/', slash - 1) + 1, slash);
+  return folder === '.devin' || folder === '.windsurf' ? folder : undefined;
+}
+
+/** True for `.devin/global_rules.md` or `.windsurf/global_rules.md`, in any directory. */
+export function isGlobalRules(path: string): boolean {
+  return globalRulesFolder(path) !== undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Permissions and plugins in .devin/config.json
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The permission lists of `.devin/config.json` and `.devin/config.local.json`: "Deny rules — If
+ * matched, the action is blocked immediately", "Ask rules — If matched, you're prompted unless an
+ * equally or more specific command or MCP allow rule also matches", "Allow rules — If matched,
+ * the action proceeds without prompting" (SOURCES.devinCliPermissions).
+ */
+export const DEVIN_PERMISSION_LISTS = ['allow', 'ask', 'deny'] as const;
+
+/**
+ * What a Devin permission rule lets the agent do when it matches everything of its kind, or
+ * undefined. From SOURCES.devinCliPermissions: the tool names `exec` ("Block all command
+ * execution") and `edit` ("Block all file edits"); `mcp__*`, "All MCP tools everywhere";
+ * `Write(**)`, where `**` is "Any characters across path segments (recursive)" and "A bare
+ * `Read(**)` without a leading `/` is resolved relative to your current working directory", and
+ * `Write(/**)` and `Write(~/**)` from the file system root or the home directory. From
+ * SOURCES.devinCliChangelog (v3000.10.31): "`Exec(*)` in a permission rule matches every
+ * command". The documentation writes scopes as `Exec(prefix)` and tool names in lower case;
+ * other spellings are not documented, so they are not broad.
+ */
+export function devinBroadPermission(rule: string): string | undefined {
+  switch (rule.trim()) {
+    case 'exec':
+    case 'Exec(*)':
+      return 'runs any shell command';
+    case 'edit':
+      return 'edits any file';
+    case 'Write(**)':
+      return 'writes any file below the working directory';
+    case 'Write(/**)':
+      return 'writes any file';
+    case 'Write(~/**)':
+      return 'writes any file in the home directory';
+    case 'mcp__*':
+      return 'calls any MCP tool';
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The plugin a `requiredPlugins` entry names, on one line: the string shorthand as written
+ * (`owner/repo` or a repository URL), or an object's `repo` or `url`, followed by `#<path>` for a
+ * `git-subdir` source, as `devin plugins install` writes a plugin below the repository root, and
+ * by its `sha` pin or `ref` (SOURCES.devinCliPlugins, "Dependencies"). The pin is part of the
+ * value, so that a new pin is a new entry. Undefined for an entry that names no plugin.
+ */
+export function devinPluginSource(entry: unknown): string | undefined {
+  if (typeof entry === 'string') return entry.trim() === '' ? undefined : entry;
+  if (!isObject(entry)) return undefined;
+  const text = (key: string): string | undefined => {
+    const value = own(entry, key);
+    return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+  };
+  const base = text('repo') ?? text('url');
+  if (base === undefined) return undefined;
+  const path = text('path');
+  const where = text('source') === 'git-subdir' && path !== undefined ? `${base}#${path}` : base;
+  const sha = text('sha');
+  if (sha !== undefined) return `${where} (sha ${sha})`;
+  const ref = text('ref');
+  return ref === undefined ? where : `${where} (ref ${ref})`;
 }

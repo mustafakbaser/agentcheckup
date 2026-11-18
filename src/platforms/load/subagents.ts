@@ -35,6 +35,7 @@ import {
   type AgentFile,
   agentFiles,
   folderPlace,
+  sidekickTriggers,
   switchedOff,
   switchesAt,
 } from '../agent-files.js';
@@ -285,6 +286,8 @@ export function withSubagents(plan: LoadPlan, view: LoadView): LoadPlan {
             : claude
               ? 'documented'
               : 'unverified';
+        // A Copilot CLI sidekick also starts on its own, on the session events it names.
+        const events = sidekickTriggers(file);
         entries.push({
           ...base,
           id: entryId(file),
@@ -292,6 +295,7 @@ export function withSubagents(plan: LoadPlan, view: LoadView): LoadPlan {
           realPath: realPathOf(file, view),
           ...name,
           ...(manual ? {} : { size: listingSize(file) }),
+          ...(events === undefined ? {} : { events }),
           ownContext: callOf(file),
           certainty,
         });

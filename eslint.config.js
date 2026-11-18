@@ -19,7 +19,7 @@ const PURE_MODULES = [
 ];
 
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'test/fixtures/', '.claude/worktrees/']),
+  globalIgnores(['dist/', 'coverage/', 'test/fixtures/', '.claude/worktrees/', '.corpus-cache/']),
 
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,

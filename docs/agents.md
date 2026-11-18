@@ -201,9 +201,13 @@ The `agents` field of a report holds `definitions` and `settings`, each sorted b
   cannot use.
 - **Load plans.** `agentcheckup context` plans Claude Code's subagents; the other agents' custom
   agents are listed here, not in their load plans.
-- **Not read yet:** MCP servers a Copilot custom agent declares in `mcp-servers` (such a file is
-  incomplete, so the gate and a policy fail closed), Copilot's repository model list
-  `.github/allowed_models.txt`, and Copilot's `modelPolicy`.
+- **Copilot.** The MCP servers a Copilot custom agent declares in `mcp-servers` are in the
+  security inventory, with the subagent scope. A Copilot CLI sidekick, an agent with a `sidekick:`
+  block that "run[s] automatically in the background", shows the session events it starts on
+  (`triggers`, such as `user.message`). The CLI's repository model allowlist,
+  `.github/allowed_models.txt`, is a model setting of the models allowed. The cloud agent reads
+  plain `.md` files in `.github/agents` as well as `.agent.md` ones.
+- **Not read yet:** Copilot's `modelPolicy`.
 - **Suppressions.** A finding in a Codex agent's TOML file cannot be suppressed inline; turn the
   rule off for that path in the configuration's `overrides`.
 - **Cline** defines no custom agents in a repository, so it has none.

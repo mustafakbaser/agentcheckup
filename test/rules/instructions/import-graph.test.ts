@@ -155,6 +155,20 @@ describe('Claude Code roots', () => {
     ]);
   });
 
+  it('reads a nested AGENTS.md below a CLAUDE.md when its own directory and the root have none', () => {
+    const { graph, byPath } = graphFor({
+      'a/CLAUDE.md': 'x',
+      'a/b/AGENTS.md': 'x',
+      'a/c/AGENTS.md': 'x',
+      'a/c/CLAUDE.md': 'x',
+    });
+    // A session at the root reads a/b/AGENTS.md when Claude opens a file in a/b.
+    expect(isAgentsMdReadByClaude(graph, byPath('a/b/AGENTS.md'))).toBe(true);
+    expect(isAgentsMdReadByClaude(graph, byPath('a/c/AGENTS.md'))).toBe(false);
+    const withRoot = graphFor({ 'CLAUDE.md': 'x', 'a/b/AGENTS.md': 'x' });
+    expect(isAgentsMdReadByClaude(withRoot.graph, withRoot.byPath('a/b/AGENTS.md'))).toBe(false);
+  });
+
   it('does not treat a skill reference AGENTS.md as an AGENTS.md Claude Code reads', () => {
     const { graph, byPath } = graphFor({
       'skills/x/SKILL.md': '---\nname: x\ndescription: d\n---\n',

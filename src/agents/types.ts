@@ -80,6 +80,11 @@ export interface AgentDefinition {
   readonly tools: 'inherited' | 'listed' | 'read-only';
   /** Claude Code's `permissionMode`, as written. */
   readonly permissionMode?: string;
+  /**
+   * For a Copilot CLI sidekick agent, which "run[s] automatically in the background": the session
+   * events that start it, such as `user.message` and `session.context_changed`, as written.
+   */
+  readonly triggers?: readonly string[];
   readonly certainty: Certainty;
   readonly evidence: readonly SourceKey[];
   /**

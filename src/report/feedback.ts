@@ -367,6 +367,7 @@ function subjectOf(skip: SkippedLoad): { subject: SkipSubject; importer?: string
     case 'rule':
     case 'subagent':
     case 'command':
+    case 'output-style':
       return { subject: { text: skip.path } };
   }
 }

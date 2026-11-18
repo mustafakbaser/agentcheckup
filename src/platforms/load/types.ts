@@ -86,9 +86,18 @@ export const CONTEXT_AGENTS: readonly ContextAgent[] = ALL_CONTEXT_AGENTS.filter
  * - `rule`: a scoped rule file such as `.claude/rules/*.md` or `.cursor/rules/*.mdc`.
  * - `skill`, `subagent`, `command`: one skill, subagent or slash command.
  * - `mcp-server`, `hook`: one MCP server or hook declared in a JSON config file.
+ * - `output-style`: a Claude Code output style, whose instructions change the system prompt.
  */
 export type LoadRole =
-  'instructions' | 'import' | 'rule' | 'skill' | 'subagent' | 'command' | 'mcp-server' | 'hook';
+  | 'instructions'
+  | 'import'
+  | 'rule'
+  | 'skill'
+  | 'subagent'
+  | 'command'
+  | 'mcp-server'
+  | 'hook'
+  | 'output-style';
 
 /**
  * When the agent adds an entry to the model's context.
@@ -176,6 +185,11 @@ export interface LoadEntry {
   readonly truncated?: { readonly atByte: number; readonly line: number };
   /** For MCP servers and hooks: the matching item's id in the security inventory. */
   readonly inventoryId?: string;
+  /**
+   * For a subagent that also starts on its own: the session events that start it in the
+   * background, such as a Copilot CLI sidekick's `user.message` (SOURCES.copilotCliAgents).
+   */
+  readonly events?: readonly string[];
   /**
    * For a subagent the agent loads: what its own context window starts with when it runs. Not
    * part of the plan's totals: the subagent works in a window of its own.
@@ -314,6 +328,10 @@ export type OwnContextHidden =
  * - `invalid-toml`: the config file is not valid TOML.
  * - `invalid-command`: a custom command file fails the agent's validation, such as a Gemini CLI
  *   command without a string `prompt`.
+ * - `excluded`: a setting in the repository names the file by path or glob pattern to skip it,
+ *   such as Claude Code's `claudeMdExcludes`.
+ * - `reserved-name`: the agent keeps the name for itself and skips a file or item that takes it,
+ *   such as a Claude Code MCP server named `workspace` or a skill folder named `synced`.
  * - `not-read`: the agent does not read the file here, and no rule reports it as a problem.
  */
 export type SkipCode =
@@ -344,6 +362,8 @@ export type SkipCode =
   | 'never-active'
   | 'invalid-toml'
   | 'invalid-command'
+  | 'excluded'
+  | 'reserved-name'
   | 'not-read';
 
 /**
@@ -499,7 +519,7 @@ export interface LoadPlan {
    * The repository's settings files the session reads, which parse, sorted by path: their
    * permissions, hooks and env overrides apply to it. Reports count the inventory items of each.
    * Absent when the agent reads none, and from the plans of agents whose loader does not list
-   * them yet (all but Claude Code).
+   * them yet (all but Claude Code and Devin Local).
    */
   readonly settings?: readonly SettingsFile[];
   /**

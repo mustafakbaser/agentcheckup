@@ -97,6 +97,8 @@ export const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'never-active': 'its settings keep it from ever applying',
   'invalid-toml': 'not valid TOML',
   'invalid-command': 'invalid command definition',
+  excluded: 'a setting excludes it',
+  'reserved-name': 'the agent reserves the name',
   'not-read': 'not read by this agent',
 };
 
@@ -210,6 +212,26 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   },
   { key: 'claude-code.context_window', phrase: (value) => contextWindowText(value) },
   {
+    key: 'claude-code.output_style',
+    phrase: (value) => `output style ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_max_desc_chars',
+    phrase: (value) => `skill descriptions cut at ${valueText(value)} characters`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_budget_fraction',
+    phrase: (value) => `skills listing budget ${valueText(value)} of the context window`,
+    setting: true,
+  },
+  {
+    key: 'claude-code.skill_listing_budget_chars',
+    phrase: (value) => `skills listing budget ${valueText(value)} characters`,
+    setting: true,
+  },
+  {
     key: 'codex.project_doc_max_bytes',
     phrase: (value) => `AGENTS.md budget ${valueText(value)} bytes`,
     setting: true,
@@ -237,6 +259,11 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   { key: 'cursor.trustedWorkspace', phrase: (value) => trusted(value, 'workspace') },
   { key: 'copilot.surface', phrase: (value) => surfaceText(value) },
   { key: 'copilot-cli.trusted_folder', phrase: (value) => trusted(value, 'folder') },
+  {
+    key: 'copilot-cli.experimental',
+    phrase: (value) => `experimental features ${onOff(value)}`,
+    setting: true,
+  },
   {
     key: 'vscode.agent_harness',
     phrase: (value) => (value === 'local' ? 'Local agent harness' : `${valueText(value)} harness`),
@@ -271,6 +298,36 @@ const ASSUMPTION_PHRASES: readonly AssumptionPhrase[] = [
   {
     key: 'vscode.chat.useClaudeHooks',
     phrase: (value) => `Claude Code hooks ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.includeApplyingInstructions',
+    phrase: (value) => `applyTo instructions ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.useCustomizationsInParentRepositories',
+    phrase: (value) => `parent repository customizations ${onOff(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.instructionsFilesLocations',
+    phrase: (value) => `instruction locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.agentFilesLocations',
+    phrase: (value) => `agent locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.hookFilesLocations',
+    phrase: (value) => `hook locations ${valueText(value)}`,
+    setting: true,
+  },
+  {
+    key: 'vscode.chat.promptFilesLocations',
+    phrase: (value) => `prompt file locations ${valueText(value)}`,
     setting: true,
   },
   { key: 'vscode.workspace_trusted', phrase: (value) => trusted(value, 'workspace') },
@@ -385,6 +442,7 @@ const INCOMPLETE_LABELS: Readonly<Record<string, string>> = {
   unread: 'not analyzed: the scan did not read the file',
   'invalid-json': 'not analyzed: not valid JSON',
   fallback: 'not followed: a project_doc_fallback_filenames file',
+  unmodeled: 'not followed: a setting that changes which folders the agent reads',
 };
 
 /**
@@ -843,11 +901,14 @@ function serviceGroup(entry: LoadEntry): string {
   }
 }
 
-/** Skill entries whose listing text is in the prompt from the start. */
+/**
+ * Skill entries whose listing text is in the prompt from the start, and Claude Code commands
+ * listed like skills (with a body that loads when used).
+ */
 function inListing(entry: LoadEntry): boolean {
-  return (
-    entry.role === 'skill' && (entry.trigger === 'startup' || entry.trigger === 'model-selected')
-  );
+  const listed =
+    entry.role === 'skill' || (entry.role === 'command' && entry.deferred !== undefined);
+  return listed && (entry.trigger === 'startup' || entry.trigger === 'model-selected');
 }
 
 /** Subagents in the listing the model picks from: in the prompt from the start. */
@@ -867,6 +928,7 @@ function whenText(entry: LoadEntry, agent: ContextAgent): string {
     case 'model-selected':
       return 'when the model picks it';
     case 'manual':
+      if (entry.role === 'output-style') return 'when you switch to it with /output-style';
       // Claude Code runs a command, or a skill the model cannot pick, with /name.
       return entry.name !== undefined &&
         (entry.role === 'command' || (entry.role === 'skill' && agent === 'claude-code'))
@@ -1021,13 +1083,16 @@ function planView(plan: LoadPlan, inventory: Inventory | undefined): PlanView {
       });
       continue;
     }
-    const size = entry.role === 'skill' ? (entry.deferred ?? entry.size) : entry.size;
+    const size =
+      entry.role === 'skill' || entry.role === 'command'
+        ? (entry.deferred ?? entry.size)
+        : entry.size;
     const importer = entry.role === 'import' ? entry.via?.at(-1) : undefined;
     onDemand.push({
       path: entry.path,
       ...(size === undefined ? {} : { size }),
       ...(entry.truncated === undefined ? {} : { truncated: entry.truncated }),
-      body: entry.role === 'skill' && entry.deferred !== undefined,
+      body: (entry.role === 'skill' || entry.role === 'command') && entry.deferred !== undefined,
       when: whenText(entry, plan.agent),
       ...(importer === undefined ? {} : { importedBy: importer }),
       unverified,

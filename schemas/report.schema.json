@@ -236,21 +236,39 @@
         "claude-agent",
         "claude-agent-memory",
         "claude-command",
+        "claude-output-style",
         "claude-settings",
         "claude-plugin-manifest",
         "claude-plugin-hooks",
+        "claude-plugin-lsp",
+        "claude-workflow",
+        "claude-launch",
+        "claude-loop",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
         "cursor-legacy-rules",
         "cursor-hooks",
         "cursor-mcp",
+        "cursor-command",
+        "cursor-bugbot",
+        "cursor-worktrees",
+        "cursor-cli",
+        "cursor-sandbox",
+        "cursor-permissions",
+        "cursor-environment",
         "copilot-instructions",
         "copilot-path-instructions",
         "copilot-hooks",
         "copilot-mcp",
         "copilot-settings",
+        "copilot-extension",
+        "copilot-lsp",
+        "copilot-setup-steps",
+        "copilot-prompt",
+        "copilot-allowed-models",
         "vscode-mcp",
+        "vscode-settings",
         "gemini-md",
         "gemini-settings",
         "gemini-command",
@@ -264,6 +282,7 @@
         "devin-config",
         "devin-mcp",
         "devin-hooks",
+        "devin-instructions",
         "cline-rule",
         "cline-workflow",
         "codex-agent",
@@ -733,7 +752,8 @@
         "subagent",
         "command",
         "mcp-server",
-        "hook"
+        "hook",
+        "output-style"
       ]
     },
     "loadTrigger": {
@@ -821,6 +841,11 @@
           "description": "For MCP servers and hooks: the id of the matching inventory item.",
           "type": "string",
           "minLength": 1
+        },
+        "events": {
+          "description": "For a subagent that also starts on its own, such as a Copilot CLI sidekick: the session events that start it.",
+          "type": "array",
+          "items": { "type": "string" }
         },
         "ownContext": { "$ref": "#/$defs/ownContext" },
         "certainty": { "$ref": "#/$defs/certainty" },
@@ -941,6 +966,8 @@
         "never-active",
         "invalid-toml",
         "invalid-command",
+        "excluded",
+        "reserved-name",
         "not-read"
       ]
     },
@@ -1442,6 +1469,10 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "headersHelper": {
+          "description": "The redacted command of the server's `headersHelper`, which Claude Code runs as a shell command when it connects, to get the server's headers. The digest covers the whole command without credentials.",
+          "type": "string"
+        },
         "status": {
           "description": "What each agent that reads `file` does with the server.",
           "type": "object",
@@ -1734,6 +1765,11 @@
         },
         "tools": { "enum": ["inherited", "listed", "read-only"] },
         "permissionMode": { "type": "string" },
+        "triggers": {
+          "description": "For a Copilot CLI sidekick agent: the session events that start it in the background.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "certainty": { "$ref": "#/$defs/certainty" },
         "evidence": { "type": "array", "items": { "type": "string" } },
         "digest": {

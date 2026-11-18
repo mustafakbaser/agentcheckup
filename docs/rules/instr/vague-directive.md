@@ -4,14 +4,14 @@
 
 Instruction is generic advice that says nothing about the project.
 
-|            |                                                                                                                                                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Severity   | `info`                                                                                                                                                                                                                     |
-| Category   | `clarity`                                                                                                                                                                                                                  |
-| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                                 |
-| Applies to | `agents-md`, `claude-md`, `claude-local-md`, `claude-rule`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `cline-rule`, `cursor-rule`, `cursor-legacy-rules`, `copilot-instructions`, `copilot-path-instructions` |
-| Fixable    | No                                                                                                                                                                                                                         |
-| Since      | 2026.10                                                                                                                                                                                                                    |
+|            |                                                                                                                                                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Severity   | `info`                                                                                                                                                                                                                                           |
+| Category   | `clarity`                                                                                                                                                                                                                                        |
+| Platforms  | Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, Devin Local, Cline                                                                                                                                                                       |
+| Applies to | `agents-md`, `claude-md`, `claude-local-md`, `claude-rule`, `gemini-md`, `windsurf-rule`, `windsurf-legacy-rules`, `devin-instructions`, `cline-rule`, `cursor-rule`, `cursor-legacy-rules`, `copilot-instructions`, `copilot-path-instructions` |
+| Fixable    | No                                                                                                                                                                                                                                               |
+| Since      | 2026.10                                                                                                                                                                                                                                          |
 
 ## Why
 

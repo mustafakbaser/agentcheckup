@@ -8,6 +8,7 @@ import { dirnamePosix } from '../core/paths.js';
 import type { Artifact, PlatformId, Snapshot } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
 import { pluginRootOf } from './location.js';
+import { skillsDirPluginSkill } from './skills-dir-plugins.js';
 
 /**
  * Platforms that read SKILL.md files (READERS.skill in src/platforms/classify.ts), in
@@ -255,7 +256,15 @@ export function pluginReaders(snapshot: Snapshot, path: string): readonly Platfo
  */
 export function readersAt(snapshot: Snapshot, path: string, caseMismatch = false): Set<PlatformId> {
   const location = skillLocation(path, caseMismatch);
-  if (location !== undefined) return new Set(location.platforms);
+  if (location !== undefined) {
+    const platforms = new Set(location.platforms);
+    // A skill in the `skills/` folder of a plugin in a skills folder: Claude Code loads it as
+    // `/<plugin>:<skill>` (./skills-dir-plugins.ts).
+    if (!caseMismatch && skillsDirPluginSkill(snapshot, path) !== undefined) {
+      platforms.add('claude-code');
+    }
+    return platforms;
+  }
   // In a plugin, the plugin's agents load its skills. Unknown plugin kinds add no reader.
   const plugin = pluginReaders(snapshot, path);
   if (plugin !== undefined) {
@@ -345,12 +354,71 @@ export function bodyOffset(result: FrontmatterResult): number {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Names Claude Code reserves
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The namespace Claude Code keeps for skills synced from claude.ai: "a skill folder, a
+ * frontmatter `name`, a file or subfolder in `.claude/commands/`" that is `anthropic-skills` or
+ * starts with `anthropic-skills:` "doesn't load" outside a plugin (SOURCES.claudeSkills, "Names
+ * reserved for synced skills").
+ */
+export const CLAUDE_SYNCED_NAMESPACE = 'anthropic-skills';
+
+export function isClaudeSyncedNamespace(name: string): boolean {
+  return name === CLAUDE_SYNCED_NAMESPACE || name.startsWith(`${CLAUDE_SYNCED_NAMESPACE}:`);
+}
+
+/**
+ * The skill folder name when SKILL.md sits directly in a `.claude/skills` directory, the only
+ * place where Claude Code applies its reserved folder names, with whether that directory is the
+ * project's own (at the scan root).
+ */
+export function claudeSkillFolder(
+  path: string,
+): { readonly folder: string; readonly project: boolean } | undefined {
+  const location = skillLocation(path);
+  if (!location?.root.endsWith('.claude/skills')) return undefined;
+  const parts = location.relative.split('/');
+  const folder = parts.length === 2 ? parts[0] : undefined;
+  return folder === undefined ? undefined : { folder, project: location.root === '.claude/skills' };
+}
+
+/**
+ * True when Claude Code skips the skill reached at one of `paths` for its folder name: a folder
+ * named `synced`, in any letter case, which Claude Code "skips ... in the enterprise, personal,
+ * and project locations" (agentcheckup sees only the project's `.claude/skills` at the scan root),
+ * or one in the synced namespace ({@link isClaudeSyncedNamespace}). skill/name-reserved-word
+ * reports the same folders.
+ */
+export function claudeReservedSkillFolder(paths: readonly string[]): boolean {
+  return paths.some((path) => {
+    const found = claudeSkillFolder(path);
+    if (found === undefined) return false;
+    return (
+      (found.project && found.folder.toLowerCase() === 'synced') ||
+      isClaudeSyncedNamespace(found.folder)
+    );
+  });
+}
+
+/**
+ * True when Claude Code skips a skill outside a plugin for its frontmatter `name`, compared as
+ * skill/name-reserved-word compares it: trimmed, NFKC-normalized and in lower case.
+ */
+export function claudeReservedSkillName(raw: string): boolean {
+  return isClaudeSyncedNamespace(normalizeName(raw).toLowerCase());
+}
+
+// ---------------------------------------------------------------------------------------------
 // Claude Code skill listing
 // ---------------------------------------------------------------------------------------------
 
 /**
  * Claude Code cuts the combined `description` and `when_to_use` text of each skill in its skill
- * listing at this many characters (`skillListingMaxDescChars`, code.claude.com/docs/en/skills).
+ * listing at this many characters by default (`skillListingMaxDescChars`,
+ * code.claude.com/docs/en/skills). Any settings file can change it; the Claude Code load plan
+ * reads the project's value.
  */
 export const CLAUDE_LISTING_MAX_CHARS = 1536;
 
@@ -418,7 +486,7 @@ export interface ClaudeSkillListing {
   readonly text: string;
   /** Code points of `text`, counted without any separator Claude Code may add. */
   readonly length: number;
-  /** `text` cut at {@link CLAUDE_LISTING_MAX_CHARS} code points. */
+  /** `text` cut at the listing's limit, {@link CLAUDE_LISTING_MAX_CHARS} code points by default. */
   readonly shown: string;
   /** Offset of the body in the decoded text: what Claude Code loads when the skill is used. */
   readonly bodyOffset: number;
@@ -429,12 +497,13 @@ export interface ClaudeSkillListing {
  * frontmatter is read only when `---` is the first line; `name` defaults to the directory name
  * and `description` to the first non-empty body line; YAML that does not parse leaves the skill
  * with no fields. A block without a closing delimiter, or in another format, is read as body.
- * The description is counted the way skill/description-too-long counts it.
+ * The description is counted the way skill/description-too-long counts it, and cut at `maxChars`.
  */
 export function claudeSkillListing(
   path: string,
   text: string,
   frontmatter: FrontmatterResult,
+  maxChars: number = CLAUDE_LISTING_MAX_CHARS,
 ): ClaudeSkillListing {
   const directory = dirnamePosix(path);
   let name = directory.slice(directory.lastIndexOf('/') + 1);
@@ -466,7 +535,7 @@ export function claudeSkillListing(
     source,
     text: combined,
     length: codePointLength(combined),
-    shown: cutCodePoints(combined, CLAUDE_LISTING_MAX_CHARS),
+    shown: cutCodePoints(combined, maxChars),
     bodyOffset,
   };
 }

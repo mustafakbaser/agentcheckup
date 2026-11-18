@@ -4,7 +4,10 @@
  * outside it are not part of the workspace and do not appear.
  *
  * - Instructions: the root AGENTS.md and CLAUDE.md are in every conversation; nested AGENTS.md
- *   files apply to their directory; the legacy root `.cursorrules` is still read.
+ *   files apply to their directory; the legacy root `.cursorrules` is still read. "Cursor reads
+ *   `CLAUDE.md` files the same way it reads `AGENTS.md`" (SOURCES.cursorRulesHelp), so a nested
+ *   CLAUDE.md applies to its directory too; the docs show only the root one, so that is
+ *   unverified.
  * - `.cursor/rules/**\/*.mdc`: the mode comes from the frontmatter (`cursorActivation`, shared
  *   with cursor/rule-never-applied). `.md` files there are ignored (cursor/md-file-ignored); a
  *   README is documentation. Nested `.cursor/rules` folders below the root are unverified, and
@@ -22,6 +25,17 @@
  *   `.claude/settings.json` and `.claude/settings.local.json` with their events mapped.
  *   `Notification` and `PermissionRequest` are not supported. Project hooks run only in trusted
  *   workspaces, hence `on-approval`.
+ * - Worktree setup commands in the root `.cursor/worktrees.json`, which Cursor checks "when it
+ *   creates a worktree in the Agents Window, the IDE, or the Cursor CLI" (SOURCES.cursorWorktrees),
+ *   listed as hooks named after their key. The worktrees page does not say whether they wait for
+ *   workspace trust, so `on-approval` is unverified.
+ * - Custom commands: "Commands are markdown files" invoked with `/` (SOURCES.cursorCustomize), in
+ *   the `.cursor/commands` directory (SOURCES.cursorDeeplinks): `manual`. Subfolders and nested
+ *   `.cursor/commands` folders are not documented, so they are unverified.
+ * - Not in the plan: `.cursor/environment.json`, which only Cursor's cloud agents read, the
+ *   permission files `.cursor/cli.json`, `.cursor/sandbox.json` and `.cursor/permissions.json`,
+ *   and `.cursor/BUGBOT.md`, which Bugbot reviews read and the agent does not. The security
+ *   inventory lists their commands and permissions.
  *
  * Startup positions: Cursor does not document the order in which it assembles instructions and
  * rules. Positions list instruction files first, then rules, each by path.
@@ -52,6 +66,7 @@ import {
   hookEvents,
   hookHandlers,
 } from '../hooks.js';
+import { cursorCommandIds, cursorCommands } from '../cursor-config.js';
 import { hookInventoryIds, mcpInventoryIds } from '../inventory-ids.js';
 import { isBundledSkill } from '../location.js';
 import { mcpServers } from '../mcp.js';
@@ -100,7 +115,27 @@ const ASSUMPTIONS: readonly Assumption[] = [
 const HIDDEN: readonly HiddenScope[] = [
   { scope: 'account', locations: ['User Rules (Cursor Settings)'], roles: ['rule'] },
   { scope: 'managed', locations: ['enterprise hooks'], roles: ['hook'] },
-  { scope: 'team', locations: ['Team Rules', 'team hooks'], roles: ['hook', 'rule'] },
+  // "Hooks from installed plugins come after all of these" (SOURCES.cursorHooks); plugins bundle
+  // rules, skills, subagents, commands, MCP servers and hooks, installed in "a project or user
+  // scope" or by a team as "Required" (SOURCES.cursorPlugins), and a `workspaceOpen` hook "Can
+  // return additional plugin paths to load". Where Cursor keeps an installed plugin is not
+  // documented, so none of them can be read from the repository.
+  {
+    scope: 'plugin',
+    locations: [
+      'installed plugins (project and user scope)',
+      'team marketplace plugins (Default On, Required)',
+      '~/.cursor/plugins/local',
+      'plugin paths a workspaceOpen hook returns',
+    ],
+    roles: ['command', 'hook', 'mcp-server', 'rule', 'skill', 'subagent'],
+  },
+  // Commands "are scoped to teams, projects, or users" (Customize, SOURCES.cursorCustomize).
+  {
+    scope: 'team',
+    locations: ['Team Rules', 'team commands', 'team hooks'],
+    roles: ['command', 'hook', 'rule'],
+  },
   {
     scope: 'user',
     locations: [
@@ -112,8 +147,9 @@ const HIDDEN: readonly HiddenScope[] = [
       '~/.cursor/mcp.json',
       '~/.cursor/rules',
       '~/.cursor/skills',
+      'user commands (Customize)',
     ],
-    roles: ['hook', 'mcp-server', 'rule', 'skill'],
+    roles: ['command', 'hook', 'mcp-server', 'rule', 'skill'],
   },
 ];
 
@@ -146,7 +182,11 @@ function mayHoldConfig(directory: string): boolean {
   return segments.some((segment, i) => {
     if (!CONFIG_DIRECTORIES.has(segment)) return false;
     const next = segments[i + 1];
-    return next === undefined || next === 'skills' || (segment === '.cursor' && next === 'rules');
+    return (
+      next === undefined ||
+      next === 'skills' ||
+      (segment === '.cursor' && (next === 'rules' || next === 'commands'))
+    );
   });
 }
 
@@ -182,6 +222,23 @@ function rulesPlace(local: string): 'top' | 'nested' | undefined {
   if (lower.startsWith('.cursor/rules/')) return 'top';
   return lower.includes('/.cursor/rules/') ? 'nested' : undefined;
 }
+
+const COMMANDS_FOLDER = '.cursor/commands/';
+
+/**
+ * A `.cursor/commands` file relative to its folder (`deploy.md`, `ops/deploy.md`), and whether
+ * the folder is the workspace's own; undefined outside such a folder.
+ */
+function commandPlace(local: string): { readonly name: string; readonly top: boolean } | undefined {
+  if (local.startsWith(COMMANDS_FOLDER)) {
+    return { name: local.slice(COMMANDS_FOLDER.length), top: true };
+  }
+  const at = local.indexOf(`/${COMMANDS_FOLDER}`);
+  if (at === -1) return undefined;
+  return { name: local.slice(at + 1 + COMMANDS_FOLDER.length), top: false };
+}
+
+const WORKTREES_FILE = '.cursor/worktrees.json';
 
 /** The load plan of Cursor's agent for the workspace `options.cwd`. Pure and deterministic. */
 export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan {
@@ -251,12 +308,15 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     caseMismatch: boolean,
   ): void => {
     const directory = dirnamePosix(local(path));
-    if (kind !== 'agents-md' && directory !== '') {
-      // CLAUDE.md and .cursorrules count only at the workspace root: opened there, Cursor reads it.
+    if (kind === 'cursor-legacy-rules' && directory !== '') {
+      // .cursorrules counts only at the workspace root: opened there, Cursor reads it.
       outOfScope.push({ path, because: 'below-start-dir' });
       return;
     }
     const evidence = kind === 'agents-md' ? ['cursorRules'] : ['cursorRulesHelp'];
+    // A nested CLAUDE.md is read "the same way" as a nested AGENTS.md; the docs show the root one.
+    const certainty: Certainty =
+      kind === 'claude-md' && directory !== '' ? 'unverified' : 'documented';
     if (caseMismatch) {
       // Found on case-insensitive file systems only; Cursor documents neither case.
       skip('instructions', path, 'case-mismatch', 'unverified', evidence, {
@@ -280,7 +340,7 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
       realPath: artifact.realPath,
       ...(nested ? { patterns: [dirnamePosix(path)] } : {}),
       size: fileSize(artifact),
-      certainty: 'documented',
+      certainty,
       evidence,
     });
   };
@@ -401,6 +461,27 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
   };
 
   // ------------------------------------------------------------------------------------------
+  // Custom commands
+  // ------------------------------------------------------------------------------------------
+
+  const command = (path: string, artifact: Artifact): void => {
+    const place = commandPlace(local(path));
+    if (place === undefined) return;
+    const documented = place.top && !place.name.includes('/');
+    entries.push({
+      id: `command:${path}`,
+      role: 'command',
+      trigger: 'manual',
+      path,
+      realPath: artifact.realPath,
+      name: place.name.slice(0, -'.md'.length),
+      size: fileSize(artifact),
+      certainty: documented ? 'documented' : 'unverified',
+      evidence: ['cursorCustomize', 'cursorDeeplinks'],
+    });
+  };
+
+  // ------------------------------------------------------------------------------------------
   // MCP servers and hooks
   // ------------------------------------------------------------------------------------------
 
@@ -475,6 +556,26 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     });
   };
 
+  /** Setup commands of the workspace's `.cursor/worktrees.json`, as hooks named by their key. */
+  const worktreeSetup = (path: string, artifact: Artifact): void => {
+    if (local(path).toLowerCase() !== WORKTREES_FILE) return;
+    const evidence = ['cursorWorktrees'];
+    const doc = view.json(artifact);
+    // How Cursor handles a file it cannot parse, or a key of another shape, is not documented.
+    if (!doc.ok) {
+      incomplete.add(`unparsed:${path}`);
+      return;
+    }
+    const { commands, complete } = cursorCommands(artifact.kind, artifact.path, doc.value);
+    if (!complete) incomplete.add(`unparsed:${path}`);
+    const ids = cursorCommandIds(path, commands);
+    const inventoryIds = cursorCommandIds(artifact.path, commands);
+    commands.forEach((item, index) => {
+      const pair = { id: ids[index] ?? '', inventoryId: inventoryIds[index] ?? '' };
+      hookEntry(pair, path, artifact, item.event, 'unverified', evidence);
+    });
+  };
+
   const claudeHooks = (path: string, artifact: Artifact): void => {
     if (!CLAUDE_SETTINGS.has(local(path).toLowerCase())) return;
     const doc = view.json(artifact);
@@ -519,6 +620,10 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
     // Other kinds belong to other agents.
     if (kind === 'agents-md' || kind === 'claude-md' || kind === 'cursor-legacy-rules') {
       instruction(path, artifact, kind, caseMismatch);
+    } else if (kind === 'cursor-command') {
+      command(path, artifact);
+    } else if (kind === 'cursor-worktrees') {
+      worktreeSetup(path, artifact);
     } else if (kind === 'cursor-rule' || kind === 'cursor-rule-md') {
       rule(path, artifact, kind);
     } else if (kind === 'skill') {
@@ -552,8 +657,10 @@ export function loadCursor(view: LoadView, options: CursorLoadOptions): LoadPlan
   const wouldRead = (path: string, kind: ArtifactKind): boolean => {
     const where = local(path);
     const lower = where.toLowerCase();
-    if (kind === 'agents-md') return true;
-    if (kind === 'claude-md' || kind === 'cursor-legacy-rules') return dirnamePosix(where) === '';
+    if (kind === 'agents-md' || kind === 'claude-md') return true;
+    if (kind === 'cursor-legacy-rules') return dirnamePosix(where) === '';
+    if (kind === 'cursor-command') return commandPlace(where) !== undefined;
+    if (kind === 'cursor-worktrees') return lower === WORKTREES_FILE;
     if (kind === 'cursor-rule') return rulesPlace(where) !== undefined;
     if (kind === 'cursor-mcp') return lower === '.cursor/mcp.json';
     if (kind === 'cursor-hooks') return lower === '.cursor/hooks.json';

@@ -642,8 +642,9 @@ describe('gate: mcp and mcp-unpinned', () => {
       '.vscode/mcp.json',
     ]) {
       const after = report({ inventory: { incomplete: [`invalid-json:${path}`] } });
-      // .devin/config.json declares hooks next to MCP servers, so it trips both classes.
-      const classes = path === '.devin/config.json' ? ['hooks', 'mcp'] : ['mcp'];
+      // .devin/config.json declares hooks and permissions next to MCP servers, so it trips all
+      // three classes.
+      const classes = path === '.devin/config.json' ? ['hooks', 'mcp', 'permissions'] : ['mcp'];
       expect(
         hits(report(), after).map((hit) => [hit.class, hit.id]),
         path,

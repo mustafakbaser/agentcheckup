@@ -529,6 +529,62 @@ describe('allowances', () => {
     ]);
   });
 
+  it(`${ALLOWANCES.agentsMdReadFromAbove}: a root session reads a nested AGENTS.md below a CLAUDE.md`, () => {
+    // No CLAUDE file at the root: a session there reads a/b/AGENTS.md when Claude opens a file
+    // in a/b, which has no CLAUDE file of its own. A session started in a/b reads a/CLAUDE.md
+    // instead, which the rule reports.
+    const files = {
+      'AGENTS.md': 'Root.\n',
+      'a/CLAUDE.md': 'A.\n',
+      'a/b/AGENTS.md': 'B.\n',
+    };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    expect(allowed.report.allowed[ALLOWANCES.agentsMdReadFromAbove]).toBe(1);
+    const claude = allowed.plans.find((plan) => plan.agent === 'claude-code');
+    expect(claude?.entries.find((e) => e.path === 'a/b/AGENTS.md')?.trigger).toBe('on-path');
+    expect(brief(check(files, {}, [ALLOWANCES.agentsMdReadFromAbove]).report.mismatches)).toEqual([
+      'finding-without-skip instr/agents-md-ignored-by-claude claude-code a/b/AGENTS.md',
+    ]);
+  });
+
+  it('skip-without-rule: a command named in the synced namespace, which no rule judges', () => {
+    const files = { '.claude/commands/anthropic-skills.md': 'Reserved.\n' };
+    const allowed = check(files);
+    expect(allowed.report.mismatches).toEqual([]);
+    const claude = allowed.plans.find((plan) => plan.agent === 'claude-code');
+    expect(claude?.skipped.map((s) => [s.path, s.code, s.ruleId])).toEqual([
+      ['.claude/commands/anthropic-skills.md', 'reserved-name', undefined],
+    ]);
+    expect(brief(check(files, {}, ['skip-without-rule']).report.mismatches)).toEqual([
+      'skip-without-rule - claude-code .claude/commands/anthropic-skills.md',
+    ]);
+  });
+
+  it('matches reserved names and exclusions with their skips', () => {
+    const files = {
+      'CLAUDE.md': 'Root.\n',
+      'AGENTS.md': 'Agents.\n',
+      'vendor/CLAUDE.md': 'Vendor.\n',
+      '.claude/settings.json': '{ "claudeMdExcludes": ["**/AGENTS.md", "**/vendor/CLAUDE.md"] }\n',
+      '.claude/skills/synced/SKILL.md': '---\ndescription: Synced.\n---\nBody.\n',
+      '.mcp.json': '{ "mcpServers": { "workspace": { "command": "node" } } }\n',
+    };
+    const checked = check(files);
+    expect(checked.report.mismatches).toEqual([]);
+    const claude = checked.plans.find((plan) => plan.agent === 'claude-code');
+    expect(claude?.skipped.map((s) => `${s.path} ${s.code} ${s.ruleId ?? '-'}`)).toEqual([
+      '.claude/skills/synced/SKILL.md reserved-name skill/name-reserved-word',
+      '.mcp.json reserved-name mcp/reserved-server-name',
+      'AGENTS.md excluded -',
+      'vendor/CLAUDE.md excluded -',
+    ]);
+    // The rule leaves the excluded AGENTS.md alone.
+    expect(
+      checked.result.findings.filter((f) => f.ruleId === 'instr/agents-md-ignored-by-claude'),
+    ).toEqual([]);
+  });
+
   it(`${ALLOWANCES.installedSkill}: a skill outside every skills directory loads once installed`, () => {
     const files = { 'AGENTS.md': 'Rules.\n', 'collection/z/SKILL.md': 'No frontmatter.\n' };
     const allowed = check(files);

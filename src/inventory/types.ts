@@ -21,8 +21,10 @@ export interface Inventory {
    * did not read, Cascade's `.devin/hooks.json`, a `.codex/config.toml` past a parser limit or in
    * UTF-16, a Codex `.codex/rules/*.rules` file that is not made only of literal rule calls, a
    * skill, command or subagent whose frontmatter is past a parser limit, a Claude Code plugin
-   * manifest with inline hooks in a list or naming other hook or MCP files, files the walk
-   * skipped, `invalid-json:<path>` and `invalid-toml:<path>`.
+   * manifest with inline hooks in a list or naming other hook, MCP or LSP files, a Cursor
+   * configuration file with a key of a shape it does not read, files the walk skipped,
+   * `invalid-json:<path>` and `invalid-toml:<path>`, and `code:<path>#<sha256>` for a Claude
+   * Code workflow or plugin mod, which agentcheckup never analyzes (docs/adr/0018).
    */
   readonly incomplete: readonly string[];
 }
@@ -84,6 +86,11 @@ export interface McpServerItem extends ItemBase {
   readonly envKeys: readonly string[];
   /** Names only, never values. */
   readonly headerKeys: readonly string[];
+  /**
+   * The redacted command of a remote server's `headersHelper`, which Claude Code "executes … as
+   * an arbitrary shell command" when it connects, to get the server's headers.
+   */
+  readonly headersHelper?: string;
   /** What each agent that reads `file` does with the server today. */
   readonly status: Readonly<Partial<Record<PlatformId, 'loads' | 'needs-approval' | 'skipped'>>>;
   /**
@@ -93,7 +100,10 @@ export interface McpServerItem extends ItemBase {
   readonly scope?: 'subagent';
 }
 
-/** One hook command. */
+/**
+ * One hook command, or a command Cursor runs on its own: a worktree setup command, or a cloud
+ * agent's `install`, `start` or `terminals` command or Dockerfile (`event` is the key).
+ */
 export interface HookItem extends ItemBase {
   readonly event: string;
   /** False when the event name is not a documented event, so the hook never runs. */
@@ -132,8 +142,13 @@ export interface HookItem extends ItemBase {
  * approval modes (`mcp_servers.<name>.default_tools_approval_mode`,
  * `mcp_servers.<name>.tools.<tool>.approval_mode`), `default_permissions`, `permissions` (one
  * `[permissions.<name>]` profile, its digest covering the profile's redacted content),
- * `approvals_reviewer`, and the exec-policy rules of `.codex/rules/*.rules`
- * (`rules.prefix_rule`, `rules.network_rule`, `rules.host_executable`).
+ * `approvals_reviewer`, the exec-policy rules of `.codex/rules/*.rules`
+ * (`rules.prefix_rule`, `rules.network_rule`, `rules.host_executable`), Cursor's
+ * `.cursor/cli.json`, `.cursor/sandbox.json`, `.cursor/permissions.json` and
+ * `repositoryDependencies` of `.cursor/environment.json` (src/platforms/cursor-config.ts),
+ * Claude Code's `sandbox` settings that widen the sandbox (`sandbox.excludedCommands`, ...),
+ * and the plugin settings `enabledPlugins.<plugin>` and `extraKnownMarketplaces.<name>`
+ * (docs/adr/0018).
  */
 export interface PermissionItem extends ItemBase {
   readonly key: string;
@@ -146,7 +161,9 @@ export interface PermissionItem extends ItemBase {
 
 /**
  * One environment override: settings `env`, a settings key that runs a command (such as
- * `apiKeyHelper`), or a sensitive name in an MCP server's `env`. Class:
+ * `apiKeyHelper`), a command Claude Code starts (a plugin's language server `lspServers.<name>`
+ * or `bin/` folder `PATH`, a Desktop preview server `configurations.<name>`), or a sensitive name
+ * in an MCP server's, language server's or preview server's `env`. Class:
  * - `endpoint`: sends traffic elsewhere, such as `ANTHROPIC_BASE_URL` or a proxy.
  * - `credential`: holds a secret.
  * - `tls`: changes certificate checks.

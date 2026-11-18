@@ -66,6 +66,7 @@ function details(row: DefinitionRow, context: Context): string {
   const parts = [
     model,
     row.effort === '' ? '' : `effort ${clean(row.effort, context)}`,
+    clean(row.background, context),
     clean(row.status, context),
   ].filter((part) => part !== '');
   const text = parts.join(` ${context.dot} `);

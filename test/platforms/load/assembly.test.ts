@@ -221,7 +221,7 @@ describe('matrix', () => {
       'CLAUDE.md claude-md startup not-read startup startup startup startup not-read startup not-read',
       'other/.mcp.json mcp-json start-dir not-read not-read start-dir not-read not-read not-read start-dir not-read',
       'pkg/AGENTS.md agents-md skipped partial on-path on-path not-read on-path not-read on-path not-read',
-      'pkg/CLAUDE.md claude-md on-path not-read start-dir on-path not-read not-read not-read on-path not-read',
+      'pkg/CLAUDE.md claude-md on-path not-read on-path on-path not-read not-read not-read on-path not-read',
     ]);
   });
 
@@ -337,14 +337,14 @@ describe('paths the configuration ignores', () => {
     // What each agent may load of them, as its plan would show it without the configuration.
     // Claude Code: the import of fixtures/guide.md; it leaves the instruction files of a fixtures
     // folder to their own sessions. Codex at the root does not read the files below it. Cursor:
-    // the nested AGENTS.md and the skill, which it reads anywhere in the workspace, and the .md
-    // file in .cursor/rules, which no source says it skips. Devin Local does not load the skill
+    // the nested AGENTS.md and CLAUDE.md and the skill, which it reads anywhere in the workspace,
+    // and the .md file in .cursor/rules, which no source says it skips. Devin Local does not load the skill
     // from the root, although its loader finds the file unread. Copilot in VS Code and Cline do
     // not read a nested AGENTS.md.
     expect(plans.map((item) => `${item.agent} ${String(item.ignored)}`)).toEqual([
       'claude-code 1',
       'codex undefined',
-      'cursor 3',
+      'cursor 4',
       'copilot-cli 3',
       'copilot-vscode undefined',
       'copilot-cloud 1',

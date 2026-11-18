@@ -301,6 +301,61 @@ describe('formatContextText wording and layout', () => {
     );
   });
 
+  it('shows output styles, commands in the skills listing and the listing settings', () => {
+    const output = single(
+      plan('claude-code', {
+        entries: [
+          entry('output-style', '.claude/output-styles/diagrams.md', {
+            position: 1,
+            name: 'Diagrams first',
+            size: size(20),
+          }),
+          entry('command', '.claude/commands/review.md', {
+            position: 2,
+            name: 'review',
+            size: size(13),
+            deferred: size(17),
+            certainty: 'unverified',
+          }),
+          entry('output-style', '.claude/output-styles/terse.md', {
+            trigger: 'manual',
+            name: 'terse',
+            size: size(15),
+          }),
+        ],
+        assumptions: [
+          {
+            key: 'claude-code.output_style',
+            value: 'Diagrams first',
+            origin: 'repository',
+            evidence: [],
+          },
+          {
+            key: 'claude-code.skill_listing_max_desc_chars',
+            value: 100,
+            origin: 'repository',
+            evidence: [],
+          },
+          {
+            key: 'claude-code.skill_listing_budget_chars',
+            value: 5_000,
+            origin: 'repository',
+            evidence: [],
+          },
+        ],
+      }),
+    );
+    expect(output.split('\n').slice(1, 4)).toEqual([
+      'Assumes output style Diagrams first (from the repository),',
+      '  skill descriptions cut at 100 characters (from the repository),',
+      '  skills listing budget 5,000 characters (from the repository)',
+    ]);
+    expect(output).toContain('Skills listing (1 skill, metadata)');
+    expect(output).toContain('.claude/output-styles/diagrams.md');
+    expect(output).toContain('when you switch to it with /output-style');
+    expect(output).toMatch(/\.claude\/commands\/review\.md +body 17 bytes/u);
+  });
+
   it('says when nothing loads at session start, and leaves out an unknown transport', () => {
     const server = mcpServer('.cursor/mcp.json', 'linear', {
       transport: 'unknown',

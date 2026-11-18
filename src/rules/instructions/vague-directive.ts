@@ -228,6 +228,7 @@ export const vagueDirectiveRule = defineRule({
       'gemini-md',
       'windsurf-rule',
       'windsurf-legacy-rules',
+      'devin-instructions',
       'cline-rule',
       'cursor-rule',
       'cursor-legacy-rules',

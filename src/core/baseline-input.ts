@@ -420,6 +420,7 @@ function readServer(value: unknown, at: string): McpServerItem {
   const args = optional(source, 'args', at, strings);
   const spec = optional(source, 'package', at, readPackage);
   const url = optional(source, 'url', at, readUrl);
+  const headersHelper = optional(source, 'headersHelper', at, string);
   const scope = knownScope(optional(source, 'scope', at, string), SERVER_SCOPES);
   return {
     ...readItemBase(source, at),
@@ -432,6 +433,7 @@ function readServer(value: unknown, at: string): McpServerItem {
     ...(url === undefined ? {} : { url }),
     envKeys: strings(own(source, 'envKeys'), field(at, 'envKeys')),
     headerKeys: strings(own(source, 'headerKeys'), field(at, 'headerKeys')),
+    ...(headersHelper === undefined ? {} : { headersHelper }),
     status: readStatus(own(source, 'status'), field(at, 'status')),
     ...(scope === undefined ? {} : { scope }),
   };
@@ -617,6 +619,7 @@ function readDefinition(value: unknown, at: string): AgentDefinition | undefined
   const reason = optional(source, 'reason', at, string);
   const shadowedBy = optional(source, 'shadowedBy', at, string);
   const permissionMode = optional(source, 'permissionMode', at, string);
+  const triggers = optional(source, 'triggers', at, strings);
   const model = optional(source, 'model', at, (item, path) => {
     const model = object(item, path);
     return {
@@ -677,6 +680,7 @@ function readDefinition(value: unknown, at: string): AgentDefinition | undefined
     ...(effort === undefined ? {} : { effort }),
     tools,
     ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(triggers === undefined ? {} : { triggers }),
     certainty,
     evidence: strings(own(source, 'evidence'), field(at, 'evidence')),
     digest: string(own(source, 'digest'), field(at, 'digest')),

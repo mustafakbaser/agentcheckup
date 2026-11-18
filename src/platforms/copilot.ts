@@ -8,6 +8,13 @@
 import { codePointLength } from '../core/measure.js';
 import { pathStatus } from '../core/paths.js';
 import type { Artifact, ParseServices, Snapshot } from '../core/types.js';
+import {
+  isTable,
+  type JsonObject,
+  type JsonPath,
+  own,
+  type SpannedDocument,
+} from '../parse/json-access.js';
 import type { FrontmatterResult } from '../parse/types.js';
 import { globList } from './cursor-rules.js';
 import { inPayloadFolder, joinPath } from './paths.js';
@@ -320,4 +327,69 @@ export function vscodeSkillNameIssue(raw: string): 'characters' | 'length' | und
   }
   const length = codePointLength(raw.trim().normalize('NFKC'));
   return length > VSCODE_SKILL_NAME_MAX ? 'length' : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Copilot CLI: LSP servers and extensions; the cloud agent's setup workflows
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The longest custom agent prompt Copilot documents: "The prompt can be a maximum of 30,000
+ * characters" (SOURCES.copilotCustomAgents). What it does with a longer one is not documented.
+ */
+export const COPILOT_AGENT_PROMPT_MAX = 30_000;
+
+/** One server of `.github/lsp.json`. */
+export interface LspServer {
+  readonly name: string;
+  readonly config: JsonObject;
+  readonly path: JsonPath;
+  /** `"disabled": true`: the entry turns a server of that name off instead of defining one. */
+  readonly disabled: boolean;
+}
+
+/**
+ * The servers of `.github/lsp.json`: each object under `lspServers`. "At least one of
+ * `command`, `bash`, or `powershell` must be specified"; `args` go to `command` and are
+ * "Ignored when the server is launched with `bash` or `powershell`"; an entry with
+ * `"disabled": true` turns off a server of that name from a plugin or the user's configuration
+ * (SOURCES.copilotCliLspHowTo). "Once the working directory is trusted, Copilot CLI automatically
+ * starts any LSP servers that are relevant to your project" (SOURCES.copilotCliLsp).
+ */
+export function copilotLspServers(doc: Pick<SpannedDocument, 'value'>): LspServer[] {
+  const root = doc.value;
+  const servers = isTable(root) ? own(root, 'lspServers') : undefined;
+  if (!isTable(servers)) return [];
+  const out: LspServer[] = [];
+  for (const name of Object.keys(servers)) {
+    const config = servers[name];
+    if (!isTable(config)) continue;
+    const disabled = own(config, 'disabled') === true;
+    out.push({ name, config, path: ['lspServers', name], disabled });
+  }
+  return out;
+}
+
+/** The fields of an LSP server that name what the Copilot CLI runs to start it. */
+export const LSP_COMMAND_FIELDS = ['command', 'bash', 'powershell'] as const;
+
+/**
+ * The hook event the inventory lists a Copilot CLI project extension under. Extensions live in
+ * `.github/extensions/NAME/` "in the current repository"; "The CLI runs the entry file directly
+ * with Node.js", and "Extensions execute on your computer with your privileges". They run only
+ * with experimental features on, `--experimental` or `/experimental on`
+ * (SOURCES.copilotCliExtensions).
+ */
+export const EXTENSION_EVENT = 'extension';
+
+/**
+ * The job a cloud agent setup workflow is listed under in the inventory: `copilot-setup-steps`,
+ * whose "steps in this job will be executed in GitHub Actions before Copilot starts working", or
+ * `copilot-code-review` for the workflow Copilot code review runs instead of it
+ * (SOURCES.copilotSetupSteps). Undefined for another path.
+ */
+export function setupWorkflowEvent(path: string): string | undefined {
+  if (path === '.github/workflows/copilot-setup-steps.yml') return 'copilot-setup-steps';
+  if (path === '.github/workflows/copilot-code-review.yml') return 'copilot-code-review';
+  return undefined;
 }

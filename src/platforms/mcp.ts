@@ -124,6 +124,25 @@ export function subagentMcpServers(doc: Pick<SpannedDocument, 'value'>): {
   };
 }
 
+/**
+ * The servers of a GitHub Copilot custom agent's `mcp-servers` frontmatter, an object of server
+ * entries "using the same schema as `~/.copilot/mcp-config.json`" on the CLI
+ * (SOURCES.copilotCliAgents) and "a YAML representation of the JSON configuration format used to
+ * configure MCP servers for repositories" on GitHub.com (SOURCES.copilotCustomAgents). VS Code
+ * does not use them. `documented` is false when the field is there but not an object.
+ */
+export function copilotAgentMcpServers(doc: Pick<SpannedDocument, 'value'>): {
+  readonly servers: McpServer[];
+  readonly documented: boolean;
+} {
+  const root = doc.value;
+  if (!isTable(root) || !Object.hasOwn(root, 'mcp-servers')) {
+    return { servers: [], documented: true };
+  }
+  const entries = own(root, 'mcp-servers');
+  return { servers: serversIn(entries, ['mcp-servers']), documented: isTable(entries) };
+}
+
 /** Kinds whose servers {@link mcpServers} reads. */
 export const MCP_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'mcp-json',
@@ -163,6 +182,40 @@ export function isClaudeMcpConfig(snapshot: Snapshot, artifact: Artifact): boole
   if (artifact.kind !== 'mcp-json') return artifact.kind === 'claude-plugin-manifest';
   const plugin = pluginRootOf(snapshot, artifact.path);
   return plugin === undefined || plugin.markers.includes('.claude-plugin');
+}
+
+/**
+ * The names of Claude Code's built-in MCP servers. "Claude Code reserves the names of its
+ * built-in servers, including `workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`,
+ * and `Claude Browser`. If your configuration defines a server with a reserved name, Claude Code
+ * skips it at load time and shows a warning asking you to rename it" (SOURCES.claudeMcp,
+ * "Configuration warnings"). "Including": the list may be longer. Names compare exactly; whether
+ * Claude Code ignores case here is not documented. `widgets`, reserved only in cloud sessions and
+ * on self-hosted runners (changelog, v2.1.285), is left out: plans model a local session.
+ */
+export const CLAUDE_RESERVED_SERVER_NAMES: ReadonlySet<string> = new Set([
+  'workspace',
+  'claude-in-chrome',
+  'computer-use',
+  'Claude Preview',
+  'Claude Browser',
+]);
+
+/**
+ * True when Claude Code skips the server `name` of `artifact` for its reserved name: a project
+ * `.mcp.json` that is not part of a plugin. Plugin servers load under the plugin's namespace,
+ * so whether the reserved names apply to them is not documented.
+ */
+export function claudeReservedServerName(
+  snapshot: Snapshot,
+  artifact: Artifact,
+  name: string,
+): boolean {
+  return (
+    artifact.kind === 'mcp-json' &&
+    pluginRootOf(snapshot, artifact.path) === undefined &&
+    CLAUDE_RESERVED_SERVER_NAMES.has(name)
+  );
 }
 
 /**

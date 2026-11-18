@@ -467,6 +467,8 @@ const SKIP_LABELS: Readonly<Record<SkipCode, string>> = {
   'never-active': 'never active',
   'invalid-toml': 'invalid TOML',
   'invalid-command': 'invalid custom command',
+  excluded: 'excluded by a setting',
+  'reserved-name': 'reserved name',
   'not-read': 'not read',
 };
 

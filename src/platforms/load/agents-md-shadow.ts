@@ -6,9 +6,12 @@
  * In its default `claude-md-or-agents-md` mode, Claude Code (v2.1.277 and later) reads AGENTS.md
  * only when no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists in the working directory or
  * above it (code.claude.com/docs/en/memory). This module judges each AGENTS.md from its own
- * directory, as if the session started there.
+ * directory, as if the session started there. That is what such a session does; a session
+ * started higher up, with no CLAUDE file on its own path, may still read a nested AGENTS.md whose
+ * directory has no CLAUDE file of its own (`claudeMayReadAgentsMdIn` in ./imports.ts).
  */
 import type { Artifact } from '../../core/types.js';
+import type { GlobMatch } from '../glob.js';
 import { skillDirectoryOf } from '../location.js';
 import { basename, inPayloadFolder, selfAndAncestors } from '../paths.js';
 import {
@@ -60,12 +63,15 @@ export interface ShadowedAgentsMd {
  * The AGENTS.md files among `artifacts` that instr/agents-md-ignored-by-claude reports, in the
  * order of `artifacts`. Not reported: an AGENTS.md inside a configuration folder (a directory
  * whose name starts with a dot), a skill, or a template, example or fixture folder; one that a
- * CLAUDE file or a rule on its path imports, symlinks or copies; and one whose status depends on
- * a file agentcheckup did not read.
+ * CLAUDE file or a rule on its path imports, symlinks or copies; one whose status depends on a
+ * file agentcheckup did not read; and one that `excluded` says the settings of a session started
+ * in its directory exclude for certain (`claudeMdExcludes`, ../claude-memory.ts), which Claude
+ * Code skips whatever the CLAUDE files.
  */
 export function agentsMdShadowedByClaude(
   graph: ImportGraph,
   artifacts: readonly Artifact[],
+  excluded?: (paths: readonly string[], cwd: string) => GlobMatch,
 ): ShadowedAgentsMd[] {
   const rules = rulesByOwner(graph);
   const shadowed: ShadowedAgentsMd[] = [];
@@ -92,6 +98,7 @@ export function agentsMdShadowedByClaude(
     // A CLAUDE file that is this file (a symlink) or an identical copy: Claude Code already
     // reads the same instructions.
     if (importers.some((claude) => sameInstructions(claude, artifact))) continue;
+    if (excluded?.([artifact.path], directory) === 'match') continue;
 
     // Rules in .claude/rules load with the CLAUDE.md files on the path and can import AGENTS.md.
     for (const ancestor of selfAndAncestors(directory))

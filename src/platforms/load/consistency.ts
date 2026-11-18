@@ -91,6 +91,15 @@ export const SKIP_RULES: readonly SkipRule[] = [
   { ruleId: 'hooks/unknown-event', agent: 'claude-code', codes: ['unknown-event'] },
   { ruleId: 'json/invalid-syntax', agent: 'claude-code', codes: ['invalid-json'] },
   { ruleId: 'mcp/url-without-type', agent: 'claude-code', codes: ['url-without-type'] },
+  { ruleId: 'mcp/reserved-server-name', agent: 'claude-code', codes: ['reserved-name'] },
+  // A skill folder or name Claude Code reserves (error); a reserved word only matters for a skill
+  // installed or uploaded on its own (warn).
+  {
+    ruleId: 'skill/name-reserved-word',
+    agent: 'claude-code',
+    codes: ['reserved-name'],
+    minSeverity: 'error',
+  },
   // Codex
   {
     ruleId: 'instr/codex-size-budget',
@@ -286,12 +295,14 @@ export const LOADS_ANYWAY: readonly {
 /**
  * Skip codes no rule reports, so their skips carry no `ruleId` and need no allowance: the agent
  * does not read the file here (`not-read`), a setting in the repository turns it off
- * (`disabled`), the agent prefers another file for the same purpose (`shadowed-by-preferred`),
- * or the file's own settings keep it from applying (`never-active`).
+ * (`disabled`) or names it to be skipped (`excluded`, Claude Code's `claudeMdExcludes`), the
+ * agent prefers another file for the same purpose (`shadowed-by-preferred`), or the file's own
+ * settings keep it from applying (`never-active`).
  */
 export const UNREPORTED_CODES: ReadonlySet<SkipCode> = new Set<SkipCode>([
   'not-read',
   'disabled',
+  'excluded',
   'shadowed-by-preferred',
   'never-active',
 ]);
@@ -330,7 +341,14 @@ export const ALLOWANCES = {
       code: 'shadowed-by-claude-md',
       rule: 'instr/agents-md-ignored-by-claude',
       reason:
-        'The rule leaves alone an AGENTS.md whose instructions Claude Code reads anyway (a CLAUDE.md that is a symlink to it or a copy of it) and one in a configuration, skill or template folder, and it judges each AGENTS.md from its own directory: a session started deeper can add the CLAUDE.md that shadows it.',
+        'The rule leaves alone an AGENTS.md whose instructions Claude Code reads anyway (a CLAUDE.md that is a symlink to it or a copy of it), one in a configuration, skill or template folder, and one that `claudeMdExcludes` in the settings of a session started in its directory excludes, and it judges each AGENTS.md from its own directory: a session started deeper can add the CLAUDE.md that shadows it.',
+    },
+    {
+      agent: 'claude-code',
+      code: 'reserved-name',
+      rule: 'skill/name-reserved-word',
+      reason:
+        'A command file or folder in `.claude/commands/` named `anthropic-skills`, which Claude Code does not load: skill/name-reserved-word judges skills, not commands.',
     },
     {
       agent: 'claude-code',
@@ -470,6 +488,14 @@ export const ALLOWANCES = {
    * skill and its description is empty.
    */
   emptySkillDescription: 'empty-skill-description',
+  /**
+   * instr/agents-md-ignored-by-claude judges an AGENTS.md as if the session started in its
+   * directory, where a CLAUDE.md above it shadows it. A session started higher up, with no CLAUDE
+   * file on its own path, reads that AGENTS.md when Claude opens a file there, as long as its
+   * directory has no CLAUDE file of its own, so that plan has an `on-path` entry for it. Allowed
+   * when a Claude Code plan has such an entry.
+   */
+  agentsMdReadFromAbove: 'agents-md-read-from-above',
 } as const;
 
 export type AllowanceName =
@@ -479,7 +505,8 @@ export type AllowanceName =
   | typeof ALLOWANCES.installedSkill
   | typeof ALLOWANCES.firstSkipReason
   | typeof ALLOWANCES.excludeAgentValue
-  | typeof ALLOWANCES.emptySkillDescription;
+  | typeof ALLOWANCES.emptySkillDescription
+  | typeof ALLOWANCES.agentsMdReadFromAbove;
 
 export type MismatchKind =
   /** A skip names a rule, and no unsuppressed finding of it on that file lists the agent. */
@@ -751,6 +778,22 @@ class Checker {
       entries.length > 0 &&
       this.#bomOnly(path) &&
       this.#allow(ALLOWANCES.bomOnlyAgentsMd)
+    ) {
+      return;
+    }
+    if (
+      ruleId === 'instr/agents-md-ignored-by-claude' &&
+      plans.some(
+        (plan) =>
+          plan.agent === 'claude-code' &&
+          plan.entries.some(
+            (entry) =>
+              entry.role === 'instructions' &&
+              entry.trigger === 'on-path' &&
+              this.#real(entry.path) === path,
+          ),
+      ) &&
+      this.#allow(ALLOWANCES.agentsMdReadFromAbove)
     ) {
       return;
     }

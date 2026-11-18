@@ -68,6 +68,10 @@
           "description": "GitHub Copilot instructions file is not where Copilot looks for it",
           "$ref": "#/$defs/ruleWithoutOptions"
         },
+        "cursor/bugbot-rule-too-long": {
+          "description": "BUGBOT.md exceeds Bugbot's 30,000-character limit per rule",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
         "cursor/legacy-cursorrules": {
           "description": ".cursorrules is a legacy file that Cursor plans to deprecate",
           "$ref": "#/$defs/ruleWithoutOptions"
@@ -254,6 +258,10 @@
         },
         "mcp/literal-secret": {
           "description": "Configuration file contains a literal credential",
+          "$ref": "#/$defs/ruleWithoutOptions"
+        },
+        "mcp/reserved-server-name": {
+          "description": "MCP server uses a name Claude Code reserves",
           "$ref": "#/$defs/ruleWithoutOptions"
         },
         "mcp/url-without-type": {

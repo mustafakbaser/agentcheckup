@@ -114,6 +114,7 @@ export const symlinkMaterializedRule = defineRule({
       'gemini-md',
       'windsurf-rule',
       'windsurf-legacy-rules',
+      'devin-instructions',
       'cline-rule',
       'cursor-rule',
       'cursor-legacy-rules',

@@ -1,5 +1,6 @@
 import type { ArtifactKind, PlatformId, SourceFile } from '../core/types.js';
 import { clinePlace } from './cline-rules.js';
+import { isGlobalRules } from './windsurf-rules.js';
 
 /**
  * Path-based classification of agent configuration files.
@@ -35,12 +36,26 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // The Copilot CLI reads commands as skills (SOURCES.copilotCliReference). Devin Local no longer
   // lists them among the files it imports (SOURCES.devinReadConfigFrom).
   'claude-command': ['claude-code', 'copilot'],
+  // Output styles in `.claude/output-styles/` (SOURCES.claudeOutputStyles).
+  'claude-output-style': ['claude-code'],
   // Cursor, the Copilot CLI and Devin Local also run hooks defined in Claude Code settings.
   'claude-settings': ['claude-code', 'copilot', 'cursor', 'windsurf'],
   'claude-plugin-manifest': ['claude-code'],
   // `hooks/hooks.json` of a plugin in a skills folder (SOURCES.claudeSkills, "Skill folder as a
   // plugin"); Claude Code runs its hooks only when a `.claude-plugin/plugin.json` is next to it.
   'claude-plugin-hooks': ['claude-code'],
+  // `.lsp.json` of a plugin in a skills folder: "Claude Code also starts the language servers the
+  // plugin declares" (SOURCES.claudePluginSecurity, SOURCES.claudePluginComponents).
+  'claude-plugin-lsp': ['claude-code'],
+  // `.claude/workflows/*.js`: "Project workflows also load from every `.claude/workflows/` along
+  // that path", and each "runs as `/<name>`" (SOURCES.claudeWorkflows).
+  'claude-workflow': ['claude-code'],
+  // Claude Desktop's preview servers: `runtimeExecutable` is "The command to run"
+  // (SOURCES.claudeDesktop, "Configure preview servers").
+  'claude-launch': ['claude-code'],
+  // The prompt a bare `/loop` runs: "`.claude/loop.md` Project-level. Takes precedence when both
+  // files exist" (SOURCES.claudeScheduledTasks).
+  'claude-loop': ['claude-code'],
   skill: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
   // Devin Local (Windsurf) reads .cursor/rules/*.md and *.mdc; Cursor itself ignores .md there.
   'cursor-rule': ['cursor', 'windsurf'],
@@ -50,12 +65,41 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'cursor-legacy-rules': ['cursor'],
   'cursor-hooks': ['cursor'],
   'cursor-mcp': ['cursor', 'windsurf'],
+  // Custom commands in `.cursor/commands` (SOURCES.cursorCustomize, SOURCES.cursorDeeplinks).
+  'cursor-command': ['cursor'],
+  // `.cursor/BUGBOT.md`, which Bugbot and Agent Review read as review rules (SOURCES.cursorBugbot,
+  // SOURCES.cursorAgentReview). Cursor's agent does not (SOURCES.cursorRulesHelp).
+  'cursor-bugbot': ['cursor'],
+  // Commands, permissions and sandbox settings of Cursor, the Cursor CLI and Cursor's cloud
+  // agents (SOURCES.cursorWorktrees, cursorCliPermissions, cursorSandbox, cursorPermissions,
+  // cursorCloudAgentSetup).
+  'cursor-worktrees': ['cursor'],
+  'cursor-cli': ['cursor'],
+  'cursor-sandbox': ['cursor'],
+  'cursor-permissions': ['cursor'],
+  'cursor-environment': ['cursor'],
   'copilot-instructions': ['copilot'],
   'copilot-path-instructions': ['copilot'],
   'copilot-hooks': ['copilot'],
   'copilot-mcp': ['copilot'],
   'copilot-settings': ['copilot'],
+  // Copilot CLI extensions, `.github/extensions/<name>/extension.{mjs,cjs,js}`, JavaScript the CLI
+  // runs with Node.js (SOURCES.copilotCliExtensions).
+  'copilot-extension': ['copilot'],
+  // `.github/lsp.json`, the LSP servers the Copilot CLI starts (SOURCES.copilotCliLsp).
+  'copilot-lsp': ['copilot'],
+  // `.github/workflows/copilot-setup-steps.yml` and `copilot-code-review.yml`, the GitHub Actions
+  // steps that run before the cloud agent and code review start (SOURCES.copilotSetupSteps).
+  'copilot-setup-steps': ['copilot'],
+  // VS Code prompt files, `.github/prompts/*.prompt.md`, run with `/name` in the Local harness
+  // (SOURCES.vscodePromptFiles).
+  'copilot-prompt': ['copilot'],
+  // `.github/allowed_models.txt`, the Copilot CLI's model allowlist (SOURCES.copilotCliConfigDir).
+  'copilot-allowed-models': ['copilot'],
   'vscode-mcp': ['copilot'],
+  // `.vscode/settings.json`, whose `chat.*` settings change what the Local harness loads
+  // (SOURCES.vscodeAiSettings).
+  'vscode-settings': ['copilot'],
   'gemini-md': ['copilot', 'gemini'],
   'gemini-settings': ['gemini'],
   // Custom commands in `.gemini/commands/**/*.toml` (SOURCES.geminiCustomCommands).
@@ -73,6 +117,9 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'devin-config': ['windsurf'],
   'devin-mcp': ['windsurf'],
   'devin-hooks': ['windsurf'],
+  // `AGENTS.local.md`, `AGENT.md` and the global rules files of `.devin` and `.windsurf`, which
+  // Devin Local loads as always-on rules (SOURCES.devinCliRules).
+  'devin-instructions': ['windsurf'],
   'cline-rule': ['cline'],
   'cline-workflow': ['cline'],
   // Custom agents and subagents (src/agents). Cursor also reads `.claude/agents` and Copilot
@@ -163,6 +210,12 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)\.claude\/commands\/(?:[^/]+\/)*[^/]+\.md$/,
     canonical: keepPath,
   },
+  // "Project: `.claude/output-styles`"; the file name is the style name unless `name` sets one.
+  {
+    kind: 'claude-output-style',
+    pattern: /(?:^|\/)\.claude\/output-styles\/[^/]+\.md$/,
+    canonical: keepPath,
+  },
   {
     kind: 'claude-local-md',
     pattern: /(?:^|\/)claude\.local\.md$/,
@@ -185,6 +238,24 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/hooks\/hooks\.json$/,
     canonical: keepPath,
   },
+  {
+    kind: 'claude-plugin-lsp',
+    pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/\.lsp\.json$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'claude-workflow',
+    pattern: /(?:^|\/)\.claude\/workflows\/(?:[^/]+\/)*[^/]+\.js$/,
+    canonical: keepPath,
+  },
+  // A skills-folder plugin's workflows; the inventory reads them only next to a plugin manifest.
+  {
+    kind: 'claude-workflow',
+    pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/workflows\/(?:[^/]+\/)*[^/]+\.js$/,
+    canonical: keepPath,
+  },
+  { kind: 'claude-launch', pattern: /(?:^|\/)\.claude\/launch\.json$/, canonical: keepPath },
+  { kind: 'claude-loop', pattern: /(?:^|\/)\.claude\/loop\.md$/, canonical: keepPath },
   { kind: 'mcp-json', pattern: /(?:^|\/)\.mcp\.json$/, canonical: keepPath },
 
   // Codex
@@ -231,6 +302,14 @@ const MATCHERS: readonly Matcher[] = [
     where: notFolderInstructions,
     canonical: keepPath,
   },
+  // Cursor's custom commands: Markdown files in `.cursor/commands` (SOURCES.cursorDeeplinks). An
+  // AGENTS.md or GEMINI.md directly in the folder documents it.
+  {
+    kind: 'cursor-command',
+    pattern: /(?:^|\/)\.cursor\/commands\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: notFolderInstructions,
+    canonical: keepPath,
+  },
   {
     kind: 'devin-agent',
     pattern: /(?:^|\/)\.(?:devin|agents)\/agents\/(?:[^/]+\/agents?|[^/]+)\.md$/,
@@ -255,6 +334,30 @@ const MATCHERS: readonly Matcher[] = [
   { kind: 'cursor-legacy-rules', pattern: /(?:^|\/)\.cursorrules$/, canonical: keepPath },
   { kind: 'cursor-hooks', pattern: /(?:^|\/)\.cursor\/hooks\.json$/, canonical: keepPath },
   { kind: 'cursor-mcp', pattern: /(?:^|\/)\.cursor\/mcp\.json$/, canonical: keepPath },
+  // Bugbot's rules: `.cursor/BUGBOT.md` at the root and in any directory, spelled as documented.
+  {
+    kind: 'cursor-bugbot',
+    pattern: /(?:^|\/)\.cursor\/bugbot\.md$/,
+    where: (path) => basename(path) === 'BUGBOT.md',
+    canonical: keepPath,
+  },
+  {
+    kind: 'cursor-worktrees',
+    pattern: /(?:^|\/)\.cursor\/worktrees\.json$/,
+    canonical: keepPath,
+  },
+  { kind: 'cursor-cli', pattern: /(?:^|\/)\.cursor\/cli\.json$/, canonical: keepPath },
+  { kind: 'cursor-sandbox', pattern: /(?:^|\/)\.cursor\/sandbox\.json$/, canonical: keepPath },
+  {
+    kind: 'cursor-permissions',
+    pattern: /(?:^|\/)\.cursor\/permissions\.json$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'cursor-environment',
+    pattern: /(?:^|\/)\.cursor\/environment\.json$/,
+    canonical: keepPath,
+  },
 
   // GitHub Copilot. Misplaced *.instructions.md files are classified too, so a rule can flag them.
   {
@@ -274,8 +377,31 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)\.github\/copilot\/settings(?:\.local)?\.json$/,
     canonical: keepPath,
   },
+  {
+    kind: 'copilot-extension',
+    pattern: /(?:^|\/)\.github\/extensions\/[^/]+\/extension\.[cm]?js$/,
+    canonical: keepPath,
+  },
+  { kind: 'copilot-lsp', pattern: /(?:^|\/)\.github\/lsp\.json$/, canonical: keepPath },
+  // Only at the repository root: GitHub Actions reads workflows there alone.
+  {
+    kind: 'copilot-setup-steps',
+    pattern: /^\.github\/workflows\/copilot-(?:setup-steps|code-review)\.yml$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'copilot-prompt',
+    pattern: /(?:^|\/)\.github\/prompts\/(?:[^/]+\/)*[^/]+\.prompt\.md$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'copilot-allowed-models',
+    pattern: /(?:^|\/)\.github\/allowed_models\.txt$/,
+    canonical: keepPath,
+  },
   // VS Code's MCP configuration, which its Copilot agent reads.
   { kind: 'vscode-mcp', pattern: /(?:^|\/)\.vscode\/mcp\.json$/, canonical: keepPath },
+  { kind: 'vscode-settings', pattern: /(?:^|\/)\.vscode\/settings\.json$/, canonical: keepPath },
 
   // Gemini CLI
   { kind: 'gemini-md', pattern: /(?:^|\/)gemini\.md$/, canonical: withBase('GEMINI.md') },
@@ -346,6 +472,19 @@ const MATCHERS: readonly Matcher[] = [
     where: (path) => clinePlace(path)?.role === 'rule',
     canonical: keepPath,
   },
+  // Rules files only Devin Local reads, under the names its documentation writes: other
+  // spellings are not documented, so they are not classified (SOURCES.devinCliRules). An
+  // `AGENT.md` in a Devin agents folder is a subagent, and one in another agent's rules folder
+  // is that agent's rule: both are matched above.
+  {
+    kind: 'devin-instructions',
+    pattern: /(?:^|\/)(?:agents\.local\.md|agent\.md|\.(?:devin|windsurf)\/global_rules\.md)$/,
+    where: (path) => {
+      const name = basename(path);
+      return name === 'AGENTS.local.md' || name === 'AGENT.md' || isGlobalRules(path);
+    },
+    canonical: keepPath,
+  },
 ];
 
 /**
@@ -408,7 +547,16 @@ export function isCandidateBasename(name: string): boolean {
     lower.endsWith('.rules') ||
     lower === '.cursorrules' ||
     lower === '.windsurfrules' ||
+    // Claude Code's workflow scripts in `.claude/workflows`.
+    lower.endsWith('.js') ||
     // Gemini CLI's environment files; the classifier takes only the exact name.
-    lower === '.env'
+    lower === '.env' ||
+    // Copilot CLI extensions, the cloud agent's setup workflows and the CLI's model allowlist.
+    lower === 'extension.mjs' ||
+    lower === 'extension.cjs' ||
+    lower === 'extension.js' ||
+    lower === 'copilot-setup-steps.yml' ||
+    lower === 'copilot-code-review.yml' ||
+    lower === 'allowed_models.txt'
   );
 }

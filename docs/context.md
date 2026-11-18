@@ -119,8 +119,10 @@ Skipped
   shows "fails open" when an error or timeout in the hook lets the tool call go ahead.
 - **Settings:** the repository's settings files the session reads, such as Claude Code's
   `.claude/settings.json` and `.claude/settings.local.json`, with how many permission entries,
-  hooks and env overrides each declares for the agent. Only Claude Code's plan lists them so
-  far; JSON has them in the plan's `settings`, and the items in `inventory`.
+  hooks and env overrides each declares for the agent. The plans of Claude Code and Devin Local
+  list them so far: for Devin Local, `.devin/config.json` and `.devin/config.local.json` in the
+  working directory and the directories above it up to the repository root. JSON has them in the
+  plan's `settings`, and the items in `inventory`.
 - **On demand:** what can join the context later, and what makes it load.
 - **Skipped:** files and items the agent would consider but does not load, the reason, and the
   rule that reports the problem. A skip without a rule id is one no rule reports, usually
@@ -198,14 +200,14 @@ and matrix show every file: a pull request cannot hide agent configuration by ad
 
 Every entry has a trigger: when the agent adds it to the model's context.
 
-| Trigger          | Meaning                                                                                  | Examples                                                                                                                                                                                                                                          |
-| ---------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `startup`        | In the prompt when the session starts                                                    | Root `CLAUDE.md` and its imports; `.claude/rules` files without `paths`; Codex's `AGENTS.md` chain; `.github/copilot-instructions.md`; a Devin rule with `trigger: always_on`; the skills and subagents listings                                  |
-| `on-path`        | When the agent reads or edits a matching file. The plan shows the globs or the directory | Nested `CLAUDE.md`; `.claude/rules` with `paths`; Cursor rules with `globs`; nested `AGENTS.md` in Cursor; Copilot's `*.instructions.md` with `applyTo`                                                                                           |
-| `model-selected` | When the model picks it from its description                                             | A skill body; a Cursor rule with only a `description`; a Devin rule with `trigger: model_decision`                                                                                                                                                |
-| `manual`         | Only when the user asks for it, with an `@`-mention or a `/command`                      | A Cursor rule without `alwaysApply`, `globs` or `description`; a Devin rule with `trigger: manual`; a Cline workflow; a slash command, such as a Gemini CLI custom command; a skill or Copilot custom agent with `disable-model-invocation: true` |
-| `on-approval`    | After the user accepts a trust or approval prompt                                        | `.mcp.json` servers in Claude Code; `.codex/hooks.json` hooks and inline hooks in `.codex/config.toml`                                                                                                                                            |
-| `unknown`        | The agent reads the file, but its documentation does not say when. Always unverified     | A Cursor rule whose frontmatter is not valid YAML; a Devin rule without `trigger`                                                                                                                                                                 |
+| Trigger          | Meaning                                                                                  | Examples                                                                                                                                                                                                                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `startup`        | In the prompt when the session starts                                                    | Root `CLAUDE.md` and its imports; `.claude/rules` files without `paths`; Codex's `AGENTS.md` chain; `.github/copilot-instructions.md`; a Devin rule with `trigger: always_on`; the skills and subagents listings                                                                                         |
+| `on-path`        | When the agent reads or edits a matching file. The plan shows the globs or the directory | Nested `CLAUDE.md`; `.claude/rules` with `paths`; a Claude Code skill with `paths`; Cursor rules with `globs`; nested `AGENTS.md` in Cursor; Copilot's `*.instructions.md` with `applyTo`                                                                                                                |
+| `model-selected` | When the model picks it from its description                                             | A skill body; a Cursor rule with only a `description`; a Devin rule with `trigger: model_decision`                                                                                                                                                                                                       |
+| `manual`         | Only when the user asks for it, with an `@`-mention or a `/command`                      | A Cursor rule without `alwaysApply`, `globs` or `description`; a Devin rule with `trigger: manual`; a Cline workflow; a slash command, such as a Gemini CLI custom command; a skill or Copilot custom agent with `disable-model-invocation: true`; a Claude Code output style the settings do not select |
+| `on-approval`    | After the user accepts a trust or approval prompt                                        | `.mcp.json` servers in Claude Code; `.codex/hooks.json` hooks and inline hooks in `.codex/config.toml`                                                                                                                                                                                                   |
+| `unknown`        | The agent reads the file, but its documentation does not say when. Always unverified     | A Cursor rule whose frontmatter is not valid YAML; a Devin rule without `trigger`                                                                                                                                                                                                                        |
 
 ### Why an agent skips a file
 
@@ -234,13 +236,16 @@ Each skip has a code, shown in text and Markdown as a short reason and in JSON a
 | `never-active`                                                   | its settings keep it from ever applying              | An MCP server only an SDK host application registers, which no Claude Code session starts                                                                              |
 | `invalid-command`                                                | invalid command definition                           | A Gemini CLI custom command without a string `prompt`                                                                                                                  |
 | `invalid-toml`                                                   | not valid TOML                                       | A `.codex/config.toml` or `.codex/agents/*.toml` Codex cannot parse; a Gemini CLI custom command                                                                       |
+| `excluded`                                                       | a setting excludes it                                | A `CLAUDE.md`, `AGENTS.md` or `.claude/rules` file that `claudeMdExcludes` names                                                                                       |
+| `reserved-name`                                                  | the agent reserves the name                          | A Claude Code MCP server named `workspace`; a skill folder named `synced`; a skill or command in the `anthropic-skills` namespace                                      |
 | `not-read`                                                       | not read by this agent                               | Listed under "Not read by" in text output                                                                                                                              |
 
 The plans of Copilot, Devin Local, Cline and Codex's `config.toml` added `wrong-location`,
 `no-apply-to`, `shadowed-by-preferred`, `disabled`, `never-active` and `invalid-toml`. A Cline
 rule, workflow or skill whose frontmatter turns it off (`disabled: true`, or `enabled: false`) is
 `disabled` too, and so is a Gemini CLI skill that `skills.enabled: false` or `skills.disabled`
-turns off. Gemini CLI custom commands added `invalid-command`.
+turns off. Gemini CLI custom commands added `invalid-command`. The Claude Code plan added
+`excluded` and `reserved-name`.
 
 A skill skipped for one frontmatter field, whose YAML may be valid, keeps the code
 `invalid-frontmatter` in JSON, but text and Markdown give the reason of the rule that reports
@@ -463,7 +468,8 @@ If you changed a setting outside the repository, for example raised Codex's
 "Not visible" lists the scopes that can add instructions, skills, servers or hooks from outside
 the repository: managed and system settings; user scopes such as `~/.claude`, `~/.codex`,
 `$CODEX_HOME/AGENTS.md`, `~/.agents`, `~/.cursor`, `~/.copilot`, `~/.gemini`, `~/.config/devin`,
-`~/.devin`, `~/.codeium`, `~/.cline` and `~/Documents/Cline`; Cursor Team Rules and User Rules;
+`~/.devin`, `~/.codeium`, `~/.cline` and `~/Documents/Cline`; Cursor Team Rules and User Rules,
+team and user commands, and the plugins Cursor installs or a `workspaceOpen` hook returns;
 VS Code profile instructions; personal and organization instructions and the cloud agent's MCP
 configuration on GitHub.com; Devin organization permissions and MCP allowlists, and the MCP
 servers and personal plugins of a Devin Cloud account; claude.ai
@@ -516,8 +522,8 @@ At session start                         bytes  ≈tokens
   directory has no skills folder.
 - **Cursor**, **Copilot in VS Code**, **Devin Local** and **Cline** treat `--cwd` as the folder
   you open in the editor: that folder is the workspace root, and files outside it are not part
-  of the workspace. Devin Local also finds hook files in the directories above it, up to the
-  repository root.
+  of the workspace. Devin Local also finds hook files and its `.devin/config.json` and
+  `.devin/config.local.json` in the directories above it, up to the repository root.
 - **Copilot cloud agent** treats `--cwd` as the directory it works in: the `AGENTS.md` files from
   the root down to it load at startup, and deeper ones when it works on files there. GitHub
   documents that the nearest one takes precedence, not whether the others still load, so the
@@ -648,7 +654,7 @@ and SARIF include plans only with `--context`. See
 | `plans[].assumptions[]`, `hidden[]` | What the plan assumed, and the scopes it cannot see                                                                                                                                                                                                                                                            |
 | `plans[].limits[]`                  | Usage of each documented limit: `key`, `unit`, `limit` (`null` when it depends on an unknown context window), `used`, `subject`, `effect`                                                                                                                                                                      |
 | `plans[].totals`                    | `startup` and `onDemand` sizes                                                                                                                                                                                                                                                                                 |
-| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt` or `unparsed:.codex/config.toml`                                                                                                                                                                                                            |
+| `plans[].incomplete[]`              | What could not be analyzed, such as `unread:.clinerules/style.txt`, `unparsed:.codex/config.toml` or `unmodeled:.vscode/settings.json#chat.hookFilesLocations`                                                                                                                                                 |
 | `plans[].ignored`                   | How many files the agent may load that the plan does not show because of the configuration's `ignore`; absent when none                                                                                                                                                                                        |
 | `context.directories`               | With `tokens --by-directory`: the start directories planned besides the root, and `notPlanned`                                                                                                                                                                                                                 |
 | `context.matrix.rows[]`             | With `--matrix`: `path`, `kind`, and `cells`, where `cells[i]` belongs to `context.agents[i]`; every agent has a cell                                                                                                                                                                                          |
@@ -808,6 +814,14 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. Ids cover only what 
   A baseline made before then lists the file only as not analyzed, so the first comparison shows
   every Codex MCP server, hook, permission and env override in it as added, and the gate trips
   for them. Create the baseline again to compare item by item.
+- **Cursor configuration files.** A baseline made before agentcheckup read `.cursor/worktrees.json`,
+  `.cursor/environment.json`, `.cursor/cli.json`, `.cursor/sandbox.json`,
+  `.cursor/permissions.json`, `.cursor/commands/*.md` and `.cursor/BUGBOT.md` has no items or
+  findings in them, so the first comparison shows their setup commands as added hooks, their
+  permissions as added, and hidden Unicode in them as new: `hooks`, `permissions` and `unicode`
+  trip once. The Cursor plan also changes once: it lists custom commands, worktree setup hooks
+  and nested `CLAUDE.md` files, and plugins among what is not visible. Create the baseline again
+  to compare item by item.
 - **Agent folders.** agentcheckup reads the custom agent files in `.codex/agents`,
   `.cursor/agents`, `.gemini/agents`, `.github/agents`, `.devin/agents` and `.agents/agents`
   since it lists agent definitions. A baseline made before then has no findings in them, so the
@@ -834,6 +848,27 @@ command>`, `perm:<file>#<key>=<value>`, `env:<file>#<key>`. Ids cover only what 
   past the JSON parser's limits was `invalid-json:` and is now not analyzed, so it trips `hooks`
   once. Files of 1 to 4 MiB are now read, so their items and findings show as new once. Create
   the baseline again to compare entry by entry.
+- **Devin Local permissions and rules files.** A baseline made before agentcheckup listed the
+  `permissions` of `.devin/config.json` and `.devin/config.local.json` and the `requiredPlugins`
+  of `.devin/config.json` has no such items, so the first comparison shows them as added, and
+  `permissions` trips for them. `AGENTS.local.md`, `AGENT.md`, `.devin/global_rules.md` and
+  `.windsurf/global_rules.md` are now read, so hidden Unicode in them shows as new once, and
+  `unicode` trips. Create the baseline again to compare item by item.
+- **Copilot customizations.** A baseline made before agentcheckup read Copilot's plugin settings,
+  CLI extensions, `.github/lsp.json`, setup workflows, custom agent `mcp-servers` and
+  `.vscode/settings.json` has no items for them: the first comparison shows them as added, and
+  `permissions`, `hooks`, `env` and `mcp` trip for them. A Copilot custom agent with
+  `mcp-servers` was listed as not analyzed, and now its servers are listed. Plain `.md` files in
+  `.github/agents` are now cloud agent definitions, and sidekick agents carry their triggers, so
+  `--gate models` trips once for them. Create the baseline again to compare item by item.
+- **Surfaces that run code, grant permissions or install extensions.** A baseline made before
+  agentcheckup listed MCP `headersHelper` commands, sandbox settings, `enabledPlugins`,
+  `extraKnownMarketplaces`, workflows, skills-folder plugin mods, language servers and `bin/`
+  folders, Claude Desktop preview servers and the variables now read as `code-exec` has no such
+  items, or older digests for them: the first comparison shows them as added or changed, and the
+  `mcp`, `permissions`, `hooks` and `env` classes trip once. The `allowed-tools` of a plugin's
+  skills now take effect, and `CLAUDE_CODE_ENABLE_CFC=1` and `OTEL_LOG_MANAGED_SETTINGS` no longer
+  do. Create the baseline again to compare item by item.
 - **Agents the baseline did not plan.** Plans are compared only for agents both reports plan,
   so the session-start line leaves out an agent the baseline has no plan for. A baseline made
   before agentcheckup read the MCP and hook files of Copilot and Devin Local, such as
@@ -849,23 +884,30 @@ let an agent do more: a removed `deny` or `ask` permission entry trips `permissi
 removed model setting trips `models`. Model changes are not security-relevant, so `security`
 leaves them out: use `--gate security,models` to have them reviewed too.
 
-| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp`          | An MCP server is added or changed, a subagent's inline servers among them, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, a Gemini CLI `tools.allowed` entry or `general.defaultApprovalMode` of `auto_edit`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, or one of the Codex settings and rules below; or a new Codex rules file or `.codex/config.toml` appears that agentcheckup cannot analyze. A `deny` or `ask` entry that took effect and is removed trips it as `Permission widened: permissions.deny entry removed: …` (JSON `change` `removed`), unless the same entry still takes effect in a settings file of the same directory; an added `deny` or `ask` entry never trips it |
-| `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, a Cline hook file among them, whose content its digest covers, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's plugin folders or a Cline hook file the scan did not read, or a skill, command or subagent whose frontmatter is past agentcheckup's parser limits. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it                                                                                                                                                                                   |
-| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed. Overrides of other variables never trip it, nor do overrides the agent drops where they are set (`"effective": false`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `models`       | An agent definition is added or changed, in any agent's format; a definition runs on another model because a setting changed; or a repository setting that picks a model or an effort is set, changed or removed, such as Claude Code's `model` and `env.CLAUDE_CODE_SUBAGENT_MODEL` or Codex's `agents.default_subagent_model`. Unlike the other classes, a removed setting trips it: removing an override changes what runs. Labeled "New agent definition", "Agent definition changed", "Model setting set" or "Model setting changed". See [Agent definitions and models](agents.md)                                                                                                                                                                                                                                                                                                                                          |
+| Class          | Trips when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp`          | An MCP server is added or changed, its `headersHelper` command and a subagent's inline servers among them, or a new MCP config file appears that agentcheckup cannot analyze, such as a `.mcp.json` with invalid JSON or a `.codex/config.toml` with invalid TOML                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `mcp-unpinned` | An added or changed MCP server runs a package that is not pinned to an exact version or a digest, or runs a local command whose version cannot be told. Remote servers reached by URL never trip it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `permissions`  | An entry that lets an agent do more without asking is added, or now takes effect or is now broad: any `permissions.allow` or `permissions.additionalDirectories` entry, the `allowed-tools` of a skill or command, an `enabledPlugins` or `extraKnownMarketplaces` entry of the Copilot CLI's `.github/copilot/settings.json`, a `chat.tools.terminal.autoApprove` rule or `chat.tools.global.autoApprove` in `.vscode/settings.json`, an `enabledMcpjsonServers` entry, `enableAllProjectMcpServers` or Gemini CLI `trust` set to `true`, a Gemini CLI `tools.allowed` entry or `general.defaultApprovalMode` of `auto_edit`, `defaultMode`, a subagent's `permissionMode` or the settings `agent` set or changed, a [sandbox setting that widens the sandbox](#sandbox-and-plugin-settings), an `enabledPlugins` entry set to `true`, an `extraKnownMarketplaces` entry added or changed, a plugin in the `requiredPlugins` of Devin Local's `.devin/config.json`, which Devin installs and loads, or one of the Codex settings and rules below, or one of the [Cursor settings](#cursor-commands-and-permissions) below; or a new Codex rules file, `.codex/config.toml`, Devin Local `.devin/config.json`, Cursor permission file or `.vscode/settings.json` appears that agentcheckup cannot analyze. A `deny` or `ask` entry that took effect and is removed trips it as `Permission widened: permissions.deny entry removed: …` (JSON `change` `removed`), unless the same entry still takes effect in a settings file of the same directory, such as one moved from `.devin/config.json` to `.devin/config.local.json`; so do Cursor's `permissions.deny`, `networkPolicy.deny` and `autoRun.block_instructions` entries. An added `deny` or `ask` entry never trips it |
+| `hooks`        | A hook is added or changed, on any event and in [frontmatter](#items-declared-in-frontmatter) too, a Cline hook file, a Copilot CLI extension (`.github/extensions/NAME/extension.mjs`, `.cjs` or `.js`) or a Copilot setup workflow (`.github/workflows/copilot-setup-steps.yml`, `copilot-code-review.yml`) among them, whose content its digest covers, or a Claude Code workflow or skills-folder plugin mod is added or changed, which agentcheckup lists as not analyzed with a SHA-256 of its bytes, or a new hooks file appears that agentcheckup cannot analyze: a `.codex/config.toml` it cannot read, a Copilot or Devin Local hook or settings file that does not parse (VS Code reads its files as JSONC, and the other readers' parsers are not documented), Cascade's `.devin/hooks.json`, a file in Cline's plugin folders or a Cline hook file the scan did not read, a skill, command or subagent whose frontmatter is past agentcheckup's parser limits, or a Cursor `.cursor/worktrees.json` or `.cursor/environment.json` it cannot analyze. A setup command of `.cursor/worktrees.json` and an `install`, `start` or `terminals` command or Dockerfile of `.cursor/environment.json` is a hook too. Claude Code, Codex and Gemini CLI run no hooks from a file that does not parse, so theirs does not trip it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `env`          | An env override that sets an endpoint, a credential, TLS behavior or code execution is added or changed, a command Claude Code starts among them: a skills-folder plugin's language server or `bin/` folder, and a Claude Desktop preview server in `.claude/launch.json`, or a new `.lsp.json` or `.claude/launch.json` appears that agentcheckup cannot analyze. Overrides of other variables never trip it, nor do overrides the agent drops where they are set (`"effective": false`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `unicode`      | A new [risk/hidden-unicode](rules/risk/hidden-unicode.md) finding appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `models`       | An agent definition is added or changed, in any agent's format; a definition runs on another model because a setting changed; or a repository setting that picks a model or an effort is set, changed or removed, such as Claude Code's `model` and `env.CLAUDE_CODE_SUBAGENT_MODEL` or Codex's `agents.default_subagent_model`. Unlike the other classes, a removed setting trips it: removing an override changes what runs. Labeled "New agent definition", "Agent definition changed", "Model setting set" or "Model setting changed". See [Agent definitions and models](agents.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 The env classes come from the Claude Code and Node.js documentation. Examples: `endpoint`
 covers `ANTHROPIC_BASE_URL`, the provider base URLs and proxy variables; `credential` covers
 `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS`; `tls` covers
 `NODE_TLS_REJECT_UNAUTHORIZED` and `NODE_EXTRA_CA_CERTS`; `code-exec` covers `NODE_OPTIONS`,
-`LD_PRELOAD`, `PATH` and Claude Code settings that run a command, such as `apiKeyHelper` and
-`statusLine`, and `subagentStatusLine`, which Claude Code versions before 2.1.323 run, and Gemini
-CLI's `tools.discoveryCommand` and `tools.callCommand`. In `.env` files Gemini CLI loads,
+`LD_PRELOAD`, `PATH`, variables that make a later process run other code (`BASH_ENV`, `ENV` when it
+names a file, `LD_LIBRARY_PATH`, `LD_AUDIT`, `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`,
+`GIT_SSH_COMMAND`, `GIT_EXEC_PATH`, `GIT_ASKPASS`, `PYTHONSTARTUP`, `PYTHONPATH`, `PERL5OPT`,
+`RUBYOPT`, `NODE_PATH`, `JAVA_TOOL_OPTIONS` and a few more, from the bash, POSIX sh, glibc,
+dyld, Git, Python, Perl, Ruby and JVM documentation; `GIT_SSL_NO_VERIFY` is `tls`) and Claude Code settings that run a command, such as `apiKeyHelper` and
+`statusLine`, and `subagentStatusLine`, which Claude Code versions before 2.1.323 run, Gemini
+CLI's `tools.discoveryCommand` and `tools.callCommand`, and the `command`, `bash` and
+`powershell` of each server in the Copilot CLI's `.github/lsp.json`, which it starts once the
+folder is trusted (`lspServers.<name>.command`; the digest covers its arguments, `cwd` and
+`rootUri` too, and a server with `"disabled": true` is not effective). In `.env` files Gemini CLI loads,
 `endpoint` also covers `GOOGLE_GEMINI_BASE_URL`, `GOOGLE_VERTEX_BASE_URL`, `CODE_ASSIST_ENDPOINT`
 and `GEMINI_TELEMETRY_OTLP_ENDPOINT`, `credential` covers `GEMINI_TELEMETRY_OTLP_HEADERS`, and
 `code-exec` covers `GEMINI_CLI_IDE_SERVER_STDIO_COMMAND`. Following the digest rules above, a new
@@ -878,7 +920,9 @@ where it writes its files, the OpenTelemetry exporter variables (such as
 `OTEL_EXPORTER_OTLP_ENDPOINT` and the other `OTEL_EXPORTER_OTLP_*` names that end in `_ENDPOINT`,
 `_HEADERS`, `_PROTOCOL`, `_CERTIFICATE`, `_CLIENT_KEY` or `_INSECURE`), `BETA_TRACING_ENDPOINT`,
 those that change how it starts, such as `CLAUDE_CODE_PROCESS_WRAPPER`, the claude.ai sign-in
-variables such as `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE`, and the
+variables such as `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE`,
+`OTEL_LOG_MANAGED_SETTINGS` ("a value in project or local settings doesn't turn it on"),
+`CLAUDE_CODE_ENABLE_CFC` set to `1` ("ignores `1` in project and local settings"), and the
 variables it reads from the launch environment only, such as
 `CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS` and the `CLAUDE_CODE_DISABLE_*_RM_*`
 switches. The inventory lists such an override in `.claude/settings.json` or `settings.local.json` with
@@ -920,6 +964,35 @@ agentcheckup never evaluates these Starlark files: one that is not made only of 
 literal arguments is listed in `incomplete`, and a new one trips `permissions`, as does a new
 `.codex/config.toml` it cannot read.
 
+In Devin Local's `.devin/config.json` and `.devin/config.local.json` the inventory lists, besides
+hooks, each `permissions.allow`, `ask` and `deny` entry, with the keys Claude Code's settings use,
+so added `allow` entries and removed `deny` and `ask` entries trip `permissions` the same way.
+Both files outrank the user configuration. Broad entries are `exec` and `Exec(*)` (any shell
+command), `edit` (any file edit), `Write(**)`, `Write(/**)` and `Write(~/**)` (any file below the
+working directory, on the system or in the home directory) and `mcp__*` (any MCP tool). It also
+lists each plugin in the `requiredPlugins` of `.devin/config.json` as `requiredPlugins`, with its
+`sha` pin or `ref`: Devin installs a repository's required plugins and loads their rules, skills,
+hooks, MCP servers and subagents, which the repository does not show, so a new one, or a new pin,
+trips `permissions`. `optionalPlugins` installs nothing and `forbiddenPlugins` only blocks, so
+neither is listed, and removing a `forbiddenPlugins` entry does not trip the gate.
+
+In `.github/copilot/settings.json` and `settings.local.json`, the inventory lists each
+`enabledPlugins` entry with a boolean value (`enabledPlugins.<plugin>@<marketplace>`, value
+`true` or `false`) and each `extraKnownMarketplaces` entry (`extraKnownMarketplaces.<name>`,
+value the short form of its source, such as `github:acme/plugins`), as permissions that are never
+broad. "A plugin enabled only through a repository's `enabledPlugins` ... auto-installs and
+activates in the declaring repository", and Copilot in the cloud reads both keys too, so a
+plugin's MCP servers, hooks, agents and skills arrive without any file in the repository showing
+them. A marketplace's digest covers its source, header values left out, so a marketplace
+repointed under the same name trips the gate.
+
+In `.vscode/settings.json`, which VS Code reads as JSONC, the inventory lists each
+`chat.tools.terminal.autoApprove` rule that approves (`true`, or `{ "approve": true }`), broad for
+a regular expression that matches every command such as `/.*/`, and not effective when
+`chat.tools.terminal.enableAutoApprove` is `false`; and `chat.tools.global.autoApprove: true`, as
+broad and not effective: VS Code registers that setting with the application-machine scope, so a
+workspace value is not applied. Rules that only ask (`false`) are not listed.
+
 In `.gemini/settings.json` the inventory lists, besides MCP servers, hooks and `trust`, what
 Gemini CLI applies in a trusted folder: each `tools.allowed` entry, tools that skip the
 confirmation (broad for `run_shell_command` or `ShellTool` without a command prefix, and for `*`);
@@ -954,21 +1027,80 @@ path, an argument or an env value it does not show. Text output ends each line w
 line that declare the change, as Markdown and GitHub annotations show them. A removed `deny` or
 `ask` entry has no line in the pull request; its id names the file it was in.
 
+### Cursor commands and permissions
+
+Cursor runs commands and widens what its agents may do from files in `.cursor/`
+([What coding agents read](platforms.md#commands-permissions-and-the-sandbox)). The inventory
+lists them for `cursor`, in any directory:
+
+| File                       | Listed as                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.cursor/worktrees.json`   | A hook per command of `setup-worktree-unix`, `setup-worktree-windows` and `setup-worktree`, named after its key; a script path is the hook's `script`                                                                                                                                                              |
+| `.cursor/environment.json` | A hook for `install`, `start`, each `terminals[].command` and `build.dockerfile` (cloud agents only); a permission per `repositoryDependencies` entry, which adds a repository to the agent's git credentials                                                                                                      |
+| `.cursor/cli.json`         | A permission per `permissions.allow` and `permissions.deny` token. `Shell(*)`, `Write(**)`, `Mcp(*:*)` and `WebFetch(*)` are broad. The Cursor CLI reads nothing else from a project file                                                                                                                          |
+| `.cursor/sandbox.json`     | `type: "insecure_none"` and `networkPolicy.default: "allow"` (broad), each `additionalReadwritePaths`, `additionalReadonlyPaths` and `additionalReadPaths` entry (broad for `/` or `~`), `readBoundary: "system"`, `enableSharedBuildCache: true`, and each `networkPolicy.allow` and `networkPolicy.deny` pattern |
+| `.cursor/permissions.json` | Each `mcpAllowlist` entry (`*:*` is broad) and `terminalAllowlist` entry, and each `autoRun.allow_instructions` and `autoRun.block_instructions` sentence. Read as JSONC, as Cursor reads it                                                                                                                       |
+
+Values that only restrict, or that are the documented default, are not listed. A command's
+digest covers it as a hook's does, credentials left out, so a changed download path trips
+`hooks` as "(changed in a redacted part)". A key with a shape the documentation does not
+describe, such as a `setup-worktree` that is neither a list of strings nor a string, makes the
+file incomplete, and a new such file trips `hooks` or `permissions`. Cursor Team Rules, team Run
+Mode controls, saved cloud environments and the files in `~/.cursor` can override these files and
+are not visible. `.cursor/BUGBOT.md` is read for hidden text and its size
+([cursor/bugbot-rule-too-long](rules/cursor/bugbot-rule-too-long.md)); `.cursor/config/bugbot.yaml`
+is not read: Bugbot reads it from the pull request's base branch.
+
+### Sandbox and plugin settings
+
+Claude Code's `sandbox` settings may be set in any settings file, and Claude Code ignores the ones
+that loosen the sandbox in a repository's files only while managed settings or `--settings` make
+the sandbox admin-required, which the repository cannot show. The inventory lists the ones that
+widen what Bash commands may do or run without a prompt, as permissions keyed by their path, such
+as `sandbox.excludedCommands` = `docker *`: `enabled` and `failIfUnavailable` set to `false`;
+`autoAllowBashIfSandboxed` (broad), `allowUnsandboxedCommands`, `enableWeakerNestedSandbox`,
+`enableWeakerNetworkIsolation`, `network.allowAllUnixSockets` (broad) and
+`network.allowLocalBinding` set to `true`; each `excludedCommands`, `filesystem.allowWrite`,
+`filesystem.allowRead`, `network.allowedDomains`, `network.allowUnixSockets` and
+`network.allowMachLookup` entry, broad for `*`, the file system root or the home directory; and
+`network.httpProxyPort` and `socksProxyPort`, broad because Claude Code's domain lists stop
+applying to the traffic sent there. `allowAppleEvents`, `allowNestedUserNamespaces` and
+`filesystem.disabled` count only from user and managed settings, so they are listed with
+`"effective": false`. Since Claude Code 2.1.325 `autoAllowBashIfSandboxed` defaults to `false`;
+before, `sandbox.enabled: true` alone ran every sandboxed command without asking, so a file that
+turns the sandbox on without choosing `autoAllowBashIfSandboxed` lists `sandbox.enabled` = `true`
+too. Settings that only restrict the sandbox, such as `denyRead`, `deniedDomains` and
+`credentials`, and `ignoreViolations`, which silences reports while the sandbox still blocks, are
+not listed.
+
+`enabledPlugins` and `extraKnownMarketplaces` in `.claude/settings.json` and
+`settings.local.json` are listed for Claude Code and GitHub Copilot, which reads both keys from
+these files on the CLI and in the cloud, as `enabledPlugins.<plugin>` = `true` or `false` and
+`extraKnownMarketplaces.<name>` = the marketplace's source, such as `github:acme/plugins`. Claude
+Code also reads the alias `additionalMarketplaces` when the file has no `extraKnownMarketplaces`;
+those items are Claude Code's alone. A plugin set to `true` trips `permissions`, one set to
+`false` never does. A marketplace's digest covers its source, with header values left out, and
+`autoUpdate`, so another repository or URL under the same name trips it as
+`extraKnownMarketplaces.<name> … changed`; a `headersHelper` in its source is a `code-exec`
+override. Plugin and marketplace names never read as other settings: a plugin named `deny` is not
+a deny rule.
+
 ### What the scan could not analyze
 
 A change the scan cannot see cannot pass the gate. The inventory lists what it could not
 analyze in `incomplete`, and each entry trips the gate as "Not analyzed" (JSON `kind`
 `not-analyzed`):
 
-| Entry                 | What                                                                                                                                                            | Trips                                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `file-limit:<path>`   | The walk stopped at its limit of 200,000 directory entries before `<path>`: anything in a directory it had not listed is unknown                                | Every class, whatever the baseline says, because the change may have added anything there                                                                    |
-| `unlisted:<dir>/`     | A directory the walk could not list: deeper than 32 levels, or unreadable                                                                                       | Every class, whatever the baseline says                                                                                                                      |
-| `unread:<path>`       | An agent configuration file the walk did not read: over 4 MiB, past the 64 MiB the scan reads, binary or unreadable                                             | When new: `unicode`, and the classes the file declares: `mcp` and `hooks` as for an invalid file, `permissions` and `env` for settings files and frontmatter |
-| `excluded:<path>`     | Without `--untrusted`: agent configuration that `.gitignore` excludes, or in `vendor`, `dist`, `build`, `out`, `target` or `coverage`                           | When new, as `unread:`                                                                                                                                       |
-| `<path>`              | A file agentcheckup read but could not analyze: past a parser limit (JSON nested deeper than 512 levels or longer than 2 MiB), or in a format it does not model | When new: `mcp` and `hooks` for the files that declare them                                                                                                  |
-| `invalid-json:<path>` | A file that is not valid JSON. Claude Code, Codex and Gemini CLI run no hook from such a file                                                                   | When new: `mcp`, and `hooks` except for the files those three agents skip                                                                                    |
-| `invalid-toml:<path>` | A `.codex/config.toml` that is not valid TOML                                                                                                                   | When new: `mcp` and `hooks`                                                                                                                                  |
+| Entry                 | What                                                                                                                                                                                             | Trips                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `file-limit:<path>`   | The walk stopped at its limit of 200,000 directory entries before `<path>`: anything in a directory it had not listed is unknown                                                                 | Every class, whatever the baseline says, because the change may have added anything there                                                                    |
+| `unlisted:<dir>/`     | A directory the walk could not list: deeper than 32 levels, or unreadable                                                                                                                        | Every class, whatever the baseline says                                                                                                                      |
+| `unread:<path>`       | An agent configuration file the walk did not read: over 4 MiB, past the 64 MiB the scan reads, binary or unreadable                                                                              | When new: `unicode`, and the classes the file declares: `mcp` and `hooks` as for an invalid file, `permissions` and `env` for settings files and frontmatter |
+| `excluded:<path>`     | Without `--untrusted`: agent configuration that `.gitignore` excludes, or in `vendor`, `dist`, `build`, `out`, `target` or `coverage`                                                            | When new, as `unread:`                                                                                                                                       |
+| `<path>`              | A file agentcheckup read but could not analyze: past a parser limit (JSON nested deeper than 512 levels or longer than 2 MiB), or in a format it does not model                                  | When new: `mcp`, `hooks`, `permissions` and `env` for the files that declare them                                                                            |
+| `invalid-json:<path>` | A file that is not valid JSON. Claude Code, Codex and Gemini CLI run no hook from such a file, and Cursor ignores a `.cursor/permissions.json` it cannot parse                                   | When new: `mcp`, `permissions` and `env` for the files that declare them, and `hooks` except for the files those three agents skip                           |
+| `invalid-toml:<path>` | A `.codex/config.toml` that is not valid TOML                                                                                                                                                    | When new: `mcp` and `hooks`                                                                                                                                  |
+| `code:<path>#<hash>`  | A script Claude Code runs that agentcheckup never analyzes: a workflow in `.claude/workflows/` or a plugin's `workflows/`, or a skills-folder plugin's mod module, with the SHA-256 of its bytes | When new, that is when the script is added or changed: `hooks`, "New" or "Changed"                                                                           |
 
 A parser limit is never a syntax error: agents read such a file with `JSON.parse`, which has no
 depth limit, so a settings file nested 513 levels deep is not analyzed rather than invalid, and
@@ -987,22 +1119,23 @@ setting too, and GitHub Copilot reads hooks from a custom agent's frontmatter, s
 lists them next to the ones in configuration files, and the gate and a [policy](policy.md) check
 them the same way:
 
-| Where                                              | Fields                                                   | When they apply                                                                                                                                  |
-| -------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A subagent in `.claude/agents/`                    | `hooks`, `mcpServers` (inline servers), `permissionMode` | Only while the subagent runs. Items have `"scope": "subagent"`. A subagent Claude Code skips runs no hook, starts no server and applies no mode  |
-| A skill (`SKILL.md`) or a `.claude/commands/` file | `hooks`, `allowed-tools`                                 | Hooks from the turn the skill or command is invoked to the end of the session (`"scope": "skill"`); `allowed-tools` for the turn that invokes it |
-| `.claude/settings.json` and `settings.local.json`  | `agent`                                                  | Every session starts as that subagent, with its prompt, tools, model, hooks and MCP servers                                                      |
-| A Copilot custom agent in `.github/agents/`        | `hooks`, in Copilot's hook format                        | Only while the agent is selected, on the Copilot CLI and in VS Code. Items have `"scope": "subagent"` and the platform `copilot`                 |
+| Where                                              | Fields                                                   | When they apply                                                                                                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A subagent in `.claude/agents/`                    | `hooks`, `mcpServers` (inline servers), `permissionMode` | Only while the subagent runs. Items have `"scope": "subagent"`. A subagent Claude Code skips runs no hook, starts no server and applies no mode                           |
+| A skill (`SKILL.md`) or a `.claude/commands/` file | `hooks`, `allowed-tools`                                 | Hooks from the turn the skill or command is invoked to the end of the session (`"scope": "skill"`); `allowed-tools` for the turn that invokes it                          |
+| `.claude/settings.json` and `settings.local.json`  | `agent`                                                  | Every session starts as that subagent, with its prompt, tools, model, hooks and MCP servers                                                                               |
+| A Copilot custom agent in `.github/agents/`        | `hooks`, in Copilot's hook format; `mcp-servers`         | Only while the agent is selected: hooks on the Copilot CLI and in VS Code, servers on the CLI and GitHub.com. Items have `"scope": "subagent"` and the platform `copilot` |
 
 - GitHub Copilot and Devin Local apply a skill's `allowed-tools` too, so an entry takes effect
   wherever one of the three loads the skill. Devin Local auto-approves the tools listed there
   while the skill runs inline, in its own skills and those it imports from `.claude/skills`,
   `.github/skills`, `.codex/skills` and `.kiro/skills`, unless `read_config_from` turns the
   import off. Its `exec` is a broad grant: any shell command.
-- A GitHub Copilot custom agent in `.github/agents` may declare MCP servers in `mcp-servers`.
-  agentcheckup does not list them yet, so such a file is incomplete: a new one trips `mcp`, and a
-  policy reports `unanalyzed-config`. A `hooks` value that is not an event map makes the file
-  incomplete too, and so does frontmatter agentcheckup cannot read, as for a subagent: YAML that
+- A GitHub Copilot custom agent in `.github/agents` may declare MCP servers in `mcp-servers`,
+  "Additional MCP servers and tools that should be used by the custom agent"; they are listed as
+  servers with the subagent scope, their sensitive `env` names as env overrides. An `mcp-servers`
+  value that is not an object, or a `hooks` value that is not an event map, makes the file
+  incomplete, and so does frontmatter agentcheckup cannot read, as for a subagent: YAML that
   does not parse, a block past its parser limits, or a `<<` merge key. A new incomplete agent file
   trips `hooks` and `mcp`. Its hook commands resolve from the repository root, and a `Stop` hook
   runs at `SubagentStop`, as Copilot's hooks reference says.
@@ -1035,8 +1168,11 @@ them the same way:
 - A hook in a skill, command or subagent never meets a policy's `hooks.require`, because it does
   not run for the whole session.
 - A plugin's inline `hooks` in its `plugin.json` are listed, and so is the `hooks/hooks.json` of a
-  plugin in a `.claude/skills/` folder, the plugins Claude Code loads from the repository. Other
-  plugin directories are not read yet: their `hooks/hooks.json`, `agents/` and `commands/`.
+  plugin in a `.claude/skills/` folder, the plugins Claude Code loads from the repository, with
+  its mod, language servers, `bin/` folder and the `allowed-tools` and hooks of its
+  `skills/<name>/SKILL.md` files, which Claude Code loads as `/<plugin>:<skill>`. A plugin with
+  `commands/` files, or a manifest that names more skill, command or workflow folders, is not
+  analyzed. Other plugin directories are not read: plugins load from there only once installed.
 - An MCP server of `"type": "sdk"` is listed as skipped by Claude Code, which registers such a
   server only in an SDK host application.
 
@@ -1130,8 +1266,19 @@ npx agentcheckup context --matrix --format markdown --output agent-context.md
   includes the Copilot cloud agent's MCP servers, which live in the repository's settings on
   GitHub.com, not in a file.
 - **Surfaces and agents not planned.** Copilot Chat and code review on GitHub.com, VS Code's
-  harnesses other than Local, Devin Desktop's Cascade agent and Antigravity CLI have no plans.
-  Rules still check the files they read.
+  harnesses other than Local, the GitHub Copilot app, Devin Desktop's Cascade agent and
+  Antigravity CLI have no plans. Rules still check the files they read. The Copilot app's
+  `.github/github-app.yml` (legacy `.github/copilot-desktop.yml`) adds `instructions` to the system
+  prompt and runs `scripts` on `session.create` and `session.archive`, but only after the user
+  reviews and accepts the file, and again after every change to it; agentcheckup does not read it.
+- **VS Code settings.** The VS Code plan applies the `chat.*` settings of the workspace folder's
+  `.vscode/settings.json` that turn instruction files and Claude Code hooks on or off. Settings
+  that add or remove folders (`chat.instructionsFilesLocations`, `chat.agentFilesLocations`,
+  `chat.hookFilesLocations`, `chat.promptFilesLocations`) or read a parent repository
+  (`chat.useCustomizationsInParentRepositories`) are listed as assumptions; a value other than the
+  default leaves the plan incomplete (`unmodeled:`). User and profile settings are not visible.
+- **Copilot CLI extensions** run only with experimental features on, so the plan lists them as
+  `manual`; their JavaScript is not analyzed, only digested.
 - **Modes the plans assume away.** Plans assume trusted workspaces and folders, Devin Desktop
   outside Restricted Mode, where agents are unavailable and hooks do not run, and every Cline
   rule toggle on.

@@ -42,6 +42,39 @@ const CLINE_RELEASE_CHECKED = '2026-11-14';
  */
 const GEMINI_SOURCE_CHECKED = '2026-11-14';
 
+/**
+ * Cursor documentation read on 2026-11-18 as Markdown (`<url>.md`), for the repository files
+ * Cursor reads besides rules, skills, hooks and MCP servers: worktree setup, Cursor CLI, sandbox
+ * and Auto-review permissions, cloud agent environments, custom commands, Bugbot rules and
+ * plugins.
+ */
+const CURSOR_FILES_CHECKED = '2026-11-18';
+
+/**
+ * Devin CLI pages re-read on 2026-11-18 for the permissions and plugin lists of
+ * `.devin/config.json` and `.devin/config.local.json`, and for the instruction files Devin Local
+ * finds in subdirectories.
+ */
+const DEVIN_CONFIG_CHECKED = '2026-11-18';
+
+/**
+ * Sources read on 2026-11-18 for GitHub Copilot's plugin settings, CLI extensions, LSP servers,
+ * the cloud agent's setup workflows, custom agent MCP servers and sidekicks, VS Code's workspace
+ * settings and prompt files. VS Code source files were read at microsoft/vscode `main` that day.
+ */
+const COPILOT_AUDIT_CHECKED = '2026-11-18';
+
+/** Claude Code pages read on 2026-11-18 for what its load plan states. */
+const CLAUDE_AUDIT_CHECKED = '2026-11-18';
+
+/**
+ * Sources read on 2026-11-18 for the repository surfaces of Claude Code that run code, grant
+ * permissions or install extensions (headersHelper, sandbox settings, plugin settings, skills-dir
+ * plugin mods, LSP servers and executables, workflows, preview servers), and for the variables
+ * that make a later process run other code.
+ */
+const SURFACES_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -105,6 +138,11 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   claudeMcp: verified('Claude Code: MCP', 'https://code.claude.com/docs/en/mcp', DRIFT_CHECKED),
+  claudeOutputStyles: verified(
+    'Claude Code: Output styles',
+    'https://code.claude.com/docs/en/output-styles',
+    CLAUDE_AUDIT_CHECKED,
+  ),
   claudeSubagents: verified(
     'Claude Code: Subagents',
     'https://code.claude.com/docs/en/sub-agents',
@@ -119,6 +157,51 @@ export const SOURCES = {
     'Claude Code: Plugin loading reference',
     'https://code.claude.com/docs/en/plugins/loading',
     DRIFT_CHECKED,
+  ),
+  claudePluginComponents: verified(
+    'Claude Code: Plugin components (LSP servers, executables in bin/)',
+    'https://code.claude.com/docs/en/plugins/components',
+    SURFACES_CHECKED,
+  ),
+  claudePluginManifest: verified(
+    'Claude Code: Plugin manifest reference (lspServers, bin/)',
+    'https://code.claude.com/docs/en/plugins/manifest-reference',
+    SURFACES_CHECKED,
+  ),
+  claudePluginSecurity: verified(
+    'Claude Code: Plugin security',
+    'https://code.claude.com/docs/en/plugins/security',
+    SURFACES_CHECKED,
+  ),
+  claudeMods: verified(
+    'Claude Code: Mods reference',
+    'https://code.claude.com/docs/en/plugins/mods/reference',
+    SURFACES_CHECKED,
+  ),
+  claudeSandboxing: verified(
+    'Claude Code: Sandboxing',
+    'https://code.claude.com/docs/en/sandboxing',
+    SURFACES_CHECKED,
+  ),
+  claudeWorkflows: verified(
+    'Claude Code: Workflows',
+    'https://code.claude.com/docs/en/workflows',
+    SURFACES_CHECKED,
+  ),
+  claudeScheduledTasks: verified(
+    'Claude Code: Scheduled tasks (loop.md)',
+    'https://code.claude.com/docs/en/scheduled-tasks',
+    SURFACES_CHECKED,
+  ),
+  claudeDesktop: verified(
+    'Claude Code: Desktop (preview servers, .claude/launch.json)',
+    'https://code.claude.com/docs/en/desktop',
+    SURFACES_CHECKED,
+  ),
+  claudeChangelog: verified(
+    'Claude Code: CHANGELOG',
+    'https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md',
+    SURFACES_CHECKED,
   ),
   codexAgentsMd: verified(
     'Codex: AGENTS.md',
@@ -295,6 +378,67 @@ export const SOURCES = {
   },
   cursorHooks: verified('Cursor: Hooks', 'https://cursor.com/docs/hooks', AUDIT_CHECKED),
   cursorMcp: verified('Cursor: MCP', 'https://cursor.com/docs/mcp', AUDIT_CHECKED),
+  cursorWorktrees: verified(
+    'Cursor: Worktrees (.cursor/worktrees.json)',
+    'https://cursor.com/docs/configuration/worktrees',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCliPermissions: verified(
+    'Cursor CLI: Permissions (.cursor/cli.json)',
+    'https://cursor.com/docs/cli/reference/permissions',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCliConfiguration: verified(
+    'Cursor CLI: Configuration',
+    'https://cursor.com/docs/cli/reference/configuration',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorRunModes: verified(
+    'Cursor: Run Modes (Auto-review, sandboxing)',
+    'https://cursor.com/docs/agent/security/run-modes',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorSandbox: verified(
+    'Cursor: sandbox.json reference',
+    'https://cursor.com/docs/reference/sandbox',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorPermissions: verified(
+    'Cursor: permissions.json reference',
+    'https://cursor.com/docs/reference/permissions',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCloudAgentSetup: verified(
+    'Cursor: Cloud agent setup (.cursor/environment.json)',
+    'https://cursor.com/docs/cloud-agent/setup',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCloudAgentBuilds: verified(
+    'Cursor: Cloud agent Builds (install, start, terminals)',
+    'https://cursor.com/docs/cloud-agent/builds',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCustomize: verified(
+    'Cursor: Customize Cursor (commands)',
+    'https://cursor.com/docs/customize-cursor',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorDeeplinks: verified(
+    'Cursor: Deeplinks (commands in .cursor/commands)',
+    'https://cursor.com/docs/reference/deeplinks',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorBugbot: verified('Cursor: Bugbot', 'https://cursor.com/docs/bugbot', CURSOR_FILES_CHECKED),
+  cursorAgentReview: verified(
+    'Cursor: Agent Review',
+    'https://cursor.com/docs/agent/agent-review',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorPlugins: verified(
+    'Cursor: Plugins',
+    'https://cursor.com/docs/plugins',
+    CURSOR_FILES_CHECKED,
+  ),
   copilotRepoInstructions: verified(
     'GitHub Copilot: Repository custom instructions',
     'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions',
@@ -534,9 +678,9 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   devinCliRules: verified(
-    'Devin CLI: Rules',
+    'Devin CLI: Rules ("These files can exist at multiple levels in your project (not just the root)")',
     'https://docs.devin.ai/cli/extensibility/rules',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
   ),
   devinReadConfigFrom: verified(
     'Devin CLI: read_config_from (imports from Cursor, Windsurf, Claude Code, GitHub Copilot, Codex, Kiro, OpenCode and Zed)',
@@ -554,14 +698,29 @@ export const SOURCES = {
     DRIFT_CHECKED,
   ),
   devinCliChangelog: verified(
-    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)',
+    'Devin CLI: Changelog, stable channel (v3000.4.16: lowercase `agents.md`; v3000.10.31: `Exec(*)` matches every command; v3000.11.1: skills grant tools with `allowed-tools`; v3000.12.17: `ContextInput` hooks)',
     'https://docs.devin.ai/cli/changelog/stable',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
   ),
   devinCliConfigFile: verified(
-    'Devin CLI: Configuration file (JSON with comments)',
+    'Devin CLI: Configuration file (JSON with comments; "Only `permissions`, `read_config_from`, and `hooks` are available in project configs")',
     'https://docs.devin.ai/cli/reference/configuration/config-file',
-    DRIFT_CHECKED,
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliConfigPrecedence: verified(
+    'Devin CLI: Configuration precedence (`.devin/config.json` and `.devin/config.local.json` found by walking up from the working directory; permission lists merged)',
+    'https://docs.devin.ai/cli/reference/configuration/global-vs-local',
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliPermissions: verified(
+    'Devin CLI: Permissions (`allow`, `ask` and `deny` in `.devin/config.json` and `.devin/config.local.json`, which outrank the user config)',
+    'https://docs.devin.ai/cli/reference/permissions',
+    DEVIN_CONFIG_CHECKED,
+  ),
+  devinCliPlugins: verified(
+    "Devin CLI: Plugins (the `requiredPlugins` of a checkout's `.devin/config.json` are installed and load)",
+    'https://docs.devin.ai/cli/extensibility/plugins/overview',
+    DEVIN_CONFIG_CHECKED,
   ),
   devinCliHooks: verified(
     'Devin CLI: Hooks',
@@ -661,6 +820,46 @@ export const SOURCES = {
     'https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html',
     '2026-11-14',
   ),
+  posixSh: verified(
+    'POSIX.1-2024: sh (ENV)',
+    'https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sh.html',
+    SURFACES_CHECKED,
+  ),
+  bashManual: verified(
+    'bash(1): Linux manual page (BASH_ENV)',
+    'https://man7.org/linux/man-pages/man1/bash.1.html',
+    SURFACES_CHECKED,
+  ),
+  dyldManual: verified(
+    'dyld(1): Xcode manual page (DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH)',
+    'https://keith.github.io/xcode-man-pages/dyld.1.html',
+    SURFACES_CHECKED,
+  ),
+  gitEnvironment: verified(
+    'Git: git(1), environment variables',
+    'https://git-scm.com/docs/git',
+    SURFACES_CHECKED,
+  ),
+  pythonEnvironment: verified(
+    'Python: Command line and environment',
+    'https://docs.python.org/3/using/cmdline.html',
+    SURFACES_CHECKED,
+  ),
+  perlRun: verified(
+    'perlrun: PERL5OPT and PERL5LIB',
+    'https://perldoc.perl.org/perlrun',
+    SURFACES_CHECKED,
+  ),
+  rubyManual: verified(
+    'ruby(1): RUBYOPT and RUBYLIB',
+    'https://github.com/ruby/ruby/blob/master/man/ruby.1',
+    SURFACES_CHECKED,
+  ),
+  jvmTool: verified(
+    'JVM Tool Interface: JAVA_TOOL_OPTIONS',
+    'https://docs.oracle.com/en/java/javase/21/docs/specs/jvmti.html',
+    SURFACES_CHECKED,
+  ),
   unicodeTagSmuggling: verified(
     'Unicode Technical Standard #39: Security mechanisms',
     'https://www.unicode.org/reports/tr39/',
@@ -719,6 +918,61 @@ export const SOURCES = {
     'GitHub Copilot: Custom agents configuration',
     'https://docs.github.com/en/copilot/reference/custom-agents-configuration',
     AUDIT_CHECKED,
+  ),
+  copilotCreateCustomAgents: verified(
+    'GitHub Copilot cloud agent: Creating custom agents (a missing name defaults to the file name without `.md` or `.agent.md`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliExtensions: verified(
+    'GitHub Copilot CLI: Creating extensions (`.github/extensions/NAME/extension.mjs`, experimental)',
+    'https://docs.github.com/en/copilot/tutorials/create-an-extension',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliLsp: verified(
+    'GitHub Copilot CLI: Using LSP servers (`.github/lsp.json`, started once the folder is trusted)',
+    'https://docs.github.com/en/copilot/concepts/customizations/lsp-servers',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotCliLspHowTo: verified(
+    'GitHub Copilot CLI: Adding LSP servers (`command`, `bash`, `powershell`, `args`, `env`, `disabled`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/add-lsp-servers',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotSetupSteps: verified(
+    'GitHub Copilot cloud agent: Configure the development environment (`copilot-setup-steps.yml`, `copilot-code-review.yml`)',
+    'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  copilotAppConfig: verified(
+    'GitHub Copilot app: Repository configuration (`.github/github-app.yml`, applied after the user accepts it)',
+    'https://docs.github.com/en/copilot/reference/github-copilot-app-reference/repository-configuration',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeAgentPlugins: verified(
+    'VS Code: Agent plugins (workspace plugin recommendations and repository defaults)',
+    'https://code.visualstudio.com/docs/agent-customization/agent-plugins',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeApprovals: verified(
+    'VS Code: Approvals (`chat.tools.terminal.autoApprove` rules)',
+    'https://code.visualstudio.com/docs/agents/run/approvals',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodePromptFiles: verified(
+    'VS Code: Prompt files (`.github/prompts/*.prompt.md`, Local harness only)',
+    'https://code.visualstudio.com/docs/agent-customization/prompt-files',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeChatSettingsSource: verified(
+    'VS Code source: chat.shared.contribution.ts (scopes of the chat.* settings; chat.tools.global.autoApprove is APPLICATION_MACHINE)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
+    COPILOT_AUDIT_CHECKED,
+  ),
+  vscodeTerminalSettingsSource: verified(
+    'VS Code source: terminalChatAgentToolsConfiguration.ts (chat.tools.terminal.autoApprove has no scope, so a workspace may set it)',
+    'https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.ts',
+    COPILOT_AUDIT_CHECKED,
   ),
   devinSubagents: verified(
     'Devin CLI: Subagents',

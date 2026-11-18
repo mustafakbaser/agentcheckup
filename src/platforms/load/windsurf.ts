@@ -9,15 +9,24 @@
  *
  * - Instructions: `AGENTS.md`, `AGENTS.local.md`, `AGENT.md`, `.windsurfrules` and `CLAUDE.md` at
  *   the workspace root load at session start; the same files in subdirectories load when the agent
- *   accesses files there (SOURCES.devinCliRules). Devin documents subdirectories for the AGENTS
- *   files only, so a nested `CLAUDE.md` or `.windsurfrules` is unverified.
+ *   accesses files there: "These files can exist at multiple levels in your project (not just the
+ *   root)" (SOURCES.devinCliRules).
  * - Global rules: `.devin/global_rules.md`, or `.windsurf/global_rules.md` when there is no
- *   `.devin` one; the `.windsurf` file is then `shadowed-by-preferred`.
+ *   `.devin` one; the `.windsurf` file is then `shadowed-by-preferred`. Below the workspace root
+ *   they are unverified.
  * - Workspace rules in `.devin/rules` and `.windsurf/rules`: the trigger comes from
  *   `windsurfActivation`, shared with the instr/windsurf-* rules. A missing or unknown `trigger`
  *   is the `unknown` trigger, unverified: Devin does not document it.
  * - `.cursor/rules/*.md` and `*.mdc`: the mode comes from `cursorActivation`, shared with Cursor's
- *   plan and the cursor/* rules. Devin reads the `.md` files Cursor ignores.
+ *   plan and the cursor/* rules. Devin reads the `.md` files Cursor ignores. "Devin CLI reads from
+ *   `.cursor/rules/*.md` and `.cursor/rules/*.mdc`": it documents rules folders at several levels
+ *   for `.windsurf/rules` and `.devin` only, so a `.cursor/rules` below the workspace root is
+ *   unverified.
+ * - Settings: `.devin/config.json` and `.devin/config.local.json` in the working directory and the
+ *   directories above it up to the repository root (SOURCES.devinCliConfigPrecedence), whose
+ *   `permissions` apply (`LoadPlan.settings`); the inventory lists their entries. Plugins the
+ *   `requiredPlugins` of a `.devin/config.json` install load from outside the repository, so the
+ *   plan names them as a hidden scope (SOURCES.devinCliPlugins).
  * - Skills: `<name>/SKILL.md` in `.devin/skills`, `.windsurf/skills`, `.agents/skills` and the
  *   imported `.codeium/skills`, and any SKILL.md below the imported `.claude/skills`,
  *   `.github/skills`, `.codex/skills` and `.kiro/skills` (SKILL_ROOTS in src/platforms/skills.ts),
@@ -36,9 +45,7 @@
  *   shared with the rules through src/platforms/readers.ts): their files are `disabled`.
  *
  * Devin documents no order for the startup context and no size limit, so startup entries have no
- * position and the plan lists no limits. Files the classifier does not know (`AGENTS.local.md`,
- * `AGENT.md`, the global rules files) are not read: they are listed without a size, and the plan
- * is incomplete.
+ * position and the plan lists no limits.
  *
  * Pure and deterministic: reads only the view, never the file system.
  */
@@ -64,11 +71,16 @@ import { mcpServers } from '../mcp.js';
 import { basename, fileExists, joinPath, nearestGitRoot, selfAndAncestors } from '../paths.js';
 import { bodyOffset, pluginReaders, skillLocation } from '../skills.js';
 import {
+  DEVIN_CONFIG_FILE,
+  DEVIN_CONFIG_LOCAL_FILE,
   type DevinConfigSource,
   type DevinReadConfigFrom,
+  devinPluginSource,
   devinReadConfigFor,
   devinReadConfigFrom,
   devinSourceOf,
+  GLOBAL_RULES,
+  globalRulesFolder,
   WINDSURF_MODE_TRIGGER,
   windsurfActivation,
 } from '../windsurf-rules.js';
@@ -82,6 +94,7 @@ import type {
   LoadRole,
   LoadTrigger,
   OutOfScope,
+  SettingsFile,
   Size,
   SkippedLoad,
   SourceKey,
@@ -161,6 +174,14 @@ const HIDDEN: readonly HiddenScope[] = [
   },
 ];
 
+/**
+ * The hidden plugins of a repository whose `.devin/config.json` requires some: "Auto-installed
+ * (recursively) when the plugin is installed", and "a governance-required plugin is reinstalled on
+ * the next session in the requiring scope" (SOURCES.devinCliPlugins). Their rules, skills, hooks,
+ * MCP servers and subagents load from outside the repository.
+ */
+const REQUIRED_PLUGINS = 'plugins the repository requires in .devin/config.json';
+
 const TRIGGER_FOR_CURSOR_MODE: Readonly<Record<CursorRuleMode, LoadTrigger>> = {
   always: 'startup',
   globs: 'on-path',
@@ -173,14 +194,12 @@ const TRIGGER_FOR_CURSOR_MODE: Readonly<Record<CursorRuleMode, LoadTrigger>> = {
 const INSTRUCTION_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'agents-md',
   'claude-md',
+  'devin-instructions',
   'windsurf-legacy-rules',
 ]);
 
-/** Instruction files the classifier does not know, so the walker does not read them. */
-const UNREAD_INSTRUCTIONS: ReadonlySet<string> = new Set(['AGENTS.local.md', 'AGENT.md']);
-
-/** Where the global rules file sits, by the folder that holds it. */
-const GLOBAL_RULES = 'global_rules.md';
+/** The settings files whose `permissions` apply, in a directory Devin Local reads them from. */
+const SETTINGS_FILES: readonly string[] = [DEVIN_CONFIG_FILE, DEVIN_CONFIG_LOCAL_FILE];
 
 /** Kinds of the files in {@link HOOK_FILES}. */
 const HOOK_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
@@ -409,7 +428,8 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     sourceState(path, source).nested;
 
   // ------------------------------------------------------------------------------------------
-  // Instructions: AGENTS.md, .windsurfrules and CLAUDE.md
+  // Instructions: AGENTS.md, AGENTS.local.md, AGENT.md, .windsurfrules, CLAUDE.md and the
+  // global rules
   // ------------------------------------------------------------------------------------------
 
   const instruction = (
@@ -418,18 +438,28 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
     kind: ArtifactKind,
     caseMismatch: boolean,
   ): void => {
-    const directory = dirnamePosix(local(path));
+    const folder = kind === 'devin-instructions' ? globalRulesFolder(path) : undefined;
+    // A global rules file belongs to the directory that holds its `.devin` or `.windsurf`.
+    const owner = folder === undefined ? dirnamePosix(path) : ownerOf(path, 2);
     const source = devinSourceOf({ kind, path });
     // Devin CLI discovers lowercase `agents.md` files since v3000.4.16, and the Devin Desktop FAQ
     // names both spellings, so instr/filename-case leaves `agents.md` alone for Devin.
     const lowerAgentsMd = basename(path) === 'agents.md';
     const evidence: readonly SourceKey[] =
       kind !== 'agents-md'
-        ? ['devinCliRules', 'devinReadConfigFrom']
+        ? source === undefined
+          ? ['devinCliRules']
+          : ['devinCliRules', 'devinReadConfigFrom']
         : lowerAgentsMd
           ? ['devinCliRules', 'devinCliChangelog', 'devinDesktopFaq']
           : ['devinCliRules'];
     if (disabled('instructions', path, source)) return;
+    if (folder === '.windsurf' && fileExists(snapshot, joinPath(owner, `.devin/${GLOBAL_RULES}`))) {
+      // "If both `.devin/global_rules.md` and `.windsurf/global_rules.md` exist, Devin CLI loads
+      // only `.devin/global_rules.md`."
+      skip('instructions', path, 'shadowed-by-preferred', 'documented', ['devinCliRules']);
+      return;
+    }
     if (caseMismatch && !lowerAgentsMd) {
       // Found on case-insensitive file systems only; Devin documents neither case.
       skip('instructions', path, 'case-mismatch', 'unverified', evidence, {
@@ -445,10 +475,12 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       });
       return;
     }
-    const nested = directory !== '';
+    const nested = owner !== cwd;
+    // Each of the five file names loads in subdirectories; the global rules files are documented
+    // at the workspace root and between it and the working directory, not below it.
     const documented =
       (!caseMismatch || lowerAgentsMd) &&
-      (!nested || kind === 'agents-md') &&
+      (!nested || folder === undefined) &&
       !nestedSettings(path, source);
     entries.push({
       id: `instructions:${path}`,
@@ -456,38 +488,11 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       trigger: nested ? 'on-path' : 'startup',
       path,
       realPath: artifact.realPath,
-      ...(nested ? { patterns: [dirnamePosix(path)] } : {}),
+      ...(nested ? { patterns: [owner] } : {}),
       size: fileSize(artifact),
       certainty: documented ? 'documented' : 'unverified',
       evidence,
     });
-  };
-
-  /**
-   * An instruction or global rules file the walker did not read: listed without a size where
-   * Devin Local loads it, and the plan is incomplete.
-   */
-  const unreadInstruction = (
-    path: string,
-    owner: string,
-    source: DevinConfigSource | undefined,
-    documentedNested: boolean,
-  ): void => {
-    const nested = owner !== cwd;
-    entries.push({
-      id: `instructions:${path}`,
-      role: 'instructions',
-      trigger: nested ? 'on-path' : 'startup',
-      path,
-      realPath: path,
-      ...(nested ? { patterns: [owner] } : {}),
-      certainty:
-        (!nested || documentedNested) && !nestedSettings(path, source)
-          ? 'documented'
-          : 'unverified',
-      evidence: ['devinCliRules'],
-    });
-    incomplete.add(`unread:${path}`);
   };
 
   // ------------------------------------------------------------------------------------------
@@ -571,8 +576,10 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       place.owner === '' ? cwd : joinPath(cwd, place.owner),
       TRIGGER_FOR_CURSOR_MODE[activation.mode],
       activation.globs,
-      // Devin documents `.cursor/rules/*.md` and `*.mdc`: files directly in the folder.
-      activation.documented && place.direct && !nestedSettings(path, source),
+      // Devin documents `.cursor/rules/*.md` and `*.mdc`: files directly in the folder, and a
+      // folder at the workspace root, since it documents several levels for `.windsurf/rules`
+      // and `.devin` only.
+      activation.documented && place.direct && place.owner === '' && !nestedSettings(path, source),
       ['devinCliRules', 'devinReadConfigFrom'],
     );
   };
@@ -850,8 +857,42 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
   }
 
   // ------------------------------------------------------------------------------------------
-  // Files the classifier does not know: AGENTS.local.md, AGENT.md, the global rules, and the
-  // MCP files of OpenCode and Zed
+  // Settings: the permissions of .devin/config.json and .devin/config.local.json
+  // ------------------------------------------------------------------------------------------
+
+  // "Permission lists are merged (combined) across levels", and "`.devin/config.json`" and
+  // "`.devin/config.local.json`" are found by "Walking up from cwd" (SOURCES.devinCliConfigPrecedence).
+  // A file that does not parse is already `unparsed:` above.
+  const settings: SettingsFile[] = [];
+  let requiresPlugins = false;
+  for (const [directory, where] of hookDirectories) {
+    for (const name of SETTINGS_FILES) {
+      const path = joinPath(directory, name);
+      const artifact = view.index.get(path);
+      if (artifact?.kind !== 'devin-config') continue;
+      const doc = view.json(artifact);
+      if (!doc.ok) continue;
+      settings.push({
+        path,
+        certainty: where,
+        evidence: ['devinCliPermissions', 'devinCliConfigPrecedence'],
+      });
+      // "Repo — the `requiredPlugins` / `optionalPlugins` / `forbiddenPlugins` in a checkout's
+      // `.devin/config.json`, discovered by walking up from your working directory"
+      // (SOURCES.devinCliPlugins).
+      const required = isObject(doc.value) ? own(doc.value, 'requiredPlugins') : undefined;
+      if (
+        name === DEVIN_CONFIG_FILE &&
+        Array.isArray(required) &&
+        required.some((entry) => devinPluginSource(entry) !== undefined)
+      ) {
+        requiresPlugins = true;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------
+  // Files the classifier does not know: the MCP files of OpenCode and Zed
   // ------------------------------------------------------------------------------------------
 
   const present = new Set<string>(snapshot.ignoredFiles);
@@ -866,28 +907,7 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       const source = UNREAD_MCP_FILES[where];
       // Devin imports their servers at session start; which ones they declare is not read.
       if (!disabled('mcp-server', path, source)) incomplete.add(`unread:${path}`);
-      continue;
     }
-    const name = basename(path);
-    if (UNREAD_INSTRUCTIONS.has(name)) {
-      if (!disabled('instructions', path, 'agents_standard')) {
-        unreadInstruction(path, dirnamePosix(path), 'agents_standard', true);
-      }
-      continue;
-    }
-    if (name !== GLOBAL_RULES) continue;
-    const folder = basename(dirnamePosix(path));
-    if (folder !== '.devin' && folder !== '.windsurf') continue;
-    const owner = ownerOf(path, 2);
-    if (folder === '.windsurf') {
-      if (disabled('instructions', path, 'windsurf')) continue;
-      if (fileExists(snapshot, joinPath(owner, `.devin/${GLOBAL_RULES}`))) {
-        // Devin loads only `.devin/global_rules.md` when both exist.
-        skip('instructions', path, 'shadowed-by-preferred', 'documented', ['devinCliRules']);
-        continue;
-      }
-    }
-    unreadInstruction(path, owner, folder === '.windsurf' ? 'windsurf' : undefined, false);
   }
 
   // ------------------------------------------------------------------------------------------
@@ -972,10 +992,19 @@ export function loadWindsurf(view: LoadView, options: WindsurfLoadOptions): Load
       (a, b) => compareStrings(a.path, b.path) || compareStrings(a.because, b.because),
     ),
     assumptions: assumptions.sort((a, b) => compareStrings(a.key, b.key)),
-    hidden: HIDDEN,
+    hidden: requiresPlugins
+      ? HIDDEN.map((scope) =>
+          scope.scope === 'plugin'
+            ? { ...scope, locations: [...scope.locations, REQUIRED_PLUGINS] }
+            : scope,
+        )
+      : HIDDEN,
     // Devin Local documents no size limit (SOURCES.windsurfRules).
     limits: [],
     totals: { startup: total(startupSizes), onDemand: total(onDemandSizes) },
     incomplete: [...incomplete].sort(compareStrings),
+    ...(settings.length === 0
+      ? {}
+      : { settings: settings.sort((a, b) => compareStrings(a.path, b.path)) }),
   };
 }

@@ -35,7 +35,14 @@ import { isSecretFlag, REDACTED } from '../inventory/redact.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import { hookSourceOf } from '../platforms/hooks.js';
 import { MCP_KINDS } from '../platforms/mcp.js';
+import {
+  CURSOR_COMMAND_KINDS,
+  CURSOR_INERT_WHEN_INVALID,
+  CURSOR_PERMISSION_KINDS,
+  cursorBroadCapability,
+} from '../platforms/cursor-config.js';
 import { broadGrant } from '../platforms/permissions.js';
+import { isPluginSettingKey } from '../platforms/plugins.js';
 import { coveredBy } from '../platforms/tool-rules.js';
 import type {
   BaselineFinding,
@@ -404,6 +411,7 @@ const SERVER_FIELDS = {
   url: 'value',
   envKeys: 'value',
   headerKeys: 'value',
+  headersHelper: 'value',
   status: 'value',
   scope: 'value',
 } as const satisfies FieldTable<McpServerItem>;
@@ -585,6 +593,7 @@ function gateHits(
       hit('mcp-unpinned', id, change, `${unpinnedSummary(server, change)}${note}`);
     }
   }
+  const beforeCode = codePaths(before);
   for (const entry of after.incomplete) {
     const parsed = parseIncomplete(entry);
     if (coversTree(parsed)) {
@@ -596,12 +605,25 @@ function gateHits(
       continue;
     }
     if (before.incomplete.has(entry) || wasUnanalyzed(before, parsed)) continue;
+    if (parsed.tag === 'code') {
+      // A script agentcheckup does not analyze; its entry carries a digest of its bytes, so a
+      // new entry is a new or changed script (docs/adr/0018).
+      const change = beforeCode.has(parsed.path) ? 'changed' : 'added';
+      hit('hooks', entry, change, codeSummary(parsed, change), NOT_ANALYZED);
+      continue;
+    }
     if (isMcpConfig(parsed))
       hit('mcp', entry, 'added', incompleteSummary(parsed, 'servers'), NOT_ANALYZED);
     if (isHookConfig(parsed))
       hit('hooks', entry, 'added', incompleteSummary(parsed, 'hooks'), NOT_ANALYZED);
     if (isPermissionConfig(parsed)) {
       hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
+    }
+    if (isEnvConfig(parsed)) {
+      hit('env', entry, 'added', incompleteSummary(parsed, 'env overrides'), NOT_ANALYZED);
+    }
+    if (isCommandConfig(parsed)) {
+      hit('env', entry, 'added', incompleteSummary(parsed, 'commands'), NOT_ANALYZED);
     }
     if (isUnreadFile(parsed)) {
       const kind = classify(parsed.path)?.kind;
@@ -610,6 +632,10 @@ function gateHits(
         hit('env', entry, 'added', incompleteSummary(parsed, 'env overrides'), NOT_ANALYZED);
       } else if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) {
         hit('permissions', entry, 'added', incompleteSummary(parsed, 'permissions'), NOT_ANALYZED);
+      } else if (kind === 'claude-workflow') {
+        hit('hooks', entry, 'added', incompleteSummary(parsed, 'code'), NOT_ANALYZED);
+      } else if (kind === 'claude-launch' || kind === 'claude-plugin-lsp') {
+        hit('env', entry, 'added', incompleteSummary(parsed, 'commands'), NOT_ANALYZED);
       }
       // Nothing of the file was read, so hidden Unicode in it was not looked for either.
       hit('unicode', entry, 'added', incompleteSummary(parsed, 'text'), NOT_ANALYZED);
@@ -743,6 +769,7 @@ const DEFINITION_FIELDS = {
   effort: 'value',
   tools: 'value',
   permissionMode: 'value',
+  triggers: 'value',
   certainty: 'value',
   evidence: 'value',
   digest: 'skip',
@@ -886,6 +913,11 @@ function definitionSummary(definition: AgentDefinition, old: AgentDefinition | u
     text(old.permissionMode ?? 'not set'),
     text(definition.permissionMode ?? 'not set'),
   );
+  change(
+    'sidekick triggers',
+    text(old.triggers?.join(', ') ?? 'not set'),
+    text(definition.triggers?.join(', ') ?? 'not set'),
+  );
   // The digest differs in what no field above shows, such as the text of a file read as unknown.
   return `${name} (${changes.length === 0 ? 'details changed' : changes.join(', ')})`;
 }
@@ -925,6 +957,10 @@ function serverSummary(server: McpServerItem, change: GateHit['change']): string
   }
   if (server.package !== undefined) details.push(PIN_LABELS[server.package.pin]);
   else if (isUnpinned(server)) details.push(PIN_LABELS.unknown);
+  // Claude Code runs a headersHelper as a shell command when it connects (SOURCES.claudeMcp).
+  if (server.headersHelper !== undefined) {
+    details.push(`runs headersHelper ${text(program(server.headersHelper))}`);
+  }
   if (server.scope === 'subagent') details.push(SCOPE_NOTES.subagent);
   return `${change === 'added' ? 'New' : 'Changed'} MCP server ${text(server.name)} (${details.join(', ')})`;
 }
@@ -1020,7 +1056,29 @@ const SETTINGS_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'codex-config',
   'gemini-settings',
   'copilot-settings',
+  'copilot-lsp',
+  'vscode-settings',
 ]);
+
+/** The paths of the baseline's `code:` entries. */
+function codePaths(before: IndexedInventory): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const entry of before.incomplete) {
+    const parsed = parseIncomplete(entry);
+    if (parsed.tag === 'code') paths.add(parsed.path);
+  }
+  return paths;
+}
+
+/** What a `code:` entry's script is, by its kind or place. */
+function codeSummary(entry: IncompleteEntry, change: GateHit['change']): string {
+  const where = text(entry.path);
+  const what =
+    classify(entry.path)?.kind === 'claude-workflow'
+      ? 'Claude Code workflow'
+      : 'Claude Code plugin mod, JavaScript that runs inside Claude Code,';
+  return `${change === 'changed' ? 'Changed' : 'New'} ${what} ${where} is not analyzed, so the code it runs cannot be checked`;
+}
 
 /** The gate summary of an entry that covers part of the tree ({@link coversTree}). */
 function treeSummary(entry: IncompleteEntry): string {
@@ -1087,11 +1145,16 @@ function isHookConfig(entry: IncompleteEntry): boolean {
     kind === 'codex-config' ||
     kind === 'devin-hooks' ||
     kind === 'claude-plugin-hooks' ||
-    kind === 'claude-plugin-manifest'
+    kind === 'claude-plugin-manifest' ||
+    kind === 'copilot-extension' ||
+    kind === 'copilot-setup-steps'
   ) {
     return true;
   }
   if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) return true;
+  // Cursor's worktree setup and cloud agent environment files run commands; how Cursor reads
+  // one that does not parse is not documented.
+  if (kind !== undefined && CURSOR_COMMAND_KINDS.has(kind)) return true;
   if (kind !== undefined && hookSourceOf({ kind, path }) !== undefined) {
     return invalid === undefined || !INERT_WHEN_INVALID.has(kind);
   }
@@ -1101,17 +1164,49 @@ function isHookConfig(entry: IncompleteEntry): boolean {
 
 /**
  * An inventory `incomplete` entry for a file whose permissions the inventory cannot list: a
- * Codex exec-policy file that is not made of literal calls agentcheckup reads, and a
- * `.codex/config.toml` past a parser limit or in UTF-16. A `.codex/config.toml` that is not valid
- * TOML is not one: Codex does not start in a trusted project with such a file.
+ * Codex exec-policy file that is not made of literal calls agentcheckup reads, a
+ * `.codex/config.toml` past a parser limit or in UTF-16, a Devin Local `.devin/config.json` or
+ * `.devin/config.local.json` that is not valid or holds lists of another shape, a Cursor
+ * permission file agentcheckup cannot analyze, and a `.vscode/settings.json` that does not
+ * parse, which VS Code's error-tolerant parser may still read auto-approval rules from. A
+ * `.codex/config.toml` that is not valid TOML is not one: Codex does not start in a trusted
+ * project with such a file.
  */
 function isPermissionConfig(entry: IncompleteEntry): boolean {
   const kind = classify(entry.path)?.kind;
+  if (kind !== undefined && CURSOR_PERMISSION_KINDS.has(kind)) {
+    // Cursor falls back to the IDE allowlist when `.cursor/permissions.json` does not parse.
+    return invalidFormat(entry) === undefined || !CURSOR_INERT_WHEN_INVALID.has(kind);
+  }
+  // How Devin Local reads a `.devin/config.json` it cannot parse, or a permission list of another
+  // shape, is not documented.
+  if (kind === 'devin-config' || kind === 'vscode-settings') return true;
   return kind === 'codex-rules' || (kind === 'codex-config' && invalidFormat(entry) === undefined);
 }
 
+/**
+ * An inventory `incomplete` entry for a file whose code-exec overrides the inventory cannot list:
+ * a `.github/lsp.json` that does not parse or is past a parser limit. The Copilot CLI's parser is
+ * not documented, so the servers may still start.
+ */
+function isEnvConfig(entry: IncompleteEntry): boolean {
+  return classify(entry.path)?.kind === 'copilot-lsp';
+}
+
+/**
+ * An inventory `incomplete` entry for a file whose commands the inventory lists as `code-exec`
+ * overrides: a skills-folder plugin's `.lsp.json` and Claude Desktop's `.claude/launch.json`,
+ * which may start a language server or a preview server agentcheckup could not read.
+ */
+function isCommandConfig(entry: IncompleteEntry): boolean {
+  if (entry.tag !== undefined && entry.tag !== 'invalid-json') return false;
+  const kind = classify(entry.path)?.kind;
+  return kind === 'claude-plugin-lsp' || kind === 'claude-launch';
+}
+
 /** What an entry's file may hold that the gate cannot check. */
-type Unchecked = 'servers' | 'hooks' | 'permissions' | 'env overrides' | 'text';
+type Unchecked =
+  'servers' | 'hooks' | 'permissions' | 'env overrides' | 'commands' | 'code' | 'text';
 
 function incompleteSummary(entry: IncompleteEntry, items: Unchecked): string {
   const { path } = entry;
@@ -1133,7 +1228,16 @@ function incompleteSummary(entry: IncompleteEntry, items: Unchecked): string {
 
 // Permissions ------------------------------------------------------------------------------------
 
-const lastSegment = (key: string): string => key.slice(key.lastIndexOf('.') + 1);
+/**
+ * The setting a permission key ends in: `permissions.deny` -> `deny`. A plugin setting's key ends
+ * in a name the repository chooses, such as `enabledPlugins.deny@acme`, so it is kept whole and
+ * never reads as another setting.
+ */
+const lastSegment = (key: string): string =>
+  isPluginSettingKey(key) ? key : key.slice(key.lastIndexOf('.') + 1);
+
+const ENABLED_PLUGIN = 'enabledPlugins.';
+const MARKETPLACE = 'extraKnownMarketplaces.';
 
 /**
  * The settings that trip the gate whenever they are set or changed, whatever their value
@@ -1152,6 +1256,16 @@ const AGENT_EFFECT =
 
 /** Kinds of auto-approval, by the last segment of the permission key. */
 function autoApproval(permission: PermissionItem): string | undefined {
+  const sandbox = SANDBOX_EFFECTS.get(`${permission.key}=${permission.value}`);
+  if (sandbox !== undefined) return sandbox;
+  if (permission.key.startsWith(ENABLED_PLUGIN)) {
+    return permission.value === 'true'
+      ? 'the plugin loads with its skills, agents, hooks and MCP servers'
+      : undefined;
+  }
+  if (permission.key.startsWith(MARKETPLACE)) {
+    return 'the marketplace is registered, and its plugins can be installed from it';
+  }
   switch (lastSegment(permission.key)) {
     case 'enableAllProjectMcpServers':
       return permission.value === 'true'
@@ -1178,9 +1292,12 @@ function autoApproval(permission: PermissionItem): string | undefined {
  * which the inventory lists only for values that let Codex act without asking, widen this way.
  */
 function widens(permission: PermissionItem): boolean {
+  // A plugin set to `false` only turns it off.
+  if (permission.key.startsWith(ENABLED_PLUGIN)) return permission.value === 'true';
   switch (lastSegment(permission.key)) {
     case 'deny':
     case 'ask':
+    case 'block_instructions':
       return false;
     case 'enableAllProjectMcpServers':
     case 'trust':
@@ -1198,12 +1315,21 @@ function widens(permission: PermissionItem): boolean {
 const CONTENT_KEYS: ReadonlySet<string> = new Set(['permissions']);
 
 /**
+ * Whether the digest covers what the value names: a Codex permission profile, or a marketplace,
+ * whose digest covers its source.
+ */
+function isContentKey(key: string): boolean {
+  return CONTENT_KEYS.has(key) || key.startsWith(MARKETPLACE);
+}
+
+/**
  * True for a `deny` or `ask` entry: one that narrows what the agent may do, so removing it, or it
  * no longer taking effect, widens it.
  */
 function restricts(permission: PermissionItem): boolean {
   const key = lastSegment(permission.key);
-  return key === 'deny' || key === 'ask';
+  // Cursor's Auto-review `block_instructions` steer its classifier toward asking first.
+  return key === 'deny' || key === 'ask' || key === 'block_instructions';
 }
 
 /**
@@ -1237,7 +1363,7 @@ function stillRestricted(
  */
 function alreadyAsWide(old: PermissionItem, permission: PermissionItem): boolean {
   return (
-    !CONTENT_KEYS.has(permission.key) &&
+    !isContentKey(permission.key) &&
     widens(old) &&
     (old.effective || !permission.effective) &&
     (old.broad || !permission.broad)
@@ -1260,6 +1386,8 @@ function replacesWider(
   after: IndexedInventory,
 ): boolean {
   if (!TOOL_RULE_KEYS.has(permission.key)) return false;
+  // Cursor CLI tokens such as `Shell(git)` do not follow Claude Code's rule syntax.
+  if (classify(permission.file)?.kind === 'cursor-cli') return false;
   const file = stripPath(permission.file, after.base);
   for (const [id, old] of before.permissions) {
     if (
@@ -1285,8 +1413,13 @@ const ADDITIONAL_DIRECTORIES = 'additionalDirectories';
 function broadNote(permission: PermissionItem): string {
   if (!permission.broad) return '';
   // A Codex key first: a rule's value, such as `bash`, may read as another agent's tool.
-  const codex = CODEX_BROAD_NOTES.get(permission.key);
+  const codex = CODEX_BROAD_NOTES.get(permission.key) ?? SANDBOX_BROAD_NOTES.get(permission.key);
   if (codex !== undefined) return codex;
+  const kind = classify(permission.file)?.kind;
+  const cursor = cursorBroadCapability(kind, permission.key, permission.value);
+  if (cursor !== undefined) return ` (broad: ${cursor})`;
+  // A Cursor CLI token reads like a Claude Code rule (`Write(…)`), but is not one.
+  if (kind === 'cursor-cli') return ' (broad)';
   const grant = broadGrant(permission.value);
   if (grant !== undefined) return ` (broad: ${grant.capability})`;
   const key = lastSegment(permission.key);
@@ -1304,6 +1437,51 @@ const CODEX_BROAD_NOTES: ReadonlyMap<string, string> = new Map([
   ['rules.prefix_rule', ' (broad: runs any command of a shell or interpreter without asking)'],
 ]);
 
+/**
+ * What a widening sandbox setting does, by key and value (SOURCES.claudeSettingsReference,
+ * "Sandbox settings"; src/platforms/sandbox.ts).
+ */
+const SANDBOX_EFFECTS: ReadonlyMap<string, string> = new Map([
+  ['sandbox.enabled=false', 'Bash commands run without the sandbox'],
+  [
+    'sandbox.enabled=true',
+    'Claude Code versions before 2.1.325 run every sandboxed Bash command without asking',
+  ],
+  ['sandbox.failIfUnavailable=false', 'commands run unsandboxed when the sandbox cannot start'],
+  ['sandbox.autoAllowBashIfSandboxed=true', 'sandboxed Bash commands run without asking'],
+  [
+    'sandbox.allowUnsandboxedCommands=true',
+    'Claude may retry a blocked command outside the sandbox',
+  ],
+  ['sandbox.enableWeakerNestedSandbox=true', "the Linux sandbox shares the container's /proc"],
+  [
+    'sandbox.enableWeakerNetworkIsolation=true',
+    'sandboxed commands reach the macOS TLS trust service',
+  ],
+  ['sandbox.allowAppleEvents=true', 'sandboxed commands may launch other applications'],
+  ['sandbox.allowNestedUserNamespaces=true', 'code may leave the sandbox'],
+  ['sandbox.filesystem.disabled=true', 'sandboxed commands read and write every file'],
+  ['sandbox.network.allowAllUnixSockets=true', 'sandboxed commands connect to every Unix socket'],
+  [
+    'sandbox.network.allowLocalBinding=true',
+    'sandboxed commands listen on ports and reach localhost',
+  ],
+]);
+
+/** What a broad sandbox setting opens, by key. */
+const SANDBOX_BROAD_NOTES: ReadonlyMap<string, string> = new Map([
+  ['sandbox.enabled', ' (broad: Bash commands run without the sandbox)'],
+  ['sandbox.autoAllowBashIfSandboxed', ' (broad: runs any sandboxed Bash command without asking)'],
+  ['sandbox.excludedCommands', ' (broad: every command runs outside the sandbox)'],
+  ['sandbox.filesystem.allowWrite', ' (broad: the file system root or home directory)'],
+  ['sandbox.filesystem.allowRead', ' (broad: the file system root or home directory)'],
+  ['sandbox.network.allowedDomains', ' (broad: sandboxed commands reach every host)'],
+  ['sandbox.network.allowAllUnixSockets', ' (broad: every Unix socket)'],
+  ['sandbox.network.allowMachLookup', ' (broad: every XPC service)'],
+  ['sandbox.network.httpProxyPort', " (broad: Claude Code's domain lists stop applying)"],
+  ['sandbox.network.socksProxyPort', " (broad: Claude Code's domain lists stop applying)"],
+]);
+
 function permissionSummary(
   permission: PermissionItem,
   change: GateHit['change'],
@@ -1319,7 +1497,7 @@ function permissionSummary(
     const nowEffective = old !== undefined && !old.effective && permission.effective;
     summary = nowEffective
       ? `${key} ${value}${broad} now takes effect`
-      : CONTENT_KEYS.has(permission.key)
+      : isContentKey(permission.key)
         ? `${key} ${value} changed${broad}`
         : `${key} ${value} widened${broad}`;
   } else if (effect === undefined) summary = `${key} adds ${value}${broad}`;
@@ -1394,10 +1572,32 @@ function envSummary(item: EnvItem, change: GateHit['change'], old: EnvItem | und
     case 'tls':
       return `${head}${item.shown === undefined ? '' : ` → ${text(item.shown)}`}${was} changes TLS certificate checks`;
     case 'code-exec':
-      return `${head} can run code`;
+      return `${head} can run code${codeExecNote(item)}`;
     case 'other':
       return head;
   }
+}
+
+/**
+ * What starts the command of a `code-exec` item that is not an environment variable: a plugin's
+ * or the Copilot CLI's language server, a Claude Desktop preview server, a plugin's `bin/` folder on the Bash tool's
+ * `PATH` (src/inventory/build.ts).
+ */
+function codeExecNote(item: EnvItem): string {
+  if (item.key.startsWith('lspServers.') && !item.key.includes('.env.')) {
+    // `.github/lsp.json` is the Copilot CLI's; a plugin's `.lsp.json` and manifest are Claude
+    // Code's.
+    return classify(item.file)?.kind === 'copilot-lsp'
+      ? ': the Copilot CLI starts this language server'
+      : ': Claude Code starts this language server';
+  }
+  if (item.key.startsWith('configurations.') && !item.key.includes('.env.')) {
+    return ': Claude Desktop starts this preview server';
+  }
+  if (item.key === 'PATH' && item.file.endsWith('.claude-plugin/plugin.json')) {
+    return ": the plugin's bin/ files run as bare commands in the Bash tool";
+  }
+  return '';
 }
 
 // ---------------------------------------------------------------------------------------------

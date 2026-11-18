@@ -4,6 +4,7 @@
  */
 import { classify, isCandidateBasename } from '../platforms/classify.js';
 import { mayBeClineHookFile } from '../platforms/cline-hooks.js';
+import { mayBePluginModule } from '../platforms/skills-dir-plugins.js';
 import { TEXT_EXTENSIONS } from '../platforms/load/imports.js';
 
 /**
@@ -180,14 +181,16 @@ export function looksBinary(bytes: Uint8Array): boolean {
 
 /**
  * The walker's default `isCandidate`: whether the file at `relativePath` (root-relative POSIX) is
- * agent configuration that `classify()` recognizes, or a script Cline runs as a hook, which the
- * security inventory digests (src/platforms/cline-hooks.ts). `isCandidateBasename` is checked
+ * agent configuration that `classify()` recognizes, a script Cline runs as a hook, or the hooks
+ * module of a mod in a skills-folder plugin, which the security inventory digests
+ * (src/platforms/cline-hooks.ts, src/platforms/skills-dir-plugins.ts). `isCandidateBasename` is checked
  * first as a cheap pre-filter, so most paths never reach the classifier's patterns.
  */
 export function defaultIsCandidate(relativePath: string): boolean {
   const name = relativePath.slice(relativePath.lastIndexOf('/') + 1);
   return (
     (isCandidateBasename(name) && classify(relativePath) !== undefined) ||
-    mayBeClineHookFile(relativePath)
+    mayBeClineHookFile(relativePath) ||
+    mayBePluginModule(relativePath)
   );
 }

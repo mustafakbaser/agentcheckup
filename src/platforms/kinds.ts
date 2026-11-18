@@ -10,21 +10,27 @@ export const MARKDOWN_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-rule',
   'claude-agent',
   'claude-command',
+  'claude-output-style',
   'skill',
   'cursor-rule',
   'cursor-rule-md',
   'cursor-legacy-rules',
+  'cursor-command',
+  'cursor-bugbot',
   'copilot-instructions',
   'copilot-path-instructions',
   'gemini-md',
   'windsurf-rule',
   'windsurf-legacy-rules',
+  'devin-instructions',
   'cline-rule',
   'cline-workflow',
+  'claude-loop',
   'cursor-agent',
   'gemini-agent',
   'copilot-agent',
   'devin-agent',
+  'copilot-prompt',
 ]);
 
 /**
@@ -40,25 +46,38 @@ export const EMPTY_FILE_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>
   'gemini-md',
   'windsurf-rule',
   'windsurf-legacy-rules',
+  'devin-instructions',
   'cline-rule',
   'cline-workflow',
   'cursor-legacy-rules',
   'copilot-instructions',
 ]);
 
-/** Kinds whose content is JSON. */
+/**
+ * Kinds whose content is JSON, which the JSON rules judge. `.vscode/settings.json` is JSON too,
+ * but mostly editor settings no agent reads, so only the security inventory and the VS Code plan
+ * read it.
+ */
 export const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set<ArtifactKind>([
   'claude-settings',
   'claude-plugin-manifest',
   'claude-plugin-hooks',
+  'claude-plugin-lsp',
+  'claude-launch',
   'cursor-hooks',
   'cursor-mcp',
+  'cursor-worktrees',
+  'cursor-cli',
+  'cursor-sandbox',
+  'cursor-permissions',
+  'cursor-environment',
   'gemini-settings',
   'mcp-json',
   'codex-hooks',
   'copilot-hooks',
   'copilot-mcp',
   'copilot-settings',
+  'copilot-lsp',
   'vscode-mcp',
   'devin-config',
   'devin-mcp',

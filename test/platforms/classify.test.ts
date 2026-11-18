@@ -19,6 +19,8 @@ describe('classify', () => {
     ['.claude/rules/frontend/react.md', 'claude-rule'],
     ['.claude/agents/reviewer.md', 'claude-agent'],
     ['.claude/commands/deploy.md', 'claude-command'],
+    ['.claude/output-styles/terse.md', 'claude-output-style'],
+    ['pkg/.claude/output-styles/CLAUDE.md', 'claude-output-style'],
     ['.claude/settings.json', 'claude-settings'],
     ['.claude/settings.local.json', 'claude-settings'],
     ['.claude-plugin/plugin.json', 'claude-plugin-manifest'],
@@ -48,6 +50,10 @@ describe('classify', () => {
     ['.windsurf/rules/style.md', 'windsurf-rule'],
     ['.devin/rules/style.md', 'windsurf-rule'],
     ['.windsurfrules', 'windsurf-legacy-rules'],
+    ['AGENTS.local.md', 'devin-instructions'],
+    ['pkg/AGENT.md', 'devin-instructions'],
+    ['.devin/global_rules.md', 'devin-instructions'],
+    ['pkg/.windsurf/global_rules.md', 'devin-instructions'],
     ['.clinerules/style.md', 'cline-rule'],
     ['.cline/rules/style.md', 'cline-rule'],
   ] as const)('classifies %s as %s', (path, kind) => {
@@ -101,6 +107,13 @@ describe('classify', () => {
     expect(isCandidateBasename('.cursorrules')).toBe(true);
     expect(isCandidateBasename('.windsurfrules')).toBe(true);
     expect(isCandidateBasename('index.ts')).toBe(false);
+    expect(isCandidateBasename('extension.mjs')).toBe(true);
+    expect(isCandidateBasename('copilot-setup-steps.yml')).toBe(true);
+    expect(isCandidateBasename('allowed_models.txt')).toBe(true);
+    // Any `.js` is a candidate for Claude Code's workflows; the classifier decides.
+    expect(isCandidateBasename('index.js')).toBe(true);
+    expect(isCandidateBasename('index.py')).toBe(false);
+    expect(isCandidateBasename('ci.yml')).toBe(false);
   });
 });
 
@@ -120,6 +133,17 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     ['.devin/hooks.json', 'devin-hooks'],
     ['.codex/config.toml', 'codex-config'],
     ['services/api/.codex/config.toml', 'codex-config'],
+    ['.vscode/settings.json', 'vscode-settings'],
+    ['pkg/.vscode/settings.json', 'vscode-settings'],
+    ['.github/lsp.json', 'copilot-lsp'],
+    ['.github/extensions/board/extension.mjs', 'copilot-extension'],
+    ['.github/extensions/board/extension.cjs', 'copilot-extension'],
+    ['.github/extensions/board/extension.js', 'copilot-extension'],
+    ['.github/workflows/copilot-setup-steps.yml', 'copilot-setup-steps'],
+    ['.github/workflows/copilot-code-review.yml', 'copilot-setup-steps'],
+    ['.github/prompts/review.prompt.md', 'copilot-prompt'],
+    ['.github/prompts/team/review.prompt.md', 'copilot-prompt'],
+    ['.github/allowed_models.txt', 'copilot-allowed-models'],
   ] as const)('classifies %s as %s', (path, kind) => {
     expect(classify(path)).toEqual({ kind });
   });
@@ -128,12 +152,24 @@ describe('classify: hook, MCP and settings files of Copilot, VS Code, Devin Loca
     '.github/hooks/nested/policy.json',
     '.github/hooks/readme.md',
     '.github/copilot/config.json',
-    '.vscode/settings.json',
+    '.vscode/settings.local.json',
+    '.github/extensions/extension.mjs',
+    '.github/extensions/board/lib/extension.mjs',
+    '.github/extensions/board/index.mjs',
+    '.github/extensions/board/extension.ts',
+    'pkg/.github/workflows/copilot-setup-steps.yml',
+    '.github/workflows/copilot-setup-steps.yaml',
+    '.github/workflows/ci.yml',
+    '.github/prompts/review.md',
+    '.github/lsp-config.json',
     '.devin/hooks.v2.json',
     '.devin/mcp.json',
     '.windsurf/hooks.json',
     'mcp.json',
     '.codex/config.toml.md',
+    // Output styles sit directly in the folder.
+    '.claude/output-styles/drafts/terse.md',
+    '.claude/output-styles/terse.txt',
   ])('does not classify %s', (path) => {
     expect(classify(path)).toBeUndefined();
   });
@@ -191,6 +227,32 @@ describe('classify: custom agents and subagents', () => {
     '.github/agent/reviewer.md',
   ])('%s is not an agent file', (path) => {
     expect(classify(path)?.kind).toBeUndefined();
+  });
+});
+
+describe('classify: rules files only Devin Local reads', () => {
+  it.each([
+    // Other spellings are not documented.
+    'agents.local.md',
+    'Agent.md',
+    'agent.md',
+    '.devin/Global_Rules.md',
+    // Only in `.devin` and `.windsurf`.
+    'global_rules.md',
+    '.cursor/global_rules.md',
+  ])('%s is not classified', (path) => {
+    expect(classify(path)).toBeUndefined();
+  });
+
+  it.each([
+    // Another agent's rules folder keeps its kind, and so does a Devin agents folder.
+    ['.clinerules/AGENT.md', 'cline-rule'],
+    ['.claude/rules/AGENT.md', 'claude-rule'],
+    ['.cursor/rules/AGENT.md', 'cursor-rule-md'],
+    ['.devin/agents/reviewer/AGENT.md', 'devin-agent'],
+    ['.devin/rules/global_rules.md', 'windsurf-rule'],
+  ])('%s is %s', (path, kind) => {
+    expect(classify(path)?.kind).toBe(kind);
   });
 });
 

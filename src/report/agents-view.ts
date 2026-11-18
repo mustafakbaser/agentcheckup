@@ -32,6 +32,11 @@ export interface DefinitionRow {
   readonly effort: string;
   /** Why the agent does not load it, or may not; empty when it loads. */
   readonly status: string;
+  /**
+   * For a Copilot CLI sidekick: `runs in the background on user.message`, the events that start
+   * it; empty otherwise.
+   */
+  readonly background: string;
   /** Something a reader should look at: the agent skips it, or ignores or may not read a value. */
   readonly warn: boolean;
   /** Neither documentation nor source code confirms how the agent reads the file. */
@@ -159,6 +164,12 @@ function definitionRow(definition: AgentDefinition): DefinitionRow {
         : '',
     effort: definition.effort?.value ?? '',
     status: statusText(definition),
+    background:
+      definition.triggers === undefined
+        ? ''
+        : definition.triggers.length === 0
+          ? 'sidekick without triggers'
+          : `runs in the background on ${definition.triggers.join(', ')}`,
     warn:
       definition.status === 'skipped' ||
       definition.model?.form === 'not-documented' ||
