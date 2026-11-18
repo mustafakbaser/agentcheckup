@@ -240,6 +240,10 @@
         "claude-settings",
         "claude-plugin-manifest",
         "claude-plugin-hooks",
+        "claude-plugin-lsp",
+        "claude-workflow",
+        "claude-launch",
+        "claude-loop",
         "skill",
         "cursor-rule",
         "cursor-rule-md",
@@ -1464,6 +1468,10 @@
           "description": "Names only, never values.",
           "type": "array",
           "items": { "type": "string" }
+        },
+        "headersHelper": {
+          "description": "The redacted command of the server's `headersHelper`, which Claude Code runs as a shell command when it connects, to get the server's headers. The digest covers the whole command without credentials.",
+          "type": "string"
         },
         "status": {
           "description": "What each agent that reads `file` does with the server.",

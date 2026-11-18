@@ -14,6 +14,9 @@
  * - The dynamic loader's variables: https://man7.org/linux/man-pages/man8/ld.so.8.html
  * - PATH: https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html (checked
  *   2026-11-14)
+ * - Variables that make a later process run other code (checked 2026-11-18): bash(1) for
+ *   BASH_ENV, POSIX sh for ENV, dyld(1), git(1), Python, perlrun, ruby(1) and JVM TI
+ *   (ENV_CLASS_SOURCES)
  */
 import type { RuleSource } from '../core/types.js';
 import { SOURCES } from '../platforms/sources.js';
@@ -68,6 +71,8 @@ const TLS: readonly string[] = [
   'CLAUDE_CODE_CLIENT_CERT',
   'CLAUDE_CODE_CLIENT_KEY',
   'CLAUDE_CODE_CERT_STORE',
+  // git(1): "tells Git not to verify the SSL certificate when fetching or pushing over HTTPS".
+  'GIT_SSL_NO_VERIFY',
 ];
 
 const CODE_EXEC: readonly string[] = [
@@ -78,9 +83,42 @@ const CODE_EXEC: readonly string[] = [
   // ld.so: shared objects "loaded before all others", and the library search path.
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
+  // ld.so (glibc): "A list of user-specified, ELF shared objects to be loaded before all others".
+  'LD_AUDIT',
+  // dyld(1), the macOS dynamic linker: "additional dynamic libraries to load before the ones
+  // specified in the program", and directories it "searches … before it searches the default
+  // locations for libraries".
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
   // POSIX: "the sequence of path prefixes that certain functions and utilities apply in searching
   // for an executable file": a directory put first decides what every command name runs.
   'PATH',
+  // bash(1): when bash runs a script, "it looks for the variable BASH_ENV in the environment,
+  // expands its value … and uses the expanded value as the name of a file to read and execute".
+  'BASH_ENV',
+  // git(1): "git fetch and git push will use the specified command instead of ssh";
+  // GIT_EXEC_PATH is where git finds the programs of its subcommands; GIT_ASKPASS and
+  // GIT_EXTERNAL_DIFF name programs git calls.
+  'GIT_SSH_COMMAND',
+  'GIT_SSH',
+  'GIT_EXEC_PATH',
+  'GIT_ASKPASS',
+  'GIT_EXTERNAL_DIFF',
+  // Python: "the Python commands in that file are executed before the first prompt is displayed
+  // in interactive mode", and PYTHONPATH "augment[s] the default search path for module files".
+  'PYTHONSTARTUP',
+  'PYTHONPATH',
+  // perlrun: PERL5OPT switches "are treated as if they were on every Perl command line" (`-M`
+  // loads a module); PERL5LIB directories come first in @INC.
+  'PERL5OPT',
+  'PERL5LIB',
+  // ruby(1): RUBYOPT holds options such as `-r` (require a library); RUBYLIB directories "are
+  // searched before the standard load path".
+  'RUBYOPT',
+  'RUBYLIB',
+  // JVM TI: "a JAVA_TOOL_OPTIONS variable is provided so that agents may be launched".
+  'JAVA_TOOL_OPTIONS',
   // Claude Code env-vars: the shell for Bash tool commands, a prefix that wraps every command,
   // hook and stdio MCP server start, a script run before each Bash command, the launcher for the
   // processes Claude Code starts, Git Bash's path, and plugin directories to load.
@@ -203,6 +241,9 @@ const DROPPED_FROM_REPOSITORY: ReadonlySet<string> = new Set([
   'CLAUDE_CODE_OAUTH_SCOPES',
   // Code Mode: "doesn't count in every settings file"; not from project or local settings.
   'CLAUDE_CODE_EXPERIMENTAL_CODE_MODE',
+  // Managed settings in telemetry: "a value in project or local settings doesn't turn it on"
+  // (env-vars, 2026-11-18).
+  'OTEL_LOG_MANAGED_SETTINGS',
   // Ignored from every file.
   'CLAUDE_CODE_RESUME_HINT_COMMAND',
   'CLAUDE_CODE_REMOTE',
@@ -263,6 +304,9 @@ export function ignoredInRepositorySettings(name: string, value: string | undefi
   if (EXPORTER_SELECTORS.has(name) && text === 'none') return false;
   if (CONTENT_SWITCHES.has(name) && text !== undefined && OFF_VALUES.has(text)) return false;
   if (DROPPED_FROM_REPOSITORY.has(name)) return true;
+  // Chrome integration: Claude Code "ignores `1` in project and local settings"; `0`, which
+  // starts a session with it off, still applies (env-vars, 2026-11-18).
+  if (name === 'CLAUDE_CODE_ENABLE_CFC') return text === '1';
   if (DROPPED_PREFIXES.some((prefix) => name.startsWith(prefix))) return true;
   // `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` alike.
   return (
@@ -277,7 +321,15 @@ export const ENV_CLASS_SOURCES: readonly RuleSource[] = [
   SOURCES.claudeSettingsReference,
   SOURCES.nodeCliEnv,
   SOURCES.ldSo,
+  SOURCES.dyldManual,
   SOURCES.posixEnvironmentVariables,
+  SOURCES.posixSh,
+  SOURCES.bashManual,
+  SOURCES.gitEnvironment,
+  SOURCES.pythonEnvironment,
+  SOURCES.perlRun,
+  SOURCES.rubyManual,
+  SOURCES.jvmTool,
   SOURCES.geminiConfiguration,
   SOURCES.geminiIdeConnectionSource,
   SOURCES.geminiSettingsSchemaSource,
@@ -334,12 +386,24 @@ function looksLikeCredentialValue(value: string): boolean {
 }
 
 /**
+ * True when an `ENV` value names a file. POSIX sh: when an interactive shell starts, ENV's value
+ * "shall be used as a pathname of a file containing shell commands to execute in the current
+ * environment" (SOURCES.posixSh). Many projects use `ENV` for a deployment name such as
+ * `production`, which no shell runs, so only a value with a `/` or ending in `.sh` is code-exec.
+ */
+function namesShellFile(value: string): boolean {
+  const text = value.trim();
+  return text.includes('/') || text.endsWith('.sh');
+}
+
+/**
  * The class of an environment variable. Names are case-sensitive, as on Linux and macOS; only
  * the lowercase proxy variables that Claude Code documents are listed in lowercase.
  */
 export function envClass(name: string, value: string | undefined): EnvClass {
   const known = otlpClass(name) ?? BY_NAME.get(name);
   if (known !== undefined) return known;
+  if (name === 'ENV' && value !== undefined && namesShellFile(value)) return 'code-exec';
   if (looksLikeCredentialName(name)) return 'credential';
   if (value !== undefined && looksLikeCredentialValue(value)) return 'credential';
   return 'other';

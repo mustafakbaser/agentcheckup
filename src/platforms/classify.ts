@@ -44,6 +44,18 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   // `hooks/hooks.json` of a plugin in a skills folder (SOURCES.claudeSkills, "Skill folder as a
   // plugin"); Claude Code runs its hooks only when a `.claude-plugin/plugin.json` is next to it.
   'claude-plugin-hooks': ['claude-code'],
+  // `.lsp.json` of a plugin in a skills folder: "Claude Code also starts the language servers the
+  // plugin declares" (SOURCES.claudePluginSecurity, SOURCES.claudePluginComponents).
+  'claude-plugin-lsp': ['claude-code'],
+  // `.claude/workflows/*.js`: "Project workflows also load from every `.claude/workflows/` along
+  // that path", and each "runs as `/<name>`" (SOURCES.claudeWorkflows).
+  'claude-workflow': ['claude-code'],
+  // Claude Desktop's preview servers: `runtimeExecutable` is "The command to run"
+  // (SOURCES.claudeDesktop, "Configure preview servers").
+  'claude-launch': ['claude-code'],
+  // The prompt a bare `/loop` runs: "`.claude/loop.md` Project-level. Takes precedence when both
+  // files exist" (SOURCES.claudeScheduledTasks).
+  'claude-loop': ['claude-code'],
   skill: ['claude-code', 'cline', 'codex', 'copilot', 'cursor', 'gemini', 'windsurf'],
   // Devin Local (Windsurf) reads .cursor/rules/*.md and *.mdc; Cursor itself ignores .md there.
   'cursor-rule': ['cursor', 'windsurf'],
@@ -226,6 +238,24 @@ const MATCHERS: readonly Matcher[] = [
     pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/hooks\/hooks\.json$/,
     canonical: keepPath,
   },
+  {
+    kind: 'claude-plugin-lsp',
+    pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/\.lsp\.json$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'claude-workflow',
+    pattern: /(?:^|\/)\.claude\/workflows\/(?:[^/]+\/)*[^/]+\.js$/,
+    canonical: keepPath,
+  },
+  // A skills-folder plugin's workflows; the inventory reads them only next to a plugin manifest.
+  {
+    kind: 'claude-workflow',
+    pattern: /(?:^|\/)\.claude\/skills\/[^/]+\/workflows\/(?:[^/]+\/)*[^/]+\.js$/,
+    canonical: keepPath,
+  },
+  { kind: 'claude-launch', pattern: /(?:^|\/)\.claude\/launch\.json$/, canonical: keepPath },
+  { kind: 'claude-loop', pattern: /(?:^|\/)\.claude\/loop\.md$/, canonical: keepPath },
   { kind: 'mcp-json', pattern: /(?:^|\/)\.mcp\.json$/, canonical: keepPath },
 
   // Codex
@@ -517,6 +547,8 @@ export function isCandidateBasename(name: string): boolean {
     lower.endsWith('.rules') ||
     lower === '.cursorrules' ||
     lower === '.windsurfrules' ||
+    // Claude Code's workflow scripts in `.claude/workflows`.
+    lower.endsWith('.js') ||
     // Gemini CLI's environment files; the classifier takes only the exact name.
     lower === '.env' ||
     // Copilot CLI extensions, the cloud agent's setup workflows and the CLI's model allowlist.

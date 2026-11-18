@@ -438,7 +438,8 @@ function createParseServices(
   // Parse JSON the way the reading platform does: Gemini CLI strips comments from its
   // settings.json before JSON.parse, Devin Local documents comments in .devin/config.json, VS
   // Code reads .vscode/mcp.json as JSONC, Cursor documents JSONC for .cursor/permissions.json
-  // (SOURCES.cursorPermissions), and every other agent uses strict JSON.
+  // (SOURCES.cursorPermissions), Claude Desktop reads .claude/launch.json as JSONC, and every
+  // other agent uses strict JSON.
   const json = memoize<JsonDocument>((a) => {
     const { text } = a.decoded;
     const dialect = jsonDialect(a.kind);
@@ -468,8 +469,12 @@ function costKey(cost: MarkdownCost): string {
 function jsonDialect(kind: ArtifactKind): JsonDialect {
   if (kind === 'gemini-settings' || kind === 'devin-config') return 'comments';
   // VS Code reads its settings files with the parser it reads mcp.json with
-  // (SOURCES.vscodeConfigurationParser).
-  return kind === 'vscode-mcp' || kind === 'vscode-settings' || kind === 'cursor-permissions'
+  // (SOURCES.vscodeConfigurationParser). Claude Desktop: `.claude/launch.json` "supports JSON
+  // with comments" (SOURCES.claudeDesktop).
+  return kind === 'vscode-mcp' ||
+    kind === 'vscode-settings' ||
+    kind === 'cursor-permissions' ||
+    kind === 'claude-launch'
     ? 'jsonc'
     : 'strict';
 }

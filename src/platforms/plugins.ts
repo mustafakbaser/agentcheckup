@@ -1,33 +1,49 @@
 /**
- * Plugin settings a repository's settings file declares: `enabledPlugins` (plugin specs turned on
- * or off) and `extraKnownMarketplaces` (marketplaces registered for the repository). Claude Code's
- * `.claude/settings.json` and the Copilot CLI's `.github/copilot/settings.json` share the format
- * (SOURCES.copilotCliConfigDir: "Declarative plugin auto-install"; SOURCES.vscodeAgentPlugins).
- * Pure: it reads only the parsed document. The security inventory lists each entry as a
- * permission, so the gate sees a plugin or a marketplace added or changed.
+ * Plugin settings a repository's settings file declares: `enabledPlugins`, which turns plugins on
+ * or off, and `extraKnownMarketplaces`, which registers marketplaces. Shared by the security
+ * inventory for Claude Code's `.claude/settings.json` and `.claude/settings.local.json`, which the
+ * GitHub Copilot CLI and Copilot cloud read too, and for Copilot's own repository settings. Pure.
+ *
+ * - Claude Code: `enabledPlugins` is an "object mapping `plugin-name@marketplace-name` to a
+ *   Boolean", in "Any file"; "Project settings take precedence over user settings, so setting a
+ *   plugin to `false` in `~/.claude/settings.json` doesn't disable a plugin that the project's
+ *   `.claude/settings.json` enables". `extraKnownMarketplaces` registers "each marketplace it
+ *   doesn't already know", after the workspace trust dialog; `additionalMarketplaces` is its
+ *   alias, and "If you set both spellings in one file, Claude Code uses the canonical value and
+ *   ignores the alias" (SOURCES.claudeSettingsReference, checked 2026-11-18).
+ * - Copilot CLI: "The CLI also reads `.claude/settings.json` and `.claude/settings.local.json` for
+ *   the shared cross-tool subset of repository settings (such as … `enabledPlugins`,
+ *   `extraKnownMarketplaces`, and `hooks`)", where `enabledPlugins` is "Declarative plugin
+ *   auto-install", and "The plugin-related keys … are also read by Copilot in the cloud"
+ *   (SOURCES.copilotCliConfigDir, checked 2026-11-18).
  */
 import { isTable, type JsonPath, own, type SpannedDocument } from '../parse/json-access.js';
 
-/** One plugin setting: its permission key, its value as reports show it, where it is. */
+/** One plugin setting, as the inventory lists it: a permission `key` = `value`. */
 export interface PluginSettingItem {
-  /** `enabledPlugins.<spec>` or `extraKnownMarketplaces.<name>`. */
+  /** `enabledPlugins.<plugin>` or `extraKnownMarketplaces.<name>`, whichever spelling is read. */
   readonly key: string;
-  /**
-   * `true` or `false` for a plugin; for a marketplace the short form of its source
-   * ({@link marketplaceSourceShown}), not redacted yet.
-   */
+  /** `true` or `false` for a plugin; the marketplace's source, unredacted ({@link marketplaceSourceShown}). */
   readonly value: string;
+  /** Where the entry is in the file. */
   readonly path: JsonPath;
-  /** For a marketplace: the raw `source` value, which the item's digest covers once redacted. */
+  /** For a marketplace: its raw `source` value, which the caller redacts before digesting it. */
   readonly source?: unknown;
-  /** For a marketplace: its `autoUpdate`, when it is a boolean. */
+  /**
+   * For a marketplace: its `autoUpdate` when it is a Boolean. `true` makes Claude Code "refresh
+   * that marketplace and update its installed plugins in the background after startup".
+   */
   readonly autoUpdate?: boolean;
 }
 
+const ENABLED_PLUGINS = 'enabledPlugins';
+const MARKETPLACES = 'extraKnownMarketplaces';
+
 /**
- * The plugin settings of `doc`: each `enabledPlugins` entry with a boolean value, then each
- * `extraKnownMarketplaces` entry whose value is an object. With `marketplaceAlias`, the alias key
- * is read when the canonical key is absent; keys are still `extraKnownMarketplaces.<name>`.
+ * The plugin settings of a settings file, in document order: each `enabledPlugins` entry with a
+ * Boolean value, then each `extraKnownMarketplaces` entry that is an object. With
+ * `marketplaceAlias`, that key is read too, only when the file has no `extraKnownMarketplaces`;
+ * its entries keep the canonical key, so renaming the key changes no item.
  */
 export function pluginSettingItems(
   doc: SpannedDocument,
@@ -35,70 +51,72 @@ export function pluginSettingItems(
 ): PluginSettingItem[] {
   const root = doc.value;
   if (!isTable(root)) return [];
-  const items: PluginSettingItem[] = [];
-  const plugins = own(root, 'enabledPlugins');
+  const out: PluginSettingItem[] = [];
+  const plugins = own(root, ENABLED_PLUGINS);
   if (isTable(plugins)) {
     for (const name of Object.keys(plugins)) {
       const value = plugins[name];
       if (typeof value !== 'boolean') continue;
-      items.push({
-        key: `enabledPlugins.${name}`,
+      out.push({
+        key: `${ENABLED_PLUGINS}.${name}`,
         value: String(value),
-        path: ['enabledPlugins', name],
+        path: [ENABLED_PLUGINS, name],
       });
     }
   }
-  const alias = options.marketplaceAlias;
-  const canonical = own(root, 'extraKnownMarketplaces');
-  const [field, marketplaces] =
-    canonical === undefined && alias !== undefined
-      ? [alias, own(root, alias)]
-      : ['extraKnownMarketplaces', canonical];
+  const { marketplaceAlias } = options;
+  const at =
+    own(root, MARKETPLACES) === undefined && marketplaceAlias !== undefined
+      ? marketplaceAlias
+      : MARKETPLACES;
+  const marketplaces = own(root, at);
   if (isTable(marketplaces)) {
     for (const name of Object.keys(marketplaces)) {
       const entry = marketplaces[name];
       if (!isTable(entry)) continue;
       const source = own(entry, 'source');
       const autoUpdate = own(entry, 'autoUpdate');
-      items.push({
-        key: `extraKnownMarketplaces.${name}`,
+      out.push({
+        key: `${MARKETPLACES}.${name}`,
         value: marketplaceSourceShown(source),
-        path: [field, name],
+        path: [at, name],
         source,
         ...(typeof autoUpdate === 'boolean' ? { autoUpdate } : {}),
       });
     }
   }
-  return items;
+  return out;
 }
 
+/** The longest source value shown, before the caller's redaction. */
+const MAX_SHOWN = 200;
+
 /**
- * A marketplace source in short form, not redacted: `github:<repo>`, `git:<url>`, `url:<url>`,
- * `file:<path>`, `directory:<path>`, `settings:<name>`, or `unknown` for any other shape.
+ * A marketplace's source in short form: `github:<repo>`, `git:<url>`, `url:<url>`,
+ * `file:<path>`, `directory:<path>`, `settings:<name>`, or `unknown` for another shape. The
+ * source types are those of the settings reference ("Marketplace source types"). The value is
+ * not redacted: callers redact it as they redact every shown value.
  */
 export function marketplaceSourceShown(source: unknown): string {
   if (!isTable(source)) return 'unknown';
-  const kind = own(source, 'source');
-  const field = (key: string): string | undefined => {
-    const value = own(source, key);
-    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
-  };
-  const shown = (prefix: string, value: string | undefined): string =>
-    value === undefined ? 'unknown' : `${prefix}:${value}`;
-  switch (kind) {
-    case 'github':
-      return shown('github', field('repo'));
-    case 'git':
-      return shown('git', field('url'));
-    case 'url':
-      return shown('url', field('url'));
-    case 'file':
-      return shown('file', field('path'));
-    case 'directory':
-      return shown('directory', field('path'));
-    case 'settings':
-      return shown('settings', field('name'));
-    default:
-      return 'unknown';
-  }
+  const type = own(source, 'source');
+  const field =
+    type === 'github'
+      ? 'repo'
+      : type === 'git' || type === 'url'
+        ? 'url'
+        : type === 'file' || type === 'directory'
+          ? 'path'
+          : type === 'settings'
+            ? 'name'
+            : undefined;
+  if (typeof type !== 'string' || field === undefined) return 'unknown';
+  const value = own(source, field);
+  if (typeof value !== 'string') return type;
+  return `${type}:${value.length > MAX_SHOWN ? `${value.slice(0, MAX_SHOWN)}…` : value}`;
+}
+
+/** True for a permission key of {@link pluginSettingItems}, whatever the name after the dot. */
+export function isPluginSettingKey(key: string): boolean {
+  return key.startsWith(`${ENABLED_PLUGINS}.`) || key.startsWith(`${MARKETPLACES}.`);
 }

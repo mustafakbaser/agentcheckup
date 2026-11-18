@@ -8,6 +8,7 @@ import { dirnamePosix } from '../core/paths.js';
 import type { Artifact, PlatformId, Snapshot } from '../core/types.js';
 import type { FrontmatterResult } from '../parse/types.js';
 import { pluginRootOf } from './location.js';
+import { skillsDirPluginSkill } from './skills-dir-plugins.js';
 
 /**
  * Platforms that read SKILL.md files (READERS.skill in src/platforms/classify.ts), in
@@ -255,7 +256,15 @@ export function pluginReaders(snapshot: Snapshot, path: string): readonly Platfo
  */
 export function readersAt(snapshot: Snapshot, path: string, caseMismatch = false): Set<PlatformId> {
   const location = skillLocation(path, caseMismatch);
-  if (location !== undefined) return new Set(location.platforms);
+  if (location !== undefined) {
+    const platforms = new Set(location.platforms);
+    // A skill in the `skills/` folder of a plugin in a skills folder: Claude Code loads it as
+    // `/<plugin>:<skill>` (./skills-dir-plugins.ts).
+    if (!caseMismatch && skillsDirPluginSkill(snapshot, path) !== undefined) {
+      platforms.add('claude-code');
+    }
+    return platforms;
+  }
   // In a plugin, the plugin's agents load its skills. Unknown plugin kinds add no reader.
   const plugin = pluginReaders(snapshot, path);
   if (plugin !== undefined) {

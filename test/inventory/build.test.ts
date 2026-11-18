@@ -2856,11 +2856,11 @@ describe('GitHub Copilot and VS Code configuration read since 2026-11-18', () =>
     // Another argument or working directory is a change in a redacted part.
     expect(gate(file(['--stdio']), file(['--stdio', '--log=/tmp/x']))).toEqual([
       expect.stringContaining(
-        'env changed Changed env override lspServers.ts.command can run code',
+        'env changed Changed env override lspServers.ts.command can run code: the Copilot CLI starts this language server',
       ),
     ]);
     expect(gate(file(['--stdio']), file(['--stdio'], { cwd: 'evil' }))).toEqual([
-      'env changed Changed env override lspServers.ts.command can run code (changed in a redacted part)',
+      'env changed Changed env override lspServers.ts.command can run code: the Copilot CLI starts this language server (changed in a redacted part)',
     ]);
     // A rotated credential is not a change.
     expect(gate(file(['--token', 'a1']), file(['--token', 'b2']))).toEqual([]);

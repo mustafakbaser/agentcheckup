@@ -536,6 +536,7 @@ function mcpServer(value: McpServerItem): McpServerItem {
         }),
     envKeys: sortedStrings(value.envKeys),
     headerKeys: sortedStrings(value.headerKeys),
+    ...(value.headersHelper === undefined ? {} : { headersHelper: value.headersHelper }),
     status: Object.fromEntries(
       PLATFORM_IDS.flatMap((platform) => {
         const status = value.status[platform];

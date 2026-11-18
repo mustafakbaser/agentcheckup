@@ -19,7 +19,7 @@
  * credentials in them (docs/adr/0017).
  */
 import { compareStrings } from '../core/compare.js';
-import { dirnamePosix, pathStatus } from '../core/paths.js';
+import { dirnamePosix, joinRelative, pathStatus } from '../core/paths.js';
 import { sha256Hex } from '../core/sha256.js';
 import { decode, positionAt } from '../core/text.js';
 import {
@@ -128,12 +128,17 @@ import {
 import { pluginSettingItems } from '../platforms/plugins.js';
 import { terminalApprovals, vscodeBoolean, vscodeSetting } from '../platforms/vscode-settings.js';
 import { effectiveReaders } from '../platforms/readers.js';
+import { enablesLegacyAutoAllow, sandboxGrants } from '../platforms/sandbox.js';
 import { placement, skillLocation } from '../platforms/skills.js';
 import {
+  PLUGIN_BIN_DIR,
   PLUGIN_HOOKS_FILE,
+  PLUGIN_LSP_FILE,
   type SkillsDirPlugin,
   skillsDirPlugin,
+  skillsDirPluginHolding,
   skillsDirPluginOf,
+  skillsDirPluginSkill,
   unreadPluginFiles,
 } from '../platforms/skills-dir-plugins.js';
 import {
@@ -160,7 +165,7 @@ import {
   geminiEnvClass,
   ignoredInRepositorySettings,
 } from './env-class.js';
-import { incompleteEntry } from './incomplete.js';
+import { codeEntry, incompleteEntry } from './incomplete.js';
 import { packageSpec } from './package-spec.js';
 import {
   argsWithoutCredentials,
@@ -188,6 +193,8 @@ const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   ...[...MCP_KINDS].filter((kind) => !TOML_KINDS.has(kind)),
   'claude-settings',
   'claude-plugin-hooks',
+  'claude-plugin-lsp',
+  'claude-launch',
   'codex-hooks',
   'cursor-hooks',
   'copilot-hooks',
@@ -208,6 +215,12 @@ const FRONTMATTER_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'claude-command',
   'claude-agent',
 ]);
+
+/**
+ * Agents that read `enabledPlugins` and `extraKnownMarketplaces` from Claude Code's project
+ * settings: Claude Code, and the Copilot CLI and Copilot cloud (SOURCES.copilotCliConfigDir).
+ */
+const PLUGIN_SETTING_READERS: readonly PlatformId[] = ['claude-code', 'copilot'];
 
 /** Agents that apply a skill's `allowed-tools` to a rule that names no agent of its own. */
 const ALLOWED_TOOLS_READERS: readonly PlatformId[] = ['claude-code', 'copilot', 'windsurf'];
@@ -395,6 +408,7 @@ class InventoryBuilder {
   readonly #env: Unsorted<EnvItem>[] = [];
   readonly #incomplete = new Set<string>();
   readonly #approvals = new Map<string, Approvals>();
+  #files: Map<string, SourceFile> | undefined;
 
   constructor(view: LoadView) {
     this.#view = view;
@@ -420,17 +434,37 @@ class InventoryBuilder {
       if (event !== undefined) this.#addCodeFile(artifact, event);
       return;
     }
+    if (artifact.kind === 'claude-workflow') {
+      // A workflow is JavaScript that "orchestrates many subagents" and "runs as `/<name>`", or
+      // `/<plugin>:<name>` from a plugin's `workflows/` (SOURCES.claudeWorkflows). agentcheckup
+      // never analyzes it; a digest of its bytes makes a changed script a new entry, so
+      // `--gate hooks` fails closed on it. One in a skill folder without a plugin manifest is not
+      // a workflow.
+      const project = inClaudeFolder(artifact.path, 'workflows') !== undefined;
+      if (project || skillsDirPluginHolding(this.#view.snapshot, artifact.path) !== undefined) {
+        this.#incomplete.add(codeEntry(artifact.path, bytesDigest(artifact.file.bytes)));
+      }
+      return;
+    }
     if (TOML_KINDS.has(artifact.kind)) {
       this.#addCodexConfig(artifact);
       return;
     }
     if (!JSON_KINDS.has(artifact.kind)) return;
-    // A `hooks/hooks.json` in a skill folder without a plugin manifest is not configuration.
+    // A `hooks/hooks.json` or `.lsp.json` in a skill folder without a plugin manifest is not
+    // configuration.
     const plugin =
       artifact.kind === 'claude-plugin-hooks'
         ? skillsDirPluginOf(this.#view.snapshot, artifact.path, PLUGIN_HOOKS_FILE)
-        : undefined;
-    if (artifact.kind === 'claude-plugin-hooks' && plugin === undefined) return;
+        : artifact.kind === 'claude-plugin-lsp'
+          ? skillsDirPluginOf(this.#view.snapshot, artifact.path, PLUGIN_LSP_FILE)
+          : undefined;
+    if (
+      (artifact.kind === 'claude-plugin-hooks' || artifact.kind === 'claude-plugin-lsp') &&
+      plugin === undefined
+    ) {
+      return;
+    }
     // `.vscode/mcp.json` is read as JSONC, as VS Code reads it (src/core/engine.ts).
     const doc = this.#view.json(artifact);
     if (!doc.ok) {
@@ -455,12 +489,14 @@ class InventoryBuilder {
     // Cascade's legacy `.devin/hooks.json`: its format is not modeled, so its hooks are not listed.
     else if (artifact.kind === 'devin-hooks') this.#incomplete.add(artifact.path);
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
-    if (artifact.kind === 'copilot-settings') this.#addPluginSettings(artifact, doc);
-    if (artifact.kind === 'copilot-lsp') this.#addLspServers(artifact, doc);
+    if (artifact.kind === 'copilot-settings') this.#addCopilotPluginSettings(artifact, doc);
+    if (artifact.kind === 'copilot-lsp') this.#addCopilotLspServers(artifact, doc);
     if (artifact.kind === 'vscode-settings') this.#addVscodeSettings(artifact, doc);
     if (artifact.kind === 'gemini-settings') this.#addGeminiSettings(artifact, doc);
     if (CURSOR_CONFIG_KINDS.has(artifact.kind)) this.#addCursorConfig(artifact, doc);
     if (artifact.kind === 'devin-config') this.#addDevinConfig(artifact, doc);
+    if (artifact.kind === 'claude-plugin-lsp') this.#addLspServers(artifact, doc, doc.value, []);
+    if (artifact.kind === 'claude-launch') this.#addLaunch(artifact, doc);
   }
 
   /**
@@ -566,6 +602,11 @@ class InventoryBuilder {
         stringOf(own(config, 'url'));
       const url = urlText === undefined ? undefined : remoteUrl(urlText);
       const env = own(config, 'env');
+      // "Claude Code executes a `headersHelper` as an arbitrary shell command" when it connects a
+      // remote server (SOURCES.claudeMcp, "Trust a folder before its headersHelper runs"). Codex
+      // runs `http_headers_helper` instead, an env item below.
+      const rawHelper =
+        artifact.kind === 'codex-config' ? undefined : stringOf(own(config, 'headersHelper'));
       const fields = {
         name,
         transport: transportOf(artifact, config),
@@ -576,6 +617,7 @@ class InventoryBuilder {
         ...(url === undefined ? {} : { url }),
         envKeys: envKeysOf(artifact, config),
         headerKeys: headerKeysOf(artifact, config),
+        ...(rawHelper === undefined ? {} : { headersHelper: redactCommand(rawHelper) }),
         status: statusOf(server),
         ...(scope === undefined ? {} : { scope }),
       };
@@ -586,6 +628,7 @@ class InventoryBuilder {
         cwd: stringOf(own(config, 'cwd')),
         envFile: stringOf(own(config, 'envFile')),
         env: exactEnvOf(env),
+        ...(rawHelper === undefined ? {} : { headersHelper: withoutCredentials(rawHelper) }),
       };
       this.#servers.push({
         id: ids[index] ?? '',
@@ -829,8 +872,10 @@ class InventoryBuilder {
     plugin: SkillsDirPlugin | undefined,
   ): void {
     const owner = plugin?.owner ?? skillsDirPlugin(artifact.path)?.owner;
+    if (plugin !== undefined) this.#addPluginModules(artifact, doc, plugin);
     if (artifact.kind === 'claude-plugin-manifest') {
       this.#addPluginFiles(artifact, doc);
+      this.#addPluginManifestCode(artifact, doc);
       const inline = isTable(doc.value) ? own(doc.value, 'hooks') : undefined;
       if (Array.isArray(inline) && inline.some(isTable)) this.#incomplete.add(artifact.path);
       if (!isTable(inline)) return;
@@ -882,10 +927,176 @@ class InventoryBuilder {
     const plugin = skillsDirPlugin(artifact.path);
     if (plugin === undefined) return;
     const { snapshot } = this.#view;
-    const unread = (['hooks', 'mcpServers'] as const).some(
+    const unread = (['hooks', 'mcpServers', 'lspServers'] as const).some(
       (key) => unreadPluginFiles(snapshot, doc, key, plugin.folder).length > 0,
     );
     if (unread) this.#incomplete.add(artifact.path);
+  }
+
+  /**
+   * The mod of a skills-folder plugin: `hooks/hooks.json` names its hooks module in `modules`,
+   * "an array with one path, relative to this file" (SOURCES.claudeMods), and "a plugin's mod runs
+   * JavaScript inside Claude Code with your permissions" (SOURCES.claudePluginSecurity).
+   * agentcheckup does not analyze the module: a `code:` entry with a digest of its bytes makes a
+   * changed module a new entry. A `modules` value that is not a list of paths, a path outside the
+   * plugin, and a module the walk did not read (one outside `hooks/`) leave the file not analyzed.
+   */
+  #addPluginModules(artifact: Artifact, doc: SpannedDocument, plugin: SkillsDirPlugin): void {
+    const modules = isTable(doc.value) ? own(doc.value, 'modules') : undefined;
+    if (modules === undefined) return;
+    if (!Array.isArray(modules)) {
+      this.#incomplete.add(artifact.path);
+      return;
+    }
+    const { snapshot } = this.#view;
+    for (const item of modules as unknown[]) {
+      const path =
+        typeof item === 'string' && !item.startsWith('/')
+          ? joinRelative(dirnamePosix(artifact.path), item)
+          : undefined;
+      if (path?.startsWith(`${plugin.folder}/`) !== true) {
+        this.#incomplete.add(artifact.path);
+        continue;
+      }
+      const file = this.#file(path);
+      if (file !== undefined) this.#incomplete.add(codeEntry(path, bytesDigest(file.bytes)));
+      else if (pathStatus(snapshot, path) !== 'missing') this.#incomplete.add(artifact.path);
+    }
+  }
+
+  /**
+   * What a skills-folder plugin's manifest adds that runs code besides hooks and MCP servers: the
+   * LSP servers of its inline `lspServers`, which "add to the ones in `.lsp.json`"
+   * (SOURCES.claudePluginComponents; a path there leaves the manifest not analyzed,
+   * {@link #addPluginFiles}), and its `bin/` folder, which Claude Code puts on the Bash tool's
+   * `PATH` "while the plugin is enabled, so Claude runs them as bare commands"
+   * (SOURCES.claudePluginManifest). The folder is a `code-exec` `PATH` override of the manifest,
+   * whose digest covers the names of the files in it, so a new executable is a changed item.
+   */
+  #addPluginManifestCode(artifact: Artifact, doc: SpannedDocument): void {
+    const plugin = skillsDirPlugin(artifact.path);
+    if (plugin === undefined) return;
+    const inline = isTable(doc.value) ? own(doc.value, 'lspServers') : undefined;
+    const tables: readonly unknown[] = Array.isArray(inline) ? (inline as unknown[]) : [inline];
+    tables.forEach((table, index) => {
+      if (!isTable(table)) return;
+      const at = Array.isArray(inline) ? ['lspServers', index] : ['lspServers'];
+      this.#addLspServers(artifact, doc, table, at);
+    });
+    // Skills, commands and workflows from folders the manifest names "add to the default" ones,
+    // and a plugin's `commands/` files take `allowed-tools` and `hooks` as skills do; the
+    // inventory reads neither, so the manifest is not analyzed (SOURCES.claudePluginManifest).
+    const manifest = doc.value;
+    if (isTable(manifest) && PLUGIN_PATH_KEYS.some((key) => own(manifest, key) !== undefined)) {
+      this.#incomplete.add(artifact.path);
+    }
+    const commands = `${plugin.folder}/commands/`;
+    const bin = `${plugin.folder}/${PLUGIN_BIN_DIR}`;
+    const executables: string[] = [];
+    let count = 0;
+    for (const path of this.#view.snapshot.paths) {
+      if (path.startsWith(commands) && path.toLowerCase().endsWith('.md')) {
+        this.#incomplete.add(artifact.path);
+      }
+      if (!path.startsWith(`${bin}/`) || path.endsWith('/')) continue;
+      count++;
+      if (executables.length < MAX_LISTED_EXECUTABLES) executables.push(path.slice(bin.length + 1));
+    }
+    if (count === 0) return;
+    this.#pushEnv(artifact, doc, 'PATH', 'code-exec', bin, [], {
+      platforms: ['claude-code'],
+      detail: { executables: executables.sort(compareStrings), count },
+    });
+  }
+
+  /**
+   * LSP servers, a map of name to configuration, in `.lsp.json` or a manifest's `lspServers`:
+   * "Claude Code also starts the language servers the plugin declares"
+   * (SOURCES.claudePluginSecurity). Each server's `command` and `args` are a `code-exec`
+   * override, `lspServers.<name>`, as a settings helper's command is, and its `env` lists the
+   * variables of the classes the gate checks, as an MCP server's does.
+   */
+  #addLspServers(artifact: Artifact, doc: SpannedDocument, map: unknown, at: JsonPath): void {
+    if (!isTable(map)) return;
+    for (const name of Object.keys(map)) {
+      const config = map[name];
+      if (!isTable(config)) continue;
+      const path = [...at, name];
+      const command = stringOf(own(config, 'command'));
+      if (command !== undefined) {
+        const args = stringsOf(own(config, 'args'));
+        this.#pushEnv(artifact, doc, `lspServers.${name}`, 'code-exec', undefined, path, {
+          command: [command, ...args].join(' '),
+          platforms: ['claude-code'],
+        });
+      }
+      const env = own(config, 'env');
+      this.#pushEnvMap(artifact, doc, env, `lspServers.${name}.env`, [...path, 'env']);
+    }
+  }
+
+  /**
+   * Claude Desktop's preview servers in `.claude/launch.json`: each configuration's
+   * `runtimeExecutable`, "The command to run", with `runtimeArgs`, or `program`, "A script to run
+   * with `node`", with `args`. "In most cases, Claude starts the server automatically after
+   * editing project files", and "Auto-verify is on by default" (SOURCES.claudeDesktop), so each is
+   * a `code-exec` override, `configurations.<name>`, whose digest covers its `cwd` too; its `env`
+   * lists the variables of the classes the gate checks.
+   */
+  #addLaunch(artifact: Artifact, doc: SpannedDocument): void {
+    const configurations = isTable(doc.value) ? own(doc.value, 'configurations') : undefined;
+    if (!Array.isArray(configurations)) return;
+    (configurations as unknown[]).forEach((config, index) => {
+      if (!isTable(config)) return;
+      const name = stringOf(own(config, 'name')) ?? String(index);
+      const path = ['configurations', index];
+      const executable = stringOf(own(config, 'runtimeExecutable'));
+      const program = stringOf(own(config, 'program'));
+      const words =
+        executable !== undefined
+          ? [executable, ...stringsOf(own(config, 'runtimeArgs'))]
+          : program !== undefined
+            ? ['node', program, ...stringsOf(own(config, 'args'))]
+            : undefined;
+      const key = `configurations.${name}`;
+      if (words !== undefined) {
+        const cwd = stringOf(own(config, 'cwd'));
+        this.#pushEnv(artifact, doc, key, 'code-exec', undefined, path, {
+          command: words.join(' '),
+          platforms: ['claude-code'],
+          ...(cwd === undefined ? {} : { detail: { cwd: withoutCredentials(cwd) } }),
+        });
+      }
+      this.#pushEnvMap(artifact, doc, own(config, 'env'), `${key}.env`, [...path, 'env']);
+    });
+  }
+
+  /**
+   * The variables of an `env` map that set an endpoint, a credential, TLS behavior or code
+   * execution, each an override keyed `<prefix>.<name>`, as an MCP server's `env` is.
+   */
+  #pushEnvMap(
+    artifact: Artifact,
+    doc: SpannedDocument,
+    env: unknown,
+    prefix: string,
+    path: JsonPath,
+  ): void {
+    if (!isObject(env)) return;
+    for (const key of Object.keys(env)) {
+      const value = stringOf(env[key]);
+      const cls = envClass(key, value);
+      if (cls === 'other') continue;
+      this.#pushEnv(artifact, doc, `${prefix}.${key}`, cls, value, [...path, key], {
+        platforms: ['claude-code'],
+      });
+    }
+  }
+
+  /** The snapshot file at `path`, if the walk read it. */
+  #file(path: string): SourceFile | undefined {
+    this.#files ??= new Map(this.#view.snapshot.files.map((file) => [file.path, file]));
+    return this.#files.get(path);
   }
 
   // Codex config.toml -------------------------------------------------------------------------
@@ -1144,6 +1355,16 @@ class InventoryBuilder {
       });
     }
 
+    // Sandbox settings that widen what Bash commands may do or run without a prompt
+    // (src/platforms/sandbox.ts).
+    for (const grant of sandboxGrants(doc)) {
+      permission(grant.key, grant.value, grant.path, grant.broad, grant.effective);
+    }
+    if (enablesLegacyAutoAllow(doc)) {
+      permission('sandbox.enabled', 'true', ['sandbox', 'enabled'], false, true);
+    }
+    this.#addPluginSettings(artifact, doc);
+
     const env = ownObject(root, 'env');
     if (env !== undefined) {
       for (const key of Object.keys(env)) {
@@ -1244,7 +1465,7 @@ class InventoryBuilder {
    * its source with every string redacted, so a source repointed under the same name is a changed
    * item. Never broad: what a plugin grants is not visible here.
    */
-  #addPluginSettings(artifact: Artifact, doc: ParsedJson): void {
+  #addCopilotPluginSettings(artifact: Artifact, doc: ParsedJson): void {
     const platforms = sortedPlatforms(artifact.readers);
     for (const item of pluginSettingItems(doc)) {
       this.#pushPermission(
@@ -1274,7 +1495,7 @@ class InventoryBuilder {
    * an MCP server's `env`. A server with `"disabled": true` starts nothing, so its items are not
    * effective.
    */
-  #addLspServers(artifact: Artifact, doc: ParsedJson): void {
+  #addCopilotLspServers(artifact: Artifact, doc: ParsedJson): void {
     const platforms = sortedPlatforms(artifact.readers);
     for (const server of copilotLspServers(doc)) {
       const { config } = server;
@@ -1344,6 +1565,54 @@ class InventoryBuilder {
         line: lineOf(artifact, spanOf(doc, global.path)),
         platforms,
       });
+    }
+  }
+
+  /**
+   * `enabledPlugins` and `extraKnownMarketplaces` (src/platforms/plugins.ts): a plugin the
+   * project's settings enable "loads at session start" once it is installed, and the project's
+   * `true` beats a user's `false`; a marketplace is registered once the folder is trusted
+   * (SOURCES.claudeSettingsReference, SOURCES.claudePluginLoading). The GitHub Copilot CLI and
+   * Copilot cloud read both keys from these files too, and auto-install the plugins
+   * (SOURCES.copilotCliConfigDir); neither reads the `additionalMarketplaces` alias. A
+   * marketplace's digest covers its redacted source, so another repository or URL under the same
+   * name is a changed item, and a `headersHelper` in its source, a command Claude Code runs to
+   * fetch the catalog, is a code-exec override as a settings helper is.
+   */
+  #addPluginSettings(artifact: Artifact, doc: ParsedJson): void {
+    for (const item of pluginSettingItems(doc, { marketplaceAlias: 'additionalMarketplaces' })) {
+      const alias = item.path[0] === 'additionalMarketplaces';
+      const platforms: readonly PlatformId[] = alias ? ['claude-code'] : PLUGIN_SETTING_READERS;
+      this.#pushPermission(
+        artifact,
+        {
+          key: item.key,
+          value: item.value,
+          broad: false,
+          effective: true,
+          line: lineOf(artifact, keySpanOf(doc, item.path)),
+          platforms,
+        },
+        item.key.startsWith('extraKnownMarketplaces.')
+          ? marketplaceDetail(item.source, item.autoUpdate)
+          : undefined,
+      );
+      const helper = isTable(item.source) ? stringOf(own(item.source, 'headersHelper')) : undefined;
+      if (helper !== undefined) {
+        const path = [...item.path, 'source', 'headersHelper'];
+        this.#pushEnv(
+          artifact,
+          doc,
+          `${item.key}.source.headersHelper`,
+          'code-exec',
+          undefined,
+          path,
+          {
+            command: helper,
+            platforms: ['claude-code'],
+          },
+        );
+      }
     }
   }
 
@@ -1594,8 +1863,12 @@ class InventoryBuilder {
     const owner = command
       ? inClaudeFolder(path, 'commands')?.owner
       : skillOwner(path, artifact.caseMismatch !== undefined);
+    // A skill of a skills-folder plugin sits inside the plugin's own skill folder, yet Claude Code
+    // loads it as `/<plugin>:<skill>` (src/platforms/skills-dir-plugins.ts).
+    const pluginSkill = !command && skillsDirPluginSkill(this.#view.snapshot, path) !== undefined;
     const loadable =
-      loadableFrom(path, owner) && (command || !isBundledSkill(this.#view.snapshot, path));
+      loadableFrom(path, owner) &&
+      (command || pluginSkill || !isBundledSkill(this.#view.snapshot, path));
     for (const { doc } of readings) {
       this.#addAllowedTools(artifact, doc, reach, loadable);
       this.#addHooks(artifact, doc, FRONTMATTER_HOOKS, {
@@ -1753,11 +2026,11 @@ class InventoryBuilder {
       readonly command?: string;
       readonly platforms?: readonly PlatformId[];
       readonly effective?: boolean;
-      /** What else decides what the command runs, free of credentials: the digest covers it. */
-      readonly detail?: object;
+      /** What else decides what runs, already free of credentials, for the digest only. */
+      readonly detail?: unknown;
     } = {},
   ): void {
-    const { effective = true, detail } = options;
+    const { effective = true } = options;
     const command = options.command === undefined ? undefined : redactCommand(options.command);
     const platforms = options.platforms ?? sortedPlatforms(artifact.readers);
     const shown =
@@ -1766,7 +2039,7 @@ class InventoryBuilder {
     const exact = {
       value: exactEnvValue(cls, value),
       command: options.command === undefined ? undefined : withoutCredentials(options.command),
-      ...(detail === undefined ? {} : { detail }),
+      ...(options.detail === undefined ? {} : { detail: options.detail }),
     };
     this.#env.push({
       id: envInventoryId(artifact.path, key),
@@ -1806,6 +2079,12 @@ function switchShown(value: string | undefined): string | undefined {
 }
 
 const SWITCH_VALUES: ReadonlySet<string> = new Set(['0', '1', 'true', 'false', 'yes', 'no']);
+
+/** Manifest keys naming skill, command and workflow paths the inventory does not read. */
+const PLUGIN_PATH_KEYS: readonly string[] = ['skills', 'commands', 'workflows'];
+
+/** At most this many names of a plugin's executables enter the digest of its `PATH` item. */
+const MAX_LISTED_EXECUTABLES = 1000;
 
 /**
  * SHA-256 of a file's bytes, one code unit per byte, for a digest that changes whenever the file
@@ -1878,20 +2157,22 @@ function redactedContent(value: unknown): unknown {
 }
 
 /**
- * What a marketplace item's digest covers besides what it shows: its source with every string
- * redacted, `headers` reduced to their sorted names (header values are credentials,
- * docs/adr/0017), and its `autoUpdate` when set. Shared in form with the Claude Code settings'
- * marketplaces.
+ * What a marketplace's digest covers besides its shown source: the source with every string
+ * redacted ({@link redactedContent}) and `headers` reduced to their names, since header values
+ * are credentials (docs/adr/0017), and `autoUpdate`.
  */
-function marketplaceDetail(source: unknown, autoUpdate: boolean | undefined): object {
-  const redacted =
-    isTable(source) && isTable(own(source, 'headers'))
-      ? {
-          ...(redactedContent(source) as object),
-          headers: sortedKeys(own(source, 'headers')).map(redactShown),
-        }
-      : redactedContent(source);
-  return autoUpdate === undefined ? { source: redacted } : { source: redacted, autoUpdate };
+function marketplaceDetail(source: unknown, autoUpdate: boolean | undefined): unknown {
+  const content = isTable(source)
+    ? Object.fromEntries(
+        Object.keys(source).map((key) => [
+          redactShown(key),
+          key === 'headers'
+            ? sortedKeys(source[key]).map(redactShown)
+            : redactedContent(source[key]),
+        ]),
+      )
+    : redactedContent(source);
+  return autoUpdate === undefined ? { source: content } : { source: content, autoUpdate };
 }
 
 /** Removes, from `start` on, each item whose id and digest fields an earlier one has. */

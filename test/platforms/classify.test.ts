@@ -110,7 +110,9 @@ describe('classify', () => {
     expect(isCandidateBasename('extension.mjs')).toBe(true);
     expect(isCandidateBasename('copilot-setup-steps.yml')).toBe(true);
     expect(isCandidateBasename('allowed_models.txt')).toBe(true);
-    expect(isCandidateBasename('index.js')).toBe(false);
+    // Any `.js` is a candidate for Claude Code's workflows; the classifier decides.
+    expect(isCandidateBasename('index.js')).toBe(true);
+    expect(isCandidateBasename('index.py')).toBe(false);
     expect(isCandidateBasename('ci.yml')).toBe(false);
   });
 });

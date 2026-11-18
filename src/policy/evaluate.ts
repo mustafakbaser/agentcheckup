@@ -35,6 +35,7 @@ import { type HookPlatform, hookPlatformOf } from '../platforms/hooks.js';
 import { canonicalJson } from '../platforms/inventory-ids.js';
 import { AGENT_NAMES, ALL_CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
 import { broadGrant } from '../platforms/permissions.js';
+import { isPluginSettingKey } from '../platforms/plugins.js';
 import { joinNames, quote, quotePath, readerName } from '../rules/shared/format.js';
 import { grantsTool, isShellTool, shellProgram, toolRule } from './grants.js';
 import { allowForm, entryAllows, serverTarget, type ServerTarget } from './mcp.js';
@@ -480,7 +481,12 @@ function unpinnedMessage(server: McpServerItem): string {
 // Settings
 // ---------------------------------------------------------------------------------------------
 
-const lastSegment = (key: string): string => key.slice(key.lastIndexOf('.') + 1);
+/**
+ * The setting a permission key ends in. A plugin setting's key ends in a name the repository
+ * chooses, such as `enabledPlugins.trust`, so it is kept whole and never reads as another setting.
+ */
+const lastSegment = (key: string): string =>
+  isPluginSettingKey(key) ? key : key.slice(key.lastIndexOf('.') + 1);
 
 /** The `forbid` name a permission item falls under, if any. Grants come from broadGrant. */
 function forbiddenPermission(item: PermissionItem): ForbidName | undefined {
@@ -1016,6 +1022,8 @@ function unanalyzedMessage(entry: IncompleteEntry): string {
       return 'The scan could not list this directory (too deep or unreadable), so the agent configuration in it cannot be checked against the policy.';
     case 'file-limit':
       return 'The scan stopped at its entry limit here, so the agent configuration in the directories it did not list cannot be checked against the policy.';
+    case 'code':
+      return 'This script runs in Claude Code, as a workflow or a plugin mod, and agentcheckup does not analyze scripts, so what it does cannot be checked against the policy.';
     case undefined:
       break;
   }

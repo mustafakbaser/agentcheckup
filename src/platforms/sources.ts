@@ -67,6 +67,14 @@ const COPILOT_AUDIT_CHECKED = '2026-11-18';
 /** Claude Code pages read on 2026-11-18 for what its load plan states. */
 const CLAUDE_AUDIT_CHECKED = '2026-11-18';
 
+/**
+ * Sources read on 2026-11-18 for the repository surfaces of Claude Code that run code, grant
+ * permissions or install extensions (headersHelper, sandbox settings, plugin settings, skills-dir
+ * plugin mods, LSP servers and executables, workflows, preview servers), and for the variables
+ * that make a later process run other code.
+ */
+const SURFACES_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -149,6 +157,51 @@ export const SOURCES = {
     'Claude Code: Plugin loading reference',
     'https://code.claude.com/docs/en/plugins/loading',
     DRIFT_CHECKED,
+  ),
+  claudePluginComponents: verified(
+    'Claude Code: Plugin components (LSP servers, executables in bin/)',
+    'https://code.claude.com/docs/en/plugins/components',
+    SURFACES_CHECKED,
+  ),
+  claudePluginManifest: verified(
+    'Claude Code: Plugin manifest reference (lspServers, bin/)',
+    'https://code.claude.com/docs/en/plugins/manifest-reference',
+    SURFACES_CHECKED,
+  ),
+  claudePluginSecurity: verified(
+    'Claude Code: Plugin security',
+    'https://code.claude.com/docs/en/plugins/security',
+    SURFACES_CHECKED,
+  ),
+  claudeMods: verified(
+    'Claude Code: Mods reference',
+    'https://code.claude.com/docs/en/plugins/mods/reference',
+    SURFACES_CHECKED,
+  ),
+  claudeSandboxing: verified(
+    'Claude Code: Sandboxing',
+    'https://code.claude.com/docs/en/sandboxing',
+    SURFACES_CHECKED,
+  ),
+  claudeWorkflows: verified(
+    'Claude Code: Workflows',
+    'https://code.claude.com/docs/en/workflows',
+    SURFACES_CHECKED,
+  ),
+  claudeScheduledTasks: verified(
+    'Claude Code: Scheduled tasks (loop.md)',
+    'https://code.claude.com/docs/en/scheduled-tasks',
+    SURFACES_CHECKED,
+  ),
+  claudeDesktop: verified(
+    'Claude Code: Desktop (preview servers, .claude/launch.json)',
+    'https://code.claude.com/docs/en/desktop',
+    SURFACES_CHECKED,
+  ),
+  claudeChangelog: verified(
+    'Claude Code: CHANGELOG',
+    'https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md',
+    SURFACES_CHECKED,
   ),
   codexAgentsMd: verified(
     'Codex: AGENTS.md',
@@ -766,6 +819,46 @@ export const SOURCES = {
     'POSIX.1-2024: Environment variables (PATH)',
     'https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html',
     '2026-11-14',
+  ),
+  posixSh: verified(
+    'POSIX.1-2024: sh (ENV)',
+    'https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sh.html',
+    SURFACES_CHECKED,
+  ),
+  bashManual: verified(
+    'bash(1): Linux manual page (BASH_ENV)',
+    'https://man7.org/linux/man-pages/man1/bash.1.html',
+    SURFACES_CHECKED,
+  ),
+  dyldManual: verified(
+    'dyld(1): Xcode manual page (DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH)',
+    'https://keith.github.io/xcode-man-pages/dyld.1.html',
+    SURFACES_CHECKED,
+  ),
+  gitEnvironment: verified(
+    'Git: git(1), environment variables',
+    'https://git-scm.com/docs/git',
+    SURFACES_CHECKED,
+  ),
+  pythonEnvironment: verified(
+    'Python: Command line and environment',
+    'https://docs.python.org/3/using/cmdline.html',
+    SURFACES_CHECKED,
+  ),
+  perlRun: verified(
+    'perlrun: PERL5OPT and PERL5LIB',
+    'https://perldoc.perl.org/perlrun',
+    SURFACES_CHECKED,
+  ),
+  rubyManual: verified(
+    'ruby(1): RUBYOPT and RUBYLIB',
+    'https://github.com/ruby/ruby/blob/master/man/ruby.1',
+    SURFACES_CHECKED,
+  ),
+  jvmTool: verified(
+    'JVM Tool Interface: JAVA_TOOL_OPTIONS',
+    'https://docs.oracle.com/en/java/javase/21/docs/specs/jvmti.html',
+    SURFACES_CHECKED,
   ),
   unicodeTagSmuggling: verified(
     'Unicode Technical Standard #39: Security mechanisms',

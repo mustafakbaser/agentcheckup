@@ -420,6 +420,7 @@ function readServer(value: unknown, at: string): McpServerItem {
   const args = optional(source, 'args', at, strings);
   const spec = optional(source, 'package', at, readPackage);
   const url = optional(source, 'url', at, readUrl);
+  const headersHelper = optional(source, 'headersHelper', at, string);
   const scope = knownScope(optional(source, 'scope', at, string), SERVER_SCOPES);
   return {
     ...readItemBase(source, at),
@@ -432,6 +433,7 @@ function readServer(value: unknown, at: string): McpServerItem {
     ...(url === undefined ? {} : { url }),
     envKeys: strings(own(source, 'envKeys'), field(at, 'envKeys')),
     headerKeys: strings(own(source, 'headerKeys'), field(at, 'headerKeys')),
+    ...(headersHelper === undefined ? {} : { headersHelper }),
     status: readStatus(own(source, 'status'), field(at, 'status')),
     ...(scope === undefined ? {} : { scope }),
   };
