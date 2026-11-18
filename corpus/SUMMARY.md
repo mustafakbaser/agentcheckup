@@ -2,7 +2,7 @@
 
 # Real-world corpus summary
 
-Aggregate results of agentcheckup 0.5.0 (rule set 2026.10, 64 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
+Aggregate results of agentcheckup 0.6.0 (rule set 2026.10, 66 built-in rules) on the 80 repositories pinned in [repos.json](repos.json), scanned as `--untrusted` with every platform targeted. Only aggregate statistics are published; see [README.md](README.md).
 
 ## Overview
 
@@ -10,7 +10,7 @@ Aggregate results of agentcheckup 0.5.0 (rule set 2026.10, 64 built-in rules) on
 | --------------------------- | ---: |
 | Repositories scanned        |   80 |
 | Repositories with artifacts |   79 |
-| Artifacts                   | 7706 |
+| Artifacts                   | 7838 |
 | Errors                      |  698 |
 | Warnings                    | 1301 |
 | Infos                       | 1566 |
@@ -51,7 +51,7 @@ In ≈tokens. "Instructions" are instruction files, imports and rules, after doc
 |                                              | Repositories | Median | 90th percentile | Largest |
 | -------------------------------------------- | -----------: | -----: | --------------: | ------: |
 | Claude Code: instructions                    |           70 |  2,020 |           9,743 |  27,396 |
-| Claude Code: with the skills listing         |           70 |  2,788 |          10,365 |  29,908 |
+| Claude Code: with the skills listing         |           70 |  2,788 |          10,401 |  29,927 |
 | Codex: instructions                          |           58 |  2,200 |           7,323 |   8,298 |
 | Codex: with the skills listing               |           59 |  2,892 |           8,186 |  48,675 |
 | Cursor: instructions                         |           70 |  2,966 |          10,941 |  27,396 |
@@ -95,13 +95,13 @@ From the security inventory, which lists every item whether or not an agent load
 | Local MCP servers (started from a command) |           23 |    98 |
 | Unpinned local MCP servers                 |           20 |    86 |
 | Remote MCP servers (URL)                   |           17 |    35 |
-| Hooks                                      |           28 |   230 |
+| Hooks                                      |           35 |   248 |
 | Hooks that fail open                       |           13 |    39 |
-| Broad permissions                          |           25 |   763 |
+| Broad permissions                          |           26 |   764 |
 | Env overrides: endpoint                    |            0 |     0 |
 | Env overrides: credential                  |            8 |    50 |
 | Env overrides: tls                         |            0 |     0 |
-| Env overrides: code-exec                   |            5 |     7 |
+| Env overrides: code-exec                   |            9 |    14 |
 | `.codex/config.toml`, not analyzed         |            0 |     - |
 
 ### Agent definitions and models
@@ -115,7 +115,7 @@ Custom agents and subagents as `agentcheckup agents` lists them: each file once 
 | Cursor              |           13 |         378 |  344 |       0 |       27 |            7 |           64 |             58 |
 | Copilot CLI         |           17 |         390 |  380 |       0 |        3 |            7 |           64 |             58 |
 | Copilot in VS Code  |           17 |         390 |  352 |       0 |       30 |            8 |           64 |              0 |
-| Copilot cloud agent |            3 |           8 |    8 |       0 |        0 |            0 |            0 |              0 |
+| Copilot cloud agent |            6 |          12 |   12 |       0 |        0 |            0 |            0 |              0 |
 | Gemini CLI          |            1 |           1 |    1 |       0 |        0 |            0 |            0 |              0 |
 
 |                                       | Repositories | Items |
@@ -134,7 +134,7 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | Cursor              |           12 |            117 |   159 |       1,076 |    3,646 |   16,498 |
 | Copilot CLI         |           15 |            117 |   179 |       1,120 |    3,700 |   16,498 |
 | Copilot in VS Code  |           15 |            117 |   167 |       1,131 |    3,700 |   16,498 |
-| Copilot cloud agent |            3 |             97 |     8 |       2,288 |    6,547 |    6,547 |
+| Copilot cloud agent |            5 |             37 |    12 |       2,288 |    5,062 |    6,547 |
 
 | Claude Code calls                                             | Value |
 | ------------------------------------------------------------- | ----: |
@@ -150,7 +150,7 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | Kind                        | Artifacts | Repositories |
 | --------------------------- | --------: | -----------: |
 | `skill`                     |      5112 |           72 |
-| `claude-command`            |       587 |           22 |
+| `claude-command`            |       580 |           21 |
 | `claude-plugin-manifest`    |       403 |           21 |
 | `claude-agent`              |       375 |           12 |
 | `copilot-path-instructions` |       292 |            8 |
@@ -158,25 +158,36 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | `claude-md`                 |       148 |           45 |
 | `cursor-rule-md`            |        85 |            3 |
 | `claude-rule`               |        73 |            7 |
+| `vscode-settings`           |        63 |           29 |
 | `mcp-json`                  |        53 |           25 |
 | `cursor-rule`               |        49 |           10 |
 | `claude-settings`           |        44 |           38 |
 | `gemini-env`                |        41 |           11 |
+| `copilot-prompt`            |        25 |            6 |
 | `imported-file`             |        21 |            5 |
 | `gemini-command`            |        20 |            2 |
 | `copilot-instructions`      |        19 |           16 |
 | `gemini-md`                 |        15 |            8 |
+| `cursor-command`            |        13 |            3 |
 | `copilot-agent`             |        12 |            6 |
+| `claude-output-style`       |        10 |            2 |
 | `cline-rule`                |         9 |            1 |
+| `copilot-setup-steps`       |         8 |            8 |
 | `cline-workflow`            |         7 |            1 |
 | `cursor-mcp`                |         7 |            7 |
 | `codex-config`              |         6 |            6 |
 | `codex-hooks`               |         6 |            6 |
 | `cursor-hooks`              |         5 |            5 |
 | `vscode-mcp`                |         5 |            5 |
+| `claude-workflow`           |         4 |            2 |
 | `codex-agent`               |         4 |            2 |
+| `copilot-extension`         |         4 |            2 |
 | `cursor-legacy-rules`       |         4 |            4 |
 | `gemini-settings`           |         4 |            4 |
+| `claude-launch`             |         3 |            3 |
+| `devin-instructions`        |         3 |            2 |
+| `cursor-bugbot`             |         2 |            2 |
+| `cursor-environment`        |         2 |            2 |
 | `windsurf-rule`             |         2 |            2 |
 | `agents-override-md`        |         1 |            1 |
 | `claude-agent-memory`       |         1 |            1 |
@@ -184,6 +195,8 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | `copilot-hooks`             |         1 |            1 |
 | `copilot-mcp`               |         1 |            1 |
 | `copilot-settings`          |         1 |            1 |
+| `cursor-sandbox`            |         1 |            1 |
+| `cursor-worktrees`          |         1 |            1 |
 | `gemini-agent`              |         1 |            1 |
 | `windsurf-legacy-rules`     |         1 |            1 |
 
@@ -198,7 +211,7 @@ What `agentcheckup tokens` sums up for a session started in the root. "Listing" 
 | 0-59 (F)                |            2 |
 | No artifacts (no score) |            1 |
 
-Mean 88.7, median 95, lowest 47. 0 capped by a `risk` error.
+Mean 88.8, median 95, lowest 47. 0 capped by a `risk` error.
 
 ## Findings by rule
 
@@ -213,6 +226,7 @@ Repository columns count repositories with at least one finding of that severity
 | `codex/ignored-project-key`         | warn     |      0 |        1 |     0 |                 0 |                   1 |                0 |              1 |                6 |
 | `copilot/apply-to`                  | warn     |      0 |        2 |    33 |                 0 |                   2 |                4 |              5 |                8 |
 | `copilot/instructions-misplaced`    | error    |      0 |        6 |     0 |                 0 |                   3 |                0 |              3 |               19 |
+| `cursor/bugbot-rule-too-long`       | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                2 |
 | `cursor/legacy-cursorrules`         | info     |      0 |        0 |     4 |                 0 |                   0 |                4 |              4 |                4 |
 | `cursor/md-file-ignored`            | error    |     84 |        0 |     0 |                 3 |                   0 |                0 |              3 |                3 |
 | `cursor/rule-frontmatter`           | warn     |      0 |        0 |     8 |                 0 |                   0 |                3 |              3 |               10 |
@@ -244,6 +258,7 @@ Repository columns count repositories with at least one finding of that severity
 | `mcp/gemini-trust`                  | warn     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |                4 |
 | `mcp/insecure-transport`            | warn     |      0 |        0 |     1 |                 0 |                   0 |                1 |              1 |               40 |
 | `mcp/literal-secret`                | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               59 |
+| `mcp/reserved-server-name`          | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               25 |
 | `mcp/url-without-type`              | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               34 |
 | `risk/hidden-comment`               | info     |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               79 |
 | `risk/hidden-unicode`               | error    |      0 |        0 |     0 |                 0 |                   0 |                0 |              0 |               79 |
