@@ -30,6 +30,7 @@ import type {
   PermissionItem,
 } from '../inventory/types.js';
 import { classify } from '../platforms/classify.js';
+import { cursorBroadCapability } from '../platforms/cursor-config.js';
 import { type HookPlatform, hookPlatformOf } from '../platforms/hooks.js';
 import { canonicalJson } from '../platforms/inventory-ids.js';
 import { AGENT_NAMES, ALL_CONTEXT_AGENTS, type ContextAgent } from '../platforms/load/types.js';
@@ -497,6 +498,14 @@ function forbiddenPermission(item: PermissionItem): ForbidName | undefined {
       return 'additional-directories';
     case 'allow':
     case 'allowed-tools': {
+      const cursor = cursorBroadCapability(classify(item.file)?.kind, item.key, item.value);
+      if (cursor !== undefined) {
+        return cursor === 'runs any shell command'
+          ? 'broad-shell'
+          : cursor === 'writes any file'
+            ? 'broad-write'
+            : undefined;
+      }
       if (broadGrant(item.value) === undefined) return undefined;
       return isShellTool(toolRule(item.value).tool) ? 'broad-shell' : 'broad-write';
     }
@@ -544,9 +553,15 @@ function permissionMessage(item: PermissionItem, name: ForbidName): string {
       return `${setting} gives Claude Code files outside the project; ${forbids}${ineffective(item)}`;
     case 'broad-shell':
     case 'broad-write': {
-      const grant = broadGrant(item.value);
-      const who = grant === undefined ? 'the agent' : readerName(grant.platform);
-      const capability = grant?.capability ?? 'does more';
+      const cursor = cursorBroadCapability(classify(item.file)?.kind, item.key, item.value);
+      const grant = cursor === undefined ? broadGrant(item.value) : undefined;
+      const who =
+        cursor !== undefined
+          ? 'the Cursor CLI'
+          : grant === undefined
+            ? 'the agent'
+            : readerName(grant.platform);
+      const capability = cursor ?? grant?.capability ?? 'does more';
       return `${setting}: ${who} ${capability} without asking${whenGranted(item)}; ${forbids}${ineffective(item)}`;
     }
     case 'env-endpoint':
@@ -587,6 +602,8 @@ function deniedTool(
   item: PermissionItem,
 ): { readonly entries: string[]; readonly message: string } | undefined {
   if (!GRANT_KEYS.has(item.key)) return undefined;
+  // `.cursor/cli.json` uses Cursor CLI tokens such as `Shell(curl)`, not Claude Code tool rules.
+  if (classify(item.file)?.kind === 'cursor-cli') return undefined;
   const rule = toolRule(item.value);
   const tools = policy.denyTools.filter((denied) => grantsTool(rule.tool, denied));
   const program = isShellTool(rule.tool) ? shellProgram(rule.specifier) : undefined;

@@ -72,6 +72,12 @@ import {
 import { type ClineHookFile, clineHookFile } from '../platforms/cline-hooks.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import {
+  CURSOR_CONFIG_KINDS,
+  cursorCommandIds,
+  cursorCommands,
+  cursorGrants,
+} from '../platforms/cursor-config.js';
+import {
   canonicalJson,
   clineHookInventoryId,
   envInventoryId,
@@ -172,6 +178,7 @@ const JSON_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'copilot-hooks',
   'copilot-settings',
   'devin-hooks',
+  ...CURSOR_CONFIG_KINDS,
 ]);
 
 /**
@@ -423,6 +430,7 @@ class InventoryBuilder {
     else if (artifact.kind === 'devin-hooks') this.#incomplete.add(artifact.path);
     if (artifact.kind === 'claude-settings') this.#addSettings(artifact, doc);
     if (artifact.kind === 'gemini-settings') this.#addGeminiSettings(artifact, doc);
+    if (CURSOR_CONFIG_KINDS.has(artifact.kind)) this.#addCursorConfig(artifact, doc);
   }
 
   /**
@@ -1188,6 +1196,62 @@ class InventoryBuilder {
         ...fields,
         effective,
         digestFields: { ...fields, ...(effective ? {} : { effective }) },
+      });
+    }
+  }
+
+  // Cursor configuration files ----------------------------------------------------------------
+
+  /**
+   * The commands and permissions of Cursor's other configuration files
+   * (src/platforms/cursor-config.ts): the setup commands of `.cursor/worktrees.json` and the
+   * `install`, `start`, `terminals` commands and Dockerfile of `.cursor/environment.json`, listed
+   * as hooks named after their key; the permissions of `.cursor/cli.json`, `.cursor/sandbox.json`
+   * and `.cursor/permissions.json`, and the repositories `.cursor/environment.json` adds to the
+   * cloud agent's git credentials. A key with a shape agentcheckup does not read makes the file
+   * incomplete.
+   */
+  #addCursorConfig(artifact: Artifact, doc: ParsedJson): void {
+    const platforms = sortedPlatforms(artifact.readers);
+    const commands = cursorCommands(artifact.kind, artifact.path, doc.value);
+    const grants = cursorGrants(artifact.kind, doc.value);
+    if (!commands.complete || !grants.complete) this.#incomplete.add(artifact.path);
+    const ids = cursorCommandIds(artifact.path, commands.commands);
+    commands.commands.forEach((item, index) => {
+      const handler = { command: item.command };
+      const command = item.type === 'command' ? hookCommandLine(handler) : undefined;
+      const fields = {
+        event: item.event,
+        known: true,
+        type: item.type,
+        ...(command === undefined ? {} : { command }),
+        ...(item.script === undefined ? {} : { script: item.script }),
+        failsOpen: false,
+        remoteScript: findRemoteExecution(item.command, 0, item.command.length) !== undefined,
+      };
+      this.#hooks.push({
+        id: ids[index] ?? '',
+        file: artifact.path,
+        line: lineOf(artifact, spanOf(doc, item.path)),
+        platforms,
+        ...fields,
+        effective: true,
+        digestFields: {
+          ...fields,
+          ...(item.type === 'command' ? {} : { target: redactCommand(item.command) }),
+          ...(item.detail === undefined ? {} : { detail: redactedContent(item.detail) }),
+          exact: hookExact(handler),
+        },
+      });
+    });
+    for (const grant of grants.grants) {
+      this.#pushPermission(artifact, {
+        key: grant.key,
+        value: grant.value,
+        broad: grant.broad,
+        effective: true,
+        line: lineOf(artifact, spanOf(doc, grant.path)),
+        platforms,
       });
     }
   }

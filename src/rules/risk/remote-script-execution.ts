@@ -1,6 +1,7 @@
 import { RULESET_VERSION } from '../../core/meta.js';
 import { PLATFORM_IDS } from '../../core/types.js';
 import type { Artifact, ArtifactKind, PlatformId } from '../../core/types.js';
+import { CURSOR_COMMAND_KINDS, cursorCommands } from '../../platforms/cursor-config.js';
 import { configDocument, MARKDOWN_KINDS } from '../../platforms/kinds.js';
 import { defineRule } from '../define.js';
 import { hookHandlers, hookSourceOf } from '../hooks/walk.js';
@@ -26,6 +27,9 @@ const COMMAND_KINDS: readonly ArtifactKind[] = [
   'cursor-mcp',
   'claude-plugin-manifest',
   'codex-config',
+  // Cursor's worktree setup commands and cloud agent install and start commands.
+  'cursor-worktrees',
+  'cursor-environment',
 ];
 
 /** Findings per file; a file with more lines like this gets one summary finding. */
@@ -55,9 +59,19 @@ interface CommandString {
   readonly what: string;
 }
 
-/** Hook commands and MCP server command lines: strings that run without anyone reading them. */
+/**
+ * Hook commands, MCP server command lines and Cursor's setup commands: strings that run without
+ * anyone reading them.
+ */
 function commandStrings(artifact: Artifact, doc: ParsedJson): CommandString[] {
   const out: CommandString[] = [];
+  if (CURSOR_COMMAND_KINDS.has(artifact.kind)) {
+    for (const item of cursorCommands(artifact.kind, artifact.path, doc.value).commands) {
+      if (item.type === 'dockerfile') continue;
+      out.push({ path: item.path, value: item.command, what: `This ${item.event} command` });
+    }
+    return out;
+  }
   const source = hookSourceOf(artifact);
   if (source !== undefined) {
     for (const { event, handler, path } of hookHandlers(doc, source.platform, {
@@ -103,7 +117,7 @@ export const remoteScriptExecutionRule = defineRule({
     id: 'risk/remote-script-execution',
     title: 'Command downloads a script and runs it in one step',
     rationale: [
-      "Agents run commands from their instruction and skill files, including commands in code blocks. `curl -fsSL https://… | sh` downloads a script and runs it in one step, so whoever controls that address when the command runs decides what executes, with the user's permissions, and nothing reviews it. Hook commands and MCP server command lines do this on every event or server start, without anyone deciding to run them. Claude Code does not auto-approve `curl` and `wget` by default, as a defense against prompt injection.",
+      "Agents run commands from their instruction and skill files, including commands in code blocks. `curl -fsSL https://… | sh` downloads a script and runs it in one step, so whoever controls that address when the command runs decides what executes, with the user's permissions, and nothing reviews it. Hook commands, MCP server command lines and the setup commands Cursor runs from `.cursor/worktrees.json` and `.cursor/environment.json` do this on every event, server start, worktree or cloud Build, without anyone deciding to run them. Claude Code does not auto-approve `curl` and `wget` by default, as a defense against prompt injection.",
       'The rule reports `curl` or `wget` piped into a shell or interpreter, `bash <(curl …)`, `bash -c "$(curl …)"`, `eval "$(curl …)"` and PowerShell `irm … | iex` with a real URL. Not reported: placeholder URLs such as `https://example.com`, commands that their line, paragraph or heading says not to run, and commands addressed to a person ("tell the user to install it with …"), because a person sees those before anything runs.',
       'Pin the download to a version and checksum, or install from a package manager or a vendored script.',
     ].join('\n\n'),
@@ -111,7 +125,13 @@ export const remoteScriptExecutionRule = defineRule({
     severity: 'warn',
     appliesTo: [...MARKDOWN_KINDS, ...COMMAND_KINDS],
     platforms: PLATFORM_IDS,
-    sources: [RISK_SOURCES.claudeSecurity, SOURCES.agentsMd, SOURCES.codexHookProtocol],
+    sources: [
+      RISK_SOURCES.claudeSecurity,
+      SOURCES.agentsMd,
+      SOURCES.codexHookProtocol,
+      SOURCES.cursorWorktrees,
+      SOURCES.cursorCloudAgentSetup,
+    ],
     since: RULESET_VERSION,
   },
   defaultOptions: undefined,

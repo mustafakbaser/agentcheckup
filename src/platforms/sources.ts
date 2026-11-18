@@ -42,6 +42,14 @@ const CLINE_RELEASE_CHECKED = '2026-11-14';
  */
 const GEMINI_SOURCE_CHECKED = '2026-11-14';
 
+/**
+ * Cursor documentation read on 2026-11-18 as Markdown (`<url>.md`), for the repository files
+ * Cursor reads besides rules, skills, hooks and MCP servers: worktree setup, Cursor CLI, sandbox
+ * and Auto-review permissions, cloud agent environments, custom commands, Bugbot rules and
+ * plugins.
+ */
+const CURSOR_FILES_CHECKED = '2026-11-18';
+
 const verified = (title: string, url: string, checked = CHECKED): RuleSource => ({
   title,
   url,
@@ -295,6 +303,67 @@ export const SOURCES = {
   },
   cursorHooks: verified('Cursor: Hooks', 'https://cursor.com/docs/hooks', AUDIT_CHECKED),
   cursorMcp: verified('Cursor: MCP', 'https://cursor.com/docs/mcp', AUDIT_CHECKED),
+  cursorWorktrees: verified(
+    'Cursor: Worktrees (.cursor/worktrees.json)',
+    'https://cursor.com/docs/configuration/worktrees',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCliPermissions: verified(
+    'Cursor CLI: Permissions (.cursor/cli.json)',
+    'https://cursor.com/docs/cli/reference/permissions',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCliConfiguration: verified(
+    'Cursor CLI: Configuration',
+    'https://cursor.com/docs/cli/reference/configuration',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorRunModes: verified(
+    'Cursor: Run Modes (Auto-review, sandboxing)',
+    'https://cursor.com/docs/agent/security/run-modes',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorSandbox: verified(
+    'Cursor: sandbox.json reference',
+    'https://cursor.com/docs/reference/sandbox',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorPermissions: verified(
+    'Cursor: permissions.json reference',
+    'https://cursor.com/docs/reference/permissions',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCloudAgentSetup: verified(
+    'Cursor: Cloud agent setup (.cursor/environment.json)',
+    'https://cursor.com/docs/cloud-agent/setup',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCloudAgentBuilds: verified(
+    'Cursor: Cloud agent Builds (install, start, terminals)',
+    'https://cursor.com/docs/cloud-agent/builds',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorCustomize: verified(
+    'Cursor: Customize Cursor (commands)',
+    'https://cursor.com/docs/customize-cursor',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorDeeplinks: verified(
+    'Cursor: Deeplinks (commands in .cursor/commands)',
+    'https://cursor.com/docs/reference/deeplinks',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorBugbot: verified('Cursor: Bugbot', 'https://cursor.com/docs/bugbot', CURSOR_FILES_CHECKED),
+  cursorAgentReview: verified(
+    'Cursor: Agent Review',
+    'https://cursor.com/docs/agent/agent-review',
+    CURSOR_FILES_CHECKED,
+  ),
+  cursorPlugins: verified(
+    'Cursor: Plugins',
+    'https://cursor.com/docs/plugins',
+    CURSOR_FILES_CHECKED,
+  ),
   copilotRepoInstructions: verified(
     'GitHub Copilot: Repository custom instructions',
     'https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions',

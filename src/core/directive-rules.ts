@@ -24,6 +24,8 @@ const MARKDOWN_KINDS_FOR_DIRECTIVES = [
   'cursor-rule',
   'cursor-rule-md',
   'cursor-legacy-rules',
+  'cursor-command',
+  'cursor-bugbot',
   'copilot-instructions',
   'copilot-path-instructions',
   'gemini-md',

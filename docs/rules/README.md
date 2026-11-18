@@ -2,7 +2,7 @@
 
 # Rules
 
-Rule set `2026.10`: 67 rules.
+Rule set `2026.10`: 68 rules.
 
 Severity policy: `error` means a documented platform behavior skips, ignores, truncates or
 breaks the file. `warn` means degraded behavior or a portability problem. `info` is advice
@@ -21,6 +21,7 @@ guidance only, with no automatic fix. See [Fixing findings](../fix.md#safe-revie
 | [`codex/ignored-project-key`](codex/ignored-project-key.md)                 | warn     | loading     | manual        | Codex ignores this key in a project config file                       |
 | [`copilot/apply-to`](copilot/apply-to.md)                                   | warn     | loading     | safe          | Path-specific GitHub Copilot instructions have no valid applyTo       |
 | [`copilot/instructions-misplaced`](copilot/instructions-misplaced.md)       | error    | loading     | review        | GitHub Copilot instructions file is not where Copilot looks for it    |
+| [`cursor/bugbot-rule-too-long`](cursor/bugbot-rule-too-long.md)             | warn     | budget      | manual        | BUGBOT.md exceeds Bugbot's 30,000-character limit per rule            |
 | [`cursor/legacy-cursorrules`](cursor/legacy-cursorrules.md)                 | info     | loading     | review        | .cursorrules is a legacy file that Cursor plans to deprecate          |
 | [`cursor/md-file-ignored`](cursor/md-file-ignored.md)                       | error    | loading     | safe, review  | Cursor ignores .md files in .cursor/rules                             |
 | [`cursor/rule-frontmatter`](cursor/rule-frontmatter.md)                     | warn     | correctness | safe, review  | Cursor rule frontmatter field is unknown or has the wrong type        |

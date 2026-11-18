@@ -172,14 +172,15 @@ describe('cursorActivation', () => {
 });
 
 describe('loadCursor: instructions', () => {
-  it('loads the root files at startup and nested AGENTS.md on path', () => {
+  it('loads the root files at startup and nested AGENTS.md and CLAUDE.md on path', () => {
     const built = build({
       'AGENTS.md': '# Root\n',
       'CLAUDE.md': '# Claude\n',
       '.cursorrules': 'Legacy.\n',
       'packages/api/AGENTS.md': '# API\n',
-      // Documented at the project root only: not listed.
+      // Read "the same way" as AGENTS.md, which the docs show at the root only: unverified.
       'packages/api/CLAUDE.md': '# Nested Claude\n',
+      // Documented at the project root only: not listed.
       'packages/api/.cursorrules': 'Nested legacy.\n',
       '.claude/CLAUDE.md': '# Claude dir\n',
       // Other agents' files.
@@ -191,11 +192,26 @@ describe('loadCursor: instructions', () => {
       'instructions:.cursorrules startup documented',
       'instructions:AGENTS.md startup documented',
       'instructions:CLAUDE.md startup documented',
+      'instructions:.claude/CLAUDE.md on-path unverified',
       'instructions:packages/api/AGENTS.md on-path documented',
+      'instructions:packages/api/CLAUDE.md on-path unverified',
     ]);
-    expect(built.plan.entries.map((e) => e.position)).toEqual([1, 2, 3, undefined]);
+    expect(built.plan.entries.map((e) => e.position)).toEqual([
+      1,
+      2,
+      3,
+      undefined,
+      undefined,
+      undefined,
+    ]);
     expect(entry(built.plan, 'instructions:packages/api/AGENTS.md')?.patterns).toEqual([
       'packages/api',
+    ]);
+    expect(entry(built.plan, 'instructions:packages/api/CLAUDE.md')?.patterns).toEqual([
+      'packages/api',
+    ]);
+    expect(built.plan.outOfScope).toEqual([
+      { path: 'packages/api/.cursorrules', because: 'below-start-dir' },
     ]);
     expect(built.plan.totals.startup).toEqual({ bytes: 24, chars: 24, tokens: 6 });
     expect(built.plan.skipped).toEqual([]);
@@ -423,6 +439,92 @@ describe('loadCursor: MCP servers and hooks', () => {
   });
 });
 
+describe('loadCursor: commands and worktree setup', () => {
+  it('lists custom commands as manual, unverified in subfolders and nested folders', () => {
+    const built = build({
+      '.cursor/commands/deploy.md': '# Deploy\n\nRun the release.\n',
+      '.cursor/commands/ops/rollback.md': 'Roll back.\n',
+      'packages/api/.cursor/commands/seed.md': 'Seed the database.\n',
+      // Not a command: another extension, and an AGENTS.md that documents the folder.
+      '.cursor/commands/notes.txt': 'x\n',
+      '.cursor/commands/AGENTS.md': '# About these commands\n',
+    });
+    expect(summary(built.plan).filter((line) => line.startsWith('command:'))).toEqual([
+      'command:.cursor/commands/deploy.md manual documented',
+      'command:.cursor/commands/ops/rollback.md manual unverified',
+      'command:packages/api/.cursor/commands/seed.md manual unverified',
+    ]);
+    expect(entry(built.plan, 'command:.cursor/commands/ops/rollback.md')).toMatchObject({
+      role: 'command',
+      name: 'ops/rollback',
+      size: { bytes: 11, chars: 11 },
+      evidence: ['cursorCustomize', 'cursorDeeplinks'],
+    });
+    // A command joins the context only when invoked.
+    expect(built.plan.totals.startup.bytes).toBe(0);
+    expectSkipsReported(built);
+    expectSorted(built.plan);
+  });
+
+  it('lists the root worktree setup commands as hooks that point at their inventory items', () => {
+    const built = build({
+      '.cursor/worktrees.json': JSON.stringify({
+        'setup-worktree-unix': 'setup.sh',
+        'setup-worktree': ['npm ci', 'npm ci'],
+      }),
+      // Another directory's file: a worktree of the workspace uses the workspace's own.
+      'packages/api/.cursor/worktrees.json': JSON.stringify({ 'setup-worktree': ['make'] }),
+    });
+    const hooks = built.plan.entries.filter((e) => e.role === 'hook');
+    expect(hooks.map((e) => [e.name, e.trigger, e.certainty])).toEqual([
+      ['setup-worktree-unix', 'on-approval', 'unverified'],
+      ['setup-worktree', 'on-approval', 'unverified'],
+      ['setup-worktree', 'on-approval', 'unverified'],
+    ]);
+    // The repeated command gets an occurrence number, as in the inventory.
+    expect(hooks.filter((e) => e.id.endsWith(':2'))).toHaveLength(1);
+    const inventory = buildInventory(built.analysis);
+    const ids = new Set(inventory.hooks.map((hook) => hook.id));
+    for (const hook of hooks) expect(ids.has(hook.inventoryId ?? '')).toBe(true);
+    expect(inventory.hooks.filter((hook) => hook.file.startsWith('packages/'))).toHaveLength(1);
+  });
+
+  it('marks a worktree setup file it cannot read as incomplete', () => {
+    expect(build({ '.cursor/worktrees.json': '{' }).plan.incomplete).toEqual([
+      'unparsed:.cursor/worktrees.json',
+    ]);
+    expect(build({ '.cursor/worktrees.json': '{"setup-worktree": 1}' }).plan.incomplete).toEqual([
+      'unparsed:.cursor/worktrees.json',
+    ]);
+  });
+
+  it('leaves files only cloud agents, the CLI, the sandbox or Bugbot read out of the plan', () => {
+    const { plan } = build({
+      '.cursor/environment.json': '{"install":"pnpm install"}',
+      '.cursor/cli.json': '{"permissions":{"allow":["Shell(*)"]}}',
+      '.cursor/sandbox.json': '{"type":"insecure_none"}',
+      '.cursor/permissions.json': '{"mcpAllowlist":["*:*"]}',
+      '.cursor/BUGBOT.md': '# Review rules\n',
+    });
+    expect(plan).toMatchObject({ entries: [], skipped: [], outOfScope: [], incomplete: [] });
+  });
+
+  it('lists commands and setup files the scan did not read', () => {
+    const { plan } = build(
+      {},
+      {
+        paths: ['.cursor/commands/big.md', '.cursor/worktrees.json'],
+        opaqueDirectories: ['.cursor/commands/'],
+      },
+    );
+    expect(plan.incomplete).toEqual([
+      'unread:.cursor/commands/',
+      'unread:.cursor/commands/big.md',
+      'unread:.cursor/worktrees.json',
+    ]);
+  });
+});
+
 describe('loadCursor: workspace and visibility', () => {
   it('treats cwd as the folder opened in Cursor', () => {
     const { plan } = build(
@@ -469,8 +571,26 @@ describe('loadCursor: workspace and visibility', () => {
       'cursor.thirdPartyConfigs=true',
       'cursor.trustedWorkspace=true',
     ]);
-    expect(plan.hidden.map((h) => h.scope)).toEqual(['account', 'managed', 'team', 'user']);
+    expect(plan.hidden.map((h) => h.scope)).toEqual([
+      'account',
+      'managed',
+      'plugin',
+      'team',
+      'user',
+    ]);
     expect(plan.hidden.find((h) => h.scope === 'user')?.locations).toContain('~/.cursor/rules');
+    // Installed, team and required plugins, and plugin paths a workspaceOpen hook returns.
+    expect(plan.hidden.find((h) => h.scope === 'plugin')).toEqual({
+      scope: 'plugin',
+      locations: [
+        'installed plugins (project and user scope)',
+        'team marketplace plugins (Default On, Required)',
+        '~/.cursor/plugins/local',
+        'plugin paths a workspaceOpen hook returns',
+      ],
+      roles: ['command', 'hook', 'mcp-server', 'rule', 'skill', 'subagent'],
+    });
+    expect(plan.hidden.find((h) => h.scope === 'team')?.locations).toContain('team commands');
     expect(plan).toMatchObject({ entries: [], skipped: [], incomplete: [], limits: [] });
   });
 });
@@ -493,9 +613,11 @@ describe('loadCursor: context fixture', () => {
       'rule:.cursor/rules/always.mdc startup documented',
       'rule:.cursor/rules/typescript.mdc on-path documented',
       'instructions:packages/api/AGENTS.md on-path documented',
+      'instructions:packages/api/CLAUDE.md on-path unverified',
       'instructions:packages/api/src/handlers/AGENTS.md on-path documented',
       'skill:packages/web/.claude/skills/storybook/SKILL.md on-path unverified',
       'instructions:packages/web/AGENTS.md on-path documented',
+      'instructions:packages/web/CLAUDE.md on-path unverified',
       'instructions:services/AGENTS.md on-path documented',
       'instructions:services/billing/AGENTS.md on-path documented',
       'instructions:services/billing/ledger/AGENTS.md on-path documented',
@@ -520,9 +642,6 @@ describe('loadCursor: context fixture', () => {
     ]);
     expect(plan.outOfScope).toEqual([
       { path: '.cursor/rules/README.md', because: 'documentation' },
-      // Cursor reads CLAUDE.md at the workspace root only.
-      { path: 'packages/api/CLAUDE.md', because: 'below-start-dir' },
-      { path: 'packages/web/CLAUDE.md', because: 'below-start-dir' },
     ]);
     expect(plan.incomplete).toEqual([]);
     expect(plan.totals.startup.tokens).toBe(Math.ceil(plan.totals.startup.chars / 4));

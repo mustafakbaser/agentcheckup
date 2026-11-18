@@ -559,6 +559,21 @@ describe('forbidden-setting', () => {
     ]);
   });
 
+  it("reports the Cursor CLI's broad tokens, and does not read them as Claude Code rules", () => {
+    const report = run(
+      { forbid: ['broad-shell', 'broad-write'], permissions: { denyTools: ['Write'] } },
+      {
+        '.cursor/cli.json': json({
+          permissions: { allow: ['Shell(*)', 'Write(**)', 'Write(src/**)', 'Mcp(*:*)'] },
+        }),
+      },
+    );
+    expect(messages(report)).toEqual([
+      'permissions.allow "Shell(*)": the Cursor CLI runs any shell command without asking; the policy forbids broad-shell.',
+      'permissions.allow "Write(**)": the Cursor CLI writes any file without asking; the policy forbids broad-write.',
+    ]);
+  });
+
   it('notes a grant no agent applies where it is set', () => {
     // A skill bundled inside another skill's folder is not loaded as a skill.
     const report = run(

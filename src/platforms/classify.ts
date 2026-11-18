@@ -50,6 +50,19 @@ export const READERS: Readonly<Record<ArtifactKind, readonly PlatformId[]>> = {
   'cursor-legacy-rules': ['cursor'],
   'cursor-hooks': ['cursor'],
   'cursor-mcp': ['cursor', 'windsurf'],
+  // Custom commands in `.cursor/commands` (SOURCES.cursorCustomize, SOURCES.cursorDeeplinks).
+  'cursor-command': ['cursor'],
+  // `.cursor/BUGBOT.md`, which Bugbot and Agent Review read as review rules (SOURCES.cursorBugbot,
+  // SOURCES.cursorAgentReview). Cursor's agent does not (SOURCES.cursorRulesHelp).
+  'cursor-bugbot': ['cursor'],
+  // Commands, permissions and sandbox settings of Cursor, the Cursor CLI and Cursor's cloud
+  // agents (SOURCES.cursorWorktrees, cursorCliPermissions, cursorSandbox, cursorPermissions,
+  // cursorCloudAgentSetup).
+  'cursor-worktrees': ['cursor'],
+  'cursor-cli': ['cursor'],
+  'cursor-sandbox': ['cursor'],
+  'cursor-permissions': ['cursor'],
+  'cursor-environment': ['cursor'],
   'copilot-instructions': ['copilot'],
   'copilot-path-instructions': ['copilot'],
   'copilot-hooks': ['copilot'],
@@ -231,6 +244,14 @@ const MATCHERS: readonly Matcher[] = [
     where: notFolderInstructions,
     canonical: keepPath,
   },
+  // Cursor's custom commands: Markdown files in `.cursor/commands` (SOURCES.cursorDeeplinks). An
+  // AGENTS.md or GEMINI.md directly in the folder documents it.
+  {
+    kind: 'cursor-command',
+    pattern: /(?:^|\/)\.cursor\/commands\/(?:[^/]+\/)*[^/]+\.md$/,
+    where: notFolderInstructions,
+    canonical: keepPath,
+  },
   {
     kind: 'devin-agent',
     pattern: /(?:^|\/)\.(?:devin|agents)\/agents\/(?:[^/]+\/agents?|[^/]+)\.md$/,
@@ -255,6 +276,30 @@ const MATCHERS: readonly Matcher[] = [
   { kind: 'cursor-legacy-rules', pattern: /(?:^|\/)\.cursorrules$/, canonical: keepPath },
   { kind: 'cursor-hooks', pattern: /(?:^|\/)\.cursor\/hooks\.json$/, canonical: keepPath },
   { kind: 'cursor-mcp', pattern: /(?:^|\/)\.cursor\/mcp\.json$/, canonical: keepPath },
+  // Bugbot's rules: `.cursor/BUGBOT.md` at the root and in any directory, spelled as documented.
+  {
+    kind: 'cursor-bugbot',
+    pattern: /(?:^|\/)\.cursor\/bugbot\.md$/,
+    where: (path) => basename(path) === 'BUGBOT.md',
+    canonical: keepPath,
+  },
+  {
+    kind: 'cursor-worktrees',
+    pattern: /(?:^|\/)\.cursor\/worktrees\.json$/,
+    canonical: keepPath,
+  },
+  { kind: 'cursor-cli', pattern: /(?:^|\/)\.cursor\/cli\.json$/, canonical: keepPath },
+  { kind: 'cursor-sandbox', pattern: /(?:^|\/)\.cursor\/sandbox\.json$/, canonical: keepPath },
+  {
+    kind: 'cursor-permissions',
+    pattern: /(?:^|\/)\.cursor\/permissions\.json$/,
+    canonical: keepPath,
+  },
+  {
+    kind: 'cursor-environment',
+    pattern: /(?:^|\/)\.cursor\/environment\.json$/,
+    canonical: keepPath,
+  },
 
   // GitHub Copilot. Misplaced *.instructions.md files are classified too, so a rule can flag them.
   {

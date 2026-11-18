@@ -35,6 +35,12 @@ import { isSecretFlag, REDACTED } from '../inventory/redact.js';
 import { clinePlace } from '../platforms/cline-rules.js';
 import { hookSourceOf } from '../platforms/hooks.js';
 import { MCP_KINDS } from '../platforms/mcp.js';
+import {
+  CURSOR_COMMAND_KINDS,
+  CURSOR_INERT_WHEN_INVALID,
+  CURSOR_PERMISSION_KINDS,
+  cursorBroadCapability,
+} from '../platforms/cursor-config.js';
 import { broadGrant } from '../platforms/permissions.js';
 import { coveredBy } from '../platforms/tool-rules.js';
 import type {
@@ -1092,6 +1098,9 @@ function isHookConfig(entry: IncompleteEntry): boolean {
     return true;
   }
   if (kind !== undefined && FRONTMATTER_HOOK_KINDS.has(kind)) return true;
+  // Cursor's worktree setup and cloud agent environment files run commands; how Cursor reads
+  // one that does not parse is not documented.
+  if (kind !== undefined && CURSOR_COMMAND_KINDS.has(kind)) return true;
   if (kind !== undefined && hookSourceOf({ kind, path }) !== undefined) {
     return invalid === undefined || !INERT_WHEN_INVALID.has(kind);
   }
@@ -1107,6 +1116,10 @@ function isHookConfig(entry: IncompleteEntry): boolean {
  */
 function isPermissionConfig(entry: IncompleteEntry): boolean {
   const kind = classify(entry.path)?.kind;
+  if (kind !== undefined && CURSOR_PERMISSION_KINDS.has(kind)) {
+    // Cursor falls back to the IDE allowlist when `.cursor/permissions.json` does not parse.
+    return invalidFormat(entry) === undefined || !CURSOR_INERT_WHEN_INVALID.has(kind);
+  }
   return kind === 'codex-rules' || (kind === 'codex-config' && invalidFormat(entry) === undefined);
 }
 
@@ -1181,6 +1194,7 @@ function widens(permission: PermissionItem): boolean {
   switch (lastSegment(permission.key)) {
     case 'deny':
     case 'ask':
+    case 'block_instructions':
       return false;
     case 'enableAllProjectMcpServers':
     case 'trust':
@@ -1203,7 +1217,8 @@ const CONTENT_KEYS: ReadonlySet<string> = new Set(['permissions']);
  */
 function restricts(permission: PermissionItem): boolean {
   const key = lastSegment(permission.key);
-  return key === 'deny' || key === 'ask';
+  // Cursor's Auto-review `block_instructions` steer its classifier toward asking first.
+  return key === 'deny' || key === 'ask' || key === 'block_instructions';
 }
 
 /**
@@ -1260,6 +1275,8 @@ function replacesWider(
   after: IndexedInventory,
 ): boolean {
   if (!TOOL_RULE_KEYS.has(permission.key)) return false;
+  // Cursor CLI tokens such as `Shell(git)` do not follow Claude Code's rule syntax.
+  if (classify(permission.file)?.kind === 'cursor-cli') return false;
   const file = stripPath(permission.file, after.base);
   for (const [id, old] of before.permissions) {
     if (
@@ -1287,6 +1304,11 @@ function broadNote(permission: PermissionItem): string {
   // A Codex key first: a rule's value, such as `bash`, may read as another agent's tool.
   const codex = CODEX_BROAD_NOTES.get(permission.key);
   if (codex !== undefined) return codex;
+  const kind = classify(permission.file)?.kind;
+  const cursor = cursorBroadCapability(kind, permission.key, permission.value);
+  if (cursor !== undefined) return ` (broad: ${cursor})`;
+  // A Cursor CLI token reads like a Claude Code rule (`Write(…)`), but is not one.
+  if (kind === 'cursor-cli') return ' (broad)';
   const grant = broadGrant(permission.value);
   if (grant !== undefined) return ` (broad: ${grant.capability})`;
   const key = lastSegment(permission.key);
